@@ -1,0 +1,160 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- THIS IS A GENERATED FILE, DO NOT EDIT</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-imports #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-matches #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-deprecations #-}</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.InsertReplaceEdit</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Hashable</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html"><span class="hs-identifier">Language.LSP.Protocol.Utils.Misc</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prettyprinter</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Aeson.html"><span class="hs-identifier">Data.Row.Aeson</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Hashable.html"><span class="hs-identifier">Data.Row.Hashable</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Hashable</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.Range.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.Range</span></a></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html"><span class="hs-identifier">Language.LSP.Protocol.Types.Common</span></a></span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="hs-comment">{-|
+A special text edit to provide an insert and a replace operation.
+
+@since 3.16.0
+-}</span><span>
+</span><span id="line-25"></span><span id="local-6989586621682171116"><span id="local-6989586621682171117"></span></span><span class="hs-keyword">data</span><span> </span><span id="InsertReplaceEdit"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.InsertReplaceEdit.html#InsertReplaceEdit"><span class="hs-identifier hs-var">InsertReplaceEdit</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="InsertReplaceEdit"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.InsertReplaceEdit.html#InsertReplaceEdit"><span class="hs-identifier hs-var">InsertReplaceEdit</span></a></span></span><span> </span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-special">{</span><span> </span><span class="hs-comment">{-|
+  The string to be inserted.
+  -}</span><span>
+</span><span id="line-29"></span><span>  </span><span id="%24sel%3A_newText%3AInsertReplaceEdit"><span class="annot"><span class="annottext">InsertReplaceEdit -&gt; Text
+</span><a href="Language.LSP.Protocol.Internal.Types.InsertReplaceEdit.html#%24sel%3A_newText%3AInsertReplaceEdit"><span class="hs-identifier hs-var hs-var">_newText</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Data.Text.Text</span></span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-comment">{-|
+  The range if the insert is requested
+  -}</span><span>
+</span><span id="line-33"></span><span>  </span><span id="%24sel%3A_insert%3AInsertReplaceEdit"><span class="annot"><span class="annottext">InsertReplaceEdit -&gt; Range
+</span><a href="Language.LSP.Protocol.Internal.Types.InsertReplaceEdit.html#%24sel%3A_insert%3AInsertReplaceEdit"><span class="hs-identifier hs-var hs-var">_insert</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.Range.html#Range"><span class="hs-identifier hs-type">Language.LSP.Protocol.Internal.Types.Range.Range</span></a></span><span>
+</span><span id="line-34"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-comment">{-|
+  The range if the replace is requested.
+  -}</span><span>
+</span><span id="line-37"></span><span>  </span><span id="%24sel%3A_replace%3AInsertReplaceEdit"><span class="annot"><span class="annottext">InsertReplaceEdit -&gt; Range
+</span><a href="Language.LSP.Protocol.Internal.Types.InsertReplaceEdit.html#%24sel%3A_replace%3AInsertReplaceEdit"><span class="hs-identifier hs-var hs-var">_replace</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.Range.html#Range"><span class="hs-identifier hs-type">Language.LSP.Protocol.Internal.Types.Range.Range</span></a></span><span>
+</span><span id="line-38"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-39"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682171099"><span id="local-6989586621682171101"><span id="local-6989586621682171110"><span class="annot"><span class="annottext">Int -&gt; InsertReplaceEdit -&gt; ShowS
+[InsertReplaceEdit] -&gt; ShowS
+InsertReplaceEdit -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [InsertReplaceEdit] -&gt; ShowS
+$cshowList :: [InsertReplaceEdit] -&gt; ShowS
+show :: InsertReplaceEdit -&gt; String
+$cshow :: InsertReplaceEdit -&gt; String
+showsPrec :: Int -&gt; InsertReplaceEdit -&gt; ShowS
+$cshowsPrec :: Int -&gt; InsertReplaceEdit -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682171089"><span id="local-6989586621682171096"><span class="annot"><span class="annottext">InsertReplaceEdit -&gt; InsertReplaceEdit -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: InsertReplaceEdit -&gt; InsertReplaceEdit -&gt; Bool
+$c/= :: InsertReplaceEdit -&gt; InsertReplaceEdit -&gt; Bool
+== :: InsertReplaceEdit -&gt; InsertReplaceEdit -&gt; Bool
+$c== :: InsertReplaceEdit -&gt; InsertReplaceEdit -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682171061"><span id="local-6989586621682171063"><span id="local-6989586621682171066"><span id="local-6989586621682171069"><span id="local-6989586621682171072"><span id="local-6989586621682171077"><span id="local-6989586621682171084"><span class="annot"><span class="annottext">Eq InsertReplaceEdit
+InsertReplaceEdit -&gt; InsertReplaceEdit -&gt; Bool
+InsertReplaceEdit -&gt; InsertReplaceEdit -&gt; Ordering
+InsertReplaceEdit -&gt; InsertReplaceEdit -&gt; InsertReplaceEdit
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: InsertReplaceEdit -&gt; InsertReplaceEdit -&gt; InsertReplaceEdit
+$cmin :: InsertReplaceEdit -&gt; InsertReplaceEdit -&gt; InsertReplaceEdit
+max :: InsertReplaceEdit -&gt; InsertReplaceEdit -&gt; InsertReplaceEdit
+$cmax :: InsertReplaceEdit -&gt; InsertReplaceEdit -&gt; InsertReplaceEdit
+&gt;= :: InsertReplaceEdit -&gt; InsertReplaceEdit -&gt; Bool
+$c&gt;= :: InsertReplaceEdit -&gt; InsertReplaceEdit -&gt; Bool
+&gt; :: InsertReplaceEdit -&gt; InsertReplaceEdit -&gt; Bool
+$c&gt; :: InsertReplaceEdit -&gt; InsertReplaceEdit -&gt; Bool
+&lt;= :: InsertReplaceEdit -&gt; InsertReplaceEdit -&gt; Bool
+$c&lt;= :: InsertReplaceEdit -&gt; InsertReplaceEdit -&gt; Bool
+&lt; :: InsertReplaceEdit -&gt; InsertReplaceEdit -&gt; Bool
+$c&lt; :: InsertReplaceEdit -&gt; InsertReplaceEdit -&gt; Bool
+compare :: InsertReplaceEdit -&gt; InsertReplaceEdit -&gt; Ordering
+$ccompare :: InsertReplaceEdit -&gt; InsertReplaceEdit -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall x. Rep InsertReplaceEdit x -&gt; InsertReplaceEdit
+forall x. InsertReplaceEdit -&gt; Rep InsertReplaceEdit x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cto :: forall x. Rep InsertReplaceEdit x -&gt; InsertReplaceEdit
+$cfrom :: forall x. InsertReplaceEdit -&gt; Rep InsertReplaceEdit x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-40"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">anyclass</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682171055"><span class="annot"><span class="annottext">InsertReplaceEdit -&gt; ()
+forall a. (a -&gt; ()) -&gt; NFData a
+rnf :: InsertReplaceEdit -&gt; ()
+$crnf :: InsertReplaceEdit -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682171048"><span id="local-6989586621682171050"><span class="annot"><span class="annottext">Eq InsertReplaceEdit
+Int -&gt; InsertReplaceEdit -&gt; Int
+InsertReplaceEdit -&gt; Int
+forall a. Eq a -&gt; (Int -&gt; a -&gt; Int) -&gt; (a -&gt; Int) -&gt; Hashable a
+hash :: InsertReplaceEdit -&gt; Int
+$chash :: InsertReplaceEdit -&gt; Int
+hashWithSalt :: Int -&gt; InsertReplaceEdit -&gt; Int
+$chashWithSalt :: Int -&gt; InsertReplaceEdit -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Hashable</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-41"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621682171039"><span id="local-6989586621682171045"><span class="annot"><span class="annottext">forall ann. [InsertReplaceEdit] -&gt; Doc ann
+forall ann. InsertReplaceEdit -&gt; Doc ann
+forall a.
+(forall ann. a -&gt; Doc ann)
+-&gt; (forall ann. [a] -&gt; Doc ann) -&gt; Pretty a
+prettyList :: forall ann. [InsertReplaceEdit] -&gt; Doc ann
+$cprettyList :: forall ann. [InsertReplaceEdit] -&gt; Doc ann
+pretty :: forall ann. InsertReplaceEdit -&gt; Doc ann
+$cpretty :: forall ann. InsertReplaceEdit -&gt; Doc ann
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Pretty</span></span></span></span><span> </span><span class="hs-keyword">via</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html#ViaJSON"><span class="hs-identifier hs-type">ViaJSON</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.InsertReplaceEdit.html#InsertReplaceEdit"><span class="hs-identifier hs-type">InsertReplaceEdit</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682171027"><span id="local-6989586621682171029"><span id="local-6989586621682171031"><span class="annot"><span class="hs-identifier hs-type">Aeson.ToJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.InsertReplaceEdit.html#InsertReplaceEdit"><span class="hs-identifier hs-type">InsertReplaceEdit</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-44"></span><span>  </span><span id="local-6989586621682171010"><span class="annot"><span class="annottext">toJSON :: InsertReplaceEdit -&gt; Value
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">toJSON</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.InsertReplaceEdit.html#InsertReplaceEdit"><span class="hs-identifier hs-type">InsertReplaceEdit</span></a></span><span> </span><span id="local-6989586621682171008"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621682171008"><span class="hs-identifier hs-var">arg0</span></a></span></span><span> </span><span id="local-6989586621682171007"><span class="annot"><span class="annottext">Range
+</span><a href="#local-6989586621682171007"><span class="hs-identifier hs-var">arg1</span></a></span></span><span> </span><span id="local-6989586621682171006"><span class="annot"><span class="annottext">Range
+</span><a href="#local-6989586621682171006"><span class="hs-identifier hs-var">arg2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">Aeson.object</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">concat</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>  </span><span class="hs-special">[</span><span class="hs-special">[</span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;newText&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">Aeson..=</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621682171008"><span class="hs-identifier hs-var">arg0</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-45"></span><span>    </span><span class="hs-special">,</span><span class="hs-special">[</span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;insert&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">Aeson..=</span></span><span> </span><span class="annot"><span class="annottext">Range
+</span><a href="#local-6989586621682171007"><span class="hs-identifier hs-var">arg1</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-46"></span><span>    </span><span class="hs-special">,</span><span class="hs-special">[</span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;replace&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">Aeson..=</span></span><span> </span><span class="annot"><span class="annottext">Range
+</span><a href="#local-6989586621682171006"><span class="hs-identifier hs-var">arg2</span></a></span><span class="hs-special">]</span><span class="hs-special">]</span><span>
+</span><span id="line-47"></span><span>
+</span><span id="line-48"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682171000"><span class="annot"><span class="hs-identifier hs-type">Aeson.FromJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.InsertReplaceEdit.html#InsertReplaceEdit"><span class="hs-identifier hs-type">InsertReplaceEdit</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-49"></span><span>  </span><span id="local-6989586621682170985"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser InsertReplaceEdit
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">Aeson.withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;InsertReplaceEdit&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621682170982"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682170982"><span class="hs-identifier hs-var">arg</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Range -&gt; Range -&gt; InsertReplaceEdit
+</span><a href="Language.LSP.Protocol.Internal.Types.InsertReplaceEdit.html#InsertReplaceEdit"><span class="hs-identifier hs-var">InsertReplaceEdit</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682170982"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">Aeson..:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;newText&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682170982"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">Aeson..:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;insert&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682170982"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">Aeson..:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;replace&quot;</span></span><span>
+</span><span id="line-50"></span></pre></body></html>

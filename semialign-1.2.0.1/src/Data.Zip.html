@@ -1,0 +1,206 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP           #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE DeriveFunctor #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE Trustworthy   #-}</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- | Zipping and unzipping of functors with non-uniform shapes.</span><span>
+</span><span id="line-5"></span><span class="hs-comment">--</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Data.Zip</span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><a href="Data.Semialign.Internal.html#Semialign"><span class="hs-identifier">Semialign</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>    </span><span class="annot"><a href="Data.Semialign.Internal.html#Zip"><span class="hs-identifier">Zip</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-9"></span><span>    </span><span class="annot"><a href="Data.Semialign.Internal.html#Repeat"><span class="hs-identifier">Repeat</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-10"></span><span>    </span><span class="annot"><a href="Data.Semialign.Internal.html#Unzip"><span class="hs-identifier">Unzip</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-11"></span><span>    </span><span class="annot"><a href="Data.Semialign.Internal.html#unzipDefault"><span class="hs-identifier">unzipDefault</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-12"></span><span>    </span><span class="annot"><a href="Data.Zip.html#Zippy"><span class="hs-identifier">Zippy</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-13"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Applicative</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Applicative</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Monoid</span></span><span>         </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Monoid</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Semigroup</span></span><span>      </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Semigroup</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span>             </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Eq</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Functor</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Ord</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Read</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Show</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-operator">($)</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-operator">(.)</span></span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Semialign.Internal.html"><span class="hs-identifier">Data.Semialign.Internal</span></a></span><span class="hs-cpp">
+
+#ifdef MIN_VERSION_semigroupoids
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Functor.Apply</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Apply</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-26"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-27"></span><span class="hs-comment">-- Zippy</span><span>
+</span><span id="line-28"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">newtype</span><span> </span><span id="Zippy"><span class="annot"><a href="Data.Zip.html#Zippy"><span class="hs-identifier hs-var">Zippy</span></a></span></span><span> </span><span id="local-6989586621679073862"><span class="annot"><a href="#local-6989586621679073862"><span class="hs-identifier hs-type">f</span></a></span></span><span> </span><span id="local-6989586621679073861"><span class="annot"><a href="#local-6989586621679073861"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Zippy"><span class="annot"><a href="Data.Zip.html#Zippy"><span class="hs-identifier hs-var">Zippy</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="getZippy"><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Zippy f a -&gt; f a
+</span><a href="Data.Zip.html#getZippy"><span class="hs-identifier hs-var hs-var">getZippy</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679073862"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679073861"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-31"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679073743"><span id="local-6989586621679073747"><span class="annot"><span class="annottext">Zippy f a -&gt; Zippy f a -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+forall (f :: * -&gt; *) a. Eq (f a) =&gt; Zippy f a -&gt; Zippy f a -&gt; Bool
+/= :: Zippy f a -&gt; Zippy f a -&gt; Bool
+$c/= :: forall (f :: * -&gt; *) a. Eq (f a) =&gt; Zippy f a -&gt; Zippy f a -&gt; Bool
+== :: Zippy f a -&gt; Zippy f a -&gt; Bool
+$c== :: forall (f :: * -&gt; *) a. Eq (f a) =&gt; Zippy f a -&gt; Zippy f a -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679073709"><span id="local-6989586621679073713"><span id="local-6989586621679073717"><span id="local-6989586621679073721"><span id="local-6989586621679073725"><span id="local-6989586621679073729"><span id="local-6989586621679073733"><span class="annot"><span class="annottext">Zippy f a -&gt; Zippy f a -&gt; Bool
+Zippy f a -&gt; Zippy f a -&gt; Ordering
+Zippy f a -&gt; Zippy f a -&gt; Zippy f a
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+forall {f :: * -&gt; *} {a}. Ord (f a) =&gt; Eq (Zippy f a)
+forall (f :: * -&gt; *) a. Ord (f a) =&gt; Zippy f a -&gt; Zippy f a -&gt; Bool
+forall (f :: * -&gt; *) a.
+Ord (f a) =&gt;
+Zippy f a -&gt; Zippy f a -&gt; Ordering
+forall (f :: * -&gt; *) a.
+Ord (f a) =&gt;
+Zippy f a -&gt; Zippy f a -&gt; Zippy f a
+min :: Zippy f a -&gt; Zippy f a -&gt; Zippy f a
+$cmin :: forall (f :: * -&gt; *) a.
+Ord (f a) =&gt;
+Zippy f a -&gt; Zippy f a -&gt; Zippy f a
+max :: Zippy f a -&gt; Zippy f a -&gt; Zippy f a
+$cmax :: forall (f :: * -&gt; *) a.
+Ord (f a) =&gt;
+Zippy f a -&gt; Zippy f a -&gt; Zippy f a
+&gt;= :: Zippy f a -&gt; Zippy f a -&gt; Bool
+$c&gt;= :: forall (f :: * -&gt; *) a. Ord (f a) =&gt; Zippy f a -&gt; Zippy f a -&gt; Bool
+&gt; :: Zippy f a -&gt; Zippy f a -&gt; Bool
+$c&gt; :: forall (f :: * -&gt; *) a. Ord (f a) =&gt; Zippy f a -&gt; Zippy f a -&gt; Bool
+&lt;= :: Zippy f a -&gt; Zippy f a -&gt; Bool
+$c&lt;= :: forall (f :: * -&gt; *) a. Ord (f a) =&gt; Zippy f a -&gt; Zippy f a -&gt; Bool
+&lt; :: Zippy f a -&gt; Zippy f a -&gt; Bool
+$c&lt; :: forall (f :: * -&gt; *) a. Ord (f a) =&gt; Zippy f a -&gt; Zippy f a -&gt; Bool
+compare :: Zippy f a -&gt; Zippy f a -&gt; Ordering
+$ccompare :: forall (f :: * -&gt; *) a.
+Ord (f a) =&gt;
+Zippy f a -&gt; Zippy f a -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679073695"><span id="local-6989586621679073697"><span id="local-6989586621679073702"><span class="annot"><span class="annottext">Int -&gt; Zippy f a -&gt; ShowS
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+forall (f :: * -&gt; *) a. Show (f a) =&gt; Int -&gt; Zippy f a -&gt; ShowS
+forall (f :: * -&gt; *) a. Show (f a) =&gt; [Zippy f a] -&gt; ShowS
+forall (f :: * -&gt; *) a. Show (f a) =&gt; Zippy f a -&gt; String
+showList :: [Zippy f a] -&gt; ShowS
+$cshowList :: forall (f :: * -&gt; *) a. Show (f a) =&gt; [Zippy f a] -&gt; ShowS
+show :: Zippy f a -&gt; String
+$cshow :: forall (f :: * -&gt; *) a. Show (f a) =&gt; Zippy f a -&gt; String
+showsPrec :: Int -&gt; Zippy f a -&gt; ShowS
+$cshowsPrec :: forall (f :: * -&gt; *) a. Show (f a) =&gt; Int -&gt; Zippy f a -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679073678"><span id="local-6989586621679073687"><span id="local-6989586621679073690"><span id="local-6989586621679073692"><span class="annot"><span class="annottext">ReadPrec [Zippy f a]
+ReadPrec (Zippy f a)
+ReadS [Zippy f a]
+forall a.
+(Int -&gt; ReadS a)
+-&gt; ReadS [a] -&gt; ReadPrec a -&gt; ReadPrec [a] -&gt; Read a
+forall (f :: * -&gt; *) a. Read (f a) =&gt; ReadPrec [Zippy f a]
+forall (f :: * -&gt; *) a. Read (f a) =&gt; ReadPrec (Zippy f a)
+forall (f :: * -&gt; *) a. Read (f a) =&gt; Int -&gt; ReadS (Zippy f a)
+forall (f :: * -&gt; *) a. Read (f a) =&gt; ReadS [Zippy f a]
+readListPrec :: ReadPrec [Zippy f a]
+$creadListPrec :: forall (f :: * -&gt; *) a. Read (f a) =&gt; ReadPrec [Zippy f a]
+readPrec :: ReadPrec (Zippy f a)
+$creadPrec :: forall (f :: * -&gt; *) a. Read (f a) =&gt; ReadPrec (Zippy f a)
+readList :: ReadS [Zippy f a]
+$creadList :: forall (f :: * -&gt; *) a. Read (f a) =&gt; ReadS [Zippy f a]
+readsPrec :: Int -&gt; ReadS (Zippy f a)
+$creadsPrec :: forall (f :: * -&gt; *) a. Read (f a) =&gt; Int -&gt; ReadS (Zippy f a)
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Read</span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679073670"><span id="local-6989586621679073673"><span class="annot"><span class="annottext">forall a b. a -&gt; Zippy f b -&gt; Zippy f a
+forall a b. (a -&gt; b) -&gt; Zippy f a -&gt; Zippy f b
+forall (f :: * -&gt; *) a b. Functor f =&gt; a -&gt; Zippy f b -&gt; Zippy f a
+forall (f :: * -&gt; *) a b.
+Functor f =&gt;
+(a -&gt; b) -&gt; Zippy f a -&gt; Zippy f b
+forall (f :: * -&gt; *).
+(forall a b. (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b. a -&gt; f b -&gt; f a) -&gt; Functor f
+&lt;$ :: forall a b. a -&gt; Zippy f b -&gt; Zippy f a
+$c&lt;$ :: forall (f :: * -&gt; *) a b. Functor f =&gt; a -&gt; Zippy f b -&gt; Zippy f a
+fmap :: forall a b. (a -&gt; b) -&gt; Zippy f a -&gt; Zippy f b
+$cfmap :: forall (f :: * -&gt; *) a b.
+Functor f =&gt;
+(a -&gt; b) -&gt; Zippy f a -&gt; Zippy f b
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Functor</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679073662"><span id="local-6989586621679073664"><span id="local-6989586621679073838"><span id="local-6989586621679073839"><span class="hs-special">(</span><span class="annot"><a href="Data.Semialign.Internal.html#Zip"><span class="hs-identifier hs-type">Zip</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679073839"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Semigroup</span></span><span> </span><span class="annot"><a href="#local-6989586621679073838"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Semigroup</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Zip.html#Zippy"><span class="hs-identifier hs-type">Zippy</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679073839"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679073838"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-34"></span><span>    </span><span class="annot"><a href="Data.Zip.html#Zippy"><span class="hs-identifier hs-type">Zippy</span></a></span><span> </span><span id="local-6989586621679073658"><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679073658"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679073657"><span class="annot"><span class="annottext">&lt;&gt; :: Zippy f a -&gt; Zippy f a -&gt; Zippy f a
+</span><span class="hs-operator hs-var hs-var hs-var hs-var">&lt;&gt;</span></span></span><span> </span><span class="annot"><a href="Data.Zip.html#Zippy"><span class="hs-identifier hs-type">Zippy</span></a></span><span> </span><span id="local-6989586621679073656"><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679073656"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. f a -&gt; Zippy f a
+</span><a href="Data.Zip.html#Zippy"><span class="hs-identifier hs-var">Zippy</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b c.
+Zip f =&gt;
+(a -&gt; b -&gt; c) -&gt; f a -&gt; f b -&gt; f c
+</span><a href="Data.Semialign.Internal.html#zipWith"><span class="hs-identifier hs-var">zipWith</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">(&lt;&gt;)</span></span><span> </span><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679073658"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679073656"><span class="hs-identifier hs-var">y</span></a></span><span>
+</span><span id="line-35"></span><span>
+</span><span id="line-36"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679073649"><span id="local-6989586621679073827"><span id="local-6989586621679073828"><span class="hs-special">(</span><span class="annot"><a href="Data.Semialign.Internal.html#Repeat"><span class="hs-identifier hs-type">Repeat</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679073828"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monoid</span></span><span> </span><span class="annot"><a href="#local-6989586621679073827"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monoid</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Zip.html#Zippy"><span class="hs-identifier hs-type">Zippy</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679073828"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679073827"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-37"></span><span>    </span><span id="local-6989586621679073645"><span class="annot"><span class="annottext">mempty :: Zippy f a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">mempty</span></span></span><span>                      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. f a -&gt; Zippy f a
+</span><a href="Data.Zip.html#Zippy"><span class="hs-identifier hs-var">Zippy</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Repeat f =&gt; a -&gt; f a
+</span><a href="Data.Semialign.Internal.html#repeat"><span class="hs-identifier hs-var">repeat</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-38"></span><span>    </span><span id="local-6989586621679073641"><span class="annot"><span class="annottext">mappend :: Zippy f a -&gt; Zippy f a -&gt; Zippy f a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">mappend</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Zip.html#Zippy"><span class="hs-identifier hs-type">Zippy</span></a></span><span> </span><span id="local-6989586621679073640"><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679073640"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Zip.html#Zippy"><span class="hs-identifier hs-type">Zippy</span></a></span><span> </span><span id="local-6989586621679073639"><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679073639"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. f a -&gt; Zippy f a
+</span><a href="Data.Zip.html#Zippy"><span class="hs-identifier hs-var">Zippy</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b c.
+Zip f =&gt;
+(a -&gt; b -&gt; c) -&gt; f a -&gt; f b -&gt; f c
+</span><a href="Data.Semialign.Internal.html#zipWith"><span class="hs-identifier hs-var">zipWith</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Monoid a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">mappend</span></span><span> </span><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679073640"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679073639"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-cpp">
+
+#ifdef MIN_VERSION_semigroupoids
+</span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679073630"><span id="local-6989586621679073632"><span id="local-6989586621679073634"><span id="local-6989586621679073814"><span class="annot"><a href="Data.Semialign.Internal.html#Zip"><span class="hs-identifier hs-type">Zip</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679073814"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Apply</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Zip.html#Zippy"><span class="hs-identifier hs-type">Zippy</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679073814"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-42"></span><span>    </span><span class="annot"><a href="Data.Zip.html#Zippy"><span class="hs-identifier hs-type">Zippy</span></a></span><span> </span><span id="local-6989586621679073627"><span class="annot"><span class="annottext">f (a -&gt; b)
+</span><a href="#local-6989586621679073627"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679073626"><span class="annot"><span class="annottext">&lt;.&gt; :: forall a b. Zippy f (a -&gt; b) -&gt; Zippy f a -&gt; Zippy f b
+</span><span class="hs-operator hs-var hs-var hs-var hs-var">&lt;.&gt;</span></span></span><span> </span><span class="annot"><a href="Data.Zip.html#Zippy"><span class="hs-identifier hs-type">Zippy</span></a></span><span> </span><span id="local-6989586621679073624"><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679073624"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. f a -&gt; Zippy f a
+</span><a href="Data.Zip.html#Zippy"><span class="hs-identifier hs-var">Zippy</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b c.
+Zip f =&gt;
+(a -&gt; b -&gt; c) -&gt; f a -&gt; f b -&gt; f c
+</span><a href="Data.Semialign.Internal.html#zipWith"><span class="hs-identifier hs-var">zipWith</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">($)</span></span><span> </span><span class="annot"><span class="annottext">f (a -&gt; b)
+</span><a href="#local-6989586621679073627"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679073624"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-45"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679073615"><span id="local-6989586621679073617"><span id="local-6989586621679073800"><span class="annot"><a href="Data.Semialign.Internal.html#Repeat"><span class="hs-identifier hs-type">Repeat</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679073800"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Applicative</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Zip.html#Zippy"><span class="hs-identifier hs-type">Zippy</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679073800"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-46"></span><span>    </span><span id="local-6989586621679073612"><span class="annot"><span class="annottext">pure :: forall a. a -&gt; Zippy f a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">pure</span></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. f a -&gt; Zippy f a
+</span><a href="Data.Zip.html#Zippy"><span class="hs-identifier hs-var">Zippy</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Repeat f =&gt; a -&gt; f a
+</span><a href="Data.Semialign.Internal.html#repeat"><span class="hs-identifier hs-var">repeat</span></a></span><span class="hs-cpp">
+#ifdef MIN_VERSION_semigroupoids
+</span><span>    </span><span id="local-6989586621679073610"><span class="annot"><span class="annottext">&lt;*&gt; :: forall a b. Zippy f (a -&gt; b) -&gt; Zippy f a -&gt; Zippy f b
+</span><span class="hs-operator hs-var hs-var hs-var hs-var">(&lt;*&gt;)</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Apply f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">(&lt;.&gt;)</span></span><span class="hs-cpp">
+#else
+</span><span>    </span><span class="hs-identifier">Zippy</span><span> </span><span class="hs-identifier">f</span><span> </span><span class="hs-operator">&lt;*&gt;</span><span> </span><span class="hs-identifier">Zippy</span><span> </span><span class="hs-identifier">x</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">Zippy</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-identifier">zipWith</span><span> </span><span class="hs-special">(</span><span class="hs-operator">$</span><span class="hs-special">)</span><span> </span><span class="hs-identifier">f</span><span> </span><span class="hs-identifier">x</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#if MIN_VERSION_base(4,10,0)
+</span><span>    </span><span id="local-6989586621679073608"><span class="annot"><span class="annottext">liftA2 :: forall a b c. (a -&gt; b -&gt; c) -&gt; Zippy f a -&gt; Zippy f b -&gt; Zippy f c
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">liftA2</span></span></span><span> </span><span id="local-6989586621679073606"><span class="annot"><span class="annottext">a -&gt; b -&gt; c
+</span><a href="#local-6989586621679073606"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Zip.html#Zippy"><span class="hs-identifier hs-type">Zippy</span></a></span><span> </span><span id="local-6989586621679073605"><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679073605"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Zip.html#Zippy"><span class="hs-identifier hs-type">Zippy</span></a></span><span> </span><span id="local-6989586621679073604"><span class="annot"><span class="annottext">f b
+</span><a href="#local-6989586621679073604"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. f a -&gt; Zippy f a
+</span><a href="Data.Zip.html#Zippy"><span class="hs-identifier hs-var">Zippy</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b c.
+Zip f =&gt;
+(a -&gt; b -&gt; c) -&gt; f a -&gt; f b -&gt; f c
+</span><a href="Data.Semialign.Internal.html#zipWith"><span class="hs-identifier hs-var">zipWith</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; b -&gt; c
+</span><a href="#local-6989586621679073606"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679073605"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">f b
+</span><a href="#local-6989586621679073604"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-cpp">
+#endif
+</span></pre></body></html>

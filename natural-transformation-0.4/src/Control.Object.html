@@ -1,0 +1,35 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE FlexibleInstances #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE MultiParamTypeClasses #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE Safe #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE TypeOperators #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LANGUAGE RankNTypes #-}</span><span>
+</span><span id="line-6"></span><span>
+</span><span id="line-7"></span><span class="hs-comment">{-|
+Module:      Control.Object
+Copyright:   (C) 2015 The University of Kansas
+License:     BSD-style (see the file LICENSE)
+Maintainer:  Andy Gill
+Stability:   Experimental
+
+An Object type, which is a natural transformation into the 'IO' monad.
+-}</span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Control.Object</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Object.html#Object"><span class="hs-identifier">Object</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Natural.html#%23"><span class="hs-operator">(#)</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Control.Natural.html"><span class="hs-identifier">Control.Natural</span></a></span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- | An 'Object' is a natural transformation from a given 'Functor' 'f', to 'IO'.</span><span>
+</span><span id="line-22"></span><span class="hs-keyword">newtype</span><span> </span><span id="Object"><span class="annot"><a href="Control.Object.html#Object"><span class="hs-identifier hs-var">Object</span></a></span></span><span> </span><span id="local-6989586621679029485"><span class="annot"><a href="#local-6989586621679029485"><span class="hs-identifier hs-type">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Object"><span class="annot"><a href="Control.Object.html#Object"><span class="hs-identifier hs-var">Object</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679029485"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="Control.Natural.html#~%3E"><span class="hs-operator hs-type">~&gt;</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679029496"><span class="annot"><a href="Control.Natural.html#Transformation"><span class="hs-identifier hs-type">Transformation</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679029496"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Object.html#Object"><span class="hs-identifier hs-type">Object</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679029496"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-25"></span><span>    </span><span class="annot"><a href="Control.Object.html#Object"><span class="hs-identifier hs-type">Object</span></a></span><span> </span><span id="local-6989586621679029477"><span class="annot"><span class="annottext">forall a. f a -&gt; IO a
+</span><a href="#local-6989586621679029477"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679029476"><span class="annot"><span class="annottext"># :: Object f -&gt; forall a. f a -&gt; IO a
+</span><a href="#local-6989586621679029476"><span class="hs-operator hs-var hs-var hs-var hs-var">#</span></a></span></span><span> </span><span id="local-6989586621679029475"><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679029475"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {k} (f :: k -&gt; *) (g :: k -&gt; *). (f ~&gt; g) -&gt; f :~&gt; g
+</span><a href="Control.Natural.html#NT"><span class="hs-identifier hs-var">NT</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. f a -&gt; IO a
+</span><a href="#local-6989586621679029477"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">forall {k} (f :: k -&gt; *) (g :: k -&gt; *) t.
+Transformation f g t =&gt;
+t -&gt; forall (a :: k). f a -&gt; g a
+</span><a href="Control.Natural.html#%23"><span class="hs-operator hs-var">#</span></a></span><span> </span><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679029475"><span class="hs-identifier hs-var">g</span></a></span><span>
+</span><span id="line-26"></span></pre></body></html>

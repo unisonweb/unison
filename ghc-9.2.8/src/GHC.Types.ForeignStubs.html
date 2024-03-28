@@ -1,0 +1,100 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- | Foreign export stubs</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE DerivingVia #-}</span><span>
+</span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">GHC.Types.ForeignStubs</span><span>
+</span><span id="line-4"></span><span>   </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Types.ForeignStubs.html#ForeignStubs"><span class="hs-identifier">ForeignStubs</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-5"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Types.ForeignStubs.html#CHeader"><span class="hs-identifier">CHeader</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-6"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Types.ForeignStubs.html#CStub"><span class="hs-identifier">CStub</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Types.ForeignStubs.html#appendStubC"><span class="hs-identifier">appendStubC</span></a></span><span>
+</span><span id="line-8"></span><span>   </span><span class="hs-special">)</span><span>
+</span><span id="line-9"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html"><span class="hs-identifier">GHC.Utils.Outputable</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Data-Monoid.html#"><span class="hs-identifier">Data.Monoid</span></a></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Data-Semigroup.html#"><span class="hs-identifier">Data.Semigroup</span></a></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Data-Coerce.html#"><span class="hs-identifier">Data.Coerce</span></a></span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">newtype</span><span> </span><span id="CStub"><span class="annot"><a href="GHC.Types.ForeignStubs.html#CStub"><span class="hs-identifier hs-var">CStub</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="CStub"><span class="annot"><a href="GHC.Types.ForeignStubs.html#CStub"><span class="hs-identifier hs-var">CStub</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="getCStub"><span class="annot"><span class="annottext">CStub -&gt; SDoc
+</span><a href="GHC.Types.ForeignStubs.html#getCStub"><span class="hs-identifier hs-var hs-var">getCStub</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#SDoc"><span class="hs-identifier hs-type">SDoc</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="annot"><a href="GHC.Types.ForeignStubs.html#emptyCStub"><span class="hs-identifier hs-type">emptyCStub</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Types.ForeignStubs.html#CStub"><span class="hs-identifier hs-type">CStub</span></a></span><span>
+</span><span id="line-19"></span><span id="emptyCStub"><span class="annot"><span class="annottext">emptyCStub :: CStub
+</span><a href="GHC.Types.ForeignStubs.html#emptyCStub"><span class="hs-identifier hs-var hs-var">emptyCStub</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; CStub
+</span><a href="GHC.Types.ForeignStubs.html#CStub"><span class="hs-identifier hs-var">CStub</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc
+</span><a href="GHC.Utils.Outputable.html#empty"><span class="hs-identifier hs-var">empty</span></a></span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621681142730"><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Base.html#Monoid"><span class="hs-identifier hs-type">Monoid</span></a></span><span> </span><span class="annot"><a href="GHC.Types.ForeignStubs.html#CStub"><span class="hs-identifier hs-type">CStub</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-22"></span><span>  </span><span id="local-6989586621681142727"><span class="annot"><span class="annottext">mempty :: CStub
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#mempty"><span class="hs-identifier hs-var hs-var hs-var hs-var">mempty</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CStub
+</span><a href="GHC.Types.ForeignStubs.html#emptyCStub"><span class="hs-identifier hs-var">emptyCStub</span></a></span><span>
+</span><span id="line-23"></span><span>  </span><span id="local-6989586621681142725"><span class="annot"><span class="annottext">mconcat :: [CStub] -&gt; CStub
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#mconcat"><span class="hs-identifier hs-var hs-var hs-var hs-var">mconcat</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">coerce :: forall a b. Coercible a b =&gt; a -&gt; b
+</span><span class="hs-identifier hs-type">coerce</span></span><span> </span><span class="annot"><span class="annottext">[SDoc] -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#vcat"><span class="hs-identifier hs-var">vcat</span></a></span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621681142719"><span id="local-6989586621681142721"><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Base.html#Semigroup"><span class="hs-identifier hs-type">Semigroup</span></a></span><span> </span><span class="annot"><a href="GHC.Types.ForeignStubs.html#CStub"><span class="hs-identifier hs-type">CStub</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-26"></span><span>  </span><span id="local-6989586621681142716"><span class="annot"><span class="annottext">&lt;&gt; :: CStub -&gt; CStub -&gt; CStub
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%3C%3E"><span class="hs-operator hs-var hs-var hs-var hs-var">(&lt;&gt;)</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">coerce :: forall a b. Coercible a b =&gt; a -&gt; b
+</span><span class="hs-identifier hs-type">coerce</span></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#%24%24"><span class="hs-operator hs-var">($$)</span></a></span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">newtype</span><span> </span><span id="CHeader"><span class="annot"><a href="GHC.Types.ForeignStubs.html#CHeader"><span class="hs-identifier hs-var">CHeader</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="CHeader"><span class="annot"><a href="GHC.Types.ForeignStubs.html#CHeader"><span class="hs-identifier hs-var">CHeader</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="getCHeader"><span class="annot"><span class="annottext">CHeader -&gt; SDoc
+</span><a href="GHC.Types.ForeignStubs.html#getCHeader"><span class="hs-identifier hs-var hs-var">getCHeader</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#SDoc"><span class="hs-identifier hs-type">SDoc</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681142700"><span id="local-6989586621681142704"><span id="local-6989586621681142708"><span class="annot"><span class="annottext">Semigroup CHeader
+CHeader
+[CHeader] -&gt; CHeader
+CHeader -&gt; CHeader -&gt; CHeader
+forall a.
+Semigroup a -&gt; a -&gt; (a -&gt; a -&gt; a) -&gt; ([a] -&gt; a) -&gt; Monoid a
+mconcat :: [CHeader] -&gt; CHeader
+$cmconcat :: [CHeader] -&gt; CHeader
+mappend :: CHeader -&gt; CHeader -&gt; CHeader
+$cmappend :: CHeader -&gt; CHeader -&gt; CHeader
+mempty :: CHeader
+$cmempty :: CHeader
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#Monoid"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Monoid</span></a></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681142686"><span id="local-6989586621681142692"><span id="local-6989586621681142696"><span class="annot"><span class="annottext">NonEmpty CHeader -&gt; CHeader
+CHeader -&gt; CHeader -&gt; CHeader
+forall b. Integral b =&gt; b -&gt; CHeader -&gt; CHeader
+forall a.
+(a -&gt; a -&gt; a)
+-&gt; (NonEmpty a -&gt; a)
+-&gt; (forall b. Integral b =&gt; b -&gt; a -&gt; a)
+-&gt; Semigroup a
+stimes :: forall b. Integral b =&gt; b -&gt; CHeader -&gt; CHeader
+$cstimes :: forall b. Integral b =&gt; b -&gt; CHeader -&gt; CHeader
+sconcat :: NonEmpty CHeader -&gt; CHeader
+$csconcat :: NonEmpty CHeader -&gt; CHeader
+&lt;&gt; :: CHeader -&gt; CHeader -&gt; CHeader
+$c&lt;&gt; :: CHeader -&gt; CHeader -&gt; CHeader
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#Semigroup"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Semigroup</span></a></span></span></span></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">via</span><span> </span><span class="annot"><a href="GHC.Types.ForeignStubs.html#CStub"><span class="hs-identifier hs-type">CStub</span></a></span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- | Foreign export stubs</span><span>
+</span><span id="line-32"></span><span class="hs-keyword">data</span><span> </span><span id="ForeignStubs"><span class="annot"><a href="GHC.Types.ForeignStubs.html#ForeignStubs"><span class="hs-identifier hs-var">ForeignStubs</span></a></span></span><span>
+</span><span id="line-33"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="NoStubs"><span class="annot"><a href="GHC.Types.ForeignStubs.html#NoStubs"><span class="hs-identifier hs-var">NoStubs</span></a></span></span><span>
+</span><span id="line-34"></span><span>      </span><span class="hs-comment">-- ^ We don't have any stubs</span><span>
+</span><span id="line-35"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ForeignStubs"><span class="annot"><a href="GHC.Types.ForeignStubs.html#ForeignStubs"><span class="hs-identifier hs-var">ForeignStubs</span></a></span></span><span> </span><span class="annot"><a href="GHC.Types.ForeignStubs.html#CHeader"><span class="hs-identifier hs-type">CHeader</span></a></span><span> </span><span class="annot"><a href="GHC.Types.ForeignStubs.html#CStub"><span class="hs-identifier hs-type">CStub</span></a></span><span>
+</span><span id="line-36"></span><span>      </span><span class="hs-comment">-- ^ There are some stubs. Parameters:</span><span>
+</span><span id="line-37"></span><span>      </span><span class="hs-comment">--</span><span>
+</span><span id="line-38"></span><span>      </span><span class="hs-comment">--  1) Header file prototypes for</span><span>
+</span><span id="line-39"></span><span>      </span><span class="hs-comment">--     &quot;foreign exported&quot; functions</span><span>
+</span><span id="line-40"></span><span>      </span><span class="hs-comment">--</span><span>
+</span><span id="line-41"></span><span>      </span><span class="hs-comment">--  2) C stubs to use when calling</span><span>
+</span><span id="line-42"></span><span>      </span><span class="hs-comment">--     &quot;foreign exported&quot; functions</span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span class="annot"><a href="GHC.Types.ForeignStubs.html#appendStubC"><span class="hs-identifier hs-type">appendStubC</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Types.ForeignStubs.html#ForeignStubs"><span class="hs-identifier hs-type">ForeignStubs</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Types.ForeignStubs.html#CStub"><span class="hs-identifier hs-type">CStub</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Types.ForeignStubs.html#ForeignStubs"><span class="hs-identifier hs-type">ForeignStubs</span></a></span><span>
+</span><span id="line-45"></span><span id="appendStubC"><span class="annot"><span class="annottext">appendStubC :: ForeignStubs -&gt; CStub -&gt; ForeignStubs
+</span><a href="GHC.Types.ForeignStubs.html#appendStubC"><span class="hs-identifier hs-var hs-var">appendStubC</span></a></span></span><span> </span><span class="annot"><span class="annottext">ForeignStubs
+</span><a href="GHC.Types.ForeignStubs.html#NoStubs"><span class="hs-identifier hs-var">NoStubs</span></a></span><span>         </span><span id="local-6989586621681142679"><span class="annot"><span class="annottext">CStub
+</span><a href="#local-6989586621681142679"><span class="hs-identifier hs-var">c_code</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CHeader -&gt; CStub -&gt; ForeignStubs
+</span><a href="GHC.Types.ForeignStubs.html#ForeignStubs"><span class="hs-identifier hs-var">ForeignStubs</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Monoid a =&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#mempty"><span class="hs-identifier hs-var">mempty</span></a></span><span> </span><span class="annot"><span class="annottext">CStub
+</span><a href="#local-6989586621681142679"><span class="hs-identifier hs-var">c_code</span></a></span><span>
+</span><span id="line-46"></span><span class="annot"><a href="GHC.Types.ForeignStubs.html#appendStubC"><span class="hs-identifier hs-var">appendStubC</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.ForeignStubs.html#ForeignStubs"><span class="hs-identifier hs-type">ForeignStubs</span></a></span><span> </span><span id="local-6989586621681142678"><span class="annot"><span class="annottext">CHeader
+</span><a href="#local-6989586621681142678"><span class="hs-identifier hs-var">h</span></a></span></span><span> </span><span id="local-6989586621681142677"><span class="annot"><span class="annottext">CStub
+</span><a href="#local-6989586621681142677"><span class="hs-identifier hs-var">c</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621681142676"><span class="annot"><span class="annottext">CStub
+</span><a href="#local-6989586621681142676"><span class="hs-identifier hs-var">c_code</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CHeader -&gt; CStub -&gt; ForeignStubs
+</span><a href="GHC.Types.ForeignStubs.html#ForeignStubs"><span class="hs-identifier hs-var">ForeignStubs</span></a></span><span> </span><span class="annot"><span class="annottext">CHeader
+</span><a href="#local-6989586621681142678"><span class="hs-identifier hs-var">h</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CStub
+</span><a href="#local-6989586621681142677"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Monoid a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#mappend"><span class="hs-operator hs-var">`mappend`</span></a></span><span> </span><span class="annot"><span class="annottext">CStub
+</span><a href="#local-6989586621681142676"><span class="hs-identifier hs-var">c_code</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-47"></span></pre></body></html>

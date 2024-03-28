@@ -1,0 +1,162 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- THIS IS A GENERATED FILE, DO NOT EDIT</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-imports #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-matches #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-deprecations #-}</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.InlayHintClientCapabilities</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Hashable</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html"><span class="hs-identifier">Language.LSP.Protocol.Utils.Misc</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prettyprinter</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Row</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Row</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Aeson.html"><span class="hs-identifier">Data.Row.Aeson</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Hashable.html"><span class="hs-identifier">Data.Row.Hashable</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Hashable</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html"><span class="hs-identifier">Language.LSP.Protocol.Types.Common</span></a></span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="hs-comment">{-|
+Inlay hint client capabilities.
+
+@since 3.17.0
+-}</span><span>
+</span><span id="line-25"></span><span id="local-6989586621682174575"><span id="local-6989586621682174576"></span></span><span class="hs-keyword">data</span><span> </span><span id="InlayHintClientCapabilities"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.InlayHintClientCapabilities.html#InlayHintClientCapabilities"><span class="hs-identifier hs-var">InlayHintClientCapabilities</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="InlayHintClientCapabilities"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.InlayHintClientCapabilities.html#InlayHintClientCapabilities"><span class="hs-identifier hs-var">InlayHintClientCapabilities</span></a></span></span><span> </span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-special">{</span><span> </span><span class="hs-comment">{-|
+  Whether inlay hints support dynamic registration.
+  -}</span><span>
+</span><span id="line-29"></span><span>  </span><span id="%24sel%3A_dynamicRegistration%3AInlayHintClientCapabilities"><span class="annot"><span class="annottext">InlayHintClientCapabilities -&gt; Maybe Bool
+</span><a href="Language.LSP.Protocol.Internal.Types.InlayHintClientCapabilities.html#%24sel%3A_dynamicRegistration%3AInlayHintClientCapabilities"><span class="hs-identifier hs-var hs-var">_dynamicRegistration</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-comment">{-|
+  Indicates which properties a client can resolve lazily on an inlay
+  hint.
+  -}</span><span>
+</span><span id="line-34"></span><span>  </span><span id="%24sel%3A_resolveSupport%3AInlayHintClientCapabilities"><span class="annot"><span class="annottext">InlayHintClientCapabilities
+-&gt; Maybe (Rec (Extend &quot;properties&quot; [Text] ('R '[]) .+ 'R '[]))
+</span><a href="Language.LSP.Protocol.Internal.Types.InlayHintClientCapabilities.html#%24sel%3A_resolveSupport%3AInlayHintClientCapabilities"><span class="hs-identifier hs-var hs-var">_resolveSupport</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Row.Rec</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-string">&quot;properties&quot;</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">Row..==</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Data.Text.Text</span></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="hs-operator hs-type">Row..+</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Row.Empty</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682174557"><span id="local-6989586621682174559"><span id="local-6989586621682174568"><span class="annot"><span class="annottext">Int -&gt; InlayHintClientCapabilities -&gt; ShowS
+[InlayHintClientCapabilities] -&gt; ShowS
+InlayHintClientCapabilities -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [InlayHintClientCapabilities] -&gt; ShowS
+$cshowList :: [InlayHintClientCapabilities] -&gt; ShowS
+show :: InlayHintClientCapabilities -&gt; String
+$cshow :: InlayHintClientCapabilities -&gt; String
+showsPrec :: Int -&gt; InlayHintClientCapabilities -&gt; ShowS
+$cshowsPrec :: Int -&gt; InlayHintClientCapabilities -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682174531"><span id="local-6989586621682174538"><span class="annot"><span class="annottext">InlayHintClientCapabilities -&gt; InlayHintClientCapabilities -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: InlayHintClientCapabilities -&gt; InlayHintClientCapabilities -&gt; Bool
+$c/= :: InlayHintClientCapabilities -&gt; InlayHintClientCapabilities -&gt; Bool
+== :: InlayHintClientCapabilities -&gt; InlayHintClientCapabilities -&gt; Bool
+$c== :: InlayHintClientCapabilities -&gt; InlayHintClientCapabilities -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682174488"><span id="local-6989586621682174490"><span id="local-6989586621682174493"><span id="local-6989586621682174496"><span id="local-6989586621682174499"><span id="local-6989586621682174505"><span id="local-6989586621682174512"><span class="annot"><span class="annottext">Eq InlayHintClientCapabilities
+InlayHintClientCapabilities -&gt; InlayHintClientCapabilities -&gt; Bool
+InlayHintClientCapabilities
+-&gt; InlayHintClientCapabilities -&gt; Ordering
+InlayHintClientCapabilities
+-&gt; InlayHintClientCapabilities -&gt; InlayHintClientCapabilities
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: InlayHintClientCapabilities
+-&gt; InlayHintClientCapabilities -&gt; InlayHintClientCapabilities
+$cmin :: InlayHintClientCapabilities
+-&gt; InlayHintClientCapabilities -&gt; InlayHintClientCapabilities
+max :: InlayHintClientCapabilities
+-&gt; InlayHintClientCapabilities -&gt; InlayHintClientCapabilities
+$cmax :: InlayHintClientCapabilities
+-&gt; InlayHintClientCapabilities -&gt; InlayHintClientCapabilities
+&gt;= :: InlayHintClientCapabilities -&gt; InlayHintClientCapabilities -&gt; Bool
+$c&gt;= :: InlayHintClientCapabilities -&gt; InlayHintClientCapabilities -&gt; Bool
+&gt; :: InlayHintClientCapabilities -&gt; InlayHintClientCapabilities -&gt; Bool
+$c&gt; :: InlayHintClientCapabilities -&gt; InlayHintClientCapabilities -&gt; Bool
+&lt;= :: InlayHintClientCapabilities -&gt; InlayHintClientCapabilities -&gt; Bool
+$c&lt;= :: InlayHintClientCapabilities -&gt; InlayHintClientCapabilities -&gt; Bool
+&lt; :: InlayHintClientCapabilities -&gt; InlayHintClientCapabilities -&gt; Bool
+$c&lt; :: InlayHintClientCapabilities -&gt; InlayHintClientCapabilities -&gt; Bool
+compare :: InlayHintClientCapabilities
+-&gt; InlayHintClientCapabilities -&gt; Ordering
+$ccompare :: InlayHintClientCapabilities
+-&gt; InlayHintClientCapabilities -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall x.
+Rep InlayHintClientCapabilities x -&gt; InlayHintClientCapabilities
+forall x.
+InlayHintClientCapabilities -&gt; Rep InlayHintClientCapabilities x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cto :: forall x.
+Rep InlayHintClientCapabilities x -&gt; InlayHintClientCapabilities
+$cfrom :: forall x.
+InlayHintClientCapabilities -&gt; Rep InlayHintClientCapabilities x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-37"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">anyclass</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682174444"><span class="annot"><span class="annottext">InlayHintClientCapabilities -&gt; ()
+forall a. (a -&gt; ()) -&gt; NFData a
+rnf :: InlayHintClientCapabilities -&gt; ()
+$crnf :: InlayHintClientCapabilities -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682174437"><span id="local-6989586621682174439"><span class="annot"><span class="annottext">Eq InlayHintClientCapabilities
+Int -&gt; InlayHintClientCapabilities -&gt; Int
+InlayHintClientCapabilities -&gt; Int
+forall a. Eq a -&gt; (Int -&gt; a -&gt; Int) -&gt; (a -&gt; Int) -&gt; Hashable a
+hash :: InlayHintClientCapabilities -&gt; Int
+$chash :: InlayHintClientCapabilities -&gt; Int
+hashWithSalt :: Int -&gt; InlayHintClientCapabilities -&gt; Int
+$chashWithSalt :: Int -&gt; InlayHintClientCapabilities -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Hashable</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-38"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621682174428"><span id="local-6989586621682174434"><span class="annot"><span class="annottext">forall ann. [InlayHintClientCapabilities] -&gt; Doc ann
+forall ann. InlayHintClientCapabilities -&gt; Doc ann
+forall a.
+(forall ann. a -&gt; Doc ann)
+-&gt; (forall ann. [a] -&gt; Doc ann) -&gt; Pretty a
+prettyList :: forall ann. [InlayHintClientCapabilities] -&gt; Doc ann
+$cprettyList :: forall ann. [InlayHintClientCapabilities] -&gt; Doc ann
+pretty :: forall ann. InlayHintClientCapabilities -&gt; Doc ann
+$cpretty :: forall ann. InlayHintClientCapabilities -&gt; Doc ann
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Pretty</span></span></span></span><span> </span><span class="hs-keyword">via</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html#ViaJSON"><span class="hs-identifier hs-type">ViaJSON</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.InlayHintClientCapabilities.html#InlayHintClientCapabilities"><span class="hs-identifier hs-type">InlayHintClientCapabilities</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682174416"><span id="local-6989586621682174418"><span id="local-6989586621682174420"><span class="annot"><span class="hs-identifier hs-type">Aeson.ToJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.InlayHintClientCapabilities.html#InlayHintClientCapabilities"><span class="hs-identifier hs-type">InlayHintClientCapabilities</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-41"></span><span>  </span><span id="local-6989586621682174389"><span class="annot"><span class="annottext">toJSON :: InlayHintClientCapabilities -&gt; Value
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">toJSON</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.InlayHintClientCapabilities.html#InlayHintClientCapabilities"><span class="hs-identifier hs-type">InlayHintClientCapabilities</span></a></span><span> </span><span id="local-6989586621682174387"><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682174387"><span class="hs-identifier hs-var">arg0</span></a></span></span><span> </span><span id="local-6989586621682174386"><span class="annot"><span class="annottext">Maybe (Rec (Extend &quot;properties&quot; [Text] ('R '[]) .+ 'R '[]))
+</span><a href="#local-6989586621682174386"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">Aeson.object</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">concat</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>  </span><span class="hs-special">[</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;dynamicRegistration&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682174387"><span class="hs-identifier hs-var">arg0</span></a></span><span>
+</span><span id="line-42"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;resolveSupport&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe (Rec (Extend &quot;properties&quot; [Text] ('R '[]) .+ 'R '[]))
+</span><a href="#local-6989586621682174386"><span class="hs-identifier hs-var">arg1</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682174380"><span class="annot"><span class="hs-identifier hs-type">Aeson.FromJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.InlayHintClientCapabilities.html#InlayHintClientCapabilities"><span class="hs-identifier hs-type">InlayHintClientCapabilities</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-45"></span><span>  </span><span id="local-6989586621682174350"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser InlayHintClientCapabilities
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">Aeson.withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;InlayHintClientCapabilities&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621682174347"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682174347"><span class="hs-identifier hs-var">arg</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Bool
+-&gt; Maybe (Rec (Extend &quot;properties&quot; [Text] ('R '[]) .+ 'R '[]))
+-&gt; InlayHintClientCapabilities
+</span><a href="Language.LSP.Protocol.Internal.Types.InlayHintClientCapabilities.html#InlayHintClientCapabilities"><span class="hs-identifier hs-var">InlayHintClientCapabilities</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682174347"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">Aeson..:!</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;dynamicRegistration&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682174347"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">Aeson..:!</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;resolveSupport&quot;</span></span><span>
+</span><span id="line-46"></span></pre></body></html>

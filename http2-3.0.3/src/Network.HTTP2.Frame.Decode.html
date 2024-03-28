@@ -1,0 +1,951 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE RecordWildCards #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE OverloadedStrings #-}</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Network.HTTP2.Frame.Decode</span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-5"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Decoding</span></span><span>
+</span><span id="line-6"></span><span>    </span><span class="annot"><a href="Network.HTTP2.Frame.Decode.html#decodeFrame"><span class="hs-identifier">decodeFrame</span></a></span><span>
+</span><span id="line-7"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Decode.html#decodeFrameHeader"><span class="hs-identifier">decodeFrameHeader</span></a></span><span>
+</span><span id="line-8"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Decode.html#checkFrameHeader"><span class="hs-identifier">checkFrameHeader</span></a></span><span>
+</span><span id="line-9"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Decoding payload</span></span><span>
+</span><span id="line-10"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Decode.html#decodeFramePayload"><span class="hs-identifier">decodeFramePayload</span></a></span><span>
+</span><span id="line-11"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Decode.html#FramePayloadDecoder"><span class="hs-identifier">FramePayloadDecoder</span></a></span><span>
+</span><span id="line-12"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Decode.html#decodeDataFrame"><span class="hs-identifier">decodeDataFrame</span></a></span><span>
+</span><span id="line-13"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Decode.html#decodeHeadersFrame"><span class="hs-identifier">decodeHeadersFrame</span></a></span><span>
+</span><span id="line-14"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Decode.html#decodePriorityFrame"><span class="hs-identifier">decodePriorityFrame</span></a></span><span>
+</span><span id="line-15"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Decode.html#decoderstStreamFrame"><span class="hs-identifier">decoderstStreamFrame</span></a></span><span>
+</span><span id="line-16"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Decode.html#decodeSettingsFrame"><span class="hs-identifier">decodeSettingsFrame</span></a></span><span>
+</span><span id="line-17"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Decode.html#decodePushPromiseFrame"><span class="hs-identifier">decodePushPromiseFrame</span></a></span><span>
+</span><span id="line-18"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Decode.html#decodePingFrame"><span class="hs-identifier">decodePingFrame</span></a></span><span>
+</span><span id="line-19"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Decode.html#decodeGoAwayFrame"><span class="hs-identifier">decodeGoAwayFrame</span></a></span><span>
+</span><span id="line-20"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Decode.html#decodeWindowUpdateFrame"><span class="hs-identifier">decodeWindowUpdateFrame</span></a></span><span>
+</span><span id="line-21"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Decode.html#decodeContinuationFrame"><span class="hs-identifier">decodeContinuationFrame</span></a></span><span>
+</span><span id="line-22"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Array</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Array</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">listArray</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-operator">(!)</span></span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">BS</span></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Foreign.Ptr</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Ptr</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">plusPtr</span></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Network.ByteOrder</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">N</span></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.IO.Unsafe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">unsafeDupablePerformIO</span></span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Imports.html"><span class="hs-identifier">Imports</span></a></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Types.html"><span class="hs-identifier">Network.HTTP2.Frame.Types</span></a></span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span class="hs-comment">-- | Decoding an HTTP/2 frame to 'ByteString'.</span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- The second argument must be include the entire of frame.</span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- So, this function is not useful for real applications</span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- but useful for testing.</span><span>
+</span><span id="line-39"></span><span class="annot"><a href="Network.HTTP2.Frame.Decode.html#decodeFrame"><span class="hs-identifier hs-type">decodeFrame</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Types.html#Settings"><span class="hs-identifier hs-type">Settings</span></a></span><span>    </span><span class="hs-comment">-- ^ HTTP/2 settings</span><span>
+</span><span id="line-40"></span><span>            </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span>  </span><span class="hs-comment">-- ^ Input byte-stream</span><span>
+</span><span id="line-41"></span><span>            </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Types.html#HTTP2Error"><span class="hs-identifier hs-type">HTTP2Error</span></a></span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Types.html#Frame"><span class="hs-identifier hs-type">Frame</span></a></span><span> </span><span class="hs-comment">-- ^ Decoded frame</span><span>
+</span><span id="line-42"></span><span id="decodeFrame"><span class="annot"><span class="annottext">decodeFrame :: Settings -&gt; ByteString -&gt; Either HTTP2Error Frame
+</span><a href="Network.HTTP2.Frame.Decode.html#decodeFrame"><span class="hs-identifier hs-var hs-var">decodeFrame</span></a></span></span><span> </span><span id="local-6989586621679098194"><span class="annot"><span class="annottext">Settings
+</span><a href="#local-6989586621679098194"><span class="hs-identifier hs-var">settings</span></a></span></span><span> </span><span id="local-6989586621679098193"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679098193"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Settings
+-&gt; (FrameTypeId, FrameHeader)
+-&gt; Either HTTP2Error (FrameTypeId, FrameHeader)
+</span><a href="Network.HTTP2.Frame.Decode.html#checkFrameHeader"><span class="hs-identifier hs-var">checkFrameHeader</span></a></span><span> </span><span class="annot"><span class="annottext">Settings
+</span><a href="#local-6989586621679098194"><span class="hs-identifier hs-var">settings</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString -&gt; (FrameTypeId, FrameHeader)
+</span><a href="Network.HTTP2.Frame.Decode.html#decodeFrameHeader"><span class="hs-identifier hs-var">decodeFrameHeader</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679098192"><span class="hs-identifier hs-var">bs0</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-43"></span><span>                      </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-special">(</span><span id="local-6989586621679098191"><span class="annot"><span class="annottext">FrameTypeId
+</span><a href="#local-6989586621679098191"><span class="hs-identifier hs-var">typ</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679098190"><span class="annot"><span class="annottext">FrameHeader
+</span><a href="#local-6989586621679098190"><span class="hs-identifier hs-var">header</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">FrameTypeId -&gt; FramePayloadDecoder
+</span><a href="Network.HTTP2.Frame.Decode.html#decodeFramePayload"><span class="hs-identifier hs-var">decodeFramePayload</span></a></span><span> </span><span class="annot"><span class="annottext">FrameTypeId
+</span><a href="#local-6989586621679098191"><span class="hs-identifier hs-var">typ</span></a></span><span> </span><span class="annot"><span class="annottext">FrameHeader
+</span><a href="#local-6989586621679098190"><span class="hs-identifier hs-var">header</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679098189"><span class="hs-identifier hs-var">bs1</span></a></span><span>
+</span><span id="line-44"></span><span>                      </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679098188"><span class="annot"><span class="annottext">FramePayload
+</span><a href="#local-6989586621679098188"><span class="hs-identifier hs-var">payload</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">FrameHeader -&gt; FramePayload -&gt; Frame
+</span><a href="Network.HTTP2.Frame.Types.html#Frame"><span class="hs-identifier hs-var">Frame</span></a></span><span> </span><span class="annot"><span class="annottext">FrameHeader
+</span><a href="#local-6989586621679098190"><span class="hs-identifier hs-var">header</span></a></span><span> </span><span class="annot"><span class="annottext">FramePayload
+</span><a href="#local-6989586621679098188"><span class="hs-identifier hs-var">payload</span></a></span><span>
+</span><span id="line-45"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-46"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621679098192"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679098192"><span class="hs-identifier hs-var">bs0</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679098189"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679098189"><span class="hs-identifier hs-var">bs1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; ByteString -&gt; (ByteString, ByteString)
+</span><span class="hs-identifier hs-var">BS.splitAt</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">9</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679098193"><span class="hs-identifier hs-var">bs</span></a></span><span>
+</span><span id="line-47"></span><span>
+</span><span id="line-48"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span class="hs-comment">-- | Decoding an HTTP/2 frame header.</span><span>
+</span><span id="line-51"></span><span class="hs-comment">--   Must supply 9 bytes.</span><span>
+</span><span id="line-52"></span><span class="annot"><a href="Network.HTTP2.Frame.Decode.html#decodeFrameHeader"><span class="hs-identifier hs-type">decodeFrameHeader</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.HTTP2.Frame.Types.html#FrameTypeId"><span class="hs-identifier hs-type">FrameTypeId</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Types.html#FrameHeader"><span class="hs-identifier hs-type">FrameHeader</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-53"></span><span id="decodeFrameHeader"><span class="annot"><span class="annottext">decodeFrameHeader :: ByteString -&gt; (FrameTypeId, FrameHeader)
+</span><a href="Network.HTTP2.Frame.Decode.html#decodeFrameHeader"><span class="hs-identifier hs-var hs-var">decodeFrameHeader</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">PS</span></span><span> </span><span id="local-6989586621679098184"><span class="annot"><span class="annottext">ForeignPtr Word8
+</span><a href="#local-6989586621679098184"><span class="hs-identifier hs-var">fptr</span></a></span></span><span> </span><span id="local-6989586621679098183"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679098183"><span class="hs-identifier hs-var">off</span></a></span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. IO a -&gt; a
+</span><span class="hs-identifier hs-var">unsafeDupablePerformIO</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr Word8
+</span><a href="#local-6989586621679098184"><span class="hs-identifier hs-var">fptr</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679098181"><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679098181"><span class="hs-identifier hs-var">ptr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-54"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679098180"><span class="annot"><span class="annottext">p :: Ptr Word8
+</span><a href="#local-6989586621679098180"><span class="hs-identifier hs-var hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679098181"><span class="hs-identifier hs-var">ptr</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Word8 -&gt; Int -&gt; Ptr Word8
+</span><a href="Network.HTTP2.Frame.Decode.html#%2B."><span class="hs-operator hs-var">+.</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679098183"><span class="hs-identifier hs-var">off</span></a></span><span>
+</span><span id="line-55"></span><span>    </span><span id="local-6989586621679098178"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679098178"><span class="hs-identifier hs-var">len</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span>  </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Ptr Word8 -&gt; Int -&gt; IO Word32
+</span><span class="hs-identifier hs-var">N.peek24</span></span><span> </span><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679098180"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-56"></span><span>    </span><span id="local-6989586621679098175"><span class="annot"><span class="annottext">FrameTypeId
+</span><a href="#local-6989586621679098175"><span class="hs-identifier hs-var">typ</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; FrameTypeId
+</span><a href="Network.HTTP2.Frame.Types.html#toFrameTypeId"><span class="hs-identifier hs-var">toFrameTypeId</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Ptr Word8 -&gt; Int -&gt; IO Word8
+</span><span class="hs-identifier hs-var">N.peek8</span></span><span>  </span><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679098180"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span>
+</span><span id="line-57"></span><span>    </span><span id="local-6989586621679098172"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679098172"><span class="hs-identifier hs-var">flg</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span>                   </span><span class="annot"><span class="annottext">Ptr Word8 -&gt; Int -&gt; IO Word8
+</span><span class="hs-identifier hs-var">N.peek8</span></span><span>  </span><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679098180"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span>
+</span><span id="line-58"></span><span>    </span><span id="local-6989586621679098171"><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679098171"><span class="hs-identifier hs-var">w32</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span>                   </span><span class="annot"><span class="annottext">Ptr Word8 -&gt; Int -&gt; IO Word32
+</span><span class="hs-identifier hs-var">N.peek32</span></span><span> </span><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679098180"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">5</span></span><span>
+</span><span id="line-59"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679098169"><span class="annot"><span class="annottext">sid :: Int
+</span><a href="#local-6989586621679098169"><span class="hs-identifier hs-var hs-var">sid</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word32 -&gt; Int
+</span><a href="Network.HTTP2.Frame.Decode.html#streamIdentifier"><span class="hs-identifier hs-var">streamIdentifier</span></a></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679098171"><span class="hs-identifier hs-var">w32</span></a></span><span>
+</span><span id="line-60"></span><span>    </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FrameTypeId
+</span><a href="#local-6989586621679098175"><span class="hs-identifier hs-var">typ</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Word8 -&gt; Int -&gt; FrameHeader
+</span><a href="Network.HTTP2.Frame.Types.html#FrameHeader"><span class="hs-identifier hs-var">FrameHeader</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679098178"><span class="hs-identifier hs-var">len</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679098172"><span class="hs-identifier hs-var">flg</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679098169"><span class="hs-identifier hs-var">sid</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span><span class="annot"><a href="Network.HTTP2.Frame.Decode.html#%2B."><span class="hs-operator hs-type">(+.)</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span>
+</span><span id="line-63"></span><span id="%2B."><span class="annot"><span class="annottext">+. :: Ptr Word8 -&gt; Int -&gt; Ptr Word8
+</span><a href="Network.HTTP2.Frame.Decode.html#%2B."><span class="hs-operator hs-var hs-var">(+.)</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. Ptr a -&gt; Int -&gt; Ptr b
+</span><span class="hs-identifier hs-var">plusPtr</span></span><span>
+</span><span id="line-64"></span><span>
+</span><span id="line-65"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span class="hs-comment">-- | Checking a frame header and reporting an error if any.</span><span>
+</span><span id="line-68"></span><span class="hs-comment">--</span><span>
+</span><span id="line-69"></span><span class="hs-comment">-- &gt;&gt;&gt; checkFrameHeader defaultSettings (FrameData,(FrameHeader 100 0 0))</span><span>
+</span><span id="line-70"></span><span class="hs-comment">-- Left (ConnectionError ProtocolError &quot;cannot used in control stream&quot;)</span><span>
+</span><span id="line-71"></span><span class="annot"><a href="Network.HTTP2.Frame.Decode.html#checkFrameHeader"><span class="hs-identifier hs-type">checkFrameHeader</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Types.html#Settings"><span class="hs-identifier hs-type">Settings</span></a></span><span>
+</span><span id="line-72"></span><span>                 </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.HTTP2.Frame.Types.html#FrameTypeId"><span class="hs-identifier hs-type">FrameTypeId</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Types.html#FrameHeader"><span class="hs-identifier hs-type">FrameHeader</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-73"></span><span>                 </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Types.html#HTTP2Error"><span class="hs-identifier hs-type">HTTP2Error</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.HTTP2.Frame.Types.html#FrameTypeId"><span class="hs-identifier hs-type">FrameTypeId</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Types.html#FrameHeader"><span class="hs-identifier hs-type">FrameHeader</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-74"></span><span id="checkFrameHeader"><span class="annot"><span class="annottext">checkFrameHeader :: Settings
+-&gt; (FrameTypeId, FrameHeader)
+-&gt; Either HTTP2Error (FrameTypeId, FrameHeader)
+</span><a href="Network.HTTP2.Frame.Decode.html#checkFrameHeader"><span class="hs-identifier hs-var hs-var">checkFrameHeader</span></a></span></span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Types.html#Settings"><span class="hs-identifier hs-type">Settings</span></a></span><span> </span><span class="hs-special">{</span><span id="local-6989586621679098160"><span id="local-6989586621679098161"><span id="local-6989586621679098162"><span id="local-6989586621679098163"><span id="local-6989586621679098164"><span id="local-6989586621679098165"><span class="annot"><span class="annottext">Bool
+Int
+Maybe Int
+maxHeaderBlockSize :: Settings -&gt; Maybe Int
+maxFrameSize :: Settings -&gt; Int
+initialWindowSize :: Settings -&gt; Int
+maxConcurrentStreams :: Settings -&gt; Maybe Int
+enablePush :: Settings -&gt; Bool
+headerTableSize :: Settings -&gt; Int
+maxHeaderBlockSize :: Maybe Int
+maxFrameSize :: Int
+initialWindowSize :: Int
+maxConcurrentStreams :: Maybe Int
+enablePush :: Bool
+headerTableSize :: Int
+</span><a href="Network.HTTP2.Frame.Types.html#maxHeaderBlockSize"><span class="hs-glyph hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">..</span></a></span></span></span></span></span></span></span><span class="hs-special">}</span><span> </span><span id="local-6989586621679098153"><span class="annot"><span class="annottext">typfrm :: (FrameTypeId, FrameHeader)
+</span><a href="#local-6989586621679098153"><span class="hs-identifier hs-var">typfrm</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span id="local-6989586621679098152"><span class="annot"><span class="annottext">FrameTypeId
+</span><a href="#local-6989586621679098152"><span class="hs-identifier hs-var">typ</span></a></span></span><span class="hs-special">,</span><span class="annot"><a href="Network.HTTP2.Frame.Types.html#FrameHeader"><span class="hs-identifier hs-type">FrameHeader</span></a></span><span> </span><span class="hs-special">{</span><span id="local-6989586621679098149"><span id="local-6989586621679098150"><span id="local-6989586621679098151"><span class="annot"><span class="annottext">Int
+Word8
+streamId :: FrameHeader -&gt; Int
+flags :: FrameHeader -&gt; Word8
+payloadLength :: FrameHeader -&gt; Int
+streamId :: Int
+flags :: Word8
+payloadLength :: Int
+</span><a href="Network.HTTP2.Frame.Types.html#streamId"><span class="hs-glyph hs-var hs-var hs-var hs-var hs-var hs-var">..</span></a></span></span></span></span><span class="hs-special">}</span><span class="hs-special">)</span><span>
+</span><span id="line-75"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679098151"><span class="hs-identifier hs-var">payloadLength</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679098161"><span class="hs-identifier hs-var">maxFrameSize</span></a></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-76"></span><span>      </span><span class="annot"><span class="annottext">forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ErrorCodeId -&gt; ByteString -&gt; HTTP2Error
+</span><a href="Network.HTTP2.Frame.Types.html#ConnectionError"><span class="hs-identifier hs-var">ConnectionError</span></a></span><span> </span><span class="annot"><span class="annottext">ErrorCodeId
+</span><a href="Network.HTTP2.Frame.Types.html#FrameSizeError"><span class="hs-identifier hs-var">FrameSizeError</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;exceeds maximum frame size&quot;</span></span><span>
+</span><span id="line-77"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">FrameTypeId
+</span><a href="#local-6989586621679098152"><span class="hs-identifier hs-var">typ</span></a></span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. (Foldable t, Eq a) =&gt; a -&gt; t a -&gt; Bool
+</span><span class="hs-operator hs-var">`elem`</span></span><span> </span><span class="annot"><span class="annottext">[FrameTypeId]
+</span><a href="Network.HTTP2.Frame.Decode.html#nonZeroFrameTypes"><span class="hs-identifier hs-var">nonZeroFrameTypes</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Bool
+</span><a href="Network.HTTP2.Frame.Types.html#isControl"><span class="hs-identifier hs-var">isControl</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679098149"><span class="hs-identifier hs-var">streamId</span></a></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-78"></span><span>      </span><span class="annot"><span class="annottext">forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ErrorCodeId -&gt; ByteString -&gt; HTTP2Error
+</span><a href="Network.HTTP2.Frame.Types.html#ConnectionError"><span class="hs-identifier hs-var">ConnectionError</span></a></span><span> </span><span class="annot"><span class="annottext">ErrorCodeId
+</span><a href="Network.HTTP2.Frame.Types.html#ProtocolError"><span class="hs-identifier hs-var">ProtocolError</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;cannot used in control stream&quot;</span></span><span>
+</span><span id="line-79"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">FrameTypeId
+</span><a href="#local-6989586621679098152"><span class="hs-identifier hs-var">typ</span></a></span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. (Foldable t, Eq a) =&gt; a -&gt; t a -&gt; Bool
+</span><span class="hs-operator hs-var">`elem`</span></span><span> </span><span class="annot"><span class="annottext">[FrameTypeId]
+</span><a href="Network.HTTP2.Frame.Decode.html#zeroFrameTypes"><span class="hs-identifier hs-var">zeroFrameTypes</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Bool
+</span><a href="Network.HTTP2.Frame.Types.html#isControl"><span class="hs-identifier hs-var">isControl</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679098149"><span class="hs-identifier hs-var">streamId</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-80"></span><span>      </span><span class="annot"><span class="annottext">forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ErrorCodeId -&gt; ByteString -&gt; HTTP2Error
+</span><a href="Network.HTTP2.Frame.Types.html#ConnectionError"><span class="hs-identifier hs-var">ConnectionError</span></a></span><span> </span><span class="annot"><span class="annottext">ErrorCodeId
+</span><a href="Network.HTTP2.Frame.Types.html#ProtocolError"><span class="hs-identifier hs-var">ProtocolError</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;cannot used in non-zero stream&quot;</span></span><span>
+</span><span id="line-81"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FrameTypeId -&gt; Either HTTP2Error (FrameTypeId, FrameHeader)
+</span><a href="#local-6989586621679098135"><span class="hs-identifier hs-var">checkType</span></a></span><span> </span><span class="annot"><span class="annottext">FrameTypeId
+</span><a href="#local-6989586621679098152"><span class="hs-identifier hs-var">typ</span></a></span><span>
+</span><span id="line-82"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-83"></span><span>    </span><span id="local-6989586621679098135"><span class="annot"><span class="annottext">checkType :: FrameTypeId -&gt; Either HTTP2Error (FrameTypeId, FrameHeader)
+</span><a href="#local-6989586621679098135"><span class="hs-identifier hs-var hs-var">checkType</span></a></span></span><span> </span><span class="annot"><span class="annottext">FrameTypeId
+</span><a href="Network.HTTP2.Frame.Types.html#FrameHeaders"><span class="hs-identifier hs-var">FrameHeaders</span></a></span><span>
+</span><span id="line-84"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Bool
+</span><a href="Network.HTTP2.Frame.Types.html#testPadded"><span class="hs-identifier hs-var">testPadded</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679098150"><span class="hs-identifier hs-var">flags</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679098151"><span class="hs-identifier hs-var">payloadLength</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-85"></span><span>        </span><span class="annot"><span class="annottext">forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ErrorCodeId -&gt; ByteString -&gt; HTTP2Error
+</span><a href="Network.HTTP2.Frame.Types.html#ConnectionError"><span class="hs-identifier hs-var">ConnectionError</span></a></span><span> </span><span class="annot"><span class="annottext">ErrorCodeId
+</span><a href="Network.HTTP2.Frame.Types.html#FrameSizeError"><span class="hs-identifier hs-var">FrameSizeError</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;insufficient payload for Pad Length&quot;</span></span><span>
+</span><span id="line-86"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Bool
+</span><a href="Network.HTTP2.Frame.Types.html#testPriority"><span class="hs-identifier hs-var">testPriority</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679098150"><span class="hs-identifier hs-var">flags</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679098151"><span class="hs-identifier hs-var">payloadLength</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">5</span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-87"></span><span>        </span><span class="annot"><span class="annottext">forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ErrorCodeId -&gt; ByteString -&gt; HTTP2Error
+</span><a href="Network.HTTP2.Frame.Types.html#ConnectionError"><span class="hs-identifier hs-var">ConnectionError</span></a></span><span> </span><span class="annot"><span class="annottext">ErrorCodeId
+</span><a href="Network.HTTP2.Frame.Types.html#FrameSizeError"><span class="hs-identifier hs-var">FrameSizeError</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;insufficient payload for priority fields&quot;</span></span><span>
+</span><span id="line-88"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Bool
+</span><a href="Network.HTTP2.Frame.Types.html#testPadded"><span class="hs-identifier hs-var">testPadded</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679098150"><span class="hs-identifier hs-var">flags</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Bool
+</span><a href="Network.HTTP2.Frame.Types.html#testPriority"><span class="hs-identifier hs-var">testPriority</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679098150"><span class="hs-identifier hs-var">flags</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679098151"><span class="hs-identifier hs-var">payloadLength</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">6</span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-89"></span><span>        </span><span class="annot"><span class="annottext">forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ErrorCodeId -&gt; ByteString -&gt; HTTP2Error
+</span><a href="Network.HTTP2.Frame.Types.html#ConnectionError"><span class="hs-identifier hs-var">ConnectionError</span></a></span><span> </span><span class="annot"><span class="annottext">ErrorCodeId
+</span><a href="Network.HTTP2.Frame.Types.html#FrameSizeError"><span class="hs-identifier hs-var">FrameSizeError</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;insufficient payload for Pad Length and priority fields&quot;</span></span><span>
+</span><span id="line-90"></span><span>    </span><span class="annot"><a href="#local-6989586621679098135"><span class="hs-identifier hs-var">checkType</span></a></span><span> </span><span class="annot"><span class="annottext">FrameTypeId
+</span><a href="Network.HTTP2.Frame.Types.html#FramePriority"><span class="hs-identifier hs-var">FramePriority</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679098151"><span class="hs-identifier hs-var">payloadLength</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">5</span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-91"></span><span>        </span><span class="annot"><span class="annottext">forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ErrorCodeId -&gt; Int -&gt; HTTP2Error
+</span><a href="Network.HTTP2.Frame.Types.html#StreamError"><span class="hs-identifier hs-var">StreamError</span></a></span><span> </span><span class="annot"><span class="annottext">ErrorCodeId
+</span><a href="Network.HTTP2.Frame.Types.html#FrameSizeError"><span class="hs-identifier hs-var">FrameSizeError</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679098149"><span class="hs-identifier hs-var">streamId</span></a></span><span>
+</span><span id="line-92"></span><span>    </span><span class="annot"><a href="#local-6989586621679098135"><span class="hs-identifier hs-var">checkType</span></a></span><span> </span><span class="annot"><span class="annottext">FrameTypeId
+</span><a href="Network.HTTP2.Frame.Types.html#FrameRSTStream"><span class="hs-identifier hs-var">FrameRSTStream</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679098151"><span class="hs-identifier hs-var">payloadLength</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-93"></span><span>        </span><span class="annot"><span class="annottext">forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ErrorCodeId -&gt; ByteString -&gt; HTTP2Error
+</span><a href="Network.HTTP2.Frame.Types.html#ConnectionError"><span class="hs-identifier hs-var">ConnectionError</span></a></span><span> </span><span class="annot"><span class="annottext">ErrorCodeId
+</span><a href="Network.HTTP2.Frame.Types.html#FrameSizeError"><span class="hs-identifier hs-var">FrameSizeError</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;payload length is not 4 in rst stream frame&quot;</span></span><span>
+</span><span id="line-94"></span><span>    </span><span class="annot"><a href="#local-6989586621679098135"><span class="hs-identifier hs-var">checkType</span></a></span><span> </span><span class="annot"><span class="annottext">FrameTypeId
+</span><a href="Network.HTTP2.Frame.Types.html#FrameSettings"><span class="hs-identifier hs-var">FrameSettings</span></a></span><span>
+</span><span id="line-95"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679098151"><span class="hs-identifier hs-var">payloadLength</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Integral a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`mod`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">6</span></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-96"></span><span>        </span><span class="annot"><span class="annottext">forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ErrorCodeId -&gt; ByteString -&gt; HTTP2Error
+</span><a href="Network.HTTP2.Frame.Types.html#ConnectionError"><span class="hs-identifier hs-var">ConnectionError</span></a></span><span> </span><span class="annot"><span class="annottext">ErrorCodeId
+</span><a href="Network.HTTP2.Frame.Types.html#FrameSizeError"><span class="hs-identifier hs-var">FrameSizeError</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;payload length is not multiple of 6 in settings frame&quot;</span></span><span>
+</span><span id="line-97"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Bool
+</span><a href="Network.HTTP2.Frame.Types.html#testAck"><span class="hs-identifier hs-var">testAck</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679098150"><span class="hs-identifier hs-var">flags</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679098151"><span class="hs-identifier hs-var">payloadLength</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-98"></span><span>        </span><span class="annot"><span class="annottext">forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ErrorCodeId -&gt; ByteString -&gt; HTTP2Error
+</span><a href="Network.HTTP2.Frame.Types.html#ConnectionError"><span class="hs-identifier hs-var">ConnectionError</span></a></span><span> </span><span class="annot"><span class="annottext">ErrorCodeId
+</span><a href="Network.HTTP2.Frame.Types.html#FrameSizeError"><span class="hs-identifier hs-var">FrameSizeError</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;payload length must be 0 if ack flag is set&quot;</span></span><span>
+</span><span id="line-99"></span><span>    </span><span class="annot"><a href="#local-6989586621679098135"><span class="hs-identifier hs-var">checkType</span></a></span><span> </span><span class="annot"><span class="annottext">FrameTypeId
+</span><a href="Network.HTTP2.Frame.Types.html#FramePushPromise"><span class="hs-identifier hs-var">FramePushPromise</span></a></span><span>
+</span><span id="line-100"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679098164"><span class="hs-identifier hs-var">enablePush</span></a></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-101"></span><span>        </span><span class="annot"><span class="annottext">forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ErrorCodeId -&gt; ByteString -&gt; HTTP2Error
+</span><a href="Network.HTTP2.Frame.Types.html#ConnectionError"><span class="hs-identifier hs-var">ConnectionError</span></a></span><span> </span><span class="annot"><span class="annottext">ErrorCodeId
+</span><a href="Network.HTTP2.Frame.Types.html#ProtocolError"><span class="hs-identifier hs-var">ProtocolError</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;push not enabled&quot;</span></span><span> </span><span class="hs-comment">-- checkme</span><span>
+</span><span id="line-102"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Bool
+</span><a href="Network.HTTP2.Frame.Types.html#isClientInitiated"><span class="hs-identifier hs-var">isClientInitiated</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679098149"><span class="hs-identifier hs-var">streamId</span></a></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-103"></span><span>        </span><span class="annot"><span class="annottext">forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ErrorCodeId -&gt; ByteString -&gt; HTTP2Error
+</span><a href="Network.HTTP2.Frame.Types.html#ConnectionError"><span class="hs-identifier hs-var">ConnectionError</span></a></span><span> </span><span class="annot"><span class="annottext">ErrorCodeId
+</span><a href="Network.HTTP2.Frame.Types.html#ProtocolError"><span class="hs-identifier hs-var">ProtocolError</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;push promise must be used with even stream identifier&quot;</span></span><span>
+</span><span id="line-104"></span><span>    </span><span class="annot"><a href="#local-6989586621679098135"><span class="hs-identifier hs-var">checkType</span></a></span><span> </span><span class="annot"><span class="annottext">FrameTypeId
+</span><a href="Network.HTTP2.Frame.Types.html#FramePing"><span class="hs-identifier hs-var">FramePing</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679098151"><span class="hs-identifier hs-var">payloadLength</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-105"></span><span>        </span><span class="annot"><span class="annottext">forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ErrorCodeId -&gt; ByteString -&gt; HTTP2Error
+</span><a href="Network.HTTP2.Frame.Types.html#ConnectionError"><span class="hs-identifier hs-var">ConnectionError</span></a></span><span> </span><span class="annot"><span class="annottext">ErrorCodeId
+</span><a href="Network.HTTP2.Frame.Types.html#FrameSizeError"><span class="hs-identifier hs-var">FrameSizeError</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;payload length is 8 in ping frame&quot;</span></span><span>
+</span><span id="line-106"></span><span>    </span><span class="annot"><a href="#local-6989586621679098135"><span class="hs-identifier hs-var">checkType</span></a></span><span> </span><span class="annot"><span class="annottext">FrameTypeId
+</span><a href="Network.HTTP2.Frame.Types.html#FrameGoAway"><span class="hs-identifier hs-var">FrameGoAway</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679098151"><span class="hs-identifier hs-var">payloadLength</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-107"></span><span>        </span><span class="annot"><span class="annottext">forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ErrorCodeId -&gt; ByteString -&gt; HTTP2Error
+</span><a href="Network.HTTP2.Frame.Types.html#ConnectionError"><span class="hs-identifier hs-var">ConnectionError</span></a></span><span> </span><span class="annot"><span class="annottext">ErrorCodeId
+</span><a href="Network.HTTP2.Frame.Types.html#FrameSizeError"><span class="hs-identifier hs-var">FrameSizeError</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;goaway body must be 8 bytes or larger&quot;</span></span><span>
+</span><span id="line-108"></span><span>    </span><span class="annot"><a href="#local-6989586621679098135"><span class="hs-identifier hs-var">checkType</span></a></span><span> </span><span class="annot"><span class="annottext">FrameTypeId
+</span><a href="Network.HTTP2.Frame.Types.html#FrameWindowUpdate"><span class="hs-identifier hs-var">FrameWindowUpdate</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679098151"><span class="hs-identifier hs-var">payloadLength</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-109"></span><span>        </span><span class="annot"><span class="annottext">forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ErrorCodeId -&gt; ByteString -&gt; HTTP2Error
+</span><a href="Network.HTTP2.Frame.Types.html#ConnectionError"><span class="hs-identifier hs-var">ConnectionError</span></a></span><span> </span><span class="annot"><span class="annottext">ErrorCodeId
+</span><a href="Network.HTTP2.Frame.Types.html#FrameSizeError"><span class="hs-identifier hs-var">FrameSizeError</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;payload length is 4 in window update frame&quot;</span></span><span>
+</span><span id="line-110"></span><span>    </span><span class="annot"><a href="#local-6989586621679098135"><span class="hs-identifier hs-var">checkType</span></a></span><span> </span><span class="annot"><span class="annottext">FrameTypeId
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">(FrameTypeId, FrameHeader)
+</span><a href="#local-6989586621679098153"><span class="hs-identifier hs-var">typfrm</span></a></span><span>
+</span><span id="line-111"></span><span>
+</span><span id="line-112"></span><span class="annot"><a href="Network.HTTP2.Frame.Decode.html#zeroFrameTypes"><span class="hs-identifier hs-type">zeroFrameTypes</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Network.HTTP2.Frame.Types.html#FrameTypeId"><span class="hs-identifier hs-type">FrameTypeId</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-113"></span><span id="zeroFrameTypes"><span class="annot"><span class="annottext">zeroFrameTypes :: [FrameTypeId]
+</span><a href="Network.HTTP2.Frame.Decode.html#zeroFrameTypes"><span class="hs-identifier hs-var hs-var">zeroFrameTypes</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span>
+</span><span id="line-114"></span><span>    </span><span class="annot"><span class="annottext">FrameTypeId
+</span><a href="Network.HTTP2.Frame.Types.html#FrameSettings"><span class="hs-identifier hs-var">FrameSettings</span></a></span><span>
+</span><span id="line-115"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">FrameTypeId
+</span><a href="Network.HTTP2.Frame.Types.html#FramePing"><span class="hs-identifier hs-var">FramePing</span></a></span><span>
+</span><span id="line-116"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">FrameTypeId
+</span><a href="Network.HTTP2.Frame.Types.html#FrameGoAway"><span class="hs-identifier hs-var">FrameGoAway</span></a></span><span>
+</span><span id="line-117"></span><span>  </span><span class="hs-special">]</span><span>
+</span><span id="line-118"></span><span>
+</span><span id="line-119"></span><span class="annot"><a href="Network.HTTP2.Frame.Decode.html#nonZeroFrameTypes"><span class="hs-identifier hs-type">nonZeroFrameTypes</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Network.HTTP2.Frame.Types.html#FrameTypeId"><span class="hs-identifier hs-type">FrameTypeId</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-120"></span><span id="nonZeroFrameTypes"><span class="annot"><span class="annottext">nonZeroFrameTypes :: [FrameTypeId]
+</span><a href="Network.HTTP2.Frame.Decode.html#nonZeroFrameTypes"><span class="hs-identifier hs-var hs-var">nonZeroFrameTypes</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span>
+</span><span id="line-121"></span><span>    </span><span class="annot"><span class="annottext">FrameTypeId
+</span><a href="Network.HTTP2.Frame.Types.html#FrameData"><span class="hs-identifier hs-var">FrameData</span></a></span><span>
+</span><span id="line-122"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">FrameTypeId
+</span><a href="Network.HTTP2.Frame.Types.html#FrameHeaders"><span class="hs-identifier hs-var">FrameHeaders</span></a></span><span>
+</span><span id="line-123"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">FrameTypeId
+</span><a href="Network.HTTP2.Frame.Types.html#FramePriority"><span class="hs-identifier hs-var">FramePriority</span></a></span><span>
+</span><span id="line-124"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">FrameTypeId
+</span><a href="Network.HTTP2.Frame.Types.html#FrameRSTStream"><span class="hs-identifier hs-var">FrameRSTStream</span></a></span><span>
+</span><span id="line-125"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">FrameTypeId
+</span><a href="Network.HTTP2.Frame.Types.html#FramePushPromise"><span class="hs-identifier hs-var">FramePushPromise</span></a></span><span>
+</span><span id="line-126"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">FrameTypeId
+</span><a href="Network.HTTP2.Frame.Types.html#FrameContinuation"><span class="hs-identifier hs-var">FrameContinuation</span></a></span><span>
+</span><span id="line-127"></span><span>  </span><span class="hs-special">]</span><span>
+</span><span id="line-128"></span><span>
+</span><span id="line-129"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-130"></span><span>
+</span><span id="line-131"></span><span class="hs-comment">-- | The type for frame payload decoder.</span><span>
+</span><span id="line-132"></span><span class="hs-keyword">type</span><span> </span><span id="FramePayloadDecoder"><span class="annot"><a href="Network.HTTP2.Frame.Decode.html#FramePayloadDecoder"><span class="hs-identifier hs-var">FramePayloadDecoder</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Types.html#FrameHeader"><span class="hs-identifier hs-type">FrameHeader</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span>
+</span><span id="line-133"></span><span>                        </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Types.html#HTTP2Error"><span class="hs-identifier hs-type">HTTP2Error</span></a></span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Types.html#FramePayload"><span class="hs-identifier hs-type">FramePayload</span></a></span><span>
+</span><span id="line-134"></span><span>
+</span><span id="line-135"></span><span class="annot"><a href="Network.HTTP2.Frame.Decode.html#payloadDecoders"><span class="hs-identifier hs-type">payloadDecoders</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Array</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Decode.html#FramePayloadDecoder"><span class="hs-identifier hs-type">FramePayloadDecoder</span></a></span><span>
+</span><span id="line-136"></span><span id="payloadDecoders"><span class="annot"><span class="annottext">payloadDecoders :: Array Word8 FramePayloadDecoder
+</span><a href="Network.HTTP2.Frame.Decode.html#payloadDecoders"><span class="hs-identifier hs-var hs-var">payloadDecoders</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall i e. Ix i =&gt; (i, i) -&gt; [e] -&gt; Array i e
+</span><span class="hs-identifier hs-var">listArray</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8
+</span><a href="Network.HTTP2.Frame.Types.html#minFrameType"><span class="hs-identifier hs-var">minFrameType</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="Network.HTTP2.Frame.Types.html#maxFrameType"><span class="hs-identifier hs-var">maxFrameType</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-137"></span><span>    </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">FramePayloadDecoder
+</span><a href="Network.HTTP2.Frame.Decode.html#decodeDataFrame"><span class="hs-identifier hs-var">decodeDataFrame</span></a></span><span>
+</span><span id="line-138"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">FramePayloadDecoder
+</span><a href="Network.HTTP2.Frame.Decode.html#decodeHeadersFrame"><span class="hs-identifier hs-var">decodeHeadersFrame</span></a></span><span>
+</span><span id="line-139"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">FramePayloadDecoder
+</span><a href="Network.HTTP2.Frame.Decode.html#decodePriorityFrame"><span class="hs-identifier hs-var">decodePriorityFrame</span></a></span><span>
+</span><span id="line-140"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">FramePayloadDecoder
+</span><a href="Network.HTTP2.Frame.Decode.html#decoderstStreamFrame"><span class="hs-identifier hs-var">decoderstStreamFrame</span></a></span><span>
+</span><span id="line-141"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">FramePayloadDecoder
+</span><a href="Network.HTTP2.Frame.Decode.html#decodeSettingsFrame"><span class="hs-identifier hs-var">decodeSettingsFrame</span></a></span><span>
+</span><span id="line-142"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">FramePayloadDecoder
+</span><a href="Network.HTTP2.Frame.Decode.html#decodePushPromiseFrame"><span class="hs-identifier hs-var">decodePushPromiseFrame</span></a></span><span>
+</span><span id="line-143"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">FramePayloadDecoder
+</span><a href="Network.HTTP2.Frame.Decode.html#decodePingFrame"><span class="hs-identifier hs-var">decodePingFrame</span></a></span><span>
+</span><span id="line-144"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">FramePayloadDecoder
+</span><a href="Network.HTTP2.Frame.Decode.html#decodeGoAwayFrame"><span class="hs-identifier hs-var">decodeGoAwayFrame</span></a></span><span>
+</span><span id="line-145"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">FramePayloadDecoder
+</span><a href="Network.HTTP2.Frame.Decode.html#decodeWindowUpdateFrame"><span class="hs-identifier hs-var">decodeWindowUpdateFrame</span></a></span><span>
+</span><span id="line-146"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">FramePayloadDecoder
+</span><a href="Network.HTTP2.Frame.Decode.html#decodeContinuationFrame"><span class="hs-identifier hs-var">decodeContinuationFrame</span></a></span><span>
+</span><span id="line-147"></span><span>    </span><span class="hs-special">]</span><span>
+</span><span id="line-148"></span><span>
+</span><span id="line-149"></span><span class="hs-comment">-- | Decoding an HTTP/2 frame payload.</span><span>
+</span><span id="line-150"></span><span class="hs-comment">--   This function is considered to return a frame payload decoder</span><span>
+</span><span id="line-151"></span><span class="hs-comment">--   according to a frame type.</span><span>
+</span><span id="line-152"></span><span class="annot"><a href="Network.HTTP2.Frame.Decode.html#decodeFramePayload"><span class="hs-identifier hs-type">decodeFramePayload</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Types.html#FrameTypeId"><span class="hs-identifier hs-type">FrameTypeId</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Decode.html#FramePayloadDecoder"><span class="hs-identifier hs-type">FramePayloadDecoder</span></a></span><span>
+</span><span id="line-153"></span><span id="decodeFramePayload"><span class="annot"><span class="annottext">decodeFramePayload :: FrameTypeId -&gt; FramePayloadDecoder
+</span><a href="Network.HTTP2.Frame.Decode.html#decodeFramePayload"><span class="hs-identifier hs-var hs-var">decodeFramePayload</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.HTTP2.Frame.Types.html#FrameUnknown"><span class="hs-identifier hs-type">FrameUnknown</span></a></span><span> </span><span id="local-6989586621679098078"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679098078"><span class="hs-identifier hs-var">typ</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FramePayloadDecoder -&gt; FramePayloadDecoder
+</span><a href="Network.HTTP2.Frame.Decode.html#checkFrameSize"><span class="hs-identifier hs-var">checkFrameSize</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; FramePayloadDecoder
+</span><a href="Network.HTTP2.Frame.Decode.html#decodeUnknownFrame"><span class="hs-identifier hs-var">decodeUnknownFrame</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679098078"><span class="hs-identifier hs-var">typ</span></a></span><span>
+</span><span id="line-154"></span><span class="annot"><a href="Network.HTTP2.Frame.Decode.html#decodeFramePayload"><span class="hs-identifier hs-var">decodeFramePayload</span></a></span><span> </span><span id="local-6989586621679098075"><span class="annot"><span class="annottext">FrameTypeId
+</span><a href="#local-6989586621679098075"><span class="hs-identifier hs-var">ftyp</span></a></span></span><span>               </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FramePayloadDecoder -&gt; FramePayloadDecoder
+</span><a href="Network.HTTP2.Frame.Decode.html#checkFrameSize"><span class="hs-identifier hs-var">checkFrameSize</span></a></span><span> </span><span class="annot"><span class="annottext">FramePayloadDecoder
+</span><a href="#local-6989586621679098074"><span class="hs-identifier hs-var">decoder</span></a></span><span>
+</span><span id="line-155"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-156"></span><span>    </span><span id="local-6989586621679098074"><span class="annot"><span class="annottext">decoder :: FramePayloadDecoder
+</span><a href="#local-6989586621679098074"><span class="hs-identifier hs-var hs-var">decoder</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Array Word8 FramePayloadDecoder
+</span><a href="Network.HTTP2.Frame.Decode.html#payloadDecoders"><span class="hs-identifier hs-var">payloadDecoders</span></a></span><span> </span><span class="annot"><span class="annottext">forall i e. Ix i =&gt; Array i e -&gt; i -&gt; e
+</span><span class="hs-operator hs-var">!</span></span><span> </span><span class="annot"><span class="annottext">FrameTypeId -&gt; Word8
+</span><a href="Network.HTTP2.Frame.Types.html#fromFrameTypeId"><span class="hs-identifier hs-var">fromFrameTypeId</span></a></span><span> </span><span class="annot"><span class="annottext">FrameTypeId
+</span><a href="#local-6989586621679098075"><span class="hs-identifier hs-var">ftyp</span></a></span><span>
+</span><span id="line-157"></span><span>
+</span><span id="line-158"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-159"></span><span>
+</span><span id="line-160"></span><span class="hs-comment">-- | Frame payload decoder for DATA frame.</span><span>
+</span><span id="line-161"></span><span class="annot"><a href="Network.HTTP2.Frame.Decode.html#decodeDataFrame"><span class="hs-identifier hs-type">decodeDataFrame</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Decode.html#FramePayloadDecoder"><span class="hs-identifier hs-type">FramePayloadDecoder</span></a></span><span>
+</span><span id="line-162"></span><span id="decodeDataFrame"><span class="annot"><span class="annottext">decodeDataFrame :: FramePayloadDecoder
+</span><a href="Network.HTTP2.Frame.Decode.html#decodeDataFrame"><span class="hs-identifier hs-var hs-var">decodeDataFrame</span></a></span></span><span> </span><span id="local-6989586621679098071"><span class="annot"><span class="annottext">FrameHeader
+</span><a href="#local-6989586621679098071"><span class="hs-identifier hs-var">header</span></a></span></span><span> </span><span id="local-6989586621679098070"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679098070"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FrameHeader
+-&gt; ByteString
+-&gt; (ByteString -&gt; FramePayload)
+-&gt; Either HTTP2Error FramePayload
+</span><a href="Network.HTTP2.Frame.Decode.html#decodeWithPadding"><span class="hs-identifier hs-var">decodeWithPadding</span></a></span><span> </span><span class="annot"><span class="annottext">FrameHeader
+</span><a href="#local-6989586621679098071"><span class="hs-identifier hs-var">header</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679098070"><span class="hs-identifier hs-var">bs</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; FramePayload
+</span><a href="Network.HTTP2.Frame.Types.html#DataFrame"><span class="hs-identifier hs-var">DataFrame</span></a></span><span>
+</span><span id="line-163"></span><span>
+</span><span id="line-164"></span><span class="hs-comment">-- | Frame payload decoder for HEADERS frame.</span><span>
+</span><span id="line-165"></span><span class="annot"><a href="Network.HTTP2.Frame.Decode.html#decodeHeadersFrame"><span class="hs-identifier hs-type">decodeHeadersFrame</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Decode.html#FramePayloadDecoder"><span class="hs-identifier hs-type">FramePayloadDecoder</span></a></span><span>
+</span><span id="line-166"></span><span id="decodeHeadersFrame"><span class="annot"><span class="annottext">decodeHeadersFrame :: FramePayloadDecoder
+</span><a href="Network.HTTP2.Frame.Decode.html#decodeHeadersFrame"><span class="hs-identifier hs-var hs-var">decodeHeadersFrame</span></a></span></span><span> </span><span id="local-6989586621679098067"><span class="annot"><span class="annottext">FrameHeader
+</span><a href="#local-6989586621679098067"><span class="hs-identifier hs-var">header</span></a></span></span><span> </span><span id="local-6989586621679098066"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679098066"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FrameHeader
+-&gt; ByteString
+-&gt; (ByteString -&gt; FramePayload)
+-&gt; Either HTTP2Error FramePayload
+</span><a href="Network.HTTP2.Frame.Decode.html#decodeWithPadding"><span class="hs-identifier hs-var">decodeWithPadding</span></a></span><span> </span><span class="annot"><span class="annottext">FrameHeader
+</span><a href="#local-6989586621679098067"><span class="hs-identifier hs-var">header</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679098066"><span class="hs-identifier hs-var">bs</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679098065"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679098065"><span class="hs-identifier hs-var">bs'</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-167"></span><span>    </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679098064"><span class="hs-identifier hs-var">hasPriority</span></a></span><span> </span><span class="hs-keyword">then</span><span>
+</span><span id="line-168"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679098063"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679098063"><span class="hs-identifier hs-var">bs0</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679098062"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679098062"><span class="hs-identifier hs-var">bs1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; ByteString -&gt; (ByteString, ByteString)
+</span><span class="hs-identifier hs-var">BS.splitAt</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">5</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679098065"><span class="hs-identifier hs-var">bs'</span></a></span><span>
+</span><span id="line-169"></span><span>            </span><span id="local-6989586621679098061"><span class="annot"><span class="annottext">p :: Priority
+</span><a href="#local-6989586621679098061"><span class="hs-identifier hs-var hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Priority
+</span><a href="Network.HTTP2.Frame.Decode.html#priority"><span class="hs-identifier hs-var">priority</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679098063"><span class="hs-identifier hs-var">bs0</span></a></span><span>
+</span><span id="line-170"></span><span>        </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">Maybe Priority -&gt; ByteString -&gt; FramePayload
+</span><a href="Network.HTTP2.Frame.Types.html#HeadersFrame"><span class="hs-identifier hs-var">HeadersFrame</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Priority
+</span><a href="#local-6989586621679098061"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679098062"><span class="hs-identifier hs-var">bs1</span></a></span><span>
+</span><span id="line-171"></span><span>    </span><span class="hs-keyword">else</span><span>
+</span><span id="line-172"></span><span>        </span><span class="annot"><span class="annottext">Maybe Priority -&gt; ByteString -&gt; FramePayload
+</span><a href="Network.HTTP2.Frame.Types.html#HeadersFrame"><span class="hs-identifier hs-var">HeadersFrame</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679098065"><span class="hs-identifier hs-var">bs'</span></a></span><span>
+</span><span id="line-173"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-174"></span><span>    </span><span id="local-6989586621679098064"><span class="annot"><span class="annottext">hasPriority :: Bool
+</span><a href="#local-6989586621679098064"><span class="hs-identifier hs-var hs-var">hasPriority</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Bool
+</span><a href="Network.HTTP2.Frame.Types.html#testPriority"><span class="hs-identifier hs-var">testPriority</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">FrameHeader -&gt; Word8
+</span><a href="Network.HTTP2.Frame.Types.html#flags"><span class="hs-identifier hs-var">flags</span></a></span><span> </span><span class="annot"><span class="annottext">FrameHeader
+</span><a href="#local-6989586621679098067"><span class="hs-identifier hs-var">header</span></a></span><span>
+</span><span id="line-175"></span><span>
+</span><span id="line-176"></span><span class="hs-comment">-- | Frame payload decoder for PRIORITY frame.</span><span>
+</span><span id="line-177"></span><span class="annot"><a href="Network.HTTP2.Frame.Decode.html#decodePriorityFrame"><span class="hs-identifier hs-type">decodePriorityFrame</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Decode.html#FramePayloadDecoder"><span class="hs-identifier hs-type">FramePayloadDecoder</span></a></span><span>
+</span><span id="line-178"></span><span id="decodePriorityFrame"><span class="annot"><span class="annottext">decodePriorityFrame :: FramePayloadDecoder
+</span><a href="Network.HTTP2.Frame.Decode.html#decodePriorityFrame"><span class="hs-identifier hs-var hs-var">decodePriorityFrame</span></a></span></span><span> </span><span class="annot"><span class="annottext">FrameHeader
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679098058"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679098058"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Priority -&gt; FramePayload
+</span><a href="Network.HTTP2.Frame.Types.html#PriorityFrame"><span class="hs-identifier hs-var">PriorityFrame</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Priority
+</span><a href="Network.HTTP2.Frame.Decode.html#priority"><span class="hs-identifier hs-var">priority</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679098058"><span class="hs-identifier hs-var">bs</span></a></span><span>
+</span><span id="line-179"></span><span>
+</span><span id="line-180"></span><span class="hs-comment">-- | Frame payload decoder for RST_STREAM frame.</span><span>
+</span><span id="line-181"></span><span class="annot"><a href="Network.HTTP2.Frame.Decode.html#decoderstStreamFrame"><span class="hs-identifier hs-type">decoderstStreamFrame</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Decode.html#FramePayloadDecoder"><span class="hs-identifier hs-type">FramePayloadDecoder</span></a></span><span>
+</span><span id="line-182"></span><span id="decoderstStreamFrame"><span class="annot"><span class="annottext">decoderstStreamFrame :: FramePayloadDecoder
+</span><a href="Network.HTTP2.Frame.Decode.html#decoderstStreamFrame"><span class="hs-identifier hs-var hs-var">decoderstStreamFrame</span></a></span></span><span> </span><span class="annot"><span class="annottext">FrameHeader
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679098056"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679098056"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ErrorCodeId -&gt; FramePayload
+</span><a href="Network.HTTP2.Frame.Types.html#RSTStreamFrame"><span class="hs-identifier hs-var">RSTStreamFrame</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Word32 -&gt; ErrorCodeId
+</span><a href="Network.HTTP2.Frame.Types.html#toErrorCodeId"><span class="hs-identifier hs-var">toErrorCodeId</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString -&gt; Word32
+</span><span class="hs-identifier hs-var">N.word32</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679098056"><span class="hs-identifier hs-var">bs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-183"></span><span>
+</span><span id="line-184"></span><span class="hs-comment">-- | Frame payload decoder for SETTINGS frame.</span><span>
+</span><span id="line-185"></span><span class="annot"><a href="Network.HTTP2.Frame.Decode.html#decodeSettingsFrame"><span class="hs-identifier hs-type">decodeSettingsFrame</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Decode.html#FramePayloadDecoder"><span class="hs-identifier hs-type">FramePayloadDecoder</span></a></span><span>
+</span><span id="line-186"></span><span id="decodeSettingsFrame"><span class="annot"><span class="annottext">decodeSettingsFrame :: FramePayloadDecoder
+</span><a href="Network.HTTP2.Frame.Decode.html#decodeSettingsFrame"><span class="hs-identifier hs-var hs-var">decodeSettingsFrame</span></a></span></span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Types.html#FrameHeader"><span class="hs-identifier hs-type">FrameHeader</span></a></span><span class="hs-special">{</span><span id="local-6989586621679098050"><span id="local-6989586621679098051"><span id="local-6989586621679098052"><span class="annot"><span class="annottext">Int
+Word8
+streamId :: Int
+flags :: Word8
+payloadLength :: Int
+streamId :: FrameHeader -&gt; Int
+flags :: FrameHeader -&gt; Word8
+payloadLength :: FrameHeader -&gt; Int
+</span><a href="#local-6989586621679098050"><span class="hs-glyph hs-var hs-var hs-var hs-var hs-var hs-var">..</span></a></span></span></span></span><span class="hs-special">}</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">PS</span></span><span> </span><span id="local-6989586621679098049"><span class="annot"><span class="annottext">ForeignPtr Word8
+</span><a href="#local-6989586621679098049"><span class="hs-identifier hs-var">fptr</span></a></span></span><span> </span><span id="local-6989586621679098048"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679098048"><span class="hs-identifier hs-var">off</span></a></span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>
+</span><span id="line-187"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679098047"><span class="hs-identifier hs-var">num</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">10</span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ErrorCodeId -&gt; ByteString -&gt; HTTP2Error
+</span><a href="Network.HTTP2.Frame.Types.html#ConnectionError"><span class="hs-identifier hs-var">ConnectionError</span></a></span><span> </span><span class="annot"><span class="annottext">ErrorCodeId
+</span><a href="Network.HTTP2.Frame.Types.html#EnhanceYourCalm"><span class="hs-identifier hs-var">EnhanceYourCalm</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;Settings is too large&quot;</span></span><span>
+</span><span id="line-188"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">SettingsList -&gt; FramePayload
+</span><a href="Network.HTTP2.Frame.Types.html#SettingsFrame"><span class="hs-identifier hs-var">SettingsFrame</span></a></span><span> </span><span class="annot"><span class="annottext">SettingsList
+</span><a href="#local-6989586621679098044"><span class="hs-identifier hs-var">alist</span></a></span><span>
+</span><span id="line-189"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-190"></span><span>    </span><span id="local-6989586621679098047"><span class="annot"><span class="annottext">num :: Int
+</span><a href="#local-6989586621679098047"><span class="hs-identifier hs-var hs-var">num</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679098052"><span class="hs-identifier hs-var">payloadLength</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Integral a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`div`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">6</span></span><span>
+</span><span id="line-191"></span><span>    </span><span id="local-6989586621679098044"><span class="annot"><span class="annottext">alist :: SettingsList
+</span><a href="#local-6989586621679098044"><span class="hs-identifier hs-var hs-var">alist</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. IO a -&gt; a
+</span><span class="hs-identifier hs-var">unsafeDupablePerformIO</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr Word8
+</span><a href="#local-6989586621679098049"><span class="hs-identifier hs-var">fptr</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679098037"><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679098037"><span class="hs-identifier hs-var">ptr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-192"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679098036"><span class="annot"><span class="annottext">p :: Ptr Word8
+</span><a href="#local-6989586621679098036"><span class="hs-identifier hs-var hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679098037"><span class="hs-identifier hs-var">ptr</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Word8 -&gt; Int -&gt; Ptr Word8
+</span><a href="Network.HTTP2.Frame.Decode.html#%2B."><span class="hs-operator hs-var">+.</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679098048"><span class="hs-identifier hs-var">off</span></a></span><span>
+</span><span id="line-193"></span><span>        </span><span class="annot"><span class="annottext">forall {t} {b} {a}.
+(Eq t, Num t, Num b) =&gt;
+t -&gt; Ptr Word8 -&gt; ([(SettingsKeyId, b)] -&gt; a) -&gt; IO a
+</span><a href="#local-6989586621679098035"><span class="hs-identifier hs-var">settings</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679098047"><span class="hs-identifier hs-var">num</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679098036"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span>
+</span><span id="line-194"></span><span>    </span><span id="local-6989586621679098035"><span class="annot"><span class="annottext">settings :: t -&gt; Ptr Word8 -&gt; ([(SettingsKeyId, b)] -&gt; a) -&gt; IO a
+</span><a href="#local-6989586621679098035"><span class="hs-identifier hs-var hs-var">settings</span></a></span></span><span> </span><span class="annot"><span class="annottext">t
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Ptr Word8
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679098025"><span class="annot"><span class="annottext">[(SettingsKeyId, b)] -&gt; a
+</span><a href="#local-6989586621679098025"><span class="hs-identifier hs-var">builder</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[(SettingsKeyId, b)] -&gt; a
+</span><a href="#local-6989586621679098025"><span class="hs-identifier hs-var">builder</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-195"></span><span>    </span><span class="annot"><a href="#local-6989586621679098035"><span class="hs-identifier hs-var">settings</span></a></span><span> </span><span id="local-6989586621679098024"><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679098024"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621679098023"><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679098023"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span id="local-6989586621679098022"><span class="annot"><span class="annottext">[(SettingsKeyId, b)] -&gt; a
+</span><a href="#local-6989586621679098022"><span class="hs-identifier hs-var">builder</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-196"></span><span>        </span><span id="local-6989586621679098021"><span class="annot"><span class="annottext">Word16
+</span><a href="#local-6989586621679098021"><span class="hs-identifier hs-var">rawSetting</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Ptr Word8 -&gt; Int -&gt; IO Word16
+</span><span class="hs-identifier hs-var">N.peek16</span></span><span> </span><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679098023"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-197"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679098019"><span class="annot"><span class="annottext">msettings :: Maybe SettingsKeyId
+</span><a href="#local-6989586621679098019"><span class="hs-identifier hs-var hs-var">msettings</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word16 -&gt; Maybe SettingsKeyId
+</span><a href="Network.HTTP2.Frame.Types.html#toSettingsKeyId"><span class="hs-identifier hs-var">toSettingsKeyId</span></a></span><span> </span><span class="annot"><span class="annottext">Word16
+</span><a href="#local-6989586621679098021"><span class="hs-identifier hs-var">rawSetting</span></a></span><span>
+</span><span id="line-198"></span><span>            </span><span id="local-6989586621679098015"><span class="annot"><span class="annottext">n' :: t
+</span><a href="#local-6989586621679098015"><span class="hs-identifier hs-var hs-var">n'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679098024"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">t
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-199"></span><span>        </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Maybe SettingsKeyId
+</span><a href="#local-6989586621679098019"><span class="hs-identifier hs-var">msettings</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-200"></span><span>            </span><span class="annot"><span class="annottext">Maybe SettingsKeyId
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">t -&gt; Ptr Word8 -&gt; ([(SettingsKeyId, b)] -&gt; a) -&gt; IO a
+</span><a href="#local-6989586621679098035"><span class="hs-identifier hs-var">settings</span></a></span><span> </span><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679098015"><span class="hs-identifier hs-var">n'</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679098023"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Word8 -&gt; Int -&gt; Ptr Word8
+</span><a href="Network.HTTP2.Frame.Decode.html#%2B."><span class="hs-operator hs-var">+.</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">6</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[(SettingsKeyId, b)] -&gt; a
+</span><a href="#local-6989586621679098022"><span class="hs-identifier hs-var">builder</span></a></span><span> </span><span class="hs-comment">-- ignoring unknown one (Section 6.5.2)</span><span>
+</span><span id="line-201"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679098014"><span class="annot"><span class="annottext">SettingsKeyId
+</span><a href="#local-6989586621679098014"><span class="hs-identifier hs-var">k</span></a></span></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-202"></span><span>                </span><span id="local-6989586621679098013"><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679098013"><span class="hs-identifier hs-var">w32</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Ptr Word8 -&gt; Int -&gt; IO Word32
+</span><span class="hs-identifier hs-var">N.peek32</span></span><span> </span><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679098023"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span>
+</span><span id="line-203"></span><span>                </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679098010"><span class="annot"><span class="annottext">v :: b
+</span><a href="#local-6989586621679098010"><span class="hs-identifier hs-var hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679098013"><span class="hs-identifier hs-var">w32</span></a></span><span>
+</span><span id="line-204"></span><span>                </span><span class="annot"><span class="annottext">t -&gt; Ptr Word8 -&gt; ([(SettingsKeyId, b)] -&gt; a) -&gt; IO a
+</span><a href="#local-6989586621679098035"><span class="hs-identifier hs-var">settings</span></a></span><span> </span><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679098015"><span class="hs-identifier hs-var">n'</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679098023"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Word8 -&gt; Int -&gt; Ptr Word8
+</span><a href="Network.HTTP2.Frame.Decode.html#%2B."><span class="hs-operator hs-var">+.</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">6</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[(SettingsKeyId, b)] -&gt; a
+</span><a href="#local-6989586621679098022"><span class="hs-identifier hs-var">builder</span></a></span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">SettingsKeyId
+</span><a href="#local-6989586621679098014"><span class="hs-identifier hs-var">k</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679098010"><span class="hs-identifier hs-var">v</span></a></span><span class="hs-special">)</span><span class="annot"><span class="annottext">forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-205"></span><span>
+</span><span id="line-206"></span><span class="hs-comment">-- | Frame payload decoder for PUSH_PROMISE frame.</span><span>
+</span><span id="line-207"></span><span class="annot"><a href="Network.HTTP2.Frame.Decode.html#decodePushPromiseFrame"><span class="hs-identifier hs-type">decodePushPromiseFrame</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Decode.html#FramePayloadDecoder"><span class="hs-identifier hs-type">FramePayloadDecoder</span></a></span><span>
+</span><span id="line-208"></span><span id="decodePushPromiseFrame"><span class="annot"><span class="annottext">decodePushPromiseFrame :: FramePayloadDecoder
+</span><a href="Network.HTTP2.Frame.Decode.html#decodePushPromiseFrame"><span class="hs-identifier hs-var hs-var">decodePushPromiseFrame</span></a></span></span><span> </span><span id="local-6989586621679098008"><span class="annot"><span class="annottext">FrameHeader
+</span><a href="#local-6989586621679098008"><span class="hs-identifier hs-var">header</span></a></span></span><span> </span><span id="local-6989586621679098007"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679098007"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FrameHeader
+-&gt; ByteString
+-&gt; (ByteString -&gt; FramePayload)
+-&gt; Either HTTP2Error FramePayload
+</span><a href="Network.HTTP2.Frame.Decode.html#decodeWithPadding"><span class="hs-identifier hs-var">decodeWithPadding</span></a></span><span> </span><span class="annot"><span class="annottext">FrameHeader
+</span><a href="#local-6989586621679098008"><span class="hs-identifier hs-var">header</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679098007"><span class="hs-identifier hs-var">bs</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679098006"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679098006"><span class="hs-identifier hs-var">bs'</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-209"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679098005"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679098005"><span class="hs-identifier hs-var">bs0</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679098004"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679098004"><span class="hs-identifier hs-var">bs1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; ByteString -&gt; (ByteString, ByteString)
+</span><span class="hs-identifier hs-var">BS.splitAt</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679098006"><span class="hs-identifier hs-var">bs'</span></a></span><span>
+</span><span id="line-210"></span><span>        </span><span id="local-6989586621679098003"><span class="annot"><span class="annottext">sid :: Int
+</span><a href="#local-6989586621679098003"><span class="hs-identifier hs-var hs-var">sid</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word32 -&gt; Int
+</span><a href="Network.HTTP2.Frame.Decode.html#streamIdentifier"><span class="hs-identifier hs-var">streamIdentifier</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString -&gt; Word32
+</span><span class="hs-identifier hs-var">N.word32</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679098005"><span class="hs-identifier hs-var">bs0</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-211"></span><span>    </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">Int -&gt; ByteString -&gt; FramePayload
+</span><a href="Network.HTTP2.Frame.Types.html#PushPromiseFrame"><span class="hs-identifier hs-var">PushPromiseFrame</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679098003"><span class="hs-identifier hs-var">sid</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679098004"><span class="hs-identifier hs-var">bs1</span></a></span><span>
+</span><span id="line-212"></span><span>
+</span><span id="line-213"></span><span class="hs-comment">-- | Frame payload decoder for PING frame.</span><span>
+</span><span id="line-214"></span><span class="annot"><a href="Network.HTTP2.Frame.Decode.html#decodePingFrame"><span class="hs-identifier hs-type">decodePingFrame</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Decode.html#FramePayloadDecoder"><span class="hs-identifier hs-type">FramePayloadDecoder</span></a></span><span>
+</span><span id="line-215"></span><span id="decodePingFrame"><span class="annot"><span class="annottext">decodePingFrame :: FramePayloadDecoder
+</span><a href="Network.HTTP2.Frame.Decode.html#decodePingFrame"><span class="hs-identifier hs-var hs-var">decodePingFrame</span></a></span></span><span> </span><span class="annot"><span class="annottext">FrameHeader
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679098001"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679098001"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; FramePayload
+</span><a href="Network.HTTP2.Frame.Types.html#PingFrame"><span class="hs-identifier hs-var">PingFrame</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679098001"><span class="hs-identifier hs-var">bs</span></a></span><span>
+</span><span id="line-216"></span><span>
+</span><span id="line-217"></span><span class="hs-comment">-- | Frame payload decoder for GOAWAY frame.</span><span>
+</span><span id="line-218"></span><span class="annot"><a href="Network.HTTP2.Frame.Decode.html#decodeGoAwayFrame"><span class="hs-identifier hs-type">decodeGoAwayFrame</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Decode.html#FramePayloadDecoder"><span class="hs-identifier hs-type">FramePayloadDecoder</span></a></span><span>
+</span><span id="line-219"></span><span id="decodeGoAwayFrame"><span class="annot"><span class="annottext">decodeGoAwayFrame :: FramePayloadDecoder
+</span><a href="Network.HTTP2.Frame.Decode.html#decodeGoAwayFrame"><span class="hs-identifier hs-var hs-var">decodeGoAwayFrame</span></a></span></span><span> </span><span class="annot"><span class="annottext">FrameHeader
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679097999"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679097999"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; ErrorCodeId -&gt; ByteString -&gt; FramePayload
+</span><a href="Network.HTTP2.Frame.Types.html#GoAwayFrame"><span class="hs-identifier hs-var">GoAwayFrame</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679097997"><span class="hs-identifier hs-var">sid</span></a></span><span> </span><span class="annot"><span class="annottext">ErrorCodeId
+</span><a href="#local-6989586621679097996"><span class="hs-identifier hs-var">ecid</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679097995"><span class="hs-identifier hs-var">bs2</span></a></span><span>
+</span><span id="line-220"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-221"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621679097994"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679097994"><span class="hs-identifier hs-var">bs0</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679097993"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679097993"><span class="hs-identifier hs-var">bs1'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; ByteString -&gt; (ByteString, ByteString)
+</span><span class="hs-identifier hs-var">BS.splitAt</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679097999"><span class="hs-identifier hs-var">bs</span></a></span><span>
+</span><span id="line-222"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621679097992"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679097992"><span class="hs-identifier hs-var">bs1</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679097995"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679097995"><span class="hs-identifier hs-var">bs2</span></a></span></span><span class="hs-special">)</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; ByteString -&gt; (ByteString, ByteString)
+</span><span class="hs-identifier hs-var">BS.splitAt</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679097993"><span class="hs-identifier hs-var">bs1'</span></a></span><span>
+</span><span id="line-223"></span><span>    </span><span id="local-6989586621679097997"><span class="annot"><span class="annottext">sid :: Int
+</span><a href="#local-6989586621679097997"><span class="hs-identifier hs-var hs-var">sid</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word32 -&gt; Int
+</span><a href="Network.HTTP2.Frame.Decode.html#streamIdentifier"><span class="hs-identifier hs-var">streamIdentifier</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString -&gt; Word32
+</span><span class="hs-identifier hs-var">N.word32</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679097994"><span class="hs-identifier hs-var">bs0</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-224"></span><span>    </span><span id="local-6989586621679097996"><span class="annot"><span class="annottext">ecid :: ErrorCodeId
+</span><a href="#local-6989586621679097996"><span class="hs-identifier hs-var hs-var">ecid</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word32 -&gt; ErrorCodeId
+</span><a href="Network.HTTP2.Frame.Types.html#toErrorCodeId"><span class="hs-identifier hs-var">toErrorCodeId</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString -&gt; Word32
+</span><span class="hs-identifier hs-var">N.word32</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679097992"><span class="hs-identifier hs-var">bs1</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-225"></span><span>
+</span><span id="line-226"></span><span class="hs-comment">-- | Frame payload decoder for WINDOW_UPDATE frame.</span><span>
+</span><span id="line-227"></span><span class="annot"><a href="Network.HTTP2.Frame.Decode.html#decodeWindowUpdateFrame"><span class="hs-identifier hs-type">decodeWindowUpdateFrame</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Decode.html#FramePayloadDecoder"><span class="hs-identifier hs-type">FramePayloadDecoder</span></a></span><span>
+</span><span id="line-228"></span><span id="decodeWindowUpdateFrame"><span class="annot"><span class="annottext">decodeWindowUpdateFrame :: FramePayloadDecoder
+</span><a href="Network.HTTP2.Frame.Decode.html#decodeWindowUpdateFrame"><span class="hs-identifier hs-var hs-var">decodeWindowUpdateFrame</span></a></span></span><span> </span><span class="annot"><span class="annottext">FrameHeader
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679097991"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679097991"><span class="hs-identifier hs-var">bs</span></a></span></span><span>
+</span><span id="line-229"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679097990"><span class="hs-identifier hs-var">wsi</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ErrorCodeId -&gt; ByteString -&gt; HTTP2Error
+</span><a href="Network.HTTP2.Frame.Types.html#ConnectionError"><span class="hs-identifier hs-var">ConnectionError</span></a></span><span> </span><span class="annot"><span class="annottext">ErrorCodeId
+</span><a href="Network.HTTP2.Frame.Types.html#ProtocolError"><span class="hs-identifier hs-var">ProtocolError</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;window update must not be 0&quot;</span></span><span>
+</span><span id="line-230"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; FramePayload
+</span><a href="Network.HTTP2.Frame.Types.html#WindowUpdateFrame"><span class="hs-identifier hs-var">WindowUpdateFrame</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679097990"><span class="hs-identifier hs-var">wsi</span></a></span><span>
+</span><span id="line-231"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-232"></span><span>    </span><span id="local-6989586621679097990"><span class="annot"><span class="annottext">wsi :: Int
+</span><a href="#local-6989586621679097990"><span class="hs-identifier hs-var hs-var">wsi</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString -&gt; Word32
+</span><span class="hs-identifier hs-var">N.word32</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679097991"><span class="hs-identifier hs-var">bs</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`clearBit`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">31</span></span><span class="hs-special">)</span><span>
+</span><span id="line-233"></span><span>
+</span><span id="line-234"></span><span class="hs-comment">-- | Frame payload decoder for CONTINUATION frame.</span><span>
+</span><span id="line-235"></span><span class="annot"><a href="Network.HTTP2.Frame.Decode.html#decodeContinuationFrame"><span class="hs-identifier hs-type">decodeContinuationFrame</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Decode.html#FramePayloadDecoder"><span class="hs-identifier hs-type">FramePayloadDecoder</span></a></span><span>
+</span><span id="line-236"></span><span id="decodeContinuationFrame"><span class="annot"><span class="annottext">decodeContinuationFrame :: FramePayloadDecoder
+</span><a href="Network.HTTP2.Frame.Decode.html#decodeContinuationFrame"><span class="hs-identifier hs-var hs-var">decodeContinuationFrame</span></a></span></span><span> </span><span class="annot"><span class="annottext">FrameHeader
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679097983"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679097983"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; FramePayload
+</span><a href="Network.HTTP2.Frame.Types.html#ContinuationFrame"><span class="hs-identifier hs-var">ContinuationFrame</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679097983"><span class="hs-identifier hs-var">bs</span></a></span><span>
+</span><span id="line-237"></span><span>
+</span><span id="line-238"></span><span class="annot"><a href="Network.HTTP2.Frame.Decode.html#decodeUnknownFrame"><span class="hs-identifier hs-type">decodeUnknownFrame</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Types.html#FrameType"><span class="hs-identifier hs-type">FrameType</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Decode.html#FramePayloadDecoder"><span class="hs-identifier hs-type">FramePayloadDecoder</span></a></span><span>
+</span><span id="line-239"></span><span id="decodeUnknownFrame"><span class="annot"><span class="annottext">decodeUnknownFrame :: Word8 -&gt; FramePayloadDecoder
+</span><a href="Network.HTTP2.Frame.Decode.html#decodeUnknownFrame"><span class="hs-identifier hs-var hs-var">decodeUnknownFrame</span></a></span></span><span> </span><span id="local-6989586621679097980"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679097980"><span class="hs-identifier hs-var">typ</span></a></span></span><span> </span><span class="annot"><span class="annottext">FrameHeader
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679097979"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679097979"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; ByteString -&gt; FramePayload
+</span><a href="Network.HTTP2.Frame.Types.html#UnknownFrame"><span class="hs-identifier hs-var">UnknownFrame</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679097980"><span class="hs-identifier hs-var">typ</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679097979"><span class="hs-identifier hs-var">bs</span></a></span><span>
+</span><span id="line-240"></span><span>
+</span><span id="line-241"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-242"></span><span>
+</span><span id="line-243"></span><span class="annot"><a href="Network.HTTP2.Frame.Decode.html#checkFrameSize"><span class="hs-identifier hs-type">checkFrameSize</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Decode.html#FramePayloadDecoder"><span class="hs-identifier hs-type">FramePayloadDecoder</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Decode.html#FramePayloadDecoder"><span class="hs-identifier hs-type">FramePayloadDecoder</span></a></span><span>
+</span><span id="line-244"></span><span id="checkFrameSize"><span class="annot"><span class="annottext">checkFrameSize :: FramePayloadDecoder -&gt; FramePayloadDecoder
+</span><a href="Network.HTTP2.Frame.Decode.html#checkFrameSize"><span class="hs-identifier hs-var hs-var">checkFrameSize</span></a></span></span><span> </span><span id="local-6989586621679097977"><span class="annot"><span class="annottext">FramePayloadDecoder
+</span><a href="#local-6989586621679097977"><span class="hs-identifier hs-var">func</span></a></span></span><span> </span><span id="local-6989586621679097976"><span class="annot"><span class="annottext">header :: FrameHeader
+</span><a href="#local-6989586621679097976"><span class="hs-identifier hs-var">header</span></a></span></span><span class="hs-glyph">@</span><span class="annot"><a href="Network.HTTP2.Frame.Types.html#FrameHeader"><span class="hs-identifier hs-type">FrameHeader</span></a></span><span class="hs-special">{</span><span id="local-6989586621679097973"><span id="local-6989586621679097974"><span id="local-6989586621679097975"><span class="annot"><span class="annottext">Int
+Word8
+streamId :: Int
+flags :: Word8
+payloadLength :: Int
+streamId :: FrameHeader -&gt; Int
+flags :: FrameHeader -&gt; Word8
+payloadLength :: FrameHeader -&gt; Int
+</span><a href="#local-6989586621679097973"><span class="hs-glyph hs-var hs-var hs-var hs-var hs-var hs-var">..</span></a></span></span></span></span><span class="hs-special">}</span><span> </span><span id="local-6989586621679097972"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679097972"><span class="hs-identifier hs-var">body</span></a></span></span><span>
+</span><span id="line-245"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679097975"><span class="hs-identifier hs-var">payloadLength</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Int
+</span><span class="hs-identifier hs-var">BS.length</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679097972"><span class="hs-identifier hs-var">body</span></a></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-246"></span><span>      </span><span class="annot"><span class="annottext">forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ErrorCodeId -&gt; ByteString -&gt; HTTP2Error
+</span><a href="Network.HTTP2.Frame.Types.html#ConnectionError"><span class="hs-identifier hs-var">ConnectionError</span></a></span><span> </span><span class="annot"><span class="annottext">ErrorCodeId
+</span><a href="Network.HTTP2.Frame.Types.html#FrameSizeError"><span class="hs-identifier hs-var">FrameSizeError</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;payload is too short&quot;</span></span><span>
+</span><span id="line-247"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FramePayloadDecoder
+</span><a href="#local-6989586621679097977"><span class="hs-identifier hs-var">func</span></a></span><span> </span><span class="annot"><span class="annottext">FrameHeader
+</span><a href="#local-6989586621679097976"><span class="hs-identifier hs-var">header</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679097972"><span class="hs-identifier hs-var">body</span></a></span><span>
+</span><span id="line-248"></span><span>
+</span><span id="line-249"></span><span class="hs-comment">-- | Helper function to pull off the padding if its there, and will</span><span>
+</span><span id="line-250"></span><span class="hs-comment">-- eat up the trailing padding automatically. Calls the decoder func</span><span>
+</span><span id="line-251"></span><span class="hs-comment">-- passed in with the length of the unpadded portion between the</span><span>
+</span><span id="line-252"></span><span class="hs-comment">-- padding octet and the actual padding</span><span>
+</span><span id="line-253"></span><span class="annot"><a href="Network.HTTP2.Frame.Decode.html#decodeWithPadding"><span class="hs-identifier hs-type">decodeWithPadding</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Types.html#FrameHeader"><span class="hs-identifier hs-type">FrameHeader</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Types.html#FramePayload"><span class="hs-identifier hs-type">FramePayload</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Types.html#HTTP2Error"><span class="hs-identifier hs-type">HTTP2Error</span></a></span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Types.html#FramePayload"><span class="hs-identifier hs-type">FramePayload</span></a></span><span>
+</span><span id="line-254"></span><span id="decodeWithPadding"><span class="annot"><span class="annottext">decodeWithPadding :: FrameHeader
+-&gt; ByteString
+-&gt; (ByteString -&gt; FramePayload)
+-&gt; Either HTTP2Error FramePayload
+</span><a href="Network.HTTP2.Frame.Decode.html#decodeWithPadding"><span class="hs-identifier hs-var hs-var">decodeWithPadding</span></a></span></span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Types.html#FrameHeader"><span class="hs-identifier hs-type">FrameHeader</span></a></span><span class="hs-special">{</span><span id="local-6989586621679097968"><span id="local-6989586621679097969"><span id="local-6989586621679097970"><span class="annot"><span class="annottext">Int
+Word8
+streamId :: Int
+flags :: Word8
+payloadLength :: Int
+streamId :: FrameHeader -&gt; Int
+flags :: FrameHeader -&gt; Word8
+payloadLength :: FrameHeader -&gt; Int
+</span><a href="#local-6989586621679097968"><span class="hs-glyph hs-var hs-var hs-var hs-var hs-var hs-var">..</span></a></span></span></span></span><span class="hs-special">}</span><span> </span><span id="local-6989586621679097967"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679097967"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span id="local-6989586621679097966"><span class="annot"><span class="annottext">ByteString -&gt; FramePayload
+</span><a href="#local-6989586621679097966"><span class="hs-identifier hs-var">body</span></a></span></span><span>
+</span><span id="line-255"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679097965"><span class="hs-identifier hs-var">padded</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">let</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679097964"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679097964"><span class="hs-identifier hs-var">w8</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679097963"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679097963"><span class="hs-identifier hs-var">rest</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Maybe (Word8, ByteString)
+</span><span class="hs-identifier hs-var">BS.uncons</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679097967"><span class="hs-identifier hs-var">bs</span></a></span><span>
+</span><span id="line-256"></span><span>                 </span><span id="local-6989586621679097961"><span class="annot"><span class="annottext">padlen :: Int
+</span><a href="#local-6989586621679097961"><span class="hs-identifier hs-var hs-var">padlen</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Int
+</span><a href="Network.HTTP2.Frame.Decode.html#intFromWord8"><span class="hs-identifier hs-var">intFromWord8</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679097964"><span class="hs-identifier hs-var">w8</span></a></span><span>
+</span><span id="line-257"></span><span>                 </span><span id="local-6989586621679097956"><span class="annot"><span class="annottext">bodylen :: Int
+</span><a href="#local-6989586621679097956"><span class="hs-identifier hs-var hs-var">bodylen</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679097970"><span class="hs-identifier hs-var">payloadLength</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679097961"><span class="hs-identifier hs-var">padlen</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-258"></span><span>             </span><span class="hs-keyword">in</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679097956"><span class="hs-identifier hs-var">bodylen</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-keyword">then</span><span>
+</span><span id="line-259"></span><span>                    </span><span class="annot"><span class="annottext">forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ErrorCodeId -&gt; ByteString -&gt; HTTP2Error
+</span><a href="Network.HTTP2.Frame.Types.html#ConnectionError"><span class="hs-identifier hs-var">ConnectionError</span></a></span><span> </span><span class="annot"><span class="annottext">ErrorCodeId
+</span><a href="Network.HTTP2.Frame.Types.html#ProtocolError"><span class="hs-identifier hs-var">ProtocolError</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;padding is not enough&quot;</span></span><span>
+</span><span id="line-260"></span><span>                  </span><span class="hs-keyword">else</span><span>
+</span><span id="line-261"></span><span>                    </span><span class="annot"><span class="annottext">forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; FramePayload
+</span><a href="#local-6989586621679097966"><span class="hs-identifier hs-var">body</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; ByteString -&gt; ByteString
+</span><span class="hs-identifier hs-var">BS.take</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679097956"><span class="hs-identifier hs-var">bodylen</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679097963"><span class="hs-identifier hs-var">rest</span></a></span><span>
+</span><span id="line-262"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; FramePayload
+</span><a href="#local-6989586621679097966"><span class="hs-identifier hs-var">body</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679097967"><span class="hs-identifier hs-var">bs</span></a></span><span>
+</span><span id="line-263"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-264"></span><span>    </span><span id="local-6989586621679097965"><span class="annot"><span class="annottext">padded :: Bool
+</span><a href="#local-6989586621679097965"><span class="hs-identifier hs-var hs-var">padded</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Bool
+</span><a href="Network.HTTP2.Frame.Types.html#testPadded"><span class="hs-identifier hs-var">testPadded</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679097969"><span class="hs-identifier hs-var">flags</span></a></span><span>
+</span><span id="line-265"></span><span>
+</span><span id="line-266"></span><span class="annot"><a href="Network.HTTP2.Frame.Decode.html#streamIdentifier"><span class="hs-identifier hs-type">streamIdentifier</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word32</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Types.html#StreamId"><span class="hs-identifier hs-type">StreamId</span></a></span><span>
+</span><span id="line-267"></span><span id="streamIdentifier"><span class="annot"><span class="annottext">streamIdentifier :: Word32 -&gt; Int
+</span><a href="Network.HTTP2.Frame.Decode.html#streamIdentifier"><span class="hs-identifier hs-var hs-var">streamIdentifier</span></a></span></span><span> </span><span id="local-6989586621679097953"><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679097953"><span class="hs-identifier hs-var">w32</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int
+</span><a href="Network.HTTP2.Frame.Types.html#clearExclusive"><span class="hs-identifier hs-var">clearExclusive</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679097953"><span class="hs-identifier hs-var">w32</span></a></span><span>
+</span><span id="line-268"></span><span>
+</span><span id="line-269"></span><span class="annot"><a href="Network.HTTP2.Frame.Decode.html#priority"><span class="hs-identifier hs-type">priority</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Types.html#Priority"><span class="hs-identifier hs-type">Priority</span></a></span><span>
+</span><span id="line-270"></span><span id="priority"><span class="annot"><span class="annottext">priority :: ByteString -&gt; Priority
+</span><a href="Network.HTTP2.Frame.Decode.html#priority"><span class="hs-identifier hs-var hs-var">priority</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">PS</span></span><span> </span><span id="local-6989586621679097951"><span class="annot"><span class="annottext">ForeignPtr Word8
+</span><a href="#local-6989586621679097951"><span class="hs-identifier hs-var">fptr</span></a></span></span><span> </span><span id="local-6989586621679097950"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679097950"><span class="hs-identifier hs-var">off</span></a></span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. IO a -&gt; a
+</span><span class="hs-identifier hs-var">unsafeDupablePerformIO</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr Word8
+</span><a href="#local-6989586621679097951"><span class="hs-identifier hs-var">fptr</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679097949"><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679097949"><span class="hs-identifier hs-var">ptr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-271"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679097948"><span class="annot"><span class="annottext">p :: Ptr Word8
+</span><a href="#local-6989586621679097948"><span class="hs-identifier hs-var hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679097949"><span class="hs-identifier hs-var">ptr</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Word8 -&gt; Int -&gt; Ptr Word8
+</span><a href="Network.HTTP2.Frame.Decode.html#%2B."><span class="hs-operator hs-var">+.</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679097950"><span class="hs-identifier hs-var">off</span></a></span><span>
+</span><span id="line-272"></span><span>    </span><span id="local-6989586621679097947"><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679097947"><span class="hs-identifier hs-var">w32</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Ptr Word8 -&gt; Int -&gt; IO Word32
+</span><span class="hs-identifier hs-var">N.peek32</span></span><span> </span><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679097948"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-273"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679097946"><span class="annot"><span class="annottext">streamdId :: Int
+</span><a href="#local-6989586621679097946"><span class="hs-identifier hs-var hs-var">streamdId</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word32 -&gt; Int
+</span><a href="Network.HTTP2.Frame.Decode.html#streamIdentifier"><span class="hs-identifier hs-var">streamIdentifier</span></a></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679097947"><span class="hs-identifier hs-var">w32</span></a></span><span>
+</span><span id="line-274"></span><span>        </span><span id="local-6989586621679097943"><span class="annot"><span class="annottext">exclusive :: Bool
+</span><a href="#local-6989586621679097943"><span class="hs-identifier hs-var hs-var">exclusive</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Bool
+</span><a href="Network.HTTP2.Frame.Types.html#testExclusive"><span class="hs-identifier hs-var">testExclusive</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679097947"><span class="hs-identifier hs-var">w32</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-comment">-- fixme</span><span>
+</span><span id="line-275"></span><span>    </span><span id="local-6989586621679097941"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679097941"><span class="hs-identifier hs-var">w8</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Ptr Word8 -&gt; Int -&gt; IO Word8
+</span><span class="hs-identifier hs-var">N.peek8</span></span><span> </span><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679097948"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span>
+</span><span id="line-276"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679097938"><span class="annot"><span class="annottext">weight :: Int
+</span><a href="#local-6989586621679097938"><span class="hs-identifier hs-var hs-var">weight</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Int
+</span><a href="Network.HTTP2.Frame.Decode.html#intFromWord8"><span class="hs-identifier hs-var">intFromWord8</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679097941"><span class="hs-identifier hs-var">w8</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-277"></span><span>    </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Int -&gt; Int -&gt; Priority
+</span><a href="Network.HTTP2.Frame.Types.html#Priority"><span class="hs-identifier hs-var">Priority</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679097943"><span class="hs-identifier hs-var">exclusive</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679097946"><span class="hs-identifier hs-var">streamdId</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679097938"><span class="hs-identifier hs-var">weight</span></a></span><span>
+</span><span id="line-278"></span><span>
+</span><span id="line-279"></span><span class="annot"><a href="Network.HTTP2.Frame.Decode.html#intFromWord8"><span class="hs-identifier hs-type">intFromWord8</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-280"></span><span id="intFromWord8"><span class="annot"><span class="annottext">intFromWord8 :: Word8 -&gt; Int
+</span><a href="Network.HTTP2.Frame.Decode.html#intFromWord8"><span class="hs-identifier hs-var hs-var">intFromWord8</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span>
+</span><span id="line-281"></span></pre></body></html>

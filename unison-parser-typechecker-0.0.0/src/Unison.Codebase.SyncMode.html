@@ -1,0 +1,21 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Unison.Codebase.SyncMode</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">data</span><span> </span><span id="SyncMode"><span class="annot"><a href="Unison.Codebase.SyncMode.html#SyncMode"><span class="hs-identifier hs-var">SyncMode</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="ShortCircuit"><span class="annot"><a href="Unison.Codebase.SyncMode.html#ShortCircuit"><span class="hs-identifier hs-var">ShortCircuit</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="Complete"><span class="annot"><a href="Unison.Codebase.SyncMode.html#Complete"><span class="hs-identifier hs-var">Complete</span></a></span></span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621680987380"><span id="local-6989586621680987382"><span class="annot"><span class="annottext">SyncMode -&gt; SyncMode -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: SyncMode -&gt; SyncMode -&gt; Bool
+$c/= :: SyncMode -&gt; SyncMode -&gt; Bool
+== :: SyncMode -&gt; SyncMode -&gt; Bool
+$c== :: SyncMode -&gt; SyncMode -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680987373"><span id="local-6989586621680987375"><span id="local-6989586621680987377"><span class="annot"><span class="annottext">Int -&gt; SyncMode -&gt; ShowS
+[SyncMode] -&gt; ShowS
+SyncMode -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [SyncMode] -&gt; ShowS
+$cshowList :: [SyncMode] -&gt; ShowS
+show :: SyncMode -&gt; String
+$cshow :: SyncMode -&gt; String
+showsPrec :: Int -&gt; SyncMode -&gt; ShowS
+$cshowsPrec :: Int -&gt; SyncMode -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-4"></span></pre></body></html>

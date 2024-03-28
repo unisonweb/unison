@@ -1,0 +1,317 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP, MagicHash, UnboxedTuples #-}</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- Module      : Data.Text.Unsafe</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- Copyright   : (c) 2009, 2010, 2011 Bryan O'Sullivan</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- License     : BSD-style</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- Maintainer  : bos@serpentine.com</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Portability : portable</span><span>
+</span><span id="line-8"></span><span class="hs-comment">--</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- A module containing unsafe 'Text' operations, for very very careful</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- use in heavily tested code.</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Data.Text.Unsafe</span><span>
+</span><span id="line-12"></span><span>    </span><span class="hs-special">(</span><span>
+</span><span id="line-13"></span><span>      </span><span class="annot"><a href="Data.Text.Internal.Unsafe.html#inlineInterleaveST"><span class="hs-identifier">inlineInterleaveST</span></a></span><span>
+</span><span id="line-14"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Text.Internal.Unsafe.html#inlinePerformIO"><span class="hs-identifier">inlinePerformIO</span></a></span><span>
+</span><span id="line-15"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-IO-Unsafe.html#unsafeDupablePerformIO"><span class="hs-identifier">unsafeDupablePerformIO</span></a></span><span>
+</span><span id="line-16"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Text.Unsafe.html#Iter"><span class="hs-identifier">Iter</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Text.Unsafe.html#iter"><span class="hs-identifier">iter</span></a></span><span>
+</span><span id="line-18"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Text.Unsafe.html#iter_"><span class="hs-identifier">iter_</span></a></span><span>
+</span><span id="line-19"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Text.Unsafe.html#reverseIter"><span class="hs-identifier">reverseIter</span></a></span><span>
+</span><span id="line-20"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Text.Unsafe.html#reverseIter_"><span class="hs-identifier">reverseIter_</span></a></span><span>
+</span><span id="line-21"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Text.Unsafe.html#unsafeHead"><span class="hs-identifier">unsafeHead</span></a></span><span>
+</span><span id="line-22"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Text.Unsafe.html#unsafeTail"><span class="hs-identifier">unsafeTail</span></a></span><span>
+</span><span id="line-23"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Text.Unsafe.html#lengthWord16"><span class="hs-identifier">lengthWord16</span></a></span><span>
+</span><span id="line-24"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Text.Unsafe.html#takeWord16"><span class="hs-identifier">takeWord16</span></a></span><span>
+</span><span id="line-25"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Text.Unsafe.html#dropWord16"><span class="hs-identifier">dropWord16</span></a></span><span>
+</span><span id="line-26"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span class="hs-cpp">
+
+#if defined(ASSERTS)
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Control.Exception</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">assert</span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">GHC.Stack</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">HasCallStack</span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Text.Internal.Encoding.Utf16.html"><span class="hs-identifier">Data.Text.Internal.Encoding.Utf16</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Text.Internal.Encoding.Utf16.html#chr2"><span class="hs-identifier">chr2</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Text.Internal.html"><span class="hs-identifier">Data.Text.Internal</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Text.Internal.html#Text"><span class="hs-identifier">Text</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Text.Internal.Unsafe.html"><span class="hs-identifier">Data.Text.Internal.Unsafe</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Text.Internal.Unsafe.html#inlineInterleaveST"><span class="hs-identifier">inlineInterleaveST</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Text.Internal.Unsafe.html#inlinePerformIO"><span class="hs-identifier">inlinePerformIO</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Text.Internal.Unsafe.Char.html"><span class="hs-identifier">Data.Text.Internal.Unsafe.Char</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Text.Internal.Unsafe.Char.html#unsafeChr"><span class="hs-identifier">unsafeChr</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Text.Array.html"><span class="hs-identifier">Data.Text.Array</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">A</span></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-IO.html#"><span class="hs-identifier">GHC.IO</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-IO-Unsafe.html#unsafeDupablePerformIO"><span class="hs-identifier">unsafeDupablePerformIO</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span class="hs-comment">-- | /O(1)/ A variant of 'head' for non-empty 'Text'. 'unsafeHead'</span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- omits the check for the empty case, so there is an obligation on</span><span>
+</span><span id="line-41"></span><span class="hs-comment">-- the programmer to provide a proof that the 'Text' is non-empty.</span><span>
+</span><span id="line-42"></span><span class="annot"><a href="Data.Text.Unsafe.html#unsafeHead"><span class="hs-identifier hs-type">unsafeHead</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Text.Internal.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#Char"><span class="hs-identifier hs-type">Char</span></a></span><span>
+</span><span id="line-43"></span><span id="unsafeHead"><span class="annot"><span class="annottext">unsafeHead :: Text -&gt; Char
+</span><a href="Data.Text.Unsafe.html#unsafeHead"><span class="hs-identifier hs-var hs-var">unsafeHead</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Text.Internal.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span> </span><span id="local-6989586621679103363"><span class="annot"><span class="annottext">Array
+</span><a href="#local-6989586621679103363"><span class="hs-identifier hs-var">arr</span></a></span></span><span> </span><span id="local-6989586621679103362"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679103362"><span class="hs-identifier hs-var">off</span></a></span></span><span> </span><span id="local-6989586621679103361"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679103361"><span class="hs-identifier hs-var">_len</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-44"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><a href="#local-6989586621679103360"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#%3C"><span class="hs-operator hs-var">&lt;</span></a></span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">0xD800</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#%7C%7C"><span class="hs-operator hs-var">||</span></a></span><span> </span><span class="annot"><span class="annottext">Word16
+</span><a href="#local-6989586621679103360"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#%3E"><span class="hs-operator hs-var">&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">0xDBFF</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word16 -&gt; Char
+</span><a href="Data.Text.Internal.Unsafe.Char.html#unsafeChr"><span class="hs-identifier hs-var">unsafeChr</span></a></span><span> </span><span class="annot"><span class="annottext">Word16
+</span><a href="#local-6989586621679103360"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-45"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#otherwise"><span class="hs-identifier hs-var">otherwise</span></a></span><span>                </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word16 -&gt; Word16 -&gt; Char
+</span><a href="Data.Text.Internal.Encoding.Utf16.html#chr2"><span class="hs-identifier hs-var">chr2</span></a></span><span> </span><span class="annot"><span class="annottext">Word16
+</span><a href="#local-6989586621679103360"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">Word16
+</span><a href="#local-6989586621679103356"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-46"></span><span>    </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679103360"><span class="annot"><span class="annottext">m :: Word16
+</span><a href="#local-6989586621679103360"><span class="hs-identifier hs-var hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Array -&gt; Int -&gt; Word16
+</span><a href="Data.Text.Array.html#unsafeIndex"><span class="hs-identifier hs-var">A.unsafeIndex</span></a></span><span> </span><span class="annot"><span class="annottext">Array
+</span><a href="#local-6989586621679103363"><span class="hs-identifier hs-var">arr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679103362"><span class="hs-identifier hs-var">off</span></a></span><span>
+</span><span id="line-47"></span><span>          </span><span id="local-6989586621679103356"><span class="annot"><span class="annottext">n :: Word16
+</span><a href="#local-6989586621679103356"><span class="hs-identifier hs-var hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Array -&gt; Int -&gt; Word16
+</span><a href="Data.Text.Array.html#unsafeIndex"><span class="hs-identifier hs-var">A.unsafeIndex</span></a></span><span> </span><span class="annot"><span class="annottext">Array
+</span><a href="#local-6989586621679103363"><span class="hs-identifier hs-var">arr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679103362"><span class="hs-identifier hs-var">off</span></a></span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span>
+</span><span id="line-48"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Text.Unsafe.html#unsafeHead"><span class="hs-pragma hs-type">unsafeHead</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span class="hs-comment">-- | /O(1)/ A variant of 'tail' for non-empty 'Text'. 'unsafeTail'</span><span>
+</span><span id="line-51"></span><span class="hs-comment">-- omits the check for the empty case, so there is an obligation on</span><span>
+</span><span id="line-52"></span><span class="hs-comment">-- the programmer to provide a proof that the 'Text' is non-empty.</span><span>
+</span><span id="line-53"></span><span class="annot"><a href="Data.Text.Unsafe.html#unsafeTail"><span class="hs-identifier hs-type">unsafeTail</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Text.Internal.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Text.Internal.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span>
+</span><span id="line-54"></span><span id="unsafeTail"><span class="annot"><span class="annottext">unsafeTail :: Text -&gt; Text
+</span><a href="Data.Text.Unsafe.html#unsafeTail"><span class="hs-identifier hs-var hs-var">unsafeTail</span></a></span></span><span> </span><span id="local-6989586621679103351"><span class="annot"><span class="annottext">t :: Text
+</span><a href="#local-6989586621679103351"><span class="hs-identifier hs-var">t</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="Data.Text.Internal.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span> </span><span id="local-6989586621679103350"><span class="annot"><span class="annottext">Array
+</span><a href="#local-6989586621679103350"><span class="hs-identifier hs-var">arr</span></a></span></span><span> </span><span id="local-6989586621679103349"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679103349"><span class="hs-identifier hs-var">off</span></a></span></span><span> </span><span id="local-6989586621679103348"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679103348"><span class="hs-identifier hs-var">len</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span class="hs-cpp">
+#if defined(ASSERTS)
+</span><span>    </span><span class="hs-identifier">assert</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">d</span><span> </span><span class="hs-operator">&lt;=</span><span> </span><span class="hs-identifier">len</span><span class="hs-special">)</span><span> </span><span class="hs-operator">$</span><span class="hs-cpp">
+#endif
+</span><span>    </span><span class="annot"><span class="annottext">Array -&gt; Int -&gt; Int -&gt; Text
+</span><a href="Data.Text.Internal.html#Text"><span class="hs-identifier hs-var">Text</span></a></span><span> </span><span class="annot"><span class="annottext">Array
+</span><a href="#local-6989586621679103350"><span class="hs-identifier hs-var">arr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679103349"><span class="hs-identifier hs-var">off</span></a></span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679103347"><span class="hs-identifier hs-var">d</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679103348"><span class="hs-identifier hs-var">len</span></a></span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#-"><span class="hs-glyph hs-var">-</span></a></span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679103347"><span class="hs-identifier hs-var">d</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-59"></span><span>  </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679103347"><span class="annot"><span class="annottext">d :: Int
+</span><a href="#local-6989586621679103347"><span class="hs-identifier hs-var hs-var">d</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Int -&gt; Int
+</span><a href="Data.Text.Unsafe.html#iter_"><span class="hs-identifier hs-var">iter_</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679103351"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-60"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Text.Unsafe.html#unsafeTail"><span class="hs-pragma hs-type">unsafeTail</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span><span class="hs-keyword">data</span><span> </span><span id="Iter"><span class="annot"><a href="Data.Text.Unsafe.html#Iter"><span class="hs-identifier hs-var">Iter</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Iter"><span class="annot"><a href="Data.Text.Unsafe.html#Iter"><span class="hs-identifier hs-var">Iter</span></a></span></span><span> </span><span class="hs-pragma">{-# UNPACK</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#Char"><span class="hs-identifier hs-type">Char</span></a></span><span> </span><span class="hs-pragma">{-# UNPACK</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#Int"><span class="hs-identifier hs-type">Int</span></a></span><span>
+</span><span id="line-63"></span><span>
+</span><span id="line-64"></span><span class="hs-comment">-- | /O(1)/ Iterate (unsafely) one step forwards through a UTF-16</span><span>
+</span><span id="line-65"></span><span class="hs-comment">-- array, returning the current character and the delta to add to give</span><span>
+</span><span id="line-66"></span><span class="hs-comment">-- the next offset to iterate at.</span><span>
+</span><span id="line-67"></span><span class="annot"><a href="Data.Text.Unsafe.html#iter"><span class="hs-identifier hs-type">iter</span></a></span><span> </span><span class="hs-glyph">::</span><span class="hs-cpp">
+#if defined(ASSERTS)
+</span><span>  </span><span class="hs-identifier">HasCallStack</span><span> </span><span class="hs-glyph">=&gt;</span><span class="hs-cpp">
+#endif
+</span><span>  </span><span class="annot"><a href="Data.Text.Internal.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#Int"><span class="hs-identifier hs-type">Int</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Text.Unsafe.html#Iter"><span class="hs-identifier hs-type">Iter</span></a></span><span>
+</span><span id="line-72"></span><span id="iter"><span class="annot"><span class="annottext">iter :: Text -&gt; Int -&gt; Iter
+</span><a href="Data.Text.Unsafe.html#iter"><span class="hs-identifier hs-var hs-var">iter</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Text.Internal.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span> </span><span id="local-6989586621679103345"><span class="annot"><span class="annottext">Array
+</span><a href="#local-6989586621679103345"><span class="hs-identifier hs-var">arr</span></a></span></span><span> </span><span id="local-6989586621679103344"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679103344"><span class="hs-identifier hs-var">off</span></a></span></span><span> </span><span id="local-6989586621679103343"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679103343"><span class="hs-identifier hs-var">_len</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679103342"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679103342"><span class="hs-identifier hs-var">i</span></a></span></span><span>
+</span><span id="line-73"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><a href="#local-6989586621679103341"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#%3C"><span class="hs-operator hs-var">&lt;</span></a></span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">0xD800</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#%7C%7C"><span class="hs-operator hs-var">||</span></a></span><span> </span><span class="annot"><span class="annottext">Word16
+</span><a href="#local-6989586621679103341"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#%3E"><span class="hs-operator hs-var">&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">0xDBFF</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Char -&gt; Int -&gt; Iter
+</span><a href="Data.Text.Unsafe.html#Iter"><span class="hs-identifier hs-var">Iter</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word16 -&gt; Char
+</span><a href="Data.Text.Internal.Unsafe.Char.html#unsafeChr"><span class="hs-identifier hs-var">unsafeChr</span></a></span><span> </span><span class="annot"><span class="annottext">Word16
+</span><a href="#local-6989586621679103341"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-74"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#otherwise"><span class="hs-identifier hs-var">otherwise</span></a></span><span>                </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Char -&gt; Int -&gt; Iter
+</span><a href="Data.Text.Unsafe.html#Iter"><span class="hs-identifier hs-var">Iter</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word16 -&gt; Word16 -&gt; Char
+</span><a href="Data.Text.Internal.Encoding.Utf16.html#chr2"><span class="hs-identifier hs-var">chr2</span></a></span><span> </span><span class="annot"><span class="annottext">Word16
+</span><a href="#local-6989586621679103341"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">Word16
+</span><a href="#local-6989586621679103340"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span>
+</span><span id="line-75"></span><span>  </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679103341"><span class="annot"><span class="annottext">m :: Word16
+</span><a href="#local-6989586621679103341"><span class="hs-identifier hs-var hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Array -&gt; Int -&gt; Word16
+</span><a href="Data.Text.Array.html#unsafeIndex"><span class="hs-identifier hs-var">A.unsafeIndex</span></a></span><span> </span><span class="annot"><span class="annottext">Array
+</span><a href="#local-6989586621679103345"><span class="hs-identifier hs-var">arr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679103339"><span class="hs-identifier hs-var">j</span></a></span><span>
+</span><span id="line-76"></span><span>        </span><span id="local-6989586621679103340"><span class="annot"><span class="annottext">n :: Word16
+</span><a href="#local-6989586621679103340"><span class="hs-identifier hs-var hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Array -&gt; Int -&gt; Word16
+</span><a href="Data.Text.Array.html#unsafeIndex"><span class="hs-identifier hs-var">A.unsafeIndex</span></a></span><span> </span><span class="annot"><span class="annottext">Array
+</span><a href="#local-6989586621679103345"><span class="hs-identifier hs-var">arr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679103338"><span class="hs-identifier hs-var">k</span></a></span><span>
+</span><span id="line-77"></span><span>        </span><span id="local-6989586621679103339"><span class="annot"><span class="annottext">j :: Int
+</span><a href="#local-6989586621679103339"><span class="hs-identifier hs-var hs-var">j</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679103344"><span class="hs-identifier hs-var">off</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679103342"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-78"></span><span>        </span><span id="local-6989586621679103338"><span class="annot"><span class="annottext">k :: Int
+</span><a href="#local-6989586621679103338"><span class="hs-identifier hs-var hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679103339"><span class="hs-identifier hs-var">j</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-79"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Text.Unsafe.html#iter"><span class="hs-pragma hs-type">iter</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-80"></span><span>
+</span><span id="line-81"></span><span class="hs-comment">-- | /O(1)/ Iterate one step through a UTF-16 array, returning the</span><span>
+</span><span id="line-82"></span><span class="hs-comment">-- delta to add to give the next offset to iterate at.</span><span>
+</span><span id="line-83"></span><span class="annot"><a href="Data.Text.Unsafe.html#iter_"><span class="hs-identifier hs-type">iter_</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Text.Internal.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#Int"><span class="hs-identifier hs-type">Int</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#Int"><span class="hs-identifier hs-type">Int</span></a></span><span>
+</span><span id="line-84"></span><span id="iter_"><span class="annot"><span class="annottext">iter_ :: Text -&gt; Int -&gt; Int
+</span><a href="Data.Text.Unsafe.html#iter_"><span class="hs-identifier hs-var hs-var">iter_</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Text.Internal.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span> </span><span id="local-6989586621679103334"><span class="annot"><span class="annottext">Array
+</span><a href="#local-6989586621679103334"><span class="hs-identifier hs-var">arr</span></a></span></span><span> </span><span id="local-6989586621679103333"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679103333"><span class="hs-identifier hs-var">off</span></a></span></span><span> </span><span id="local-6989586621679103332"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679103332"><span class="hs-identifier hs-var">_len</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679103331"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679103331"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><a href="#local-6989586621679103330"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#%3C"><span class="hs-operator hs-var">&lt;</span></a></span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">0xD800</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#%7C%7C"><span class="hs-operator hs-var">||</span></a></span><span> </span><span class="annot"><span class="annottext">Word16
+</span><a href="#local-6989586621679103330"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#%3E"><span class="hs-operator hs-var">&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">0xDBFF</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-85"></span><span>                            </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#otherwise"><span class="hs-identifier hs-var">otherwise</span></a></span><span>                </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span>
+</span><span id="line-86"></span><span>  </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679103330"><span class="annot"><span class="annottext">m :: Word16
+</span><a href="#local-6989586621679103330"><span class="hs-identifier hs-var hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Array -&gt; Int -&gt; Word16
+</span><a href="Data.Text.Array.html#unsafeIndex"><span class="hs-identifier hs-var">A.unsafeIndex</span></a></span><span> </span><span class="annot"><span class="annottext">Array
+</span><a href="#local-6989586621679103334"><span class="hs-identifier hs-var">arr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679103333"><span class="hs-identifier hs-var">off</span></a></span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679103331"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-87"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Text.Unsafe.html#iter_"><span class="hs-pragma hs-type">iter_</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-88"></span><span>
+</span><span id="line-89"></span><span class="hs-comment">-- | /O(1)/ Iterate one step backwards through a UTF-16 array,</span><span>
+</span><span id="line-90"></span><span class="hs-comment">-- returning the current character and the delta to add (i.e. a</span><span>
+</span><span id="line-91"></span><span class="hs-comment">-- negative number) to give the next offset to iterate at.</span><span>
+</span><span id="line-92"></span><span class="annot"><a href="Data.Text.Unsafe.html#reverseIter"><span class="hs-identifier hs-type">reverseIter</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Text.Internal.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#Int"><span class="hs-identifier hs-type">Int</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#Char"><span class="hs-identifier hs-type">Char</span></a></span><span class="hs-special">,</span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#Int"><span class="hs-identifier hs-type">Int</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-93"></span><span id="reverseIter"><span class="annot"><span class="annottext">reverseIter :: Text -&gt; Int -&gt; (Char, Int)
+</span><a href="Data.Text.Unsafe.html#reverseIter"><span class="hs-identifier hs-var hs-var">reverseIter</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Text.Internal.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span> </span><span id="local-6989586621679103328"><span class="annot"><span class="annottext">Array
+</span><a href="#local-6989586621679103328"><span class="hs-identifier hs-var">arr</span></a></span></span><span> </span><span id="local-6989586621679103327"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679103327"><span class="hs-identifier hs-var">off</span></a></span></span><span> </span><span id="local-6989586621679103326"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679103326"><span class="hs-identifier hs-var">_len</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679103325"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679103325"><span class="hs-identifier hs-var">i</span></a></span></span><span>
+</span><span id="line-94"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><a href="#local-6989586621679103324"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#%3C"><span class="hs-operator hs-var">&lt;</span></a></span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">0xDC00</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#%7C%7C"><span class="hs-operator hs-var">||</span></a></span><span> </span><span class="annot"><span class="annottext">Word16
+</span><a href="#local-6989586621679103324"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#%3E"><span class="hs-operator hs-var">&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">0xDFFF</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word16 -&gt; Char
+</span><a href="Data.Text.Internal.Unsafe.Char.html#unsafeChr"><span class="hs-identifier hs-var">unsafeChr</span></a></span><span> </span><span class="annot"><span class="annottext">Word16
+</span><a href="#local-6989586621679103324"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-glyph">-</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span>
+</span><span id="line-95"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#otherwise"><span class="hs-identifier hs-var">otherwise</span></a></span><span>                </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word16 -&gt; Word16 -&gt; Char
+</span><a href="Data.Text.Internal.Encoding.Utf16.html#chr2"><span class="hs-identifier hs-var">chr2</span></a></span><span> </span><span class="annot"><span class="annottext">Word16
+</span><a href="#local-6989586621679103323"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Word16
+</span><a href="#local-6989586621679103324"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">,</span><span>    </span><span class="hs-glyph">-</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span class="hs-special">)</span><span>
+</span><span id="line-96"></span><span>  </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679103324"><span class="annot"><span class="annottext">m :: Word16
+</span><a href="#local-6989586621679103324"><span class="hs-identifier hs-var hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Array -&gt; Int -&gt; Word16
+</span><a href="Data.Text.Array.html#unsafeIndex"><span class="hs-identifier hs-var">A.unsafeIndex</span></a></span><span> </span><span class="annot"><span class="annottext">Array
+</span><a href="#local-6989586621679103328"><span class="hs-identifier hs-var">arr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679103322"><span class="hs-identifier hs-var">j</span></a></span><span>
+</span><span id="line-97"></span><span>        </span><span id="local-6989586621679103323"><span class="annot"><span class="annottext">n :: Word16
+</span><a href="#local-6989586621679103323"><span class="hs-identifier hs-var hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Array -&gt; Int -&gt; Word16
+</span><a href="Data.Text.Array.html#unsafeIndex"><span class="hs-identifier hs-var">A.unsafeIndex</span></a></span><span> </span><span class="annot"><span class="annottext">Array
+</span><a href="#local-6989586621679103328"><span class="hs-identifier hs-var">arr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679103321"><span class="hs-identifier hs-var">k</span></a></span><span>
+</span><span id="line-98"></span><span>        </span><span id="local-6989586621679103322"><span class="annot"><span class="annottext">j :: Int
+</span><a href="#local-6989586621679103322"><span class="hs-identifier hs-var hs-var">j</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679103327"><span class="hs-identifier hs-var">off</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679103325"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-99"></span><span>        </span><span id="local-6989586621679103321"><span class="annot"><span class="annottext">k :: Int
+</span><a href="#local-6989586621679103321"><span class="hs-identifier hs-var hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679103322"><span class="hs-identifier hs-var">j</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#-"><span class="hs-glyph hs-var">-</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-100"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Text.Unsafe.html#reverseIter"><span class="hs-pragma hs-type">reverseIter</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-101"></span><span>
+</span><span id="line-102"></span><span class="hs-comment">-- | /O(1)/ Iterate one step backwards through a UTF-16 array,</span><span>
+</span><span id="line-103"></span><span class="hs-comment">-- returning the delta to add (i.e. a negative number) to give the</span><span>
+</span><span id="line-104"></span><span class="hs-comment">-- next offset to iterate at.</span><span>
+</span><span id="line-105"></span><span class="hs-comment">--</span><span>
+</span><span id="line-106"></span><span class="hs-comment">-- @since 1.1.1.0</span><span>
+</span><span id="line-107"></span><span class="annot"><a href="Data.Text.Unsafe.html#reverseIter_"><span class="hs-identifier hs-type">reverseIter_</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Text.Internal.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#Int"><span class="hs-identifier hs-type">Int</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#Int"><span class="hs-identifier hs-type">Int</span></a></span><span>
+</span><span id="line-108"></span><span id="reverseIter_"><span class="annot"><span class="annottext">reverseIter_ :: Text -&gt; Int -&gt; Int
+</span><a href="Data.Text.Unsafe.html#reverseIter_"><span class="hs-identifier hs-var hs-var">reverseIter_</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Text.Internal.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span> </span><span id="local-6989586621679103317"><span class="annot"><span class="annottext">Array
+</span><a href="#local-6989586621679103317"><span class="hs-identifier hs-var">arr</span></a></span></span><span> </span><span id="local-6989586621679103316"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679103316"><span class="hs-identifier hs-var">off</span></a></span></span><span> </span><span id="local-6989586621679103315"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679103315"><span class="hs-identifier hs-var">_len</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679103314"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679103314"><span class="hs-identifier hs-var">i</span></a></span></span><span>
+</span><span id="line-109"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><a href="#local-6989586621679103313"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#%3C"><span class="hs-operator hs-var">&lt;</span></a></span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">0xDC00</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#%7C%7C"><span class="hs-operator hs-var">||</span></a></span><span> </span><span class="annot"><span class="annottext">Word16
+</span><a href="#local-6989586621679103313"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#%3E"><span class="hs-operator hs-var">&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">0xDFFF</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">-</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-110"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#otherwise"><span class="hs-identifier hs-var">otherwise</span></a></span><span>                </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">-</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span>
+</span><span id="line-111"></span><span>  </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679103313"><span class="annot"><span class="annottext">m :: Word16
+</span><a href="#local-6989586621679103313"><span class="hs-identifier hs-var hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Array -&gt; Int -&gt; Word16
+</span><a href="Data.Text.Array.html#unsafeIndex"><span class="hs-identifier hs-var">A.unsafeIndex</span></a></span><span> </span><span class="annot"><span class="annottext">Array
+</span><a href="#local-6989586621679103317"><span class="hs-identifier hs-var">arr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679103316"><span class="hs-identifier hs-var">off</span></a></span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679103314"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-112"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Text.Unsafe.html#reverseIter_"><span class="hs-pragma hs-type">reverseIter_</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-113"></span><span>
+</span><span id="line-114"></span><span class="hs-comment">-- | /O(1)/ Return the length of a 'Text' in units of 'Word16'.  This</span><span>
+</span><span id="line-115"></span><span class="hs-comment">-- is useful for sizing a target array appropriately before using</span><span>
+</span><span id="line-116"></span><span class="hs-comment">-- 'unsafeCopyToPtr'.</span><span>
+</span><span id="line-117"></span><span class="annot"><a href="Data.Text.Unsafe.html#lengthWord16"><span class="hs-identifier hs-type">lengthWord16</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Text.Internal.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#Int"><span class="hs-identifier hs-type">Int</span></a></span><span>
+</span><span id="line-118"></span><span id="lengthWord16"><span class="annot"><span class="annottext">lengthWord16 :: Text -&gt; Int
+</span><a href="Data.Text.Unsafe.html#lengthWord16"><span class="hs-identifier hs-var hs-var">lengthWord16</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Text.Internal.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span> </span><span id="local-6989586621679103311"><span class="annot"><span class="annottext">Array
+</span><a href="#local-6989586621679103311"><span class="hs-identifier hs-var">_arr</span></a></span></span><span> </span><span id="local-6989586621679103310"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679103310"><span class="hs-identifier hs-var">_off</span></a></span></span><span> </span><span id="local-6989586621679103309"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679103309"><span class="hs-identifier hs-var">len</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679103309"><span class="hs-identifier hs-var">len</span></a></span><span>
+</span><span id="line-119"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Text.Unsafe.html#lengthWord16"><span class="hs-pragma hs-type">lengthWord16</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-120"></span><span>
+</span><span id="line-121"></span><span class="hs-comment">-- | /O(1)/ Unchecked take of 'k' 'Word16's from the front of a 'Text'.</span><span>
+</span><span id="line-122"></span><span class="annot"><a href="Data.Text.Unsafe.html#takeWord16"><span class="hs-identifier hs-type">takeWord16</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#Int"><span class="hs-identifier hs-type">Int</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Text.Internal.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Text.Internal.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span>
+</span><span id="line-123"></span><span id="takeWord16"><span class="annot"><span class="annottext">takeWord16 :: Int -&gt; Text -&gt; Text
+</span><a href="Data.Text.Unsafe.html#takeWord16"><span class="hs-identifier hs-var hs-var">takeWord16</span></a></span></span><span> </span><span id="local-6989586621679103308"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679103308"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Text.Internal.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span> </span><span id="local-6989586621679103307"><span class="annot"><span class="annottext">Array
+</span><a href="#local-6989586621679103307"><span class="hs-identifier hs-var">arr</span></a></span></span><span> </span><span id="local-6989586621679103306"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679103306"><span class="hs-identifier hs-var">off</span></a></span></span><span> </span><span id="local-6989586621679103305"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679103305"><span class="hs-identifier hs-var">_len</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Array -&gt; Int -&gt; Int -&gt; Text
+</span><a href="Data.Text.Internal.html#Text"><span class="hs-identifier hs-var">Text</span></a></span><span> </span><span class="annot"><span class="annottext">Array
+</span><a href="#local-6989586621679103307"><span class="hs-identifier hs-var">arr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679103306"><span class="hs-identifier hs-var">off</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679103308"><span class="hs-identifier hs-var">k</span></a></span><span>
+</span><span id="line-124"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Text.Unsafe.html#takeWord16"><span class="hs-pragma hs-type">takeWord16</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-125"></span><span>
+</span><span id="line-126"></span><span class="hs-comment">-- | /O(1)/ Unchecked drop of 'k' 'Word16's from the front of a 'Text'.</span><span>
+</span><span id="line-127"></span><span class="annot"><a href="Data.Text.Unsafe.html#dropWord16"><span class="hs-identifier hs-type">dropWord16</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#Int"><span class="hs-identifier hs-type">Int</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Text.Internal.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Text.Internal.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span>
+</span><span id="line-128"></span><span id="dropWord16"><span class="annot"><span class="annottext">dropWord16 :: Int -&gt; Text -&gt; Text
+</span><a href="Data.Text.Unsafe.html#dropWord16"><span class="hs-identifier hs-var hs-var">dropWord16</span></a></span></span><span> </span><span id="local-6989586621679103304"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679103304"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Text.Internal.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span> </span><span id="local-6989586621679103303"><span class="annot"><span class="annottext">Array
+</span><a href="#local-6989586621679103303"><span class="hs-identifier hs-var">arr</span></a></span></span><span> </span><span id="local-6989586621679103302"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679103302"><span class="hs-identifier hs-var">off</span></a></span></span><span> </span><span id="local-6989586621679103301"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679103301"><span class="hs-identifier hs-var">len</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Array -&gt; Int -&gt; Int -&gt; Text
+</span><a href="Data.Text.Internal.html#Text"><span class="hs-identifier hs-var">Text</span></a></span><span> </span><span class="annot"><span class="annottext">Array
+</span><a href="#local-6989586621679103303"><span class="hs-identifier hs-var">arr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679103302"><span class="hs-identifier hs-var">off</span></a></span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679103304"><span class="hs-identifier hs-var">k</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679103301"><span class="hs-identifier hs-var">len</span></a></span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#-"><span class="hs-glyph hs-var">-</span></a></span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679103304"><span class="hs-identifier hs-var">k</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-129"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Text.Unsafe.html#dropWord16"><span class="hs-pragma hs-type">dropWord16</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-130"></span></pre></body></html>

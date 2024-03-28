@@ -1,0 +1,153 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP                      #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE ForeignFunctionInterface #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE ScopedTypeVariables      #-}</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Low level source of random values for seeds. It should work on both</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- unices and windows</span><span>
+</span><span id="line-7"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">System.Random.MWC.SeedSource</span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-8"></span><span>    </span><span class="annot"><a href="System.Random.MWC.SeedSource.html#acquireSeedSystem"><span class="hs-identifier">acquireSeedSystem</span></a></span><span>
+</span><span id="line-9"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Random.MWC.SeedSource.html#acquireSeedTime"><span class="hs-identifier">acquireSeedTime</span></a></span><span>
+</span><span id="line-10"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Random.MWC.SeedSource.html#randomSourceName"><span class="hs-identifier">randomSourceName</span></a></span><span>
+</span><span id="line-11"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span>           </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">liftM</span></span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Word</span></span><span>               </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Word32</span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier">Word64</span></span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Bits</span></span><span>               </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">shiftR</span></span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Ratio</span></span><span>              </span><span class="hs-special">(</span><span class="annot"><span class="hs-operator">(%)</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">numerator</span></span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Time.Clock.POSIX</span></span><span>   </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">getPOSIXTime</span></span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Foreign.Storable</span></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Foreign.Marshal.Alloc</span></span><span>   </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">allocaBytes</span></span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Foreign.Marshal.Array</span></span><span>   </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">peekArray</span></span><span class="hs-special">)</span><span class="hs-cpp">
+#if defined(mingw32_HOST_OS)
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Foreign.Ptr</span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Foreign.C.Types</span><span class="hs-cpp">
+#endif
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.CPUTime</span></span><span>   </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">cpuTimePrecision</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">getCPUTime</span></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.IO</span></span><span>        </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">IOMode</span></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">hGetBuf</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">withBinaryFile</span></span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- Acquire seed from current time. This is horrible fallback for</span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- Windows system.</span><span>
+</span><span id="line-31"></span><span class="annot"><a href="System.Random.MWC.SeedSource.html#acquireSeedTime"><span class="hs-identifier hs-type">acquireSeedTime</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Word32</span></span><span class="hs-special">]</span><span>
+</span><span id="line-32"></span><span id="acquireSeedTime"><span class="annot"><span class="annottext">acquireSeedTime :: IO [Word32]
+</span><a href="System.Random.MWC.SeedSource.html#acquireSeedTime"><span class="hs-identifier hs-var hs-var">acquireSeedTime</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-33"></span><span>  </span><span id="local-6989586621679065043"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679065043"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Ratio a -&gt; a
+</span><span class="hs-identifier hs-var">numerator</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Integral a =&gt; a -&gt; a -&gt; Ratio a
+</span><span class="hs-operator hs-var">%</span></span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-identifier hs-var">cpuTimePrecision</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a1 r. Monad m =&gt; (a1 -&gt; r) -&gt; m a1 -&gt; m r
+</span><span class="hs-operator hs-var">`liftM`</span></span><span> </span><span class="annot"><span class="annottext">IO Integer
+</span><span class="hs-identifier hs-var">getCPUTime</span></span><span>
+</span><span id="line-34"></span><span>  </span><span id="local-6989586621679065041"><span class="annot"><span class="annottext">Ratio Integer
+</span><a href="#local-6989586621679065041"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a. Real a =&gt; a -&gt; Ratio Integer
+</span><span class="hs-identifier hs-var">toRational</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a1 r. Monad m =&gt; (a1 -&gt; r) -&gt; m a1 -&gt; m r
+</span><span class="hs-operator hs-var">`liftM`</span></span><span> </span><span class="annot"><span class="annottext">IO POSIXTime
+</span><span class="hs-identifier hs-var">getPOSIXTime</span></span><span>
+</span><span id="line-35"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679065037"><span class="annot"><span class="annottext">n :: Word64
+</span><a href="#local-6989586621679065037"><span class="hs-identifier hs-var hs-var">n</span></a></span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Ratio a -&gt; a
+</span><span class="hs-identifier hs-var">numerator</span></span><span> </span><span class="annot"><span class="annottext">Ratio Integer
+</span><a href="#local-6989586621679065041"><span class="hs-identifier hs-var">t</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span>
+</span><span id="line-36"></span><span>  </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679065043"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679065037"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679065037"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`shiftR`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">32</span></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- | Acquire seed from the system entropy source. On Unix machines,</span><span>
+</span><span id="line-39"></span><span class="hs-comment">-- this will attempt to use @/dev/urandom@. On Windows, it will internally</span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- use @RtlGenRandom@.</span><span>
+</span><span id="line-41"></span><span class="annot"><a href="System.Random.MWC.SeedSource.html#acquireSeedSystem"><span class="hs-identifier hs-type">acquireSeedSystem</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679065097"><span class="annot"><a href="#local-6989586621679065097"><span class="hs-identifier hs-type">a</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Storable</span></span><span> </span><span class="annot"><a href="#local-6989586621679065097"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679065097"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-42"></span><span id="acquireSeedSystem"><span class="annot"><span class="annottext">acquireSeedSystem :: forall a. Storable a =&gt; Int -&gt; IO [a]
+</span><a href="System.Random.MWC.SeedSource.html#acquireSeedSystem"><span class="hs-identifier hs-var hs-var">acquireSeedSystem</span></a></span></span><span> </span><span id="local-6989586621679065031"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679065031"><span class="hs-identifier hs-var">nElts</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-43"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679065027"><span class="annot"><span class="annottext">eltSize :: Int
+</span><a href="#local-6989586621679065027"><span class="hs-identifier hs-var hs-var">eltSize</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Storable a =&gt; a -&gt; Int
+</span><span class="hs-identifier hs-var">sizeOf</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. HasCallStack =&gt; a
+</span><span class="hs-identifier hs-var">undefined</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679065097"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-44"></span><span>      </span><span id="local-6989586621679065022"><span class="annot"><span class="annottext">nbytes :: Int
+</span><a href="#local-6989586621679065022"><span class="hs-identifier hs-var hs-var">nbytes</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679065031"><span class="hs-identifier hs-var">nElts</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679065027"><span class="hs-identifier hs-var">eltSize</span></a></span><span class="hs-cpp">
+#if !defined(mingw32_HOST_OS)
+</span><span>  </span><span class="annot"><span class="annottext">forall a b. Int -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">allocaBytes</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679065022"><span class="hs-identifier hs-var">nbytes</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679065020"><span class="annot"><span class="annottext">Ptr a
+</span><a href="#local-6989586621679065020"><span class="hs-identifier hs-var">buf</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-47"></span><span>    </span><span id="local-6989586621679065019"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679065019"><span class="hs-identifier hs-var">nread</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall r. FilePath -&gt; IOMode -&gt; (Handle -&gt; IO r) -&gt; IO r
+</span><span class="hs-identifier hs-var">withBinaryFile</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;/dev/urandom&quot;</span></span><span> </span><span class="annot"><span class="annottext">IOMode
+</span><span class="hs-identifier hs-var">ReadMode</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679065017"><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621679065017"><span class="hs-identifier hs-var">h</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. Handle -&gt; Ptr a -&gt; Int -&gt; IO Int
+</span><span class="hs-identifier hs-var">hGetBuf</span></span><span> </span><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621679065017"><span class="hs-identifier hs-var">h</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr a
+</span><a href="#local-6989586621679065020"><span class="hs-identifier hs-var">buf</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679065022"><span class="hs-identifier hs-var">nbytes</span></a></span><span>
+</span><span id="line-48"></span><span>    </span><span class="annot"><span class="annottext">forall a. Storable a =&gt; Int -&gt; Ptr a -&gt; IO [a]
+</span><span class="hs-identifier hs-var">peekArray</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679065019"><span class="hs-identifier hs-var">nread</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Integral a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`div`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679065027"><span class="hs-identifier hs-var">eltSize</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Ptr a
+</span><a href="#local-6989586621679065020"><span class="hs-identifier hs-var">buf</span></a></span><span class="hs-cpp">
+#else
+</span><span>  </span><span class="hs-comment">-- Generate 256 random Word32s from RtlGenRandom</span><span>
+</span><span id="line-51"></span><span>  </span><span class="hs-identifier">allocaBytes</span><span> </span><span class="hs-identifier">nbytes</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-glyph">\</span><span class="hs-identifier">buf</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-52"></span><span>    </span><span class="hs-identifier">ok</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier">c_RtlGenRandom</span><span> </span><span class="hs-identifier">buf</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">fromIntegral</span><span> </span><span class="hs-identifier">nbytes</span><span class="hs-special">)</span><span>
+</span><span id="line-53"></span><span>    </span><span class="hs-keyword">if</span><span> </span><span class="hs-identifier">ok</span><span> </span><span class="hs-keyword">then</span><span> </span><span class="hs-identifier">return</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">else</span><span> </span><span class="hs-identifier">fail</span><span> </span><span class="hs-string">&quot;Couldn't use RtlGenRandom&quot;</span><span>
+</span><span id="line-54"></span><span>    </span><span class="hs-identifier">peekArray</span><span> </span><span class="hs-identifier">nElts</span><span> </span><span class="hs-identifier">buf</span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span class="hs-comment">-- Note: on 64-bit Windows, the 'stdcall' calling convention</span><span>
+</span><span id="line-57"></span><span class="hs-comment">-- isn't supported, so we use 'ccall' instead.</span><span class="hs-cpp">
+#if defined(i386_HOST_ARCH)
+</span><span class="hs-cpp"># define WINDOWS_CCONV stdcall
+</span><span class="hs-cpp">#elif defined(x86_64_HOST_ARCH)
+</span><span class="hs-cpp"># define WINDOWS_CCONV ccall
+</span><span class="hs-cpp">#else
+</span><span class="hs-cpp"># error Unknown mingw32 architecture!
+</span><span class="hs-cpp">#endif
+</span><span>
+</span><span id="line-66"></span><span class="hs-comment">-- Note: On Windows, the typical convention would be to use</span><span>
+</span><span id="line-67"></span><span class="hs-comment">-- the CryptoGenRandom API in order to generate random data.</span><span>
+</span><span id="line-68"></span><span class="hs-comment">-- However, here we use 'SystemFunction036', AKA RtlGenRandom.</span><span>
+</span><span id="line-69"></span><span class="hs-comment">--</span><span>
+</span><span id="line-70"></span><span class="hs-comment">-- This is a commonly used API for this purpose; one bonus is</span><span>
+</span><span id="line-71"></span><span class="hs-comment">-- that it avoids having to bring in the CryptoAPI library,</span><span>
+</span><span id="line-72"></span><span class="hs-comment">-- and completely sidesteps the initialization cost of CryptoAPI.</span><span>
+</span><span id="line-73"></span><span class="hs-comment">--</span><span>
+</span><span id="line-74"></span><span class="hs-comment">-- While this function is technically &quot;subject to change&quot; that is</span><span>
+</span><span id="line-75"></span><span class="hs-comment">-- extremely unlikely in practice: rand_s in the Microsoft CRT uses</span><span>
+</span><span id="line-76"></span><span class="hs-comment">-- this, and they can't change it easily without also breaking</span><span>
+</span><span id="line-77"></span><span class="hs-comment">-- backwards compatibility with e.g. statically linked applications.</span><span>
+</span><span id="line-78"></span><span class="hs-comment">--</span><span>
+</span><span id="line-79"></span><span class="hs-comment">-- The name 'SystemFunction036' is the actual link-time name; the</span><span>
+</span><span id="line-80"></span><span class="hs-comment">-- display name is just for giggles, I guess.</span><span>
+</span><span id="line-81"></span><span class="hs-comment">--</span><span>
+</span><span id="line-82"></span><span class="hs-comment">-- See also:</span><span>
+</span><span id="line-83"></span><span class="hs-comment">--   - http://blogs.msdn.com/b/michael_howard/archive/2005/01/14/353379.aspx</span><span>
+</span><span id="line-84"></span><span class="hs-comment">--   - https://bugzilla.mozilla.org/show_bug.cgi?id=504270</span><span>
+</span><span id="line-85"></span><span class="hs-comment">--</span><span>
+</span><span id="line-86"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">WINDOWS_CCONV</span><span> </span><span class="hs-keyword">unsafe</span><span> </span><span class="hs-string">&quot;SystemFunction036&quot;</span><span>
+</span><span id="line-87"></span><span>  </span><span class="hs-identifier">c_RtlGenRandom</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Ptr</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">CULong</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">Bool</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-90"></span><span>
+</span><span id="line-91"></span><span class="hs-comment">-- | Name of source of randomness. It should be used in error messages</span><span>
+</span><span id="line-92"></span><span class="annot"><a href="System.Random.MWC.SeedSource.html#randomSourceName"><span class="hs-identifier hs-type">randomSourceName</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-cpp">
+#if !defined(mingw32_HOST_OS)
+</span><span id="randomSourceName"><span class="annot"><span class="annottext">randomSourceName :: FilePath
+</span><a href="System.Random.MWC.SeedSource.html#randomSourceName"><span class="hs-identifier hs-var hs-var">randomSourceName</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;/dev/urandom&quot;</span></span><span class="hs-cpp">
+#else
+</span><span class="hs-identifier">randomSourceName</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;RtlGenRandom&quot;</span><span class="hs-cpp">
+#endif
+</span></pre></body></html>

@@ -1,0 +1,24 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Unison.CommandLine.Types</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.CommandLine.Types.html#ShouldWatchFiles"><span class="hs-identifier">ShouldWatchFiles</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">data</span><span> </span><span id="ShouldWatchFiles"><span class="annot"><a href="Unison.CommandLine.Types.html#ShouldWatchFiles"><span class="hs-identifier hs-var">ShouldWatchFiles</span></a></span></span><span>
+</span><span id="line-4"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="ShouldWatchFiles"><span class="annot"><a href="Unison.CommandLine.Types.html#ShouldWatchFiles"><span class="hs-identifier hs-var">ShouldWatchFiles</span></a></span></span><span>
+</span><span id="line-5"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ShouldNotWatchFiles"><span class="annot"><a href="Unison.CommandLine.Types.html#ShouldNotWatchFiles"><span class="hs-identifier hs-var">ShouldNotWatchFiles</span></a></span></span><span>
+</span><span id="line-6"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679590409"><span id="local-6989586621679590411"><span id="local-6989586621679590413"><span class="annot"><span class="annottext">Int -&gt; ShouldWatchFiles -&gt; ShowS
+[ShouldWatchFiles] -&gt; ShowS
+ShouldWatchFiles -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [ShouldWatchFiles] -&gt; ShowS
+$cshowList :: [ShouldWatchFiles] -&gt; ShowS
+show :: ShouldWatchFiles -&gt; String
+$cshow :: ShouldWatchFiles -&gt; String
+showsPrec :: Int -&gt; ShouldWatchFiles -&gt; ShowS
+$cshowsPrec :: Int -&gt; ShouldWatchFiles -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679590404"><span id="local-6989586621679590406"><span class="annot"><span class="annottext">ShouldWatchFiles -&gt; ShouldWatchFiles -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: ShouldWatchFiles -&gt; ShouldWatchFiles -&gt; Bool
+$c/= :: ShouldWatchFiles -&gt; ShouldWatchFiles -&gt; Bool
+== :: ShouldWatchFiles -&gt; ShouldWatchFiles -&gt; Bool
+$c== :: ShouldWatchFiles -&gt; ShouldWatchFiles -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span></pre></body></html>

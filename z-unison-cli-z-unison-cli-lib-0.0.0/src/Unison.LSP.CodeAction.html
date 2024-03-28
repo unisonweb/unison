@@ -1,0 +1,91 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DataKinds #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE PolyKinds #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE QuasiQuotes #-}</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Unison.LSP.CodeAction</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-6"></span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Lens</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">List</span></span><span class="hs-special">)</span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.IntervalMap</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">IM</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Language.LSP.Protocol.Lens</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Language.LSP.Protocol.Message</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Msg</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Language.LSP.Protocol.Types</span></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Debug</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Debug</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.LSP.Conversions.html"><span class="hs-identifier">Unison.LSP.Conversions</span></a></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.LSP.FileAnalysis.html"><span class="hs-identifier">Unison.LSP.FileAnalysis</span></a></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.LSP.Types.html"><span class="hs-identifier">Unison.LSP.Types</span></a></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Prelude</span></span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- | Computes code actions for a document.</span><span>
+</span><span id="line-19"></span><span class="annot"><a href="Unison.LSP.CodeAction.html#codeActionHandler"><span class="hs-identifier hs-type">codeActionHandler</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Msg.TRequestMessage</span></span><span> </span><span class="hs-special">'</span><span class="annot"><span class="hs-identifier hs-type">Msg.Method_TextDocumentCodeAction</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Msg.ResponseError</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Msg.MessageResult</span></span><span> </span><span class="hs-special">'</span><span class="annot"><span class="hs-identifier hs-type">Msg.Method_TextDocumentCodeAction</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.LSP.Types.html#Lsp"><span class="hs-identifier hs-type">Lsp</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.LSP.Types.html#Lsp"><span class="hs-identifier hs-type">Lsp</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span id="codeActionHandler"><span class="annot"><span class="annottext">codeActionHandler :: TRequestMessage 'Method_TextDocumentCodeAction
+-&gt; (Either
+      ResponseError (MessageResult 'Method_TextDocumentCodeAction)
+    -&gt; Lsp ())
+-&gt; Lsp ()
+</span><a href="Unison.LSP.CodeAction.html#codeActionHandler"><span class="hs-identifier hs-var hs-var">codeActionHandler</span></a></span></span><span> </span><span id="local-6989586621679596566"><span class="annot"><span class="annottext">TRequestMessage 'Method_TextDocumentCodeAction
+</span><a href="#local-6989586621679596566"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span id="local-6989586621679596565"><span class="annot"><span class="annottext">Either ResponseError (MessageResult 'Method_TextDocumentCodeAction)
+-&gt; Lsp ()
+</span><a href="#local-6989586621679596565"><span class="hs-identifier hs-var">respond</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-21"></span><span>  </span><span class="annot"><span class="annottext">Either ResponseError (MessageResult 'Method_TextDocumentCodeAction)
+-&gt; Lsp ()
+</span><a href="#local-6989586621679596565"><span class="hs-identifier hs-var">respond</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><span class="hs-identifier hs-var">maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall a b. a -&gt; a |? b
+</span><span class="hs-identifier hs-var">InL</span></span><span> </span><span class="annot"><span class="annottext">forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall a b. a -&gt; a |? b
+</span><span class="hs-identifier hs-var">InL</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">forall a b. b -&gt; a |? b
+</span><span class="hs-identifier hs-var">InR</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; (a -&gt; m b) -&gt; m a -&gt; m b
+</span><span class="hs-operator hs-var">=&lt;&lt;</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. MaybeT m a -&gt; m (Maybe a)
+</span><span class="hs-identifier hs-var">runMaybeT</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-22"></span><span>    </span><span class="annot"><a href="Unison.LSP.Types.html#FileAnalysis"><span class="hs-identifier hs-type">FileAnalysis</span></a></span><span> </span><span class="hs-special">{</span><span id="local-6989586621679596557"><span class="annot"><span class="annottext">IntervalMap Position [CodeAction]
+$sel:codeActions:FileAnalysis :: FileAnalysis -&gt; IntervalMap Position [CodeAction]
+codeActions :: IntervalMap Position [CodeAction]
+</span><a href="Unison.LSP.Types.html#%24sel%3AcodeActions%3AFileAnalysis"><span class="hs-identifier hs-var hs-var">codeActions</span></a></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Uri -&gt; MaybeT Lsp FileAnalysis
+</span><a href="Unison.LSP.FileAnalysis.html#getFileAnalysis"><span class="hs-identifier hs-var">getFileAnalysis</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TRequestMessage 'Method_TextDocumentCodeAction
+</span><a href="#local-6989586621679596566"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">forall s a. s -&gt; Getting a s a -&gt; a
+</span><span class="hs-operator hs-var">^.</span></span><span> </span><span class="annot"><span class="annottext">forall s a. HasParams s a =&gt; Lens' s a
+</span><span class="hs-identifier hs-var">params</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall s a. HasTextDocument s a =&gt; Lens' s a
+</span><span class="hs-identifier hs-var">textDocument</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall s a. HasUri s a =&gt; Lens' s a
+</span><span class="hs-identifier hs-var">uri</span></span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679596550"><span class="annot"><span class="annottext">r :: Range
+</span><a href="#local-6989586621679596550"><span class="hs-identifier hs-var hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TRequestMessage 'Method_TextDocumentCodeAction
+</span><a href="#local-6989586621679596566"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">forall s a. s -&gt; Getting a s a -&gt; a
+</span><span class="hs-operator hs-var">^.</span></span><span> </span><span class="annot"><span class="annottext">forall s a. HasParams s a =&gt; Lens' s a
+</span><span class="hs-identifier hs-var">params</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall s a. HasRange s a =&gt; Lens' s a
+</span><span class="hs-identifier hs-var">range</span></span><span>
+</span><span id="line-24"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679596548"><span class="annot"><span class="annottext">relevantActions :: IntervalMap Position [CodeAction]
+</span><a href="#local-6989586621679596548"><span class="hs-identifier hs-var hs-var">relevantActions</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall k e v.
+Interval k e =&gt;
+IntervalMap k v -&gt; k -&gt; IntervalMap k v
+</span><span class="hs-identifier hs-var">IM.intersecting</span></span><span> </span><span class="annot"><span class="annottext">IntervalMap Position [CodeAction]
+</span><a href="#local-6989586621679596557"><span class="hs-identifier hs-var">codeActions</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Range -&gt; Interval Position
+</span><a href="Unison.LSP.Conversions.html#rangeToInterval"><span class="hs-identifier hs-var">rangeToInterval</span></a></span><span> </span><span class="annot"><span class="annottext">Range
+</span><a href="#local-6989586621679596550"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span>    </span><span class="annot"><span class="annottext">forall a (m :: * -&gt; *).
+(Show a, Monad m) =&gt;
+DebugFlag -&gt; String -&gt; a -&gt; m ()
+</span><span class="hs-identifier hs-var">Debug.debugM</span></span><span> </span><span class="annot"><span class="annottext">DebugFlag
+</span><span class="hs-identifier hs-var">Debug.LSP</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;All CodeActions&quot;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IntervalMap Position [CodeAction]
+</span><a href="#local-6989586621679596557"><span class="hs-identifier hs-var">codeActions</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span>    </span><span class="annot"><span class="annottext">forall a (m :: * -&gt; *).
+(Show a, Monad m) =&gt;
+DebugFlag -&gt; String -&gt; a -&gt; m ()
+</span><span class="hs-identifier hs-var">Debug.debugM</span></span><span> </span><span class="annot"><span class="annottext">DebugFlag
+</span><span class="hs-identifier hs-var">Debug.LSP</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Relevant actions&quot;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Range
+</span><a href="#local-6989586621679596550"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">IntervalMap Position [CodeAction]
+</span><a href="#local-6989586621679596548"><span class="hs-identifier hs-var">relevantActions</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span>    </span><span class="hs-identifier">pure</span><span> </span><span class="hs-operator">$</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) m. (Foldable t, Monoid m) =&gt; t m -&gt; m
+</span><span class="hs-identifier hs-var">fold</span></span><span> </span><span class="annot"><span class="annottext">IntervalMap Position [CodeAction]
+</span><a href="#local-6989586621679596548"><span class="hs-identifier hs-var">relevantActions</span></a></span><span>
+</span><span id="line-28"></span></pre></body></html>

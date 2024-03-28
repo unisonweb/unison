@@ -1,0 +1,556 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP, MagicHash, BangPatterns #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- Module      : Data.Text.Internal.Encoding.Utf8</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Copyright   : (c) 2008, 2009 Tom Harper,</span><span>
+</span><span id="line-6"></span><span class="hs-comment">--               (c) 2009, 2010 Bryan O'Sullivan,</span><span>
+</span><span id="line-7"></span><span class="hs-comment">--               (c) 2009 Duncan Coutts</span><span>
+</span><span id="line-8"></span><span class="hs-comment">--</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- License     : BSD-style</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- Maintainer  : bos@serpentine.com</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- Stability   : experimental</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- Portability : GHC</span><span>
+</span><span id="line-13"></span><span class="hs-comment">--</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- /Warning/: this is an internal module, and does not have a stable</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- API or name. Functions in this module may not check or enforce</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- preconditions expected by public modules. Use at your own risk!</span><span>
+</span><span id="line-17"></span><span class="hs-comment">--</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- Basic UTF-8 validation and character manipulation.</span><span>
+</span><span id="line-19"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Data.Text.Internal.Encoding.Utf8</span><span>
+</span><span id="line-20"></span><span>    </span><span class="hs-special">(</span><span>
+</span><span id="line-21"></span><span>    </span><span class="hs-comment">-- Decomposition</span><span>
+</span><span id="line-22"></span><span>      </span><span class="annot"><a href="Data.Text.Internal.Encoding.Utf8.html#ord2"><span class="hs-identifier">ord2</span></a></span><span>
+</span><span id="line-23"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Text.Internal.Encoding.Utf8.html#ord3"><span class="hs-identifier">ord3</span></a></span><span>
+</span><span id="line-24"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Text.Internal.Encoding.Utf8.html#ord4"><span class="hs-identifier">ord4</span></a></span><span>
+</span><span id="line-25"></span><span>    </span><span class="hs-comment">-- Construction</span><span>
+</span><span id="line-26"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Text.Internal.Encoding.Utf8.html#chr2"><span class="hs-identifier">chr2</span></a></span><span>
+</span><span id="line-27"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Text.Internal.Encoding.Utf8.html#chr3"><span class="hs-identifier">chr3</span></a></span><span>
+</span><span id="line-28"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Text.Internal.Encoding.Utf8.html#chr4"><span class="hs-identifier">chr4</span></a></span><span>
+</span><span id="line-29"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Validation</span></span><span>
+</span><span id="line-30"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Text.Internal.Encoding.Utf8.html#validate1"><span class="hs-identifier">validate1</span></a></span><span>
+</span><span id="line-31"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Text.Internal.Encoding.Utf8.html#validate2"><span class="hs-identifier">validate2</span></a></span><span>
+</span><span id="line-32"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Text.Internal.Encoding.Utf8.html#validate3"><span class="hs-identifier">validate3</span></a></span><span>
+</span><span id="line-33"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Text.Internal.Encoding.Utf8.html#validate4"><span class="hs-identifier">validate4</span></a></span><span>
+</span><span id="line-34"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-35"></span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Data-Bits.html#"><span class="hs-identifier">Data.Bits</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Bits.html#.%26."><span class="hs-operator">(.&amp;.)</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-37"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Text.Internal.Unsafe.Char.html"><span class="hs-identifier">Data.Text.Internal.Unsafe.Char</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Text.Internal.Unsafe.Char.html#ord"><span class="hs-identifier">ord</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-38"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Text.Internal.Unsafe.Shift.html"><span class="hs-identifier">Data.Text.Internal.Unsafe.Shift</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Text.Internal.Unsafe.Shift.html#shiftR"><span class="hs-identifier">shiftR</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-39"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Exts.html#"><span class="hs-identifier">GHC.Exts</span></a></span><span>
+</span><span id="line-40"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Word.html#"><span class="hs-identifier">GHC.Word</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Word.html#Word8"><span class="hs-identifier">Word8</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-cpp">
+
+#if !MIN_VERSION_base(4,16,0)
+</span><span class="hs-comment">-- harmless to import, except for warnings that it is unused.</span><span>
+</span><span id="line-44"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Text.Internal.PrimCompat</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">word8ToWord#</span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-47"></span><span class="hs-keyword">default</span><span class="hs-special">(</span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#Int"><span class="hs-identifier hs-type">Int</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span class="annot"><a href="Data.Text.Internal.Encoding.Utf8.html#between"><span class="hs-identifier hs-type">between</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Word.html#Word8"><span class="hs-identifier hs-type">Word8</span></a></span><span>                </span><span class="hs-comment">-- ^ byte to check</span><span>
+</span><span id="line-50"></span><span>        </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Word.html#Word8"><span class="hs-identifier hs-type">Word8</span></a></span><span>                </span><span class="hs-comment">-- ^ lower bound</span><span>
+</span><span id="line-51"></span><span>        </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Word.html#Word8"><span class="hs-identifier hs-type">Word8</span></a></span><span>                </span><span class="hs-comment">-- ^ upper bound</span><span>
+</span><span id="line-52"></span><span>        </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#Bool"><span class="hs-identifier hs-type">Bool</span></a></span><span>
+</span><span id="line-53"></span><span id="between"><span class="annot"><span class="annottext">between :: Word8 -&gt; Word8 -&gt; Word8 -&gt; Bool
+</span><a href="Data.Text.Internal.Encoding.Utf8.html#between"><span class="hs-identifier hs-var hs-var">between</span></a></span></span><span> </span><span id="local-6989586621679101214"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679101214"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679101213"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679101213"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span id="local-6989586621679101212"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679101212"><span class="hs-identifier hs-var">z</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679101214"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#%3E%3D"><span class="hs-operator hs-var">&gt;=</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679101213"><span class="hs-identifier hs-var">y</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#%26%26"><span class="hs-operator hs-var">&amp;&amp;</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679101214"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#%3C%3D"><span class="hs-operator hs-var">&lt;=</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679101212"><span class="hs-identifier hs-var">z</span></a></span><span>
+</span><span id="line-54"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Text.Internal.Encoding.Utf8.html#between"><span class="hs-pragma hs-type">between</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span class="annot"><a href="Data.Text.Internal.Encoding.Utf8.html#ord2"><span class="hs-identifier hs-type">ord2</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#Char"><span class="hs-identifier hs-type">Char</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Word.html#Word8"><span class="hs-identifier hs-type">Word8</span></a></span><span class="hs-special">,</span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Word.html#Word8"><span class="hs-identifier hs-type">Word8</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-57"></span><span id="ord2"><span class="annot"><span class="annottext">ord2 :: Char -&gt; (Word8, Word8)
+</span><a href="Data.Text.Internal.Encoding.Utf8.html#ord2"><span class="hs-identifier hs-var hs-var">ord2</span></a></span></span><span> </span><span id="local-6989586621679101209"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679101209"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-58"></span><span>    </span><span class="hs-comment">-- ord2 is used only in test suite to construct a deliberately invalid ByteString,</span><span>
+</span><span id="line-59"></span><span>    </span><span class="hs-comment">-- actually violating the assertion, so it is commented out</span><span>
+</span><span id="line-60"></span><span>    </span><span class="hs-comment">-- assert (n &gt;= 0x80 &amp;&amp; n &lt;= 0x07ff)</span><span>
+</span><span id="line-61"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679101208"><span class="hs-identifier hs-var">x1</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679101207"><span class="hs-identifier hs-var">x2</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-62"></span><span>    </span><span class="hs-keyword">where</span><span>
+</span><span id="line-63"></span><span>      </span><span id="local-6989586621679101206"><span class="annot"><span class="annottext">n :: Int
+</span><a href="#local-6989586621679101206"><span class="hs-identifier hs-var hs-var">n</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Char -&gt; Int
+</span><a href="Data.Text.Internal.Unsafe.Char.html#ord"><span class="hs-identifier hs-var">ord</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679101209"><span class="hs-identifier hs-var">c</span></a></span><span>
+</span><span id="line-64"></span><span>      </span><span id="local-6989586621679101208"><span class="annot"><span class="annottext">x1 :: Word8
+</span><a href="#local-6989586621679101208"><span class="hs-identifier hs-var hs-var">x1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Word8
+</span><a href="Data.Text.Internal.Encoding.Utf8.html#intToWord8"><span class="hs-identifier hs-var">intToWord8</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679101206"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. UnsafeShift a =&gt; a -&gt; Int -&gt; a
+</span><a href="Data.Text.Internal.Unsafe.Shift.html#shiftR"><span class="hs-operator hs-var">`shiftR`</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">6</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0xC0</span></span><span>
+</span><span id="line-65"></span><span>      </span><span id="local-6989586621679101207"><span class="annot"><span class="annottext">x2 :: Word8
+</span><a href="#local-6989586621679101207"><span class="hs-identifier hs-var hs-var">x2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Word8
+</span><a href="Data.Text.Internal.Encoding.Utf8.html#intToWord8"><span class="hs-identifier hs-var">intToWord8</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679101206"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Bits.html#.%26."><span class="hs-operator hs-var">.&amp;.</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0x3F</span></span><span class="hs-special">)</span><span>   </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0x80</span></span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span class="annot"><a href="Data.Text.Internal.Encoding.Utf8.html#ord3"><span class="hs-identifier hs-type">ord3</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#Char"><span class="hs-identifier hs-type">Char</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Word.html#Word8"><span class="hs-identifier hs-type">Word8</span></a></span><span class="hs-special">,</span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Word.html#Word8"><span class="hs-identifier hs-type">Word8</span></a></span><span class="hs-special">,</span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Word.html#Word8"><span class="hs-identifier hs-type">Word8</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-68"></span><span id="ord3"><span class="annot"><span class="annottext">ord3 :: Char -&gt; (Word8, Word8, Word8)
+</span><a href="Data.Text.Internal.Encoding.Utf8.html#ord3"><span class="hs-identifier hs-var hs-var">ord3</span></a></span></span><span> </span><span id="local-6989586621679101193"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679101193"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-69"></span><span>    </span><span class="hs-comment">-- ord3 is used only in test suite to construct a deliberately invalid ByteString,</span><span>
+</span><span id="line-70"></span><span>    </span><span class="hs-comment">-- actually violating the assertion, so it is commented out</span><span>
+</span><span id="line-71"></span><span>    </span><span class="hs-comment">-- assert (n &gt;= 0x0800 &amp;&amp; n &lt;= 0xffff)</span><span>
+</span><span id="line-72"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679101192"><span class="hs-identifier hs-var">x1</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679101191"><span class="hs-identifier hs-var">x2</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679101190"><span class="hs-identifier hs-var">x3</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-73"></span><span>    </span><span class="hs-keyword">where</span><span>
+</span><span id="line-74"></span><span>      </span><span id="local-6989586621679101189"><span class="annot"><span class="annottext">n :: Int
+</span><a href="#local-6989586621679101189"><span class="hs-identifier hs-var hs-var">n</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Char -&gt; Int
+</span><a href="Data.Text.Internal.Unsafe.Char.html#ord"><span class="hs-identifier hs-var">ord</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679101193"><span class="hs-identifier hs-var">c</span></a></span><span>
+</span><span id="line-75"></span><span>      </span><span id="local-6989586621679101192"><span class="annot"><span class="annottext">x1 :: Word8
+</span><a href="#local-6989586621679101192"><span class="hs-identifier hs-var hs-var">x1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Word8
+</span><a href="Data.Text.Internal.Encoding.Utf8.html#intToWord8"><span class="hs-identifier hs-var">intToWord8</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679101189"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. UnsafeShift a =&gt; a -&gt; Int -&gt; a
+</span><a href="Data.Text.Internal.Unsafe.Shift.html#shiftR"><span class="hs-operator hs-var">`shiftR`</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">12</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0xE0</span></span><span>
+</span><span id="line-76"></span><span>      </span><span id="local-6989586621679101191"><span class="annot"><span class="annottext">x2 :: Word8
+</span><a href="#local-6989586621679101191"><span class="hs-identifier hs-var hs-var">x2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Word8
+</span><a href="Data.Text.Internal.Encoding.Utf8.html#intToWord8"><span class="hs-identifier hs-var">intToWord8</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679101189"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. UnsafeShift a =&gt; a -&gt; Int -&gt; a
+</span><a href="Data.Text.Internal.Unsafe.Shift.html#shiftR"><span class="hs-operator hs-var">`shiftR`</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">6</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Bits.html#.%26."><span class="hs-operator hs-var">.&amp;.</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0x3F</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0x80</span></span><span>
+</span><span id="line-77"></span><span>      </span><span id="local-6989586621679101190"><span class="annot"><span class="annottext">x3 :: Word8
+</span><a href="#local-6989586621679101190"><span class="hs-identifier hs-var hs-var">x3</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Word8
+</span><a href="Data.Text.Internal.Encoding.Utf8.html#intToWord8"><span class="hs-identifier hs-var">intToWord8</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679101189"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Bits.html#.%26."><span class="hs-operator hs-var">.&amp;.</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0x3F</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0x80</span></span><span>
+</span><span id="line-78"></span><span>
+</span><span id="line-79"></span><span class="annot"><a href="Data.Text.Internal.Encoding.Utf8.html#ord4"><span class="hs-identifier hs-type">ord4</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#Char"><span class="hs-identifier hs-type">Char</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Word.html#Word8"><span class="hs-identifier hs-type">Word8</span></a></span><span class="hs-special">,</span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Word.html#Word8"><span class="hs-identifier hs-type">Word8</span></a></span><span class="hs-special">,</span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Word.html#Word8"><span class="hs-identifier hs-type">Word8</span></a></span><span class="hs-special">,</span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Word.html#Word8"><span class="hs-identifier hs-type">Word8</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-80"></span><span id="ord4"><span class="annot"><span class="annottext">ord4 :: Char -&gt; (Word8, Word8, Word8, Word8)
+</span><a href="Data.Text.Internal.Encoding.Utf8.html#ord4"><span class="hs-identifier hs-var hs-var">ord4</span></a></span></span><span> </span><span id="local-6989586621679101176"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679101176"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-81"></span><span>    </span><span class="hs-comment">-- ord4 is used only in test suite to construct a deliberately invalid ByteString,</span><span>
+</span><span id="line-82"></span><span>    </span><span class="hs-comment">-- actually violating the assertion, so it is commented out</span><span>
+</span><span id="line-83"></span><span>    </span><span class="hs-comment">-- assert (n &gt;= 0x10000)</span><span>
+</span><span id="line-84"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679101175"><span class="hs-identifier hs-var">x1</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679101174"><span class="hs-identifier hs-var">x2</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679101173"><span class="hs-identifier hs-var">x3</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679101172"><span class="hs-identifier hs-var">x4</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-85"></span><span>    </span><span class="hs-keyword">where</span><span>
+</span><span id="line-86"></span><span>      </span><span id="local-6989586621679101171"><span class="annot"><span class="annottext">n :: Int
+</span><a href="#local-6989586621679101171"><span class="hs-identifier hs-var hs-var">n</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Char -&gt; Int
+</span><a href="Data.Text.Internal.Unsafe.Char.html#ord"><span class="hs-identifier hs-var">ord</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679101176"><span class="hs-identifier hs-var">c</span></a></span><span>
+</span><span id="line-87"></span><span>      </span><span id="local-6989586621679101175"><span class="annot"><span class="annottext">x1 :: Word8
+</span><a href="#local-6989586621679101175"><span class="hs-identifier hs-var hs-var">x1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Word8
+</span><a href="Data.Text.Internal.Encoding.Utf8.html#intToWord8"><span class="hs-identifier hs-var">intToWord8</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679101171"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. UnsafeShift a =&gt; a -&gt; Int -&gt; a
+</span><a href="Data.Text.Internal.Unsafe.Shift.html#shiftR"><span class="hs-operator hs-var">`shiftR`</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">18</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0xF0</span></span><span>
+</span><span id="line-88"></span><span>      </span><span id="local-6989586621679101174"><span class="annot"><span class="annottext">x2 :: Word8
+</span><a href="#local-6989586621679101174"><span class="hs-identifier hs-var hs-var">x2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Word8
+</span><a href="Data.Text.Internal.Encoding.Utf8.html#intToWord8"><span class="hs-identifier hs-var">intToWord8</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679101171"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. UnsafeShift a =&gt; a -&gt; Int -&gt; a
+</span><a href="Data.Text.Internal.Unsafe.Shift.html#shiftR"><span class="hs-operator hs-var">`shiftR`</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">12</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Bits.html#.%26."><span class="hs-operator hs-var">.&amp;.</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0x3F</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0x80</span></span><span>
+</span><span id="line-89"></span><span>      </span><span id="local-6989586621679101173"><span class="annot"><span class="annottext">x3 :: Word8
+</span><a href="#local-6989586621679101173"><span class="hs-identifier hs-var hs-var">x3</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Word8
+</span><a href="Data.Text.Internal.Encoding.Utf8.html#intToWord8"><span class="hs-identifier hs-var">intToWord8</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679101171"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. UnsafeShift a =&gt; a -&gt; Int -&gt; a
+</span><a href="Data.Text.Internal.Unsafe.Shift.html#shiftR"><span class="hs-operator hs-var">`shiftR`</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">6</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Bits.html#.%26."><span class="hs-operator hs-var">.&amp;.</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0x3F</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0x80</span></span><span>
+</span><span id="line-90"></span><span>      </span><span id="local-6989586621679101172"><span class="annot"><span class="annottext">x4 :: Word8
+</span><a href="#local-6989586621679101172"><span class="hs-identifier hs-var hs-var">x4</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Word8
+</span><a href="Data.Text.Internal.Encoding.Utf8.html#intToWord8"><span class="hs-identifier hs-var">intToWord8</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679101171"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Bits.html#.%26."><span class="hs-operator hs-var">.&amp;.</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0x3F</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0x80</span></span><span>
+</span><span id="line-91"></span><span>
+</span><span id="line-92"></span><span class="annot"><a href="Data.Text.Internal.Encoding.Utf8.html#chr2"><span class="hs-identifier hs-type">chr2</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Word.html#Word8"><span class="hs-identifier hs-type">Word8</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Word.html#Word8"><span class="hs-identifier hs-type">Word8</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#Char"><span class="hs-identifier hs-type">Char</span></a></span><span>
+</span><span id="line-93"></span><span id="chr2"><span class="annot"><span class="annottext">chr2 :: Word8 -&gt; Word8 -&gt; Char
+</span><a href="Data.Text.Internal.Encoding.Utf8.html#chr2"><span class="hs-identifier hs-var hs-var">chr2</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Word.html#W8%23"><span class="hs-identifier hs-type">W8#</span></a></span><span> </span><span id="local-6989586621679101152"><span class="annot"><span class="annottext">Word8#
+</span><a href="#local-6989586621679101152"><span class="hs-identifier hs-var">x1#</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Word.html#W8%23"><span class="hs-identifier hs-type">W8#</span></a></span><span> </span><span id="local-6989586621679101151"><span class="annot"><span class="annottext">Word8#
+</span><a href="#local-6989586621679101151"><span class="hs-identifier hs-var">x2#</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Char# -&gt; Char
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#C%23"><span class="hs-identifier hs-var">C#</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int# -&gt; Char#
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#chr%23"><span class="hs-identifier hs-var">chr#</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679101150"><span class="hs-identifier hs-var">z1#</span></a></span><span> </span><span class="annot"><span class="annottext">Int# -&gt; Int# -&gt; Int#
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#%2B%23"><span class="hs-operator hs-var">+#</span></a></span><span> </span><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679101149"><span class="hs-identifier hs-var">z2#</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-94"></span><span>    </span><span class="hs-keyword">where</span><span>
+</span><span id="line-95"></span><span>      </span><span class="hs-glyph">!</span><span id="local-6989586621679101148"><span class="annot"><span class="annottext">y1# :: Int#
+</span><a href="#local-6989586621679101148"><span class="hs-identifier hs-var hs-var">y1#</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word# -&gt; Int#
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#word2Int%23"><span class="hs-identifier hs-var">word2Int#</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8# -&gt; Word#
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#word8ToWord%23"><span class="hs-identifier hs-var">word8ToWord#</span></a></span><span> </span><span class="annot"><span class="annottext">Word8#
+</span><a href="#local-6989586621679101152"><span class="hs-identifier hs-var">x1#</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-96"></span><span>      </span><span class="hs-glyph">!</span><span id="local-6989586621679101147"><span class="annot"><span class="annottext">y2# :: Int#
+</span><a href="#local-6989586621679101147"><span class="hs-identifier hs-var hs-var">y2#</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word# -&gt; Int#
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#word2Int%23"><span class="hs-identifier hs-var">word2Int#</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8# -&gt; Word#
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#word8ToWord%23"><span class="hs-identifier hs-var">word8ToWord#</span></a></span><span> </span><span class="annot"><span class="annottext">Word8#
+</span><a href="#local-6989586621679101151"><span class="hs-identifier hs-var">x2#</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-97"></span><span>      </span><span class="hs-glyph">!</span><span id="local-6989586621679101150"><span class="annot"><span class="annottext">z1# :: Int#
+</span><a href="#local-6989586621679101150"><span class="hs-identifier hs-var hs-var">z1#</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int# -&gt; Int# -&gt; Int#
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#uncheckedIShiftL%23"><span class="hs-identifier hs-var">uncheckedIShiftL#</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679101148"><span class="hs-identifier hs-var">y1#</span></a></span><span> </span><span class="annot"><span class="annottext">Int# -&gt; Int# -&gt; Int#
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#-%23"><span class="hs-operator hs-var">-#</span></a></span><span> </span><span class="annot"><span class="annottext">Int#
+</span><span class="hs-number">0xC0#</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int#
+</span><span class="hs-number">6#</span></span><span>
+</span><span id="line-98"></span><span>      </span><span class="hs-glyph">!</span><span id="local-6989586621679101149"><span class="annot"><span class="annottext">z2# :: Int#
+</span><a href="#local-6989586621679101149"><span class="hs-identifier hs-var hs-var">z2#</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679101147"><span class="hs-identifier hs-var">y2#</span></a></span><span> </span><span class="annot"><span class="annottext">Int# -&gt; Int# -&gt; Int#
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#-%23"><span class="hs-operator hs-var">-#</span></a></span><span> </span><span class="annot"><span class="annottext">Int#
+</span><span class="hs-number">0x80#</span></span><span>
+</span><span id="line-99"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Text.Internal.Encoding.Utf8.html#chr2"><span class="hs-pragma hs-type">chr2</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-100"></span><span>
+</span><span id="line-101"></span><span class="annot"><a href="Data.Text.Internal.Encoding.Utf8.html#chr3"><span class="hs-identifier hs-type">chr3</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Word.html#Word8"><span class="hs-identifier hs-type">Word8</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Word.html#Word8"><span class="hs-identifier hs-type">Word8</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Word.html#Word8"><span class="hs-identifier hs-type">Word8</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#Char"><span class="hs-identifier hs-type">Char</span></a></span><span>
+</span><span id="line-102"></span><span id="chr3"><span class="annot"><span class="annottext">chr3 :: Word8 -&gt; Word8 -&gt; Word8 -&gt; Char
+</span><a href="Data.Text.Internal.Encoding.Utf8.html#chr3"><span class="hs-identifier hs-var hs-var">chr3</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Word.html#W8%23"><span class="hs-identifier hs-type">W8#</span></a></span><span> </span><span id="local-6989586621679101146"><span class="annot"><span class="annottext">Word8#
+</span><a href="#local-6989586621679101146"><span class="hs-identifier hs-var">x1#</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Word.html#W8%23"><span class="hs-identifier hs-type">W8#</span></a></span><span> </span><span id="local-6989586621679101145"><span class="annot"><span class="annottext">Word8#
+</span><a href="#local-6989586621679101145"><span class="hs-identifier hs-var">x2#</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Word.html#W8%23"><span class="hs-identifier hs-type">W8#</span></a></span><span> </span><span id="local-6989586621679101144"><span class="annot"><span class="annottext">Word8#
+</span><a href="#local-6989586621679101144"><span class="hs-identifier hs-var">x3#</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Char# -&gt; Char
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#C%23"><span class="hs-identifier hs-var">C#</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int# -&gt; Char#
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#chr%23"><span class="hs-identifier hs-var">chr#</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679101143"><span class="hs-identifier hs-var">z1#</span></a></span><span> </span><span class="annot"><span class="annottext">Int# -&gt; Int# -&gt; Int#
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#%2B%23"><span class="hs-operator hs-var">+#</span></a></span><span> </span><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679101142"><span class="hs-identifier hs-var">z2#</span></a></span><span> </span><span class="annot"><span class="annottext">Int# -&gt; Int# -&gt; Int#
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#%2B%23"><span class="hs-operator hs-var">+#</span></a></span><span> </span><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679101141"><span class="hs-identifier hs-var">z3#</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-103"></span><span>    </span><span class="hs-keyword">where</span><span>
+</span><span id="line-104"></span><span>      </span><span class="hs-glyph">!</span><span id="local-6989586621679101140"><span class="annot"><span class="annottext">y1# :: Int#
+</span><a href="#local-6989586621679101140"><span class="hs-identifier hs-var hs-var">y1#</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word# -&gt; Int#
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#word2Int%23"><span class="hs-identifier hs-var">word2Int#</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8# -&gt; Word#
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#word8ToWord%23"><span class="hs-identifier hs-var">word8ToWord#</span></a></span><span> </span><span class="annot"><span class="annottext">Word8#
+</span><a href="#local-6989586621679101146"><span class="hs-identifier hs-var">x1#</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-105"></span><span>      </span><span class="hs-glyph">!</span><span id="local-6989586621679101139"><span class="annot"><span class="annottext">y2# :: Int#
+</span><a href="#local-6989586621679101139"><span class="hs-identifier hs-var hs-var">y2#</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word# -&gt; Int#
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#word2Int%23"><span class="hs-identifier hs-var">word2Int#</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8# -&gt; Word#
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#word8ToWord%23"><span class="hs-identifier hs-var">word8ToWord#</span></a></span><span> </span><span class="annot"><span class="annottext">Word8#
+</span><a href="#local-6989586621679101145"><span class="hs-identifier hs-var">x2#</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-106"></span><span>      </span><span class="hs-glyph">!</span><span id="local-6989586621679101138"><span class="annot"><span class="annottext">y3# :: Int#
+</span><a href="#local-6989586621679101138"><span class="hs-identifier hs-var hs-var">y3#</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word# -&gt; Int#
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#word2Int%23"><span class="hs-identifier hs-var">word2Int#</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8# -&gt; Word#
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#word8ToWord%23"><span class="hs-identifier hs-var">word8ToWord#</span></a></span><span> </span><span class="annot"><span class="annottext">Word8#
+</span><a href="#local-6989586621679101144"><span class="hs-identifier hs-var">x3#</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-107"></span><span>      </span><span class="hs-glyph">!</span><span id="local-6989586621679101143"><span class="annot"><span class="annottext">z1# :: Int#
+</span><a href="#local-6989586621679101143"><span class="hs-identifier hs-var hs-var">z1#</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int# -&gt; Int# -&gt; Int#
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#uncheckedIShiftL%23"><span class="hs-identifier hs-var">uncheckedIShiftL#</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679101140"><span class="hs-identifier hs-var">y1#</span></a></span><span> </span><span class="annot"><span class="annottext">Int# -&gt; Int# -&gt; Int#
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#-%23"><span class="hs-operator hs-var">-#</span></a></span><span> </span><span class="annot"><span class="annottext">Int#
+</span><span class="hs-number">0xE0#</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int#
+</span><span class="hs-number">12#</span></span><span>
+</span><span id="line-108"></span><span>      </span><span class="hs-glyph">!</span><span id="local-6989586621679101142"><span class="annot"><span class="annottext">z2# :: Int#
+</span><a href="#local-6989586621679101142"><span class="hs-identifier hs-var hs-var">z2#</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int# -&gt; Int# -&gt; Int#
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#uncheckedIShiftL%23"><span class="hs-identifier hs-var">uncheckedIShiftL#</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679101139"><span class="hs-identifier hs-var">y2#</span></a></span><span> </span><span class="annot"><span class="annottext">Int# -&gt; Int# -&gt; Int#
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#-%23"><span class="hs-operator hs-var">-#</span></a></span><span> </span><span class="annot"><span class="annottext">Int#
+</span><span class="hs-number">0x80#</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int#
+</span><span class="hs-number">6#</span></span><span>
+</span><span id="line-109"></span><span>      </span><span class="hs-glyph">!</span><span id="local-6989586621679101141"><span class="annot"><span class="annottext">z3# :: Int#
+</span><a href="#local-6989586621679101141"><span class="hs-identifier hs-var hs-var">z3#</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679101138"><span class="hs-identifier hs-var">y3#</span></a></span><span> </span><span class="annot"><span class="annottext">Int# -&gt; Int# -&gt; Int#
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#-%23"><span class="hs-operator hs-var">-#</span></a></span><span> </span><span class="annot"><span class="annottext">Int#
+</span><span class="hs-number">0x80#</span></span><span>
+</span><span id="line-110"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Text.Internal.Encoding.Utf8.html#chr3"><span class="hs-pragma hs-type">chr3</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-111"></span><span>
+</span><span id="line-112"></span><span class="annot"><a href="Data.Text.Internal.Encoding.Utf8.html#chr4"><span class="hs-identifier hs-type">chr4</span></a></span><span>             </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Word.html#Word8"><span class="hs-identifier hs-type">Word8</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Word.html#Word8"><span class="hs-identifier hs-type">Word8</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Word.html#Word8"><span class="hs-identifier hs-type">Word8</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Word.html#Word8"><span class="hs-identifier hs-type">Word8</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#Char"><span class="hs-identifier hs-type">Char</span></a></span><span>
+</span><span id="line-113"></span><span id="chr4"><span class="annot"><span class="annottext">chr4 :: Word8 -&gt; Word8 -&gt; Word8 -&gt; Word8 -&gt; Char
+</span><a href="Data.Text.Internal.Encoding.Utf8.html#chr4"><span class="hs-identifier hs-var hs-var">chr4</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Word.html#W8%23"><span class="hs-identifier hs-type">W8#</span></a></span><span> </span><span id="local-6989586621679101137"><span class="annot"><span class="annottext">Word8#
+</span><a href="#local-6989586621679101137"><span class="hs-identifier hs-var">x1#</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Word.html#W8%23"><span class="hs-identifier hs-type">W8#</span></a></span><span> </span><span id="local-6989586621679101136"><span class="annot"><span class="annottext">Word8#
+</span><a href="#local-6989586621679101136"><span class="hs-identifier hs-var">x2#</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Word.html#W8%23"><span class="hs-identifier hs-type">W8#</span></a></span><span> </span><span id="local-6989586621679101135"><span class="annot"><span class="annottext">Word8#
+</span><a href="#local-6989586621679101135"><span class="hs-identifier hs-var">x3#</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Word.html#W8%23"><span class="hs-identifier hs-type">W8#</span></a></span><span> </span><span id="local-6989586621679101134"><span class="annot"><span class="annottext">Word8#
+</span><a href="#local-6989586621679101134"><span class="hs-identifier hs-var">x4#</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-114"></span><span>    </span><span class="annot"><span class="annottext">Char# -&gt; Char
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#C%23"><span class="hs-identifier hs-var">C#</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int# -&gt; Char#
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#chr%23"><span class="hs-identifier hs-var">chr#</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679101133"><span class="hs-identifier hs-var">z1#</span></a></span><span> </span><span class="annot"><span class="annottext">Int# -&gt; Int# -&gt; Int#
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#%2B%23"><span class="hs-operator hs-var">+#</span></a></span><span> </span><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679101132"><span class="hs-identifier hs-var">z2#</span></a></span><span> </span><span class="annot"><span class="annottext">Int# -&gt; Int# -&gt; Int#
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#%2B%23"><span class="hs-operator hs-var">+#</span></a></span><span> </span><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679101131"><span class="hs-identifier hs-var">z3#</span></a></span><span> </span><span class="annot"><span class="annottext">Int# -&gt; Int# -&gt; Int#
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#%2B%23"><span class="hs-operator hs-var">+#</span></a></span><span> </span><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679101130"><span class="hs-identifier hs-var">z4#</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-115"></span><span>    </span><span class="hs-keyword">where</span><span>
+</span><span id="line-116"></span><span>      </span><span class="hs-glyph">!</span><span id="local-6989586621679101129"><span class="annot"><span class="annottext">y1# :: Int#
+</span><a href="#local-6989586621679101129"><span class="hs-identifier hs-var hs-var">y1#</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word# -&gt; Int#
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#word2Int%23"><span class="hs-identifier hs-var">word2Int#</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8# -&gt; Word#
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#word8ToWord%23"><span class="hs-identifier hs-var">word8ToWord#</span></a></span><span> </span><span class="annot"><span class="annottext">Word8#
+</span><a href="#local-6989586621679101137"><span class="hs-identifier hs-var">x1#</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-117"></span><span>      </span><span class="hs-glyph">!</span><span id="local-6989586621679101128"><span class="annot"><span class="annottext">y2# :: Int#
+</span><a href="#local-6989586621679101128"><span class="hs-identifier hs-var hs-var">y2#</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word# -&gt; Int#
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#word2Int%23"><span class="hs-identifier hs-var">word2Int#</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8# -&gt; Word#
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#word8ToWord%23"><span class="hs-identifier hs-var">word8ToWord#</span></a></span><span> </span><span class="annot"><span class="annottext">Word8#
+</span><a href="#local-6989586621679101136"><span class="hs-identifier hs-var">x2#</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-118"></span><span>      </span><span class="hs-glyph">!</span><span id="local-6989586621679101127"><span class="annot"><span class="annottext">y3# :: Int#
+</span><a href="#local-6989586621679101127"><span class="hs-identifier hs-var hs-var">y3#</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word# -&gt; Int#
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#word2Int%23"><span class="hs-identifier hs-var">word2Int#</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8# -&gt; Word#
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#word8ToWord%23"><span class="hs-identifier hs-var">word8ToWord#</span></a></span><span> </span><span class="annot"><span class="annottext">Word8#
+</span><a href="#local-6989586621679101135"><span class="hs-identifier hs-var">x3#</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-119"></span><span>      </span><span class="hs-glyph">!</span><span id="local-6989586621679101126"><span class="annot"><span class="annottext">y4# :: Int#
+</span><a href="#local-6989586621679101126"><span class="hs-identifier hs-var hs-var">y4#</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word# -&gt; Int#
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#word2Int%23"><span class="hs-identifier hs-var">word2Int#</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8# -&gt; Word#
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#word8ToWord%23"><span class="hs-identifier hs-var">word8ToWord#</span></a></span><span> </span><span class="annot"><span class="annottext">Word8#
+</span><a href="#local-6989586621679101134"><span class="hs-identifier hs-var">x4#</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-120"></span><span>      </span><span class="hs-glyph">!</span><span id="local-6989586621679101133"><span class="annot"><span class="annottext">z1# :: Int#
+</span><a href="#local-6989586621679101133"><span class="hs-identifier hs-var hs-var">z1#</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int# -&gt; Int# -&gt; Int#
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#uncheckedIShiftL%23"><span class="hs-identifier hs-var">uncheckedIShiftL#</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679101129"><span class="hs-identifier hs-var">y1#</span></a></span><span> </span><span class="annot"><span class="annottext">Int# -&gt; Int# -&gt; Int#
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#-%23"><span class="hs-operator hs-var">-#</span></a></span><span> </span><span class="annot"><span class="annottext">Int#
+</span><span class="hs-number">0xF0#</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int#
+</span><span class="hs-number">18#</span></span><span>
+</span><span id="line-121"></span><span>      </span><span class="hs-glyph">!</span><span id="local-6989586621679101132"><span class="annot"><span class="annottext">z2# :: Int#
+</span><a href="#local-6989586621679101132"><span class="hs-identifier hs-var hs-var">z2#</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int# -&gt; Int# -&gt; Int#
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#uncheckedIShiftL%23"><span class="hs-identifier hs-var">uncheckedIShiftL#</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679101128"><span class="hs-identifier hs-var">y2#</span></a></span><span> </span><span class="annot"><span class="annottext">Int# -&gt; Int# -&gt; Int#
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#-%23"><span class="hs-operator hs-var">-#</span></a></span><span> </span><span class="annot"><span class="annottext">Int#
+</span><span class="hs-number">0x80#</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int#
+</span><span class="hs-number">12#</span></span><span>
+</span><span id="line-122"></span><span>      </span><span class="hs-glyph">!</span><span id="local-6989586621679101131"><span class="annot"><span class="annottext">z3# :: Int#
+</span><a href="#local-6989586621679101131"><span class="hs-identifier hs-var hs-var">z3#</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int# -&gt; Int# -&gt; Int#
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#uncheckedIShiftL%23"><span class="hs-identifier hs-var">uncheckedIShiftL#</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679101127"><span class="hs-identifier hs-var">y3#</span></a></span><span> </span><span class="annot"><span class="annottext">Int# -&gt; Int# -&gt; Int#
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#-%23"><span class="hs-operator hs-var">-#</span></a></span><span> </span><span class="annot"><span class="annottext">Int#
+</span><span class="hs-number">0x80#</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int#
+</span><span class="hs-number">6#</span></span><span>
+</span><span id="line-123"></span><span>      </span><span class="hs-glyph">!</span><span id="local-6989586621679101130"><span class="annot"><span class="annottext">z4# :: Int#
+</span><a href="#local-6989586621679101130"><span class="hs-identifier hs-var hs-var">z4#</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679101126"><span class="hs-identifier hs-var">y4#</span></a></span><span> </span><span class="annot"><span class="annottext">Int# -&gt; Int# -&gt; Int#
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#-%23"><span class="hs-operator hs-var">-#</span></a></span><span> </span><span class="annot"><span class="annottext">Int#
+</span><span class="hs-number">0x80#</span></span><span>
+</span><span id="line-124"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Text.Internal.Encoding.Utf8.html#chr4"><span class="hs-pragma hs-type">chr4</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-125"></span><span>
+</span><span id="line-126"></span><span class="annot"><a href="Data.Text.Internal.Encoding.Utf8.html#validate1"><span class="hs-identifier hs-type">validate1</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Word.html#Word8"><span class="hs-identifier hs-type">Word8</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#Bool"><span class="hs-identifier hs-type">Bool</span></a></span><span>
+</span><span id="line-127"></span><span id="validate1"><span class="annot"><span class="annottext">validate1 :: Word8 -&gt; Bool
+</span><a href="Data.Text.Internal.Encoding.Utf8.html#validate1"><span class="hs-identifier hs-var hs-var">validate1</span></a></span></span><span> </span><span id="local-6989586621679101125"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679101125"><span class="hs-identifier hs-var">x1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679101125"><span class="hs-identifier hs-var">x1</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#%3C%3D"><span class="hs-operator hs-var">&lt;=</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0x7F</span></span><span>
+</span><span id="line-128"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Text.Internal.Encoding.Utf8.html#validate1"><span class="hs-pragma hs-type">validate1</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-129"></span><span>
+</span><span id="line-130"></span><span class="annot"><a href="Data.Text.Internal.Encoding.Utf8.html#validate2"><span class="hs-identifier hs-type">validate2</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Word.html#Word8"><span class="hs-identifier hs-type">Word8</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Word.html#Word8"><span class="hs-identifier hs-type">Word8</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#Bool"><span class="hs-identifier hs-type">Bool</span></a></span><span>
+</span><span id="line-131"></span><span id="validate2"><span class="annot"><span class="annottext">validate2 :: Word8 -&gt; Word8 -&gt; Bool
+</span><a href="Data.Text.Internal.Encoding.Utf8.html#validate2"><span class="hs-identifier hs-var hs-var">validate2</span></a></span></span><span> </span><span id="local-6989586621679101124"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679101124"><span class="hs-identifier hs-var">x1</span></a></span></span><span> </span><span id="local-6989586621679101123"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679101123"><span class="hs-identifier hs-var">x2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Word8 -&gt; Word8 -&gt; Bool
+</span><a href="Data.Text.Internal.Encoding.Utf8.html#between"><span class="hs-identifier hs-var">between</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679101124"><span class="hs-identifier hs-var">x1</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0xC2</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0xDF</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#%26%26"><span class="hs-operator hs-var">&amp;&amp;</span></a></span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Word8 -&gt; Word8 -&gt; Bool
+</span><a href="Data.Text.Internal.Encoding.Utf8.html#between"><span class="hs-identifier hs-var">between</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679101123"><span class="hs-identifier hs-var">x2</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0x80</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0xBF</span></span><span>
+</span><span id="line-132"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Text.Internal.Encoding.Utf8.html#validate2"><span class="hs-pragma hs-type">validate2</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-133"></span><span>
+</span><span id="line-134"></span><span class="annot"><a href="Data.Text.Internal.Encoding.Utf8.html#validate3"><span class="hs-identifier hs-type">validate3</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Word.html#Word8"><span class="hs-identifier hs-type">Word8</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Word.html#Word8"><span class="hs-identifier hs-type">Word8</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Word.html#Word8"><span class="hs-identifier hs-type">Word8</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#Bool"><span class="hs-identifier hs-type">Bool</span></a></span><span>
+</span><span id="line-135"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Text.Internal.Encoding.Utf8.html#validate3"><span class="hs-pragma hs-type">validate3</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-136"></span><span id="validate3"><span class="annot"><span class="annottext">validate3 :: Word8 -&gt; Word8 -&gt; Word8 -&gt; Bool
+</span><a href="Data.Text.Internal.Encoding.Utf8.html#validate3"><span class="hs-identifier hs-var hs-var">validate3</span></a></span></span><span> </span><span id="local-6989586621679101122"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679101122"><span class="hs-identifier hs-var">x1</span></a></span></span><span> </span><span id="local-6989586621679101121"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679101121"><span class="hs-identifier hs-var">x2</span></a></span></span><span> </span><span id="local-6989586621679101120"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679101120"><span class="hs-identifier hs-var">x3</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679101119"><span class="hs-identifier hs-var">validate3_1</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#%7C%7C"><span class="hs-operator hs-var">||</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679101117"><span class="hs-identifier hs-var">validate3_2</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#%7C%7C"><span class="hs-operator hs-var">||</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679101116"><span class="hs-identifier hs-var">validate3_3</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#%7C%7C"><span class="hs-operator hs-var">||</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679101115"><span class="hs-identifier hs-var">validate3_4</span></a></span><span>
+</span><span id="line-137"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-138"></span><span>    </span><span id="local-6989586621679101119"><span class="annot"><span class="annottext">validate3_1 :: Bool
+</span><a href="#local-6989586621679101119"><span class="hs-identifier hs-var hs-var">validate3_1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679101122"><span class="hs-identifier hs-var">x1</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#%3D%3D"><span class="hs-operator hs-var">==</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0xE0</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#%26%26"><span class="hs-operator hs-var">&amp;&amp;</span></a></span><span>
+</span><span id="line-139"></span><span>                  </span><span class="annot"><span class="annottext">Word8 -&gt; Word8 -&gt; Word8 -&gt; Bool
+</span><a href="Data.Text.Internal.Encoding.Utf8.html#between"><span class="hs-identifier hs-var">between</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679101121"><span class="hs-identifier hs-var">x2</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0xA0</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0xBF</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#%26%26"><span class="hs-operator hs-var">&amp;&amp;</span></a></span><span>
+</span><span id="line-140"></span><span>                  </span><span class="annot"><span class="annottext">Word8 -&gt; Word8 -&gt; Word8 -&gt; Bool
+</span><a href="Data.Text.Internal.Encoding.Utf8.html#between"><span class="hs-identifier hs-var">between</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679101120"><span class="hs-identifier hs-var">x3</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0x80</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0xBF</span></span><span>
+</span><span id="line-141"></span><span>    </span><span id="local-6989586621679101117"><span class="annot"><span class="annottext">validate3_2 :: Bool
+</span><a href="#local-6989586621679101117"><span class="hs-identifier hs-var hs-var">validate3_2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Word8 -&gt; Word8 -&gt; Bool
+</span><a href="Data.Text.Internal.Encoding.Utf8.html#between"><span class="hs-identifier hs-var">between</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679101122"><span class="hs-identifier hs-var">x1</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0xE1</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0xEC</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#%26%26"><span class="hs-operator hs-var">&amp;&amp;</span></a></span><span>
+</span><span id="line-142"></span><span>                  </span><span class="annot"><span class="annottext">Word8 -&gt; Word8 -&gt; Word8 -&gt; Bool
+</span><a href="Data.Text.Internal.Encoding.Utf8.html#between"><span class="hs-identifier hs-var">between</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679101121"><span class="hs-identifier hs-var">x2</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0x80</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0xBF</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#%26%26"><span class="hs-operator hs-var">&amp;&amp;</span></a></span><span>
+</span><span id="line-143"></span><span>                  </span><span class="annot"><span class="annottext">Word8 -&gt; Word8 -&gt; Word8 -&gt; Bool
+</span><a href="Data.Text.Internal.Encoding.Utf8.html#between"><span class="hs-identifier hs-var">between</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679101120"><span class="hs-identifier hs-var">x3</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0x80</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0xBF</span></span><span>
+</span><span id="line-144"></span><span>    </span><span id="local-6989586621679101116"><span class="annot"><span class="annottext">validate3_3 :: Bool
+</span><a href="#local-6989586621679101116"><span class="hs-identifier hs-var hs-var">validate3_3</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679101122"><span class="hs-identifier hs-var">x1</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#%3D%3D"><span class="hs-operator hs-var">==</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0xED</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#%26%26"><span class="hs-operator hs-var">&amp;&amp;</span></a></span><span>
+</span><span id="line-145"></span><span>                  </span><span class="annot"><span class="annottext">Word8 -&gt; Word8 -&gt; Word8 -&gt; Bool
+</span><a href="Data.Text.Internal.Encoding.Utf8.html#between"><span class="hs-identifier hs-var">between</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679101121"><span class="hs-identifier hs-var">x2</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0x80</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0x9F</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#%26%26"><span class="hs-operator hs-var">&amp;&amp;</span></a></span><span>
+</span><span id="line-146"></span><span>                  </span><span class="annot"><span class="annottext">Word8 -&gt; Word8 -&gt; Word8 -&gt; Bool
+</span><a href="Data.Text.Internal.Encoding.Utf8.html#between"><span class="hs-identifier hs-var">between</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679101120"><span class="hs-identifier hs-var">x3</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0x80</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0xBF</span></span><span>
+</span><span id="line-147"></span><span>    </span><span id="local-6989586621679101115"><span class="annot"><span class="annottext">validate3_4 :: Bool
+</span><a href="#local-6989586621679101115"><span class="hs-identifier hs-var hs-var">validate3_4</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Word8 -&gt; Word8 -&gt; Bool
+</span><a href="Data.Text.Internal.Encoding.Utf8.html#between"><span class="hs-identifier hs-var">between</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679101122"><span class="hs-identifier hs-var">x1</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0xEE</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0xEF</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#%26%26"><span class="hs-operator hs-var">&amp;&amp;</span></a></span><span>
+</span><span id="line-148"></span><span>                  </span><span class="annot"><span class="annottext">Word8 -&gt; Word8 -&gt; Word8 -&gt; Bool
+</span><a href="Data.Text.Internal.Encoding.Utf8.html#between"><span class="hs-identifier hs-var">between</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679101121"><span class="hs-identifier hs-var">x2</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0x80</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0xBF</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#%26%26"><span class="hs-operator hs-var">&amp;&amp;</span></a></span><span>
+</span><span id="line-149"></span><span>                  </span><span class="annot"><span class="annottext">Word8 -&gt; Word8 -&gt; Word8 -&gt; Bool
+</span><a href="Data.Text.Internal.Encoding.Utf8.html#between"><span class="hs-identifier hs-var">between</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679101120"><span class="hs-identifier hs-var">x3</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0x80</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0xBF</span></span><span>
+</span><span id="line-150"></span><span>
+</span><span id="line-151"></span><span class="annot"><a href="Data.Text.Internal.Encoding.Utf8.html#validate4"><span class="hs-identifier hs-type">validate4</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Word.html#Word8"><span class="hs-identifier hs-type">Word8</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Word.html#Word8"><span class="hs-identifier hs-type">Word8</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Word.html#Word8"><span class="hs-identifier hs-type">Word8</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Word.html#Word8"><span class="hs-identifier hs-type">Word8</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#Bool"><span class="hs-identifier hs-type">Bool</span></a></span><span>
+</span><span id="line-152"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Text.Internal.Encoding.Utf8.html#validate4"><span class="hs-pragma hs-type">validate4</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-153"></span><span id="validate4"><span class="annot"><span class="annottext">validate4 :: Word8 -&gt; Word8 -&gt; Word8 -&gt; Word8 -&gt; Bool
+</span><a href="Data.Text.Internal.Encoding.Utf8.html#validate4"><span class="hs-identifier hs-var hs-var">validate4</span></a></span></span><span> </span><span id="local-6989586621679101089"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679101089"><span class="hs-identifier hs-var">x1</span></a></span></span><span> </span><span id="local-6989586621679101088"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679101088"><span class="hs-identifier hs-var">x2</span></a></span></span><span> </span><span id="local-6989586621679101087"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679101087"><span class="hs-identifier hs-var">x3</span></a></span></span><span> </span><span id="local-6989586621679101086"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679101086"><span class="hs-identifier hs-var">x4</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679101085"><span class="hs-identifier hs-var">validate4_1</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#%7C%7C"><span class="hs-operator hs-var">||</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679101084"><span class="hs-identifier hs-var">validate4_2</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#%7C%7C"><span class="hs-operator hs-var">||</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679101083"><span class="hs-identifier hs-var">validate4_3</span></a></span><span>
+</span><span id="line-154"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-155"></span><span>    </span><span id="local-6989586621679101085"><span class="annot"><span class="annottext">validate4_1 :: Bool
+</span><a href="#local-6989586621679101085"><span class="hs-identifier hs-var hs-var">validate4_1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679101089"><span class="hs-identifier hs-var">x1</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#%3D%3D"><span class="hs-operator hs-var">==</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0xF0</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#%26%26"><span class="hs-operator hs-var">&amp;&amp;</span></a></span><span>
+</span><span id="line-156"></span><span>                  </span><span class="annot"><span class="annottext">Word8 -&gt; Word8 -&gt; Word8 -&gt; Bool
+</span><a href="Data.Text.Internal.Encoding.Utf8.html#between"><span class="hs-identifier hs-var">between</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679101088"><span class="hs-identifier hs-var">x2</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0x90</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0xBF</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#%26%26"><span class="hs-operator hs-var">&amp;&amp;</span></a></span><span>
+</span><span id="line-157"></span><span>                  </span><span class="annot"><span class="annottext">Word8 -&gt; Word8 -&gt; Word8 -&gt; Bool
+</span><a href="Data.Text.Internal.Encoding.Utf8.html#between"><span class="hs-identifier hs-var">between</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679101087"><span class="hs-identifier hs-var">x3</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0x80</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0xBF</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#%26%26"><span class="hs-operator hs-var">&amp;&amp;</span></a></span><span>
+</span><span id="line-158"></span><span>                  </span><span class="annot"><span class="annottext">Word8 -&gt; Word8 -&gt; Word8 -&gt; Bool
+</span><a href="Data.Text.Internal.Encoding.Utf8.html#between"><span class="hs-identifier hs-var">between</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679101086"><span class="hs-identifier hs-var">x4</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0x80</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0xBF</span></span><span>
+</span><span id="line-159"></span><span>    </span><span id="local-6989586621679101084"><span class="annot"><span class="annottext">validate4_2 :: Bool
+</span><a href="#local-6989586621679101084"><span class="hs-identifier hs-var hs-var">validate4_2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Word8 -&gt; Word8 -&gt; Bool
+</span><a href="Data.Text.Internal.Encoding.Utf8.html#between"><span class="hs-identifier hs-var">between</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679101089"><span class="hs-identifier hs-var">x1</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0xF1</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0xF3</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#%26%26"><span class="hs-operator hs-var">&amp;&amp;</span></a></span><span>
+</span><span id="line-160"></span><span>                  </span><span class="annot"><span class="annottext">Word8 -&gt; Word8 -&gt; Word8 -&gt; Bool
+</span><a href="Data.Text.Internal.Encoding.Utf8.html#between"><span class="hs-identifier hs-var">between</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679101088"><span class="hs-identifier hs-var">x2</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0x80</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0xBF</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#%26%26"><span class="hs-operator hs-var">&amp;&amp;</span></a></span><span>
+</span><span id="line-161"></span><span>                  </span><span class="annot"><span class="annottext">Word8 -&gt; Word8 -&gt; Word8 -&gt; Bool
+</span><a href="Data.Text.Internal.Encoding.Utf8.html#between"><span class="hs-identifier hs-var">between</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679101087"><span class="hs-identifier hs-var">x3</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0x80</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0xBF</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#%26%26"><span class="hs-operator hs-var">&amp;&amp;</span></a></span><span>
+</span><span id="line-162"></span><span>                  </span><span class="annot"><span class="annottext">Word8 -&gt; Word8 -&gt; Word8 -&gt; Bool
+</span><a href="Data.Text.Internal.Encoding.Utf8.html#between"><span class="hs-identifier hs-var">between</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679101086"><span class="hs-identifier hs-var">x4</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0x80</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0xBF</span></span><span>
+</span><span id="line-163"></span><span>    </span><span id="local-6989586621679101083"><span class="annot"><span class="annottext">validate4_3 :: Bool
+</span><a href="#local-6989586621679101083"><span class="hs-identifier hs-var hs-var">validate4_3</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679101089"><span class="hs-identifier hs-var">x1</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#%3D%3D"><span class="hs-operator hs-var">==</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0xF4</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#%26%26"><span class="hs-operator hs-var">&amp;&amp;</span></a></span><span>
+</span><span id="line-164"></span><span>                  </span><span class="annot"><span class="annottext">Word8 -&gt; Word8 -&gt; Word8 -&gt; Bool
+</span><a href="Data.Text.Internal.Encoding.Utf8.html#between"><span class="hs-identifier hs-var">between</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679101088"><span class="hs-identifier hs-var">x2</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0x80</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0x8F</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#%26%26"><span class="hs-operator hs-var">&amp;&amp;</span></a></span><span>
+</span><span id="line-165"></span><span>                  </span><span class="annot"><span class="annottext">Word8 -&gt; Word8 -&gt; Word8 -&gt; Bool
+</span><a href="Data.Text.Internal.Encoding.Utf8.html#between"><span class="hs-identifier hs-var">between</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679101087"><span class="hs-identifier hs-var">x3</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0x80</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0xBF</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#%26%26"><span class="hs-operator hs-var">&amp;&amp;</span></a></span><span>
+</span><span id="line-166"></span><span>                  </span><span class="annot"><span class="annottext">Word8 -&gt; Word8 -&gt; Word8 -&gt; Bool
+</span><a href="Data.Text.Internal.Encoding.Utf8.html#between"><span class="hs-identifier hs-var">between</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679101086"><span class="hs-identifier hs-var">x4</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0x80</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0xBF</span></span><span>
+</span><span id="line-167"></span><span>
+</span><span id="line-168"></span><span class="annot"><a href="Data.Text.Internal.Encoding.Utf8.html#intToWord8"><span class="hs-identifier hs-type">intToWord8</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#Int"><span class="hs-identifier hs-type">Int</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Word.html#Word8"><span class="hs-identifier hs-type">Word8</span></a></span><span>
+</span><span id="line-169"></span><span id="intToWord8"><span class="annot"><span class="annottext">intToWord8 :: Int -&gt; Word8
+</span><a href="Data.Text.Internal.Encoding.Utf8.html#intToWord8"><span class="hs-identifier hs-var hs-var">intToWord8</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Real.html#fromIntegral"><span class="hs-identifier hs-var">fromIntegral</span></a></span><span>
+</span><span id="line-170"></span></pre></body></html>

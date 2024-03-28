@@ -1,0 +1,167 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE OverloadedStrings #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE Trustworthy #-}</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- Module       : Data.ByteString.Short.Base16</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Copyright    : (c) 2020 Emily Pillmore</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- License      : BSD-style</span><span>
+</span><span id="line-7"></span><span class="hs-comment">--</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- Maintainer   : Emily Pillmore &lt;emilypi@cohomolo.gy&gt;</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- Stability    : stable</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- Portability  : non-portable</span><span>
+</span><span id="line-11"></span><span class="hs-comment">--</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- This module contains 'Data.ByteString.Short.ShortByteString'-valued combinators for</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- implementing the RFC 4648 specification of the Base16</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- encoding format. This includes lenient decoding variants, as well as</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- internal and external validation for canonicity.</span><span>
+</span><span id="line-16"></span><span class="hs-comment">--</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Data.ByteString.Short.Base16</span><span>
+</span><span id="line-18"></span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Data.ByteString.Short.Base16.html#encodeBase16"><span class="hs-identifier">encodeBase16</span></a></span><span>
+</span><span id="line-19"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.ByteString.Short.Base16.html#encodeBase16%27"><span class="hs-identifier">encodeBase16'</span></a></span><span>
+</span><span id="line-20"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.ByteString.Short.Base16.html#decodeBase16"><span class="hs-identifier">decodeBase16</span></a></span><span>
+</span><span id="line-21"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.ByteString.Short.Base16.html#decodeBase16%27"><span class="hs-identifier">decodeBase16'</span></a></span><span>
+</span><span id="line-22"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.ByteString.Short.Base16.html#decodeBase16Lenient"><span class="hs-identifier">decodeBase16Lenient</span></a></span><span>
+</span><span id="line-23"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.ByteString.Short.Base16.html#isBase16"><span class="hs-identifier">isBase16</span></a></span><span>
+</span><span id="line-24"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.ByteString.Short.Base16.html#isValidBase16"><span class="hs-identifier">isValidBase16</span></a></span><span>
+</span><span id="line-25"></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString.Short</span></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.ByteString.Base16.Internal.Head.html"><span class="hs-identifier">Data.ByteString.Base16.Internal.Head</span></a></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.ByteString.Base16.html"><span class="hs-identifier">Data.ByteString.Base16</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">B16</span></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text.Short</span></span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text.Short.Unsafe</span></span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- | Encode a 'ShortByteString' value as Base16 'ShortText' with padding.</span><span>
+</span><span id="line-37"></span><span class="hs-comment">--</span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- See: &lt;https://tools.ietf.org/html/rfc4648#section-8 RFC-4648 section 8&gt;</span><span>
+</span><span id="line-39"></span><span class="hs-comment">--</span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- === __Examples__:</span><span>
+</span><span id="line-41"></span><span class="hs-comment">--</span><span>
+</span><span id="line-42"></span><span class="hs-comment">-- &gt;&gt;&gt; encodeBase16 &quot;Sun&quot;</span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- &quot;53756e&quot;</span><span>
+</span><span id="line-44"></span><span class="hs-comment">--</span><span>
+</span><span id="line-45"></span><span class="hs-comment">-- @since 0.3.0.0</span><span>
+</span><span id="line-46"></span><span class="hs-comment">--</span><span>
+</span><span id="line-47"></span><span class="annot"><a href="Data.ByteString.Short.Base16.html#encodeBase16"><span class="hs-identifier hs-type">encodeBase16</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ShortByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ShortText</span></span><span>
+</span><span id="line-48"></span><span id="encodeBase16"><span class="annot"><span class="annottext">encodeBase16 :: ShortByteString -&gt; ShortText
+</span><a href="Data.ByteString.Short.Base16.html#encodeBase16"><span class="hs-identifier hs-var hs-var">encodeBase16</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ShortByteString -&gt; ShortText
+</span><span class="hs-identifier hs-var">fromShortByteStringUnsafe</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ShortByteString -&gt; ShortByteString
+</span><a href="Data.ByteString.Short.Base16.html#encodeBase16%27"><span class="hs-identifier hs-var">encodeBase16'</span></a></span><span>
+</span><span id="line-49"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.ByteString.Short.Base16.html#encodeBase16"><span class="hs-pragma hs-type">encodeBase16</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-50"></span><span>
+</span><span id="line-51"></span><span class="hs-comment">-- | Encode a 'ShortByteString' value as a Base16 'ShortByteString'  value with padding.</span><span>
+</span><span id="line-52"></span><span class="hs-comment">--</span><span>
+</span><span id="line-53"></span><span class="hs-comment">-- See: &lt;https://tools.ietf.org/html/rfc4648#section-8 RFC-4648 section 8&gt;</span><span>
+</span><span id="line-54"></span><span class="hs-comment">--</span><span>
+</span><span id="line-55"></span><span class="hs-comment">-- === __Examples__:</span><span>
+</span><span id="line-56"></span><span class="hs-comment">--</span><span>
+</span><span id="line-57"></span><span class="hs-comment">-- &gt;&gt;&gt; encodeBase16' &quot;Sun&quot;</span><span>
+</span><span id="line-58"></span><span class="hs-comment">-- &quot;53756e&quot;</span><span>
+</span><span id="line-59"></span><span class="hs-comment">--</span><span>
+</span><span id="line-60"></span><span class="annot"><a href="Data.ByteString.Short.Base16.html#encodeBase16%27"><span class="hs-identifier hs-type">encodeBase16'</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ShortByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ShortByteString</span></span><span>
+</span><span id="line-61"></span><span id="encodeBase16%27"><span class="annot"><span class="annottext">encodeBase16' :: ShortByteString -&gt; ShortByteString
+</span><a href="Data.ByteString.Short.Base16.html#encodeBase16%27"><span class="hs-identifier hs-var hs-var">encodeBase16'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ShortByteString -&gt; ShortByteString
+</span><a href="Data.ByteString.Base16.Internal.Head.html#encodeBase16Short_"><span class="hs-identifier hs-var">encodeBase16Short_</span></a></span><span>
+</span><span id="line-62"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.ByteString.Short.Base16.html#encodeBase16%27"><span class="hs-pragma hs-type">encodeBase16'</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-63"></span><span>
+</span><span id="line-64"></span><span class="hs-comment">-- | Decode a Base16-encoded 'ShortByteString' value.</span><span>
+</span><span id="line-65"></span><span class="hs-comment">--</span><span>
+</span><span id="line-66"></span><span class="hs-comment">-- See: &lt;https://tools.ietf.org/html/rfc4648#section-8 RFC-4648 section 8&gt;</span><span>
+</span><span id="line-67"></span><span class="hs-comment">--</span><span>
+</span><span id="line-68"></span><span class="hs-comment">-- === __Examples__:</span><span>
+</span><span id="line-69"></span><span class="hs-comment">--</span><span>
+</span><span id="line-70"></span><span class="hs-comment">-- &gt;&gt;&gt; decodeBase16 &quot;53756e&quot;</span><span>
+</span><span id="line-71"></span><span class="hs-comment">-- Right &quot;Sun&quot;</span><span>
+</span><span id="line-72"></span><span class="hs-comment">--</span><span>
+</span><span id="line-73"></span><span class="hs-comment">-- &gt;&gt;&gt; decodeBase16 &quot;6x&quot;</span><span>
+</span><span id="line-74"></span><span class="hs-comment">-- Left &quot;invalid character at offset: 1&quot;</span><span>
+</span><span id="line-75"></span><span class="hs-comment">--</span><span>
+</span><span id="line-76"></span><span class="annot"><a href="Data.ByteString.Short.Base16.html#decodeBase16"><span class="hs-identifier hs-type">decodeBase16</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ShortByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ShortByteString</span></span><span>
+</span><span id="line-77"></span><span id="decodeBase16"><span class="annot"><span class="annottext">decodeBase16 :: ShortByteString -&gt; Either Text ShortByteString
+</span><a href="Data.ByteString.Short.Base16.html#decodeBase16"><span class="hs-identifier hs-var hs-var">decodeBase16</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ShortByteString -&gt; Either Text ShortByteString
+</span><a href="Data.ByteString.Base16.Internal.Head.html#decodeBase16Short_"><span class="hs-identifier hs-var">decodeBase16Short_</span></a></span><span>
+</span><span id="line-78"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.ByteString.Short.Base16.html#decodeBase16"><span class="hs-pragma hs-type">decodeBase16</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-79"></span><span>
+</span><span id="line-80"></span><span class="hs-comment">-- | Decode Base16 'Text'.</span><span>
+</span><span id="line-81"></span><span class="hs-comment">--</span><span>
+</span><span id="line-82"></span><span class="hs-comment">-- See: &lt;https://tools.ietf.org/html/rfc4648#section-8 RFC-4648 section 8&gt;</span><span>
+</span><span id="line-83"></span><span class="hs-comment">--</span><span>
+</span><span id="line-84"></span><span class="hs-comment">-- === __Examples__:</span><span>
+</span><span id="line-85"></span><span class="hs-comment">--</span><span>
+</span><span id="line-86"></span><span class="hs-comment">-- &gt;&gt;&gt; decodeBase16' &quot;53756e&quot;</span><span>
+</span><span id="line-87"></span><span class="hs-comment">-- Right &quot;Sun&quot;</span><span>
+</span><span id="line-88"></span><span class="hs-comment">--</span><span>
+</span><span id="line-89"></span><span class="hs-comment">-- &gt;&gt;&gt; decodeBase16' &quot;6x&quot;</span><span>
+</span><span id="line-90"></span><span class="hs-comment">-- Left &quot;invalid character at offset: 1&quot;</span><span>
+</span><span id="line-91"></span><span class="hs-comment">--</span><span>
+</span><span id="line-92"></span><span class="annot"><a href="Data.ByteString.Short.Base16.html#decodeBase16%27"><span class="hs-identifier hs-type">decodeBase16'</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ShortText</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ShortByteString</span></span><span>
+</span><span id="line-93"></span><span id="decodeBase16%27"><span class="annot"><span class="annottext">decodeBase16' :: ShortText -&gt; Either Text ShortByteString
+</span><a href="Data.ByteString.Short.Base16.html#decodeBase16%27"><span class="hs-identifier hs-var hs-var">decodeBase16'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ShortByteString -&gt; Either Text ShortByteString
+</span><a href="Data.ByteString.Short.Base16.html#decodeBase16"><span class="hs-identifier hs-var">decodeBase16</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ShortText -&gt; ShortByteString
+</span><span class="hs-identifier hs-var">toShortByteString</span></span><span>
+</span><span id="line-94"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.ByteString.Short.Base16.html#decodeBase16%27"><span class="hs-pragma hs-type">decodeBase16'</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-95"></span><span>
+</span><span id="line-96"></span><span class="hs-comment">-- | Decode a Base16-encoded 'ShortByteString' value leniently, using a</span><span>
+</span><span id="line-97"></span><span class="hs-comment">-- strategy that never fails</span><span>
+</span><span id="line-98"></span><span class="hs-comment">--</span><span>
+</span><span id="line-99"></span><span class="hs-comment">-- N.B.: this is not RFC 4648-compliant</span><span>
+</span><span id="line-100"></span><span class="hs-comment">--</span><span>
+</span><span id="line-101"></span><span class="hs-comment">--</span><span>
+</span><span id="line-102"></span><span class="hs-comment">-- === __Examples__:</span><span>
+</span><span id="line-103"></span><span class="hs-comment">--</span><span>
+</span><span id="line-104"></span><span class="hs-comment">-- &gt;&gt;&gt; decodeBase16Lenient &quot;53756e&quot;</span><span>
+</span><span id="line-105"></span><span class="hs-comment">-- &quot;Sun&quot;</span><span>
+</span><span id="line-106"></span><span class="hs-comment">--</span><span>
+</span><span id="line-107"></span><span class="hs-comment">-- &gt;&gt;&gt; decodeBase16Lenient &quot;6x6x&quot;</span><span>
+</span><span id="line-108"></span><span class="hs-comment">-- &quot;f&quot;</span><span>
+</span><span id="line-109"></span><span class="hs-comment">--</span><span>
+</span><span id="line-110"></span><span class="annot"><a href="Data.ByteString.Short.Base16.html#decodeBase16Lenient"><span class="hs-identifier hs-type">decodeBase16Lenient</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ShortByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ShortByteString</span></span><span>
+</span><span id="line-111"></span><span id="decodeBase16Lenient"><span class="annot"><span class="annottext">decodeBase16Lenient :: ShortByteString -&gt; ShortByteString
+</span><a href="Data.ByteString.Short.Base16.html#decodeBase16Lenient"><span class="hs-identifier hs-var hs-var">decodeBase16Lenient</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ShortByteString -&gt; ShortByteString
+</span><a href="Data.ByteString.Base16.Internal.Head.html#decodeBase16ShortLenient_"><span class="hs-identifier hs-var">decodeBase16ShortLenient_</span></a></span><span>
+</span><span id="line-112"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.ByteString.Short.Base16.html#decodeBase16Lenient"><span class="hs-pragma hs-type">decodeBase16Lenient</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-113"></span><span>
+</span><span id="line-114"></span><span class="hs-comment">-- | Tell whether a 'ShortByteString' value is base16 encoded.</span><span>
+</span><span id="line-115"></span><span class="hs-comment">--</span><span>
+</span><span id="line-116"></span><span class="hs-comment">-- === __Examples__:</span><span>
+</span><span id="line-117"></span><span class="hs-comment">--</span><span>
+</span><span id="line-118"></span><span class="hs-comment">-- &gt;&gt;&gt; isBase16 &quot;666f6&quot;</span><span>
+</span><span id="line-119"></span><span class="hs-comment">-- False</span><span>
+</span><span id="line-120"></span><span class="hs-comment">--</span><span>
+</span><span id="line-121"></span><span class="hs-comment">-- &gt;&gt;&gt; isBase16 &quot;666f&quot;</span><span>
+</span><span id="line-122"></span><span class="hs-comment">-- True</span><span>
+</span><span id="line-123"></span><span class="hs-comment">--</span><span>
+</span><span id="line-124"></span><span class="annot"><a href="Data.ByteString.Short.Base16.html#isBase16"><span class="hs-identifier hs-type">isBase16</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ShortByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-125"></span><span id="isBase16"><span class="annot"><span class="annottext">isBase16 :: ShortByteString -&gt; Bool
+</span><a href="Data.ByteString.Short.Base16.html#isBase16"><span class="hs-identifier hs-var hs-var">isBase16</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Bool
+</span><a href="Data.ByteString.Base16.html#isBase16"><span class="hs-identifier hs-var">B16.isBase16</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ShortByteString -&gt; ByteString
+</span><span class="hs-identifier hs-var">fromShort</span></span><span>
+</span><span id="line-126"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.ByteString.Short.Base16.html#isBase16"><span class="hs-pragma hs-type">isBase16</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-127"></span><span>
+</span><span id="line-128"></span><span class="hs-comment">-- | Tell whether a 'ShortByteString' value is a valid Base16 format.</span><span>
+</span><span id="line-129"></span><span class="hs-comment">--</span><span>
+</span><span id="line-130"></span><span class="hs-comment">-- This will not tell you whether or not this is a correct Base16 representation,</span><span>
+</span><span id="line-131"></span><span class="hs-comment">-- only that it conforms to the correct alphabet. To check whether it is a true</span><span>
+</span><span id="line-132"></span><span class="hs-comment">-- Base16 encoded 'ShortByteString' value, use 'isBase16'.</span><span>
+</span><span id="line-133"></span><span class="hs-comment">--</span><span>
+</span><span id="line-134"></span><span class="hs-comment">-- === __Examples__:</span><span>
+</span><span id="line-135"></span><span class="hs-comment">--</span><span>
+</span><span id="line-136"></span><span class="hs-comment">-- &gt;&gt;&gt; isValidBase16 &quot;666f+/6&quot;</span><span>
+</span><span id="line-137"></span><span class="hs-comment">-- False</span><span>
+</span><span id="line-138"></span><span class="hs-comment">--</span><span>
+</span><span id="line-139"></span><span class="hs-comment">-- &gt;&gt;&gt; isValidBase16 &quot;666f6&quot;</span><span>
+</span><span id="line-140"></span><span class="hs-comment">-- True</span><span>
+</span><span id="line-141"></span><span class="hs-comment">--</span><span>
+</span><span id="line-142"></span><span class="annot"><a href="Data.ByteString.Short.Base16.html#isValidBase16"><span class="hs-identifier hs-type">isValidBase16</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ShortByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-143"></span><span id="isValidBase16"><span class="annot"><span class="annottext">isValidBase16 :: ShortByteString -&gt; Bool
+</span><a href="Data.ByteString.Short.Base16.html#isValidBase16"><span class="hs-identifier hs-var hs-var">isValidBase16</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Bool
+</span><a href="Data.ByteString.Base16.html#isValidBase16"><span class="hs-identifier hs-var">B16.isValidBase16</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ShortByteString -&gt; ByteString
+</span><span class="hs-identifier hs-var">fromShort</span></span><span>
+</span><span id="line-144"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.ByteString.Short.Base16.html#isValidBase16"><span class="hs-pragma hs-type">isValidBase16</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-145"></span></pre></body></html>

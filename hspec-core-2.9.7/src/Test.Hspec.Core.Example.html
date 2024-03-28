@@ -1,0 +1,748 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE RecordWildCards #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE DeriveDataTypeable #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE FlexibleInstances #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LANGUAGE TypeFamilies #-}</span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# LANGUAGE TypeSynonymInstances #-}</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Test.Hspec.Core.Example</span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- RE-EXPORTED from Test.Hspec.Core.Spec</span><span>
+</span><span id="line-10"></span><span>  </span><span class="annot"><a href="Test.Hspec.Core.Example.html#Example"><span class="hs-identifier">Example</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.html#Params"><span class="hs-identifier">Params</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.html#defaultParams"><span class="hs-identifier">defaultParams</span></a></span><span>
+</span><span id="line-13"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.html#ActionWith"><span class="hs-identifier">ActionWith</span></a></span><span>
+</span><span id="line-14"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.html#Progress"><span class="hs-identifier">Progress</span></a></span><span>
+</span><span id="line-15"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.html#ProgressCallback"><span class="hs-identifier">ProgressCallback</span></a></span><span>
+</span><span id="line-16"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.html#Result"><span class="hs-identifier">Result</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.html#ResultStatus"><span class="hs-identifier">ResultStatus</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.Location.html#Location"><span class="hs-identifier">Location</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.html#FailureReason"><span class="hs-identifier">FailureReason</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.html#safeEvaluate"><span class="hs-identifier">safeEvaluate</span></a></span><span>
+</span><span id="line-21"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.html#safeEvaluateExample"><span class="hs-identifier">safeEvaluateExample</span></a></span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- END RE-EXPORTED from Test.Hspec.Core.Spec</span><span>
+</span><span id="line-23"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.html#safeEvaluateResultStatus"><span class="hs-identifier">safeEvaluateResultStatus</span></a></span><span>
+</span><span id="line-24"></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Test.Hspec.Core.Compat.html"><span class="hs-identifier">Test.Hspec.Core.Compat</span></a></span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Test.HUnit.Lang</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">HUnit</span></span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.CallStack</span></span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Exception</span></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Typeable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Typeable</span></span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Test.QuickCheck</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">QC</span></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Test.Hspec.Expectations</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Expectation</span></span><span class="hs-special">)</span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Test.QuickCheck.State</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">QC</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">numSuccessTests</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">maxSuccessTests</span></span><span class="hs-special">)</span><span>
+</span><span id="line-40"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Test.QuickCheck.Property</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">QCP</span></span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Test.Hspec.Core.QuickCheckUtil.html"><span class="hs-identifier">Test.Hspec.Core.QuickCheckUtil</span></a></span><span>
+</span><span id="line-43"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Test.Hspec.Core.Util.html"><span class="hs-identifier">Test.Hspec.Core.Util</span></a></span><span>
+</span><span id="line-44"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Test.Hspec.Core.Example.Location.html"><span class="hs-identifier">Test.Hspec.Core.Example.Location</span></a></span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span class="hs-comment">-- | A type class for examples</span><span>
+</span><span id="line-47"></span><span class="hs-keyword">class</span><span> </span><span id="Example"><span class="annot"><a href="Test.Hspec.Core.Example.html#Example"><span class="hs-identifier hs-var">Example</span></a></span></span><span> </span><span id="local-6989586621679158179"><span class="annot"><a href="#local-6989586621679158179"><span class="hs-identifier hs-type">e</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-48"></span><span>  </span><span class="hs-keyword">type</span><span> </span><span id="Arg"><span class="annot"><a href="Test.Hspec.Core.Example.html#Arg"><span class="hs-identifier hs-var">Arg</span></a></span></span><span> </span><span id="local-6989586621679158179"><span class="annot"><a href="#local-6989586621679158179"><span class="hs-identifier hs-type">e</span></a></span></span><span>
+</span><span id="line-49"></span><span>  </span><span class="hs-keyword">type</span><span> </span><span id="Arg"><span class="annot"><a href="Test.Hspec.Core.Example.html#Arg"><span class="hs-identifier hs-var">Arg</span></a></span></span><span> </span><span id="local-6989586621679158099"><span class="annot"><a href="#local-6989586621679158099"><span class="hs-identifier hs-type hs-type">e</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-50"></span><span>  </span><span id="evaluateExample"><span class="annot"><a href="Test.Hspec.Core.Example.html#evaluateExample"><span class="hs-identifier hs-type">evaluateExample</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679158179"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.html#Params"><span class="hs-identifier hs-type">Params</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.Hspec.Core.Example.html#ActionWith"><span class="hs-identifier hs-type">ActionWith</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.Hspec.Core.Example.html#Arg"><span class="hs-identifier hs-type">Arg</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158179"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.html#ProgressCallback"><span class="hs-identifier hs-type">ProgressCallback</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.html#Result"><span class="hs-identifier hs-type">Result</span></a></span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span class="hs-keyword">data</span><span> </span><span id="Params"><span class="annot"><a href="Test.Hspec.Core.Example.html#Params"><span class="hs-identifier hs-var">Params</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Params"><span class="annot"><a href="Test.Hspec.Core.Example.html#Params"><span class="hs-identifier hs-var">Params</span></a></span></span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-53"></span><span>  </span><span id="paramsQuickCheckArgs"><span class="annot"><span class="annottext">Params -&gt; Args
+</span><a href="Test.Hspec.Core.Example.html#paramsQuickCheckArgs"><span class="hs-identifier hs-var hs-var">paramsQuickCheckArgs</span></a></span></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">QC.Args</span></span><span>
+</span><span id="line-54"></span><span class="hs-special">,</span><span> </span><span id="paramsSmallCheckDepth"><span class="annot"><span class="annottext">Params -&gt; Int
+</span><a href="Test.Hspec.Core.Example.html#paramsSmallCheckDepth"><span class="hs-identifier hs-var hs-var">paramsSmallCheckDepth</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-55"></span><span class="hs-special">}</span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679158083"><span id="local-6989586621679158085"><span id="local-6989586621679158093"><span class="annot"><span class="annottext">Int -&gt; Params -&gt; ShowS
+[Params] -&gt; ShowS
+Params -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [Params] -&gt; ShowS
+$cshowList :: [Params] -&gt; ShowS
+show :: Params -&gt; String
+$cshow :: Params -&gt; String
+showsPrec :: Int -&gt; Params -&gt; ShowS
+$cshowsPrec :: Int -&gt; Params -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span class="annot"><a href="Test.Hspec.Core.Example.html#defaultParams"><span class="hs-identifier hs-type">defaultParams</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.html#Params"><span class="hs-identifier hs-type">Params</span></a></span><span>
+</span><span id="line-58"></span><span id="defaultParams"><span class="annot"><span class="annottext">defaultParams :: Params
+</span><a href="Test.Hspec.Core.Example.html#defaultParams"><span class="hs-identifier hs-var hs-var">defaultParams</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.html#Params"><span class="hs-identifier hs-type">Params</span></a></span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-59"></span><span>  </span><span class="annot"><span class="annottext">paramsQuickCheckArgs :: Args
+</span><a href="Test.Hspec.Core.Example.html#paramsQuickCheckArgs"><span class="hs-identifier hs-var">paramsQuickCheckArgs</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Args
+</span><span class="hs-identifier hs-var">QC.stdArgs</span></span><span>
+</span><span id="line-60"></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">paramsSmallCheckDepth :: Int
+</span><a href="Test.Hspec.Core.Example.html#paramsSmallCheckDepth"><span class="hs-identifier hs-var">paramsSmallCheckDepth</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">5</span></span><span>
+</span><span id="line-61"></span><span class="hs-special">}</span><span>
+</span><span id="line-62"></span><span>
+</span><span id="line-63"></span><span class="hs-keyword">type</span><span> </span><span id="Progress"><span class="annot"><a href="Test.Hspec.Core.Example.html#Progress"><span class="hs-identifier hs-var">Progress</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span>
+</span><span id="line-64"></span><span class="hs-keyword">type</span><span> </span><span id="ProgressCallback"><span class="annot"><a href="Test.Hspec.Core.Example.html#ProgressCallback"><span class="hs-identifier hs-var">ProgressCallback</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.html#Progress"><span class="hs-identifier hs-type">Progress</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-65"></span><span>
+</span><span id="line-66"></span><span class="hs-comment">-- | An `IO` action that expects an argument of type @a@</span><span>
+</span><span id="line-67"></span><span class="hs-keyword">type</span><span> </span><span id="ActionWith"><span class="annot"><a href="Test.Hspec.Core.Example.html#ActionWith"><span class="hs-identifier hs-var">ActionWith</span></a></span></span><span> </span><span id="local-6989586621679158080"><span class="annot"><a href="#local-6989586621679158080"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621679158080"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-68"></span><span>
+</span><span id="line-69"></span><span class="hs-comment">-- | The result of running an example</span><span>
+</span><span id="line-70"></span><span class="hs-keyword">data</span><span> </span><span id="Result"><span class="annot"><a href="Test.Hspec.Core.Example.html#Result"><span class="hs-identifier hs-var">Result</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Result"><span class="annot"><a href="Test.Hspec.Core.Example.html#Result"><span class="hs-identifier hs-var">Result</span></a></span></span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-71"></span><span>  </span><span id="resultInfo"><span class="annot"><span class="annottext">Result -&gt; String
+</span><a href="Test.Hspec.Core.Example.html#resultInfo"><span class="hs-identifier hs-var hs-var">resultInfo</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-72"></span><span class="hs-special">,</span><span> </span><span id="resultStatus"><span class="annot"><span class="annottext">Result -&gt; ResultStatus
+</span><a href="Test.Hspec.Core.Example.html#resultStatus"><span class="hs-identifier hs-var hs-var">resultStatus</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.html#ResultStatus"><span class="hs-identifier hs-type">ResultStatus</span></a></span><span>
+</span><span id="line-73"></span><span class="hs-special">}</span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679158066"><span id="local-6989586621679158068"><span id="local-6989586621679158075"><span class="annot"><span class="annottext">Int -&gt; Result -&gt; ShowS
+[Result] -&gt; ShowS
+Result -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [Result] -&gt; ShowS
+$cshowList :: [Result] -&gt; ShowS
+show :: Result -&gt; String
+$cshow :: Result -&gt; String
+showsPrec :: Int -&gt; Result -&gt; ShowS
+$cshowsPrec :: Int -&gt; Result -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Typeable</span></span><span class="hs-special">)</span><span>
+</span><span id="line-74"></span><span>
+</span><span id="line-75"></span><span class="hs-keyword">data</span><span> </span><span id="ResultStatus"><span class="annot"><a href="Test.Hspec.Core.Example.html#ResultStatus"><span class="hs-identifier hs-var">ResultStatus</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-76"></span><span>    </span><span id="Success"><span class="annot"><a href="Test.Hspec.Core.Example.html#Success"><span class="hs-identifier hs-var">Success</span></a></span></span><span>
+</span><span id="line-77"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Pending"><span class="annot"><a href="Test.Hspec.Core.Example.html#Pending"><span class="hs-identifier hs-var">Pending</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.Location.html#Location"><span class="hs-identifier hs-type">Location</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">)</span><span>
+</span><span id="line-78"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Failure"><span class="annot"><a href="Test.Hspec.Core.Example.html#Failure"><span class="hs-identifier hs-var">Failure</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.Location.html#Location"><span class="hs-identifier hs-type">Location</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.html#FailureReason"><span class="hs-identifier hs-type">FailureReason</span></a></span><span>
+</span><span id="line-79"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679158047"><span id="local-6989586621679158049"><span id="local-6989586621679158060"><span class="annot"><span class="annottext">Int -&gt; ResultStatus -&gt; ShowS
+[ResultStatus] -&gt; ShowS
+ResultStatus -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [ResultStatus] -&gt; ShowS
+$cshowList :: [ResultStatus] -&gt; ShowS
+show :: ResultStatus -&gt; String
+$cshow :: ResultStatus -&gt; String
+showsPrec :: Int -&gt; ResultStatus -&gt; ShowS
+$cshowsPrec :: Int -&gt; ResultStatus -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Typeable</span></span><span class="hs-special">)</span><span>
+</span><span id="line-80"></span><span>
+</span><span id="line-81"></span><span class="hs-keyword">data</span><span> </span><span id="FailureReason"><span class="annot"><a href="Test.Hspec.Core.Example.html#FailureReason"><span class="hs-identifier hs-var">FailureReason</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-82"></span><span>    </span><span id="NoReason"><span class="annot"><a href="Test.Hspec.Core.Example.html#NoReason"><span class="hs-identifier hs-var">NoReason</span></a></span></span><span>
+</span><span id="line-83"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Reason"><span class="annot"><a href="Test.Hspec.Core.Example.html#Reason"><span class="hs-identifier hs-var">Reason</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-84"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ExpectedButGot"><span class="annot"><a href="Test.Hspec.Core.Example.html#ExpectedButGot"><span class="hs-identifier hs-var">ExpectedButGot</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-85"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Error"><span class="annot"><a href="Test.Hspec.Core.Example.html#Error"><span class="hs-identifier hs-var">Error</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-identifier hs-type">SomeException</span></span><span>
+</span><span id="line-86"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679158024"><span id="local-6989586621679158026"><span id="local-6989586621679158039"><span class="annot"><span class="annottext">Int -&gt; FailureReason -&gt; ShowS
+[FailureReason] -&gt; ShowS
+FailureReason -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [FailureReason] -&gt; ShowS
+$cshowList :: [FailureReason] -&gt; ShowS
+show :: FailureReason -&gt; String
+$cshow :: FailureReason -&gt; String
+showsPrec :: Int -&gt; FailureReason -&gt; ShowS
+$cshowsPrec :: Int -&gt; FailureReason -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Typeable</span></span><span class="hs-special">)</span><span>
+</span><span id="line-87"></span><span>
+</span><span id="line-88"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.html#FailureReason"><span class="hs-identifier hs-type">FailureReason</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-89"></span><span>  </span><span id="local-6989586621679158011"><span class="annot"><span class="annottext">rnf :: FailureReason -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">rnf</span></span></span><span> </span><span id="local-6989586621679158009"><span class="annot"><span class="annottext">FailureReason
+</span><a href="#local-6989586621679158009"><span class="hs-identifier hs-var">reason</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">FailureReason
+</span><a href="#local-6989586621679158009"><span class="hs-identifier hs-var">reason</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-90"></span><span>    </span><span class="annot"><span class="annottext">FailureReason
+</span><a href="Test.Hspec.Core.Example.html#NoReason"><span class="hs-identifier hs-var">NoReason</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-91"></span><span>    </span><span class="annot"><a href="Test.Hspec.Core.Example.html#Reason"><span class="hs-identifier hs-type">Reason</span></a></span><span> </span><span id="local-6989586621679158008"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679158008"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679158008"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. NFData a =&gt; a -&gt; b -&gt; b
+</span><span class="hs-operator hs-var">`deepseq`</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-92"></span><span>    </span><span class="annot"><a href="Test.Hspec.Core.Example.html#ExpectedButGot"><span class="hs-identifier hs-type">ExpectedButGot</span></a></span><span> </span><span id="local-6989586621679158006"><span class="annot"><span class="annottext">Maybe String
+</span><a href="#local-6989586621679158006"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span id="local-6989586621679158005"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679158005"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span id="local-6989586621679158004"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679158004"><span class="hs-identifier hs-var">a</span></a></span></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe String
+</span><a href="#local-6989586621679158006"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. NFData a =&gt; a -&gt; b -&gt; b
+</span><span class="hs-operator hs-var">`deepseq`</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679158005"><span class="hs-identifier hs-var">e</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. NFData a =&gt; a -&gt; b -&gt; b
+</span><span class="hs-operator hs-var">`deepseq`</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679158004"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. NFData a =&gt; a -&gt; b -&gt; b
+</span><span class="hs-operator hs-var">`deepseq`</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-93"></span><span>    </span><span class="annot"><a href="Test.Hspec.Core.Example.html#Error"><span class="hs-identifier hs-type">Error</span></a></span><span> </span><span id="local-6989586621679158003"><span class="annot"><span class="annottext">Maybe String
+</span><a href="#local-6989586621679158003"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span id="local-6989586621679158002"><span class="annot"><span class="annottext">SomeException
+</span><a href="#local-6989586621679158002"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe String
+</span><a href="#local-6989586621679158003"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. NFData a =&gt; a -&gt; b -&gt; b
+</span><span class="hs-operator hs-var">`deepseq`</span></span><span> </span><span class="annot"><span class="annottext">SomeException
+</span><a href="#local-6989586621679158002"><span class="hs-identifier hs-var">e</span></a></span><span> </span><span class="annot"><span class="annottext">seq :: forall a b. a -&gt; b -&gt; b
+</span><span class="hs-operator hs-type">`seq`</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-94"></span><span>
+</span><span id="line-95"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679157992"><span id="local-6989586621679157994"><span id="local-6989586621679157996"><span class="annot"><span class="hs-identifier hs-type">Exception</span></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.html#ResultStatus"><span class="hs-identifier hs-type">ResultStatus</span></a></span></span></span></span><span>
+</span><span id="line-96"></span><span>
+</span><span id="line-97"></span><span id="local-6989586621679158198"><span class="annot"><a href="Test.Hspec.Core.Example.html#safeEvaluateExample"><span class="hs-identifier hs-type">safeEvaluateExample</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.html#Example"><span class="hs-identifier hs-type">Example</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158198"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679158198"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.html#Params"><span class="hs-identifier hs-type">Params</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.Hspec.Core.Example.html#ActionWith"><span class="hs-identifier hs-type">ActionWith</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.Hspec.Core.Example.html#Arg"><span class="hs-identifier hs-type">Arg</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158198"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.html#ProgressCallback"><span class="hs-identifier hs-type">ProgressCallback</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.html#Result"><span class="hs-identifier hs-type">Result</span></a></span></span><span>
+</span><span id="line-98"></span><span id="safeEvaluateExample"><span class="annot"><span class="annottext">safeEvaluateExample :: forall e.
+Example e =&gt;
+e
+-&gt; Params
+-&gt; (ActionWith (Arg e) -&gt; IO ())
+-&gt; ProgressCallback
+-&gt; IO Result
+</span><a href="Test.Hspec.Core.Example.html#safeEvaluateExample"><span class="hs-identifier hs-var hs-var">safeEvaluateExample</span></a></span></span><span> </span><span id="local-6989586621679157982"><span class="annot"><span class="annottext">e
+</span><a href="#local-6989586621679157982"><span class="hs-identifier hs-var">example</span></a></span></span><span> </span><span id="local-6989586621679157981"><span class="annot"><span class="annottext">Params
+</span><a href="#local-6989586621679157981"><span class="hs-identifier hs-var">params</span></a></span></span><span> </span><span id="local-6989586621679157980"><span class="annot"><span class="annottext">ActionWith (Arg e) -&gt; IO ()
+</span><a href="#local-6989586621679157980"><span class="hs-identifier hs-var">around</span></a></span></span><span> </span><span id="local-6989586621679157979"><span class="annot"><span class="annottext">ProgressCallback
+</span><a href="#local-6989586621679157979"><span class="hs-identifier hs-var">progress</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO Result -&gt; IO Result
+</span><a href="Test.Hspec.Core.Example.html#safeEvaluate"><span class="hs-identifier hs-var">safeEvaluate</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Result -&gt; Result
+</span><a href="#local-6989586621679157978"><span class="hs-identifier hs-var">forceResult</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall e.
+Example e =&gt;
+e
+-&gt; Params
+-&gt; (ActionWith (Arg e) -&gt; IO ())
+-&gt; ProgressCallback
+-&gt; IO Result
+</span><a href="Test.Hspec.Core.Example.html#evaluateExample"><span class="hs-identifier hs-var">evaluateExample</span></a></span><span> </span><span class="annot"><span class="annottext">e
+</span><a href="#local-6989586621679157982"><span class="hs-identifier hs-var">example</span></a></span><span> </span><span class="annot"><span class="annottext">Params
+</span><a href="#local-6989586621679157981"><span class="hs-identifier hs-var">params</span></a></span><span> </span><span class="annot"><span class="annottext">ActionWith (Arg e) -&gt; IO ()
+</span><a href="#local-6989586621679157980"><span class="hs-identifier hs-var">around</span></a></span><span> </span><span class="annot"><span class="annottext">ProgressCallback
+</span><a href="#local-6989586621679157979"><span class="hs-identifier hs-var">progress</span></a></span><span>
+</span><span id="line-99"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-100"></span><span>    </span><span class="annot"><a href="#local-6989586621679157978"><span class="hs-identifier hs-type">forceResult</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.html#Result"><span class="hs-identifier hs-type">Result</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.html#Result"><span class="hs-identifier hs-type">Result</span></a></span><span>
+</span><span id="line-101"></span><span>    </span><span id="local-6989586621679157978"><span class="annot"><span class="annottext">forceResult :: Result -&gt; Result
+</span><a href="#local-6989586621679157978"><span class="hs-identifier hs-var hs-var">forceResult</span></a></span></span><span> </span><span id="local-6989586621679157976"><span class="annot"><span class="annottext">r :: Result
+</span><a href="#local-6989586621679157976"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="Test.Hspec.Core.Example.html#Result"><span class="hs-identifier hs-type">Result</span></a></span><span> </span><span id="local-6989586621679157975"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679157975"><span class="hs-identifier hs-var">info</span></a></span></span><span> </span><span id="local-6989586621679157974"><span class="annot"><span class="annottext">ResultStatus
+</span><a href="#local-6989586621679157974"><span class="hs-identifier hs-var">status</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679157975"><span class="hs-identifier hs-var">info</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. NFData a =&gt; a -&gt; b -&gt; b
+</span><span class="hs-operator hs-var">`deepseq`</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ResultStatus -&gt; ResultStatus
+</span><a href="#local-6989586621679157973"><span class="hs-identifier hs-var">forceResultStatus</span></a></span><span> </span><span class="annot"><span class="annottext">ResultStatus
+</span><a href="#local-6989586621679157974"><span class="hs-identifier hs-var">status</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">seq :: forall a b. a -&gt; b -&gt; b
+</span><span class="hs-operator hs-type">`seq`</span></span><span> </span><span class="annot"><span class="annottext">Result
+</span><a href="#local-6989586621679157976"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-102"></span><span>
+</span><span id="line-103"></span><span>    </span><span class="annot"><a href="#local-6989586621679157973"><span class="hs-identifier hs-type">forceResultStatus</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.html#ResultStatus"><span class="hs-identifier hs-type">ResultStatus</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.html#ResultStatus"><span class="hs-identifier hs-type">ResultStatus</span></a></span><span>
+</span><span id="line-104"></span><span>    </span><span id="local-6989586621679157973"><span class="annot"><span class="annottext">forceResultStatus :: ResultStatus -&gt; ResultStatus
+</span><a href="#local-6989586621679157973"><span class="hs-identifier hs-var hs-var">forceResultStatus</span></a></span></span><span> </span><span id="local-6989586621679157972"><span class="annot"><span class="annottext">ResultStatus
+</span><a href="#local-6989586621679157972"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">ResultStatus
+</span><a href="#local-6989586621679157972"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-105"></span><span>      </span><span class="annot"><span class="annottext">ResultStatus
+</span><a href="Test.Hspec.Core.Example.html#Success"><span class="hs-identifier hs-var">Success</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ResultStatus
+</span><a href="#local-6989586621679157972"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-106"></span><span>      </span><span class="annot"><a href="Test.Hspec.Core.Example.html#Pending"><span class="hs-identifier hs-type">Pending</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Location
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679157971"><span class="annot"><span class="annottext">Maybe String
+</span><a href="#local-6989586621679157971"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe String
+</span><a href="#local-6989586621679157971"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. NFData a =&gt; a -&gt; b -&gt; b
+</span><span class="hs-operator hs-var">`deepseq`</span></span><span> </span><span class="annot"><span class="annottext">ResultStatus
+</span><a href="#local-6989586621679157972"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-107"></span><span>      </span><span class="annot"><a href="Test.Hspec.Core.Example.html#Failure"><span class="hs-identifier hs-type">Failure</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Location
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679157970"><span class="annot"><span class="annottext">FailureReason
+</span><a href="#local-6989586621679157970"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">FailureReason
+</span><a href="#local-6989586621679157970"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. NFData a =&gt; a -&gt; b -&gt; b
+</span><span class="hs-operator hs-var">`deepseq`</span></span><span> </span><span class="annot"><span class="annottext">ResultStatus
+</span><a href="#local-6989586621679157972"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-108"></span><span>
+</span><span id="line-109"></span><span class="annot"><a href="Test.Hspec.Core.Example.html#safeEvaluate"><span class="hs-identifier hs-type">safeEvaluate</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.html#Result"><span class="hs-identifier hs-type">Result</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.html#Result"><span class="hs-identifier hs-type">Result</span></a></span><span>
+</span><span id="line-110"></span><span id="safeEvaluate"><span class="annot"><span class="annottext">safeEvaluate :: IO Result -&gt; IO Result
+</span><a href="Test.Hspec.Core.Example.html#safeEvaluate"><span class="hs-identifier hs-var hs-var">safeEvaluate</span></a></span></span><span> </span><span id="local-6989586621679157969"><span class="annot"><span class="annottext">IO Result
+</span><a href="#local-6989586621679157969"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-111"></span><span>  </span><span id="local-6989586621679157968"><span class="annot"><span class="annottext">Either SomeException Result
+</span><a href="#local-6989586621679157968"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a. IO a -&gt; IO (Either SomeException a)
+</span><a href="Test.Hspec.Core.Util.html#safeTry"><span class="hs-identifier hs-var">safeTry</span></a></span><span> </span><span class="annot"><span class="annottext">IO Result
+</span><a href="#local-6989586621679157969"><span class="hs-identifier hs-var">action</span></a></span><span>
+</span><span id="line-112"></span><span>  </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Either SomeException Result
+</span><a href="#local-6989586621679157968"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-113"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span id="local-6989586621679157966"><span class="annot"><span class="annottext">SomeException
+</span><a href="#local-6989586621679157966"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; ResultStatus -&gt; Result
+</span><a href="Test.Hspec.Core.Example.html#Result"><span class="hs-identifier hs-var">Result</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;&quot;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SomeException -&gt; ResultStatus
+</span><a href="Test.Hspec.Core.Example.html#toResultStatus"><span class="hs-identifier hs-var">toResultStatus</span></a></span><span> </span><span class="annot"><span class="annottext">SomeException
+</span><a href="#local-6989586621679157966"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-114"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span id="local-6989586621679157964"><span class="annot"><span class="annottext">Result
+</span><a href="#local-6989586621679157964"><span class="hs-identifier hs-var">result</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Result
+</span><a href="#local-6989586621679157964"><span class="hs-identifier hs-var">result</span></a></span><span>
+</span><span id="line-115"></span><span>
+</span><span id="line-116"></span><span class="annot"><a href="Test.Hspec.Core.Example.html#safeEvaluateResultStatus"><span class="hs-identifier hs-type">safeEvaluateResultStatus</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.html#ResultStatus"><span class="hs-identifier hs-type">ResultStatus</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.html#ResultStatus"><span class="hs-identifier hs-type">ResultStatus</span></a></span><span>
+</span><span id="line-117"></span><span id="safeEvaluateResultStatus"><span class="annot"><span class="annottext">safeEvaluateResultStatus :: IO ResultStatus -&gt; IO ResultStatus
+</span><a href="Test.Hspec.Core.Example.html#safeEvaluateResultStatus"><span class="hs-identifier hs-var hs-var">safeEvaluateResultStatus</span></a></span></span><span> </span><span id="local-6989586621679157963"><span class="annot"><span class="annottext">IO ResultStatus
+</span><a href="#local-6989586621679157963"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a c b. (a -&gt; c) -&gt; (b -&gt; c) -&gt; Either a b -&gt; c
+</span><span class="hs-identifier hs-var">either</span></span><span> </span><span class="annot"><span class="annottext">SomeException -&gt; ResultStatus
+</span><a href="Test.Hspec.Core.Example.html#toResultStatus"><span class="hs-identifier hs-var">toResultStatus</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall a. IO a -&gt; IO (Either SomeException a)
+</span><a href="Test.Hspec.Core.Util.html#safeTry"><span class="hs-identifier hs-var">safeTry</span></a></span><span> </span><span class="annot"><span class="annottext">IO ResultStatus
+</span><a href="#local-6989586621679157963"><span class="hs-identifier hs-var">action</span></a></span><span>
+</span><span id="line-118"></span><span>
+</span><span id="line-119"></span><span class="annot"><a href="Test.Hspec.Core.Example.html#toResultStatus"><span class="hs-identifier hs-type">toResultStatus</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">SomeException</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.html#ResultStatus"><span class="hs-identifier hs-type">ResultStatus</span></a></span><span>
+</span><span id="line-120"></span><span id="toResultStatus"><span class="annot"><span class="annottext">toResultStatus :: SomeException -&gt; ResultStatus
+</span><a href="Test.Hspec.Core.Example.html#toResultStatus"><span class="hs-identifier hs-var hs-var">toResultStatus</span></a></span></span><span> </span><span id="local-6989586621679157960"><span class="annot"><span class="annottext">SomeException
+</span><a href="#local-6989586621679157960"><span class="hs-identifier hs-var">e</span></a></span></span><span>
+</span><span id="line-121"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679157959"><span class="annot"><span class="annottext">ResultStatus
+</span><a href="#local-6989586621679157959"><span class="hs-identifier hs-var">result</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall e. Exception e =&gt; SomeException -&gt; Maybe e
+</span><span class="hs-identifier hs-var">fromException</span></span><span> </span><span class="annot"><span class="annottext">SomeException
+</span><a href="#local-6989586621679157960"><span class="hs-identifier hs-var">e</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ResultStatus
+</span><a href="#local-6989586621679157959"><span class="hs-identifier hs-var">result</span></a></span><span>
+</span><span id="line-122"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679157957"><span class="annot"><span class="annottext">HUnitFailure
+</span><a href="#local-6989586621679157957"><span class="hs-identifier hs-var">hunit</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall e. Exception e =&gt; SomeException -&gt; Maybe e
+</span><span class="hs-identifier hs-var">fromException</span></span><span> </span><span class="annot"><span class="annottext">SomeException
+</span><a href="#local-6989586621679157960"><span class="hs-identifier hs-var">e</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe String -&gt; HUnitFailure -&gt; ResultStatus
+</span><a href="Test.Hspec.Core.Example.html#hunitFailureToResult"><span class="hs-identifier hs-var">hunitFailureToResult</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="annot"><span class="annottext">HUnitFailure
+</span><a href="#local-6989586621679157957"><span class="hs-identifier hs-var">hunit</span></a></span><span>
+</span><span id="line-123"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe Location -&gt; FailureReason -&gt; ResultStatus
+</span><a href="Test.Hspec.Core.Example.html#Failure"><span class="hs-identifier hs-var">Failure</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Maybe String -&gt; SomeException -&gt; FailureReason
+</span><a href="Test.Hspec.Core.Example.html#Error"><span class="hs-identifier hs-var">Error</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="annot"><span class="annottext">SomeException
+</span><a href="#local-6989586621679157960"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-124"></span><span>
+</span><span id="line-125"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.html#Example"><span class="hs-identifier hs-type">Example</span></a></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.html#Result"><span class="hs-identifier hs-type">Result</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-126"></span><span>  </span><span class="hs-keyword">type</span><span> </span><span id="Arg"><span class="annot"><a href="Test.Hspec.Core.Example.html#Arg"><span class="hs-identifier hs-var">Arg</span></a></span></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.html#Result"><span class="hs-identifier hs-type">Result</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-127"></span><span>  </span><span id="local-6989586621679157950"><span class="annot"><span class="annottext">evaluateExample :: Result
+-&gt; Params
+-&gt; (ActionWith (Arg Result) -&gt; IO ())
+-&gt; ProgressCallback
+-&gt; IO Result
+</span><a href="#local-6989586621679157950"><span class="hs-identifier hs-var hs-var hs-var hs-var">evaluateExample</span></a></span></span><span> </span><span id="local-6989586621679157949"><span class="annot"><span class="annottext">Result
+</span><a href="#local-6989586621679157949"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall e.
+Example e =&gt;
+e
+-&gt; Params
+-&gt; (ActionWith (Arg e) -&gt; IO ())
+-&gt; ProgressCallback
+-&gt; IO Result
+</span><a href="Test.Hspec.Core.Example.html#evaluateExample"><span class="hs-identifier hs-var">evaluateExample</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Result
+</span><a href="#local-6989586621679157949"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-128"></span><span>
+</span><span id="line-129"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679158178"><span class="annot"><a href="Test.Hspec.Core.Example.html#Example"><span class="hs-identifier hs-type">Example</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679158178"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.html#Result"><span class="hs-identifier hs-type">Result</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-130"></span><span>  </span><span class="hs-keyword">type</span><span> </span><span id="Arg"><span class="annot"><a href="Test.Hspec.Core.Example.html#Arg"><span class="hs-identifier hs-var">Arg</span></a></span></span><span> </span><span id="local-6989586621679158178"><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679158178"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.html#Result"><span class="hs-identifier hs-type">Result</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621679158178"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-131"></span><span>  </span><span id="local-6989586621679157944"><span class="annot"><span class="annottext">evaluateExample :: (a -&gt; Result)
+-&gt; Params
+-&gt; (ActionWith (Arg (a -&gt; Result)) -&gt; IO ())
+-&gt; ProgressCallback
+-&gt; IO Result
+</span><a href="#local-6989586621679157944"><span class="hs-identifier hs-var hs-var hs-var hs-var">evaluateExample</span></a></span></span><span> </span><span id="local-6989586621679157943"><span class="annot"><span class="annottext">a -&gt; Result
+</span><a href="#local-6989586621679157943"><span class="hs-identifier hs-var">example</span></a></span></span><span> </span><span id="local-6989586621679157942"><span class="annot"><span class="annottext">Params
+</span><a href="#local-6989586621679157942"><span class="hs-identifier hs-var">_params</span></a></span></span><span> </span><span id="local-6989586621679157941"><span class="annot"><span class="annottext">ActionWith (Arg (a -&gt; Result)) -&gt; IO ()
+</span><a href="#local-6989586621679157941"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span id="local-6989586621679157940"><span class="annot"><span class="annottext">ProgressCallback
+</span><a href="#local-6989586621679157940"><span class="hs-identifier hs-var">_callback</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-132"></span><span>    </span><span id="local-6989586621679157939"><span class="annot"><span class="annottext">IORef Result
+</span><a href="#local-6989586621679157939"><span class="hs-identifier hs-var">ref</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; IO (IORef a)
+</span><span class="hs-identifier hs-var">newIORef</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; ResultStatus -&gt; Result
+</span><a href="Test.Hspec.Core.Example.html#Result"><span class="hs-identifier hs-var">Result</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;&quot;</span></span><span> </span><span class="annot"><span class="annottext">ResultStatus
+</span><a href="Test.Hspec.Core.Example.html#Success"><span class="hs-identifier hs-var">Success</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-133"></span><span>    </span><span class="annot"><span class="annottext">ActionWith (Arg (a -&gt; Result)) -&gt; IO ()
+</span><a href="#local-6989586621679157941"><span class="hs-identifier hs-var">action</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. a -&gt; IO a
+</span><span class="hs-identifier hs-var">evaluate</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Result
+</span><a href="#local-6989586621679157943"><span class="hs-identifier hs-var">example</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b c.
+Monad m =&gt;
+(a -&gt; m b) -&gt; (b -&gt; m c) -&gt; a -&gt; m c
+</span><span class="hs-operator hs-var">&gt;=&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall a. IORef a -&gt; a -&gt; IO ()
+</span><span class="hs-identifier hs-var">writeIORef</span></span><span> </span><span class="annot"><span class="annottext">IORef Result
+</span><a href="#local-6989586621679157939"><span class="hs-identifier hs-var">ref</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-134"></span><span>    </span><span class="annot"><span class="annottext">forall a. IORef a -&gt; IO a
+</span><span class="hs-identifier hs-var">readIORef</span></span><span> </span><span class="annot"><span class="annottext">IORef Result
+</span><a href="#local-6989586621679157939"><span class="hs-identifier hs-var">ref</span></a></span><span>
+</span><span id="line-135"></span><span>
+</span><span id="line-136"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.html#Example"><span class="hs-identifier hs-type">Example</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-137"></span><span>  </span><span class="hs-keyword">type</span><span> </span><span id="Arg"><span class="annot"><a href="Test.Hspec.Core.Example.html#Arg"><span class="hs-identifier hs-var">Arg</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-138"></span><span>  </span><span id="local-6989586621679157928"><span class="annot"><span class="annottext">evaluateExample :: Bool
+-&gt; Params
+-&gt; (ActionWith (Arg Bool) -&gt; IO ())
+-&gt; ProgressCallback
+-&gt; IO Result
+</span><a href="#local-6989586621679157928"><span class="hs-identifier hs-var hs-var hs-var hs-var">evaluateExample</span></a></span></span><span> </span><span id="local-6989586621679157927"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679157927"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall e.
+Example e =&gt;
+e
+-&gt; Params
+-&gt; (ActionWith (Arg e) -&gt; IO ())
+-&gt; ProgressCallback
+-&gt; IO Result
+</span><a href="Test.Hspec.Core.Example.html#evaluateExample"><span class="hs-identifier hs-var">evaluateExample</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679157927"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-139"></span><span>
+</span><span id="line-140"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679158164"><span class="annot"><a href="Test.Hspec.Core.Example.html#Example"><span class="hs-identifier hs-type">Example</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679158164"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-141"></span><span>  </span><span class="hs-keyword">type</span><span> </span><span id="Arg"><span class="annot"><a href="Test.Hspec.Core.Example.html#Arg"><span class="hs-identifier hs-var">Arg</span></a></span></span><span> </span><span id="local-6989586621679158164"><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679158164"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621679158164"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-142"></span><span>  </span><span id="local-6989586621679157922"><span class="annot"><span class="annottext">evaluateExample :: (a -&gt; Bool)
+-&gt; Params
+-&gt; (ActionWith (Arg (a -&gt; Bool)) -&gt; IO ())
+-&gt; ProgressCallback
+-&gt; IO Result
+</span><a href="#local-6989586621679157922"><span class="hs-identifier hs-var hs-var hs-var hs-var">evaluateExample</span></a></span></span><span> </span><span id="local-6989586621679157921"><span class="annot"><span class="annottext">a -&gt; Bool
+</span><a href="#local-6989586621679157921"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span id="local-6989586621679157920"><span class="annot"><span class="annottext">Params
+</span><a href="#local-6989586621679157920"><span class="hs-identifier hs-var">_params</span></a></span></span><span> </span><span id="local-6989586621679157919"><span class="annot"><span class="annottext">ActionWith (Arg (a -&gt; Bool)) -&gt; IO ()
+</span><a href="#local-6989586621679157919"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span id="local-6989586621679157918"><span class="annot"><span class="annottext">ProgressCallback
+</span><a href="#local-6989586621679157918"><span class="hs-identifier hs-var">_callback</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-143"></span><span>    </span><span id="local-6989586621679157917"><span class="annot"><span class="annottext">IORef Result
+</span><a href="#local-6989586621679157917"><span class="hs-identifier hs-var">ref</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; IO (IORef a)
+</span><span class="hs-identifier hs-var">newIORef</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; ResultStatus -&gt; Result
+</span><a href="Test.Hspec.Core.Example.html#Result"><span class="hs-identifier hs-var">Result</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;&quot;</span></span><span> </span><span class="annot"><span class="annottext">ResultStatus
+</span><a href="Test.Hspec.Core.Example.html#Success"><span class="hs-identifier hs-var">Success</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-144"></span><span>    </span><span class="annot"><span class="annottext">ActionWith (Arg (a -&gt; Bool)) -&gt; IO ()
+</span><a href="#local-6989586621679157919"><span class="hs-identifier hs-var">action</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. a -&gt; IO a
+</span><span class="hs-identifier hs-var">evaluate</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Result
+</span><a href="#local-6989586621679157916"><span class="hs-identifier hs-var">example</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b c.
+Monad m =&gt;
+(a -&gt; m b) -&gt; (b -&gt; m c) -&gt; a -&gt; m c
+</span><span class="hs-operator hs-var">&gt;=&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall a. IORef a -&gt; a -&gt; IO ()
+</span><span class="hs-identifier hs-var">writeIORef</span></span><span> </span><span class="annot"><span class="annottext">IORef Result
+</span><a href="#local-6989586621679157917"><span class="hs-identifier hs-var">ref</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-145"></span><span>    </span><span class="annot"><span class="annottext">forall a. IORef a -&gt; IO a
+</span><span class="hs-identifier hs-var">readIORef</span></span><span> </span><span class="annot"><span class="annottext">IORef Result
+</span><a href="#local-6989586621679157917"><span class="hs-identifier hs-var">ref</span></a></span><span>
+</span><span id="line-146"></span><span>    </span><span class="hs-keyword">where</span><span>
+</span><span id="line-147"></span><span>      </span><span id="local-6989586621679157916"><span class="annot"><span class="annottext">example :: a -&gt; Result
+</span><a href="#local-6989586621679157916"><span class="hs-identifier hs-var hs-var">example</span></a></span></span><span> </span><span id="local-6989586621679157915"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679157915"><span class="hs-identifier hs-var">a</span></a></span></span><span>
+</span><span id="line-148"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">a -&gt; Bool
+</span><a href="#local-6989586621679157921"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679157915"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; ResultStatus -&gt; Result
+</span><a href="Test.Hspec.Core.Example.html#Result"><span class="hs-identifier hs-var">Result</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;&quot;</span></span><span> </span><span class="annot"><span class="annottext">ResultStatus
+</span><a href="Test.Hspec.Core.Example.html#Success"><span class="hs-identifier hs-var">Success</span></a></span><span>
+</span><span id="line-149"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; ResultStatus -&gt; Result
+</span><a href="Test.Hspec.Core.Example.html#Result"><span class="hs-identifier hs-var">Result</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Maybe Location -&gt; FailureReason -&gt; ResultStatus
+</span><a href="Test.Hspec.Core.Example.html#Failure"><span class="hs-identifier hs-var">Failure</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="annot"><span class="annottext">FailureReason
+</span><a href="Test.Hspec.Core.Example.html#NoReason"><span class="hs-identifier hs-var">NoReason</span></a></span><span>
+</span><span id="line-150"></span><span>
+</span><span id="line-151"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.html#Example"><span class="hs-identifier hs-type">Example</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Expectation</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-152"></span><span>  </span><span class="hs-keyword">type</span><span> </span><span id="Arg"><span class="annot"><a href="Test.Hspec.Core.Example.html#Arg"><span class="hs-identifier hs-var">Arg</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Expectation</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-153"></span><span>  </span><span id="local-6989586621679157910"><span class="annot"><span class="annottext">evaluateExample :: IO ()
+-&gt; Params
+-&gt; (ActionWith (Arg (IO ())) -&gt; IO ())
+-&gt; ProgressCallback
+-&gt; IO Result
+</span><a href="#local-6989586621679157910"><span class="hs-identifier hs-var hs-var hs-var hs-var">evaluateExample</span></a></span></span><span> </span><span id="local-6989586621679157909"><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621679157909"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall e.
+Example e =&gt;
+e
+-&gt; Params
+-&gt; (ActionWith (Arg e) -&gt; IO ())
+-&gt; ProgressCallback
+-&gt; IO Result
+</span><a href="Test.Hspec.Core.Example.html#evaluateExample"><span class="hs-identifier hs-var">evaluateExample</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621679157909"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-154"></span><span>
+</span><span id="line-155"></span><span class="annot"><a href="Test.Hspec.Core.Example.html#hunitFailureToResult"><span class="hs-identifier hs-type">hunitFailureToResult</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">HUnit.HUnitFailure</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.html#ResultStatus"><span class="hs-identifier hs-type">ResultStatus</span></a></span><span>
+</span><span id="line-156"></span><span id="hunitFailureToResult"><span class="annot"><span class="annottext">hunitFailureToResult :: Maybe String -&gt; HUnitFailure -&gt; ResultStatus
+</span><a href="Test.Hspec.Core.Example.html#hunitFailureToResult"><span class="hs-identifier hs-var hs-var">hunitFailureToResult</span></a></span></span><span> </span><span id="local-6989586621679157908"><span class="annot"><span class="annottext">Maybe String
+</span><a href="#local-6989586621679157908"><span class="hs-identifier hs-var">pre</span></a></span></span><span> </span><span id="local-6989586621679157907"><span class="annot"><span class="annottext">HUnitFailure
+</span><a href="#local-6989586621679157907"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">HUnitFailure
+</span><a href="#local-6989586621679157907"><span class="hs-identifier hs-var">e</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-157"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">HUnit.HUnitFailure</span></span><span> </span><span id="local-6989586621679157905"><span class="annot"><span class="annottext">Maybe SrcLoc
+</span><a href="#local-6989586621679157905"><span class="hs-identifier hs-var">mLoc</span></a></span></span><span> </span><span id="local-6989586621679157904"><span class="annot"><span class="annottext">FailureReason
+</span><a href="#local-6989586621679157904"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-158"></span><span>      </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">FailureReason
+</span><a href="#local-6989586621679157904"><span class="hs-identifier hs-var">err</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-159"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">HUnit.Reason</span></span><span> </span><span id="local-6989586621679157902"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679157902"><span class="hs-identifier hs-var">reason</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Location -&gt; FailureReason -&gt; ResultStatus
+</span><a href="Test.Hspec.Core.Example.html#Failure"><span class="hs-identifier hs-var">Failure</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Location
+</span><a href="#local-6989586621679157901"><span class="hs-identifier hs-var">location</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; FailureReason
+</span><a href="Test.Hspec.Core.Example.html#Reason"><span class="hs-identifier hs-var">Reason</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ShowS
+</span><a href="#local-6989586621679157900"><span class="hs-identifier hs-var">addPre</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679157902"><span class="hs-identifier hs-var">reason</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-160"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">HUnit.ExpectedButGot</span></span><span> </span><span id="local-6989586621679157898"><span class="annot"><span class="annottext">Maybe String
+</span><a href="#local-6989586621679157898"><span class="hs-identifier hs-var">preface</span></a></span></span><span> </span><span id="local-6989586621679157897"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679157897"><span class="hs-identifier hs-var">expected</span></a></span></span><span> </span><span id="local-6989586621679157896"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679157896"><span class="hs-identifier hs-var">actual</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Location -&gt; FailureReason -&gt; ResultStatus
+</span><a href="Test.Hspec.Core.Example.html#Failure"><span class="hs-identifier hs-var">Failure</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Location
+</span><a href="#local-6989586621679157901"><span class="hs-identifier hs-var">location</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe String -&gt; String -&gt; String -&gt; FailureReason
+</span><a href="Test.Hspec.Core.Example.html#ExpectedButGot"><span class="hs-identifier hs-var">ExpectedButGot</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe String -&gt; Maybe String
+</span><a href="#local-6989586621679157895"><span class="hs-identifier hs-var">addPreMaybe</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe String
+</span><a href="#local-6989586621679157898"><span class="hs-identifier hs-var">preface</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679157897"><span class="hs-identifier hs-var">expected</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679157896"><span class="hs-identifier hs-var">actual</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-161"></span><span>          </span><span class="hs-keyword">where</span><span>
+</span><span id="line-162"></span><span>            </span><span class="annot"><a href="#local-6989586621679157895"><span class="hs-identifier hs-type">addPreMaybe</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-163"></span><span>            </span><span id="local-6989586621679157895"><span class="annot"><span class="annottext">addPreMaybe :: Maybe String -&gt; Maybe String
+</span><a href="#local-6989586621679157895"><span class="hs-identifier hs-var hs-var">addPreMaybe</span></a></span></span><span> </span><span id="local-6989586621679157894"><span class="annot"><span class="annottext">Maybe String
+</span><a href="#local-6989586621679157894"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe String
+</span><a href="#local-6989586621679157908"><span class="hs-identifier hs-var">pre</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Maybe String
+</span><a href="#local-6989586621679157894"><span class="hs-identifier hs-var">xs</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-164"></span><span>              </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679157893"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679157893"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679157892"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679157892"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679157893"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;\n&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679157892"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-165"></span><span>              </span><span class="annot"><span class="annottext">(Maybe String, Maybe String)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe String
+</span><a href="#local-6989586621679157908"><span class="hs-identifier hs-var">pre</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Alternative f =&gt; f a -&gt; f a -&gt; f a
+</span><span class="hs-operator hs-var">&lt;|&gt;</span></span><span> </span><span class="annot"><span class="annottext">Maybe String
+</span><a href="#local-6989586621679157894"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-166"></span><span>    </span><span class="hs-keyword">where</span><span>
+</span><span id="line-167"></span><span>      </span><span id="local-6989586621679157901"><span class="annot"><span class="annottext">location :: Maybe Location
+</span><a href="#local-6989586621679157901"><span class="hs-identifier hs-var hs-var">location</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Maybe SrcLoc
+</span><a href="#local-6989586621679157905"><span class="hs-identifier hs-var">mLoc</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-168"></span><span>        </span><span class="annot"><span class="annottext">Maybe SrcLoc
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-169"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679157890"><span class="annot"><span class="annottext">SrcLoc
+</span><a href="#local-6989586621679157890"><span class="hs-identifier hs-var">loc</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Int -&gt; Int -&gt; Location
+</span><a href="Test.Hspec.Core.Example.Location.html#Location"><span class="hs-identifier hs-var">Location</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SrcLoc -&gt; String
+</span><span class="hs-identifier hs-var">srcLocFile</span></span><span> </span><span class="annot"><span class="annottext">SrcLoc
+</span><a href="#local-6989586621679157890"><span class="hs-identifier hs-var">loc</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SrcLoc -&gt; Int
+</span><span class="hs-identifier hs-var">srcLocStartLine</span></span><span> </span><span class="annot"><span class="annottext">SrcLoc
+</span><a href="#local-6989586621679157890"><span class="hs-identifier hs-var">loc</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SrcLoc -&gt; Int
+</span><span class="hs-identifier hs-var">srcLocStartCol</span></span><span> </span><span class="annot"><span class="annottext">SrcLoc
+</span><a href="#local-6989586621679157890"><span class="hs-identifier hs-var">loc</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-170"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-171"></span><span>    </span><span class="annot"><a href="#local-6989586621679157900"><span class="hs-identifier hs-type">addPre</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-172"></span><span>    </span><span id="local-6989586621679157900"><span class="annot"><span class="annottext">addPre :: ShowS
+</span><a href="#local-6989586621679157900"><span class="hs-identifier hs-var hs-var">addPre</span></a></span></span><span> </span><span id="local-6989586621679157885"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679157885"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Maybe String
+</span><a href="#local-6989586621679157908"><span class="hs-identifier hs-var">pre</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-173"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679157884"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679157884"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679157884"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;\n&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679157885"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-174"></span><span>      </span><span class="annot"><span class="annottext">Maybe String
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679157885"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-175"></span><span>
+</span><span id="line-176"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679158162"><span class="annot"><a href="Test.Hspec.Core.Example.html#Example"><span class="hs-identifier hs-type">Example</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679158162"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Expectation</span></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-177"></span><span>  </span><span class="hs-keyword">type</span><span> </span><span id="Arg"><span class="annot"><a href="Test.Hspec.Core.Example.html#Arg"><span class="hs-identifier hs-var">Arg</span></a></span></span><span> </span><span id="local-6989586621679158162"><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679158162"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Expectation</span></span><span class="hs-special">)</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621679158162"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-178"></span><span>  </span><span id="local-6989586621679157880"><span class="annot"><span class="annottext">evaluateExample :: (a -&gt; IO ())
+-&gt; Params
+-&gt; (ActionWith (Arg (a -&gt; IO ())) -&gt; IO ())
+-&gt; ProgressCallback
+-&gt; IO Result
+</span><a href="#local-6989586621679157880"><span class="hs-identifier hs-var hs-var hs-var hs-var">evaluateExample</span></a></span></span><span> </span><span id="local-6989586621679157879"><span class="annot"><span class="annottext">a -&gt; IO ()
+</span><a href="#local-6989586621679157879"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="annot"><span class="annottext">Params
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679157878"><span class="annot"><span class="annottext">ActionWith (Arg (a -&gt; IO ())) -&gt; IO ()
+</span><a href="#local-6989586621679157878"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span class="annot"><span class="annottext">ProgressCallback
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ActionWith (Arg (a -&gt; IO ())) -&gt; IO ()
+</span><a href="#local-6989586621679157878"><span class="hs-identifier hs-var">action</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; IO ()
+</span><a href="#local-6989586621679157879"><span class="hs-identifier hs-var">e</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; ResultStatus -&gt; Result
+</span><a href="Test.Hspec.Core.Example.html#Result"><span class="hs-identifier hs-var">Result</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;&quot;</span></span><span> </span><span class="annot"><span class="annottext">ResultStatus
+</span><a href="Test.Hspec.Core.Example.html#Success"><span class="hs-identifier hs-var">Success</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-179"></span><span>
+</span><span id="line-180"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.html#Example"><span class="hs-identifier hs-type">Example</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">QC.Property</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-181"></span><span>  </span><span class="hs-keyword">type</span><span> </span><span id="Arg"><span class="annot"><a href="Test.Hspec.Core.Example.html#Arg"><span class="hs-identifier hs-var">Arg</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">QC.Property</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-182"></span><span>  </span><span id="local-6989586621679157873"><span class="annot"><span class="annottext">evaluateExample :: Property
+-&gt; Params
+-&gt; (ActionWith (Arg Property) -&gt; IO ())
+-&gt; ProgressCallback
+-&gt; IO Result
+</span><a href="#local-6989586621679157873"><span class="hs-identifier hs-var hs-var hs-var hs-var">evaluateExample</span></a></span></span><span> </span><span id="local-6989586621679157872"><span class="annot"><span class="annottext">Property
+</span><a href="#local-6989586621679157872"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall e.
+Example e =&gt;
+e
+-&gt; Params
+-&gt; (ActionWith (Arg e) -&gt; IO ())
+-&gt; ProgressCallback
+-&gt; IO Result
+</span><a href="Test.Hspec.Core.Example.html#evaluateExample"><span class="hs-identifier hs-var">evaluateExample</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Property
+</span><a href="#local-6989586621679157872"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-183"></span><span>
+</span><span id="line-184"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679158152"><span class="annot"><a href="Test.Hspec.Core.Example.html#Example"><span class="hs-identifier hs-type">Example</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679158152"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">QC.Property</span></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-185"></span><span>  </span><span class="hs-keyword">type</span><span> </span><span id="Arg"><span class="annot"><a href="Test.Hspec.Core.Example.html#Arg"><span class="hs-identifier hs-var">Arg</span></a></span></span><span> </span><span id="local-6989586621679158152"><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679158152"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">QC.Property</span></span><span class="hs-special">)</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621679158152"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-186"></span><span>  </span><span id="local-6989586621679157865"><span class="annot"><span class="annottext">evaluateExample :: (a -&gt; Property)
+-&gt; Params
+-&gt; (ActionWith (Arg (a -&gt; Property)) -&gt; IO ())
+-&gt; ProgressCallback
+-&gt; IO Result
+</span><a href="#local-6989586621679157865"><span class="hs-identifier hs-var hs-var hs-var hs-var">evaluateExample</span></a></span></span><span> </span><span id="local-6989586621679157864"><span class="annot"><span class="annottext">a -&gt; Property
+</span><a href="#local-6989586621679157864"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span id="local-6989586621679157863"><span class="annot"><span class="annottext">Params
+</span><a href="#local-6989586621679157863"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span id="local-6989586621679157862"><span class="annot"><span class="annottext">ActionWith (Arg (a -&gt; Property)) -&gt; IO ()
+</span><a href="#local-6989586621679157862"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span id="local-6989586621679157861"><span class="annot"><span class="annottext">ProgressCallback
+</span><a href="#local-6989586621679157861"><span class="hs-identifier hs-var">progressCallback</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-187"></span><span>    </span><span id="local-6989586621679157860"><span class="annot"><span class="annottext">Result
+</span><a href="#local-6989586621679157860"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall prop. Testable prop =&gt; Args -&gt; prop -&gt; IO Result
+</span><span class="hs-identifier hs-var">QC.quickCheckWithResult</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Params -&gt; Args
+</span><a href="Test.Hspec.Core.Example.html#paramsQuickCheckArgs"><span class="hs-identifier hs-var">paramsQuickCheckArgs</span></a></span><span> </span><span class="annot"><span class="annottext">Params
+</span><a href="#local-6989586621679157863"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">{</span><span class="annot"><span class="annottext">chatty :: Bool
+</span><a href="#local-6989586621679157858"><span class="hs-identifier hs-var">QC.chatty</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span class="hs-special">}</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall prop. Testable prop =&gt; Callback -&gt; prop -&gt; Property
+</span><span class="hs-identifier hs-var">QCP.callback</span></span><span> </span><span class="annot"><span class="annottext">Callback
+</span><a href="#local-6989586621679157856"><span class="hs-identifier hs-var">qcProgressCallback</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall a. ((a -&gt; IO ()) -&gt; IO ()) -&gt; (a -&gt; Property) -&gt; Property
+</span><a href="Test.Hspec.Core.QuickCheckUtil.html#aroundProperty"><span class="hs-identifier hs-var">aroundProperty</span></a></span><span> </span><span class="annot"><span class="annottext">ActionWith (Arg (a -&gt; Property)) -&gt; IO ()
+</span><a href="#local-6989586621679157862"><span class="hs-identifier hs-var">action</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; Property
+</span><a href="#local-6989586621679157864"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-188"></span><span>    </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Result -&gt; Result
+</span><a href="Test.Hspec.Core.Example.html#fromQuickCheckResult"><span class="hs-identifier hs-var">fromQuickCheckResult</span></a></span><span> </span><span class="annot"><span class="annottext">Result
+</span><a href="#local-6989586621679157860"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-189"></span><span>    </span><span class="hs-keyword">where</span><span>
+</span><span id="line-190"></span><span>      </span><span id="local-6989586621679157856"><span class="annot"><span class="annottext">qcProgressCallback :: Callback
+</span><a href="#local-6989586621679157856"><span class="hs-identifier hs-var hs-var">qcProgressCallback</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CallbackKind -&gt; (State -&gt; Result -&gt; IO ()) -&gt; Callback
+</span><span class="hs-identifier hs-var">QCP.PostTest</span></span><span> </span><span class="annot"><span class="annottext">CallbackKind
+</span><span class="hs-identifier hs-var">QCP.NotCounterexample</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-191"></span><span>        </span><span class="hs-glyph">\</span><span id="local-6989586621679157851"><span class="annot"><span class="annottext">State
+</span><a href="#local-6989586621679157851"><span class="hs-identifier hs-var">st</span></a></span></span><span> </span><span class="annot"><span class="annottext">Result
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ProgressCallback
+</span><a href="#local-6989586621679157861"><span class="hs-identifier hs-var">progressCallback</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">State -&gt; Int
+</span><span class="hs-identifier hs-var">QC.numSuccessTests</span></span><span> </span><span class="annot"><span class="annottext">State
+</span><a href="#local-6989586621679157851"><span class="hs-identifier hs-var">st</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">State -&gt; Int
+</span><span class="hs-identifier hs-var">QC.maxSuccessTests</span></span><span> </span><span class="annot"><span class="annottext">State
+</span><a href="#local-6989586621679157851"><span class="hs-identifier hs-var">st</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-192"></span><span>
+</span><span id="line-193"></span><span class="annot"><a href="Test.Hspec.Core.Example.html#fromQuickCheckResult"><span class="hs-identifier hs-type">fromQuickCheckResult</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">QC.Result</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.html#Result"><span class="hs-identifier hs-type">Result</span></a></span><span>
+</span><span id="line-194"></span><span id="fromQuickCheckResult"><span class="annot"><span class="annottext">fromQuickCheckResult :: Result -&gt; Result
+</span><a href="Test.Hspec.Core.Example.html#fromQuickCheckResult"><span class="hs-identifier hs-var hs-var">fromQuickCheckResult</span></a></span></span><span> </span><span id="local-6989586621679157850"><span class="annot"><span class="annottext">Result
+</span><a href="#local-6989586621679157850"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Result -&gt; QuickCheckResult
+</span><a href="Test.Hspec.Core.QuickCheckUtil.html#parseQuickCheckResult"><span class="hs-identifier hs-var">parseQuickCheckResult</span></a></span><span> </span><span class="annot"><span class="annottext">Result
+</span><a href="#local-6989586621679157850"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-195"></span><span>  </span><span class="annot"><a href="Test.Hspec.Core.QuickCheckUtil.html#QuickCheckResult"><span class="hs-identifier hs-type">QuickCheckResult</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679157847"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679157847"><span class="hs-identifier hs-var">info</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.Hspec.Core.QuickCheckUtil.html#QuickCheckOtherFailure"><span class="hs-identifier hs-type">QuickCheckOtherFailure</span></a></span><span> </span><span id="local-6989586621679157845"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679157845"><span class="hs-identifier hs-var">err</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; ResultStatus -&gt; Result
+</span><a href="Test.Hspec.Core.Example.html#Result"><span class="hs-identifier hs-var">Result</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679157847"><span class="hs-identifier hs-var">info</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Maybe Location -&gt; FailureReason -&gt; ResultStatus
+</span><a href="Test.Hspec.Core.Example.html#Failure"><span class="hs-identifier hs-var">Failure</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; FailureReason
+</span><a href="Test.Hspec.Core.Example.html#Reason"><span class="hs-identifier hs-var">Reason</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679157845"><span class="hs-identifier hs-var">err</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-196"></span><span>  </span><span class="annot"><a href="Test.Hspec.Core.QuickCheckUtil.html#QuickCheckResult"><span class="hs-identifier hs-type">QuickCheckResult</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679157844"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679157844"><span class="hs-identifier hs-var">info</span></a></span></span><span> </span><span class="annot"><span class="annottext">Status
+</span><a href="Test.Hspec.Core.QuickCheckUtil.html#QuickCheckSuccess"><span class="hs-identifier hs-var">QuickCheckSuccess</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; ResultStatus -&gt; Result
+</span><a href="Test.Hspec.Core.Example.html#Result"><span class="hs-identifier hs-var">Result</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679157844"><span class="hs-identifier hs-var">info</span></a></span><span> </span><span class="annot"><span class="annottext">ResultStatus
+</span><a href="Test.Hspec.Core.Example.html#Success"><span class="hs-identifier hs-var">Success</span></a></span><span>
+</span><span id="line-197"></span><span>  </span><span class="annot"><a href="Test.Hspec.Core.QuickCheckUtil.html#QuickCheckResult"><span class="hs-identifier hs-type">QuickCheckResult</span></a></span><span> </span><span id="local-6989586621679157842"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679157842"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621679157841"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679157841"><span class="hs-identifier hs-var">info</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.Hspec.Core.QuickCheckUtil.html#QuickCheckFailure"><span class="hs-identifier hs-type">QuickCheckFailure</span></a></span><span> </span><span class="annot"><a href="Test.Hspec.Core.QuickCheckUtil.html#QCFailure"><span class="hs-identifier hs-type">QCFailure</span></a></span><span class="hs-special">{</span><span id="local-6989586621679157835"><span id="local-6989586621679157836"><span id="local-6989586621679157837"><span id="local-6989586621679157838"><span class="annot"><span class="annottext">Int
+String
+[String]
+Maybe SomeException
+quickCheckFailureCounterexample :: QuickCheckFailure -&gt; [String]
+quickCheckFailureReason :: QuickCheckFailure -&gt; String
+quickCheckFailureException :: QuickCheckFailure -&gt; Maybe SomeException
+quickCheckFailureNumShrinks :: QuickCheckFailure -&gt; Int
+quickCheckFailureCounterexample :: [String]
+quickCheckFailureReason :: String
+quickCheckFailureException :: Maybe SomeException
+quickCheckFailureNumShrinks :: Int
+</span><a href="Test.Hspec.Core.QuickCheckUtil.html#quickCheckFailureCounterexample"><span class="hs-glyph hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">..</span></a></span></span></span></span></span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Maybe SomeException
+</span><a href="#local-6989586621679157837"><span class="hs-identifier hs-var">quickCheckFailureException</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-198"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679157830"><span class="annot"><span class="annottext">SomeException
+</span><a href="#local-6989586621679157830"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679157829"><span class="annot"><span class="annottext">ResultStatus
+</span><a href="#local-6989586621679157829"><span class="hs-identifier hs-var">result</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall e. Exception e =&gt; SomeException -&gt; Maybe e
+</span><span class="hs-identifier hs-var">fromException</span></span><span> </span><span class="annot"><span class="annottext">SomeException
+</span><a href="#local-6989586621679157830"><span class="hs-identifier hs-var">e</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; ResultStatus -&gt; Result
+</span><a href="Test.Hspec.Core.Example.html#Result"><span class="hs-identifier hs-var">Result</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679157841"><span class="hs-identifier hs-var">info</span></a></span><span> </span><span class="annot"><span class="annottext">ResultStatus
+</span><a href="#local-6989586621679157829"><span class="hs-identifier hs-var">result</span></a></span><span>
+</span><span id="line-199"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679157828"><span class="annot"><span class="annottext">SomeException
+</span><a href="#local-6989586621679157828"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679157827"><span class="annot"><span class="annottext">HUnitFailure
+</span><a href="#local-6989586621679157827"><span class="hs-identifier hs-var">hunit</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall e. Exception e =&gt; SomeException -&gt; Maybe e
+</span><span class="hs-identifier hs-var">fromException</span></span><span> </span><span class="annot"><span class="annottext">SomeException
+</span><a href="#local-6989586621679157828"><span class="hs-identifier hs-var">e</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; ResultStatus -&gt; Result
+</span><a href="Test.Hspec.Core.Example.html#Result"><span class="hs-identifier hs-var">Result</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679157841"><span class="hs-identifier hs-var">info</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Maybe String -&gt; HUnitFailure -&gt; ResultStatus
+</span><a href="Test.Hspec.Core.Example.html#hunitFailureToResult"><span class="hs-identifier hs-var">hunitFailureToResult</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679157826"><span class="hs-identifier hs-var">hunitAssertion</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">HUnitFailure
+</span><a href="#local-6989586621679157827"><span class="hs-identifier hs-var">hunit</span></a></span><span>
+</span><span id="line-200"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679157825"><span class="annot"><span class="annottext">SomeException
+</span><a href="#local-6989586621679157825"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; Result
+</span><a href="#local-6989586621679157824"><span class="hs-identifier hs-var">failure</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SomeException -&gt; String
+</span><a href="#local-6989586621679157823"><span class="hs-identifier hs-var">uncaughtException</span></a></span><span> </span><span class="annot"><span class="annottext">SomeException
+</span><a href="#local-6989586621679157825"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-201"></span><span>    </span><span class="annot"><span class="annottext">Maybe SomeException
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; Result
+</span><a href="#local-6989586621679157824"><span class="hs-identifier hs-var">failure</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679157822"><span class="hs-identifier hs-var">falsifiable</span></a></span><span>
+</span><span id="line-202"></span><span>    </span><span class="hs-keyword">where</span><span>
+</span><span id="line-203"></span><span>      </span><span id="local-6989586621679157824"><span class="annot"><span class="annottext">failure :: String -&gt; Result
+</span><a href="#local-6989586621679157824"><span class="hs-identifier hs-var hs-var">failure</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; ResultStatus -&gt; Result
+</span><a href="Test.Hspec.Core.Example.html#Result"><span class="hs-identifier hs-var">Result</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679157841"><span class="hs-identifier hs-var">info</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Maybe Location -&gt; FailureReason -&gt; ResultStatus
+</span><a href="Test.Hspec.Core.Example.html#Failure"><span class="hs-identifier hs-var">Failure</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; FailureReason
+</span><a href="Test.Hspec.Core.Example.html#Reason"><span class="hs-identifier hs-var">Reason</span></a></span><span>
+</span><span id="line-204"></span><span>
+</span><span id="line-205"></span><span>      </span><span id="local-6989586621679157821"><span class="annot"><span class="annottext">numbers :: String
+</span><a href="#local-6989586621679157821"><span class="hs-identifier hs-var hs-var">numbers</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; String
+</span><a href="Test.Hspec.Core.QuickCheckUtil.html#formatNumbers"><span class="hs-identifier hs-var">formatNumbers</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679157842"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679157838"><span class="hs-identifier hs-var">quickCheckFailureNumShrinks</span></a></span><span>
+</span><span id="line-206"></span><span>
+</span><span id="line-207"></span><span>      </span><span class="annot"><a href="#local-6989586621679157826"><span class="hs-identifier hs-type">hunitAssertion</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-208"></span><span>      </span><span id="local-6989586621679157826"><span class="annot"><span class="annottext">hunitAssertion :: String
+</span><a href="#local-6989586621679157826"><span class="hs-identifier hs-var hs-var">hunitAssertion</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [[a]] -&gt; [a]
+</span><span class="hs-identifier hs-var">intercalate</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;\n&quot;</span></span><span> </span><span class="hs-special">[</span><span>
+</span><span id="line-209"></span><span>          </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Falsifiable &quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679157821"><span class="hs-identifier hs-var">numbers</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;:&quot;</span></span><span>
+</span><span id="line-210"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ShowS
+</span><a href="Test.Hspec.Core.Example.html#indent"><span class="hs-identifier hs-var">indent</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[String] -&gt; String
+</span><span class="hs-identifier hs-var">unlines</span></span><span> </span><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621679157835"><span class="hs-identifier hs-var">quickCheckFailureCounterexample</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-211"></span><span>        </span><span class="hs-special">]</span><span>
+</span><span id="line-212"></span><span>
+</span><span id="line-213"></span><span>      </span><span id="local-6989586621679157823"><span class="annot"><span class="annottext">uncaughtException :: SomeException -&gt; String
+</span><a href="#local-6989586621679157823"><span class="hs-identifier hs-var hs-var">uncaughtException</span></a></span></span><span> </span><span id="local-6989586621679157816"><span class="annot"><span class="annottext">SomeException
+</span><a href="#local-6989586621679157816"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [[a]] -&gt; [a]
+</span><span class="hs-identifier hs-var">intercalate</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;\n&quot;</span></span><span> </span><span class="hs-special">[</span><span>
+</span><span id="line-214"></span><span>          </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;uncaught exception: &quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">SomeException -&gt; String
+</span><a href="Test.Hspec.Core.Util.html#formatException"><span class="hs-identifier hs-var">formatException</span></a></span><span> </span><span class="annot"><span class="annottext">SomeException
+</span><a href="#local-6989586621679157816"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-215"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679157821"><span class="hs-identifier hs-var">numbers</span></a></span><span>
+</span><span id="line-216"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ShowS
+</span><a href="Test.Hspec.Core.Example.html#indent"><span class="hs-identifier hs-var">indent</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[String] -&gt; String
+</span><span class="hs-identifier hs-var">unlines</span></span><span> </span><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621679157835"><span class="hs-identifier hs-var">quickCheckFailureCounterexample</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-217"></span><span>        </span><span class="hs-special">]</span><span>
+</span><span id="line-218"></span><span>
+</span><span id="line-219"></span><span>      </span><span id="local-6989586621679157822"><span class="annot"><span class="annottext">falsifiable :: String
+</span><a href="#local-6989586621679157822"><span class="hs-identifier hs-var hs-var">falsifiable</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [[a]] -&gt; [a]
+</span><span class="hs-identifier hs-var">intercalate</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;\n&quot;</span></span><span> </span><span class="hs-special">[</span><span>
+</span><span id="line-220"></span><span>          </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679157836"><span class="hs-identifier hs-var">quickCheckFailureReason</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot; &quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679157821"><span class="hs-identifier hs-var">numbers</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;:&quot;</span></span><span>
+</span><span id="line-221"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ShowS
+</span><a href="Test.Hspec.Core.Example.html#indent"><span class="hs-identifier hs-var">indent</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[String] -&gt; String
+</span><span class="hs-identifier hs-var">unlines</span></span><span> </span><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621679157835"><span class="hs-identifier hs-var">quickCheckFailureCounterexample</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-222"></span><span>        </span><span class="hs-special">]</span><span>
+</span><span id="line-223"></span><span>
+</span><span id="line-224"></span><span class="annot"><a href="Test.Hspec.Core.Example.html#indent"><span class="hs-identifier hs-type">indent</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-225"></span><span id="indent"><span class="annot"><span class="annottext">indent :: ShowS
+</span><a href="Test.Hspec.Core.Example.html#indent"><span class="hs-identifier hs-var hs-var">indent</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [[a]] -&gt; [a]
+</span><span class="hs-identifier hs-var">intercalate</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;\n&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;  &quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; [String]
+</span><span class="hs-identifier hs-var">lines</span></span><span>
+</span><span id="line-226"></span></pre></body></html>

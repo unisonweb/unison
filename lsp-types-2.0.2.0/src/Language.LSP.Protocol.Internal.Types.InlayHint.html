@@ -1,0 +1,260 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- THIS IS A GENERATED FILE, DO NOT EDIT</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-imports #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-matches #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-deprecations #-}</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.InlayHint</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Hashable</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html"><span class="hs-identifier">Language.LSP.Protocol.Utils.Misc</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prettyprinter</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Aeson.html"><span class="hs-identifier">Data.Row.Aeson</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Hashable.html"><span class="hs-identifier">Data.Row.Hashable</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Hashable</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.InlayHintKind.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.InlayHintKind</span></a></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.InlayHintLabelPart.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.InlayHintLabelPart</span></a></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.MarkupContent.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.MarkupContent</span></a></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.Position.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.Position</span></a></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.TextEdit.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.TextEdit</span></a></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html"><span class="hs-identifier">Language.LSP.Protocol.Types.Common</span></a></span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span class="hs-comment">{-|
+Inlay hint information.
+
+@since 3.17.0
+-}</span><span>
+</span><span id="line-30"></span><span id="local-6989586621682218090"><span id="local-6989586621682218091"></span></span><span class="hs-keyword">data</span><span> </span><span id="InlayHint"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.InlayHint.html#InlayHint"><span class="hs-identifier hs-var">InlayHint</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="InlayHint"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.InlayHint.html#InlayHint"><span class="hs-identifier hs-var">InlayHint</span></a></span></span><span> </span><span>
+</span><span id="line-31"></span><span>  </span><span class="hs-special">{</span><span> </span><span class="hs-comment">{-|
+  The position of this hint.
+  -}</span><span>
+</span><span id="line-34"></span><span>  </span><span id="%24sel%3A_position%3AInlayHint"><span class="annot"><span class="annottext">InlayHint -&gt; Position
+</span><a href="Language.LSP.Protocol.Internal.Types.InlayHint.html#%24sel%3A_position%3AInlayHint"><span class="hs-identifier hs-var hs-var">_position</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.Position.html#Position"><span class="hs-identifier hs-type">Language.LSP.Protocol.Internal.Types.Position.Position</span></a></span><span>
+</span><span id="line-35"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-comment">{-|
+  The label of this hint. A human readable string or an array of
+  InlayHintLabelPart label parts.
+
+  *Note* that neither the string nor the label part can be empty.
+  -}</span><span>
+</span><span id="line-41"></span><span>  </span><span id="%24sel%3A_label%3AInlayHint"><span class="annot"><span class="annottext">InlayHint -&gt; Text |? [InlayHintLabelPart]
+</span><a href="Language.LSP.Protocol.Internal.Types.InlayHint.html#%24sel%3A_label%3AInlayHint"><span class="hs-identifier hs-var hs-var">_label</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Data.Text.Text</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#%7C%3F"><span class="hs-operator hs-type">Language.LSP.Protocol.Types.Common.|?</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.InlayHintLabelPart.html#InlayHintLabelPart"><span class="hs-identifier hs-type">Language.LSP.Protocol.Internal.Types.InlayHintLabelPart.InlayHintLabelPart</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-comment">{-|
+  The kind of this hint. Can be omitted in which case the client
+  should fall back to a reasonable default.
+  -}</span><span>
+</span><span id="line-46"></span><span>  </span><span id="%24sel%3A_kind%3AInlayHint"><span class="annot"><span class="annottext">InlayHint -&gt; Maybe InlayHintKind
+</span><a href="Language.LSP.Protocol.Internal.Types.InlayHint.html#%24sel%3A_kind%3AInlayHint"><span class="hs-identifier hs-var hs-var">_kind</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.InlayHintKind.html#InlayHintKind"><span class="hs-identifier hs-type">Language.LSP.Protocol.Internal.Types.InlayHintKind.InlayHintKind</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-47"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-comment">{-|
+  Optional text edits that are performed when accepting this inlay hint.
+
+  *Note* that edits are expected to change the document so that the inlay
+  hint (or its nearest variant) is now part of the document and the inlay
+  hint itself is now obsolete.
+  -}</span><span>
+</span><span id="line-54"></span><span>  </span><span id="%24sel%3A_textEdits%3AInlayHint"><span class="annot"><span class="annottext">InlayHint -&gt; Maybe [TextEdit]
+</span><a href="Language.LSP.Protocol.Internal.Types.InlayHint.html#%24sel%3A_textEdits%3AInlayHint"><span class="hs-identifier hs-var hs-var">_textEdits</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.TextEdit.html#TextEdit"><span class="hs-identifier hs-type">Language.LSP.Protocol.Internal.Types.TextEdit.TextEdit</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-55"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-comment">{-|
+  The tooltip text when you hover over this item.
+  -}</span><span>
+</span><span id="line-58"></span><span>  </span><span id="%24sel%3A_tooltip%3AInlayHint"><span class="annot"><span class="annottext">InlayHint -&gt; Maybe (Text |? MarkupContent)
+</span><a href="Language.LSP.Protocol.Internal.Types.InlayHint.html#%24sel%3A_tooltip%3AInlayHint"><span class="hs-identifier hs-var hs-var">_tooltip</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Data.Text.Text</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#%7C%3F"><span class="hs-operator hs-type">Language.LSP.Protocol.Types.Common.|?</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.MarkupContent.html#MarkupContent"><span class="hs-identifier hs-type">Language.LSP.Protocol.Internal.Types.MarkupContent.MarkupContent</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-59"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-comment">{-|
+  Render padding before the hint.
+
+  Note: Padding should use the editor's background color, not the
+  background color of the hint itself. That means padding can be used
+  to visually align/separate an inlay hint.
+  -}</span><span>
+</span><span id="line-66"></span><span>  </span><span id="%24sel%3A_paddingLeft%3AInlayHint"><span class="annot"><span class="annottext">InlayHint -&gt; Maybe Bool
+</span><a href="Language.LSP.Protocol.Internal.Types.InlayHint.html#%24sel%3A_paddingLeft%3AInlayHint"><span class="hs-identifier hs-var hs-var">_paddingLeft</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span>
+</span><span id="line-67"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-comment">{-|
+  Render padding after the hint.
+
+  Note: Padding should use the editor's background color, not the
+  background color of the hint itself. That means padding can be used
+  to visually align/separate an inlay hint.
+  -}</span><span>
+</span><span id="line-74"></span><span>  </span><span id="%24sel%3A_paddingRight%3AInlayHint"><span class="annot"><span class="annottext">InlayHint -&gt; Maybe Bool
+</span><a href="Language.LSP.Protocol.Internal.Types.InlayHint.html#%24sel%3A_paddingRight%3AInlayHint"><span class="hs-identifier hs-var hs-var">_paddingRight</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span>
+</span><span id="line-75"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-comment">{-|
+  A data entry field that is preserved on an inlay hint between
+  a `textDocument/inlayHint` and a `inlayHint/resolve` request.
+  -}</span><span>
+</span><span id="line-79"></span><span>  </span><span id="%24sel%3A_data_%3AInlayHint"><span class="annot"><span class="annottext">InlayHint -&gt; Maybe Value
+</span><a href="Language.LSP.Protocol.Internal.Types.InlayHint.html#%24sel%3A_data_%3AInlayHint"><span class="hs-identifier hs-var hs-var">_data_</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Data.Aeson.Value</span></span><span class="hs-special">)</span><span>
+</span><span id="line-80"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-81"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682218055"><span id="local-6989586621682218057"><span id="local-6989586621682218079"><span class="annot"><span class="annottext">Int -&gt; InlayHint -&gt; ShowS
+[InlayHint] -&gt; ShowS
+InlayHint -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [InlayHint] -&gt; ShowS
+$cshowList :: [InlayHint] -&gt; ShowS
+show :: InlayHint -&gt; String
+$cshow :: InlayHint -&gt; String
+showsPrec :: Int -&gt; InlayHint -&gt; ShowS
+$cshowsPrec :: Int -&gt; InlayHint -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682218021"><span id="local-6989586621682218041"><span class="annot"><span class="annottext">InlayHint -&gt; InlayHint -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: InlayHint -&gt; InlayHint -&gt; Bool
+$c/= :: InlayHint -&gt; InlayHint -&gt; Bool
+== :: InlayHint -&gt; InlayHint -&gt; Bool
+$c== :: InlayHint -&gt; InlayHint -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682217957"><span id="local-6989586621682217959"><span id="local-6989586621682217962"><span id="local-6989586621682217965"><span id="local-6989586621682217968"><span id="local-6989586621682217985"><span id="local-6989586621682218005"><span class="annot"><span class="annottext">Eq InlayHint
+InlayHint -&gt; InlayHint -&gt; Bool
+InlayHint -&gt; InlayHint -&gt; Ordering
+InlayHint -&gt; InlayHint -&gt; InlayHint
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: InlayHint -&gt; InlayHint -&gt; InlayHint
+$cmin :: InlayHint -&gt; InlayHint -&gt; InlayHint
+max :: InlayHint -&gt; InlayHint -&gt; InlayHint
+$cmax :: InlayHint -&gt; InlayHint -&gt; InlayHint
+&gt;= :: InlayHint -&gt; InlayHint -&gt; Bool
+$c&gt;= :: InlayHint -&gt; InlayHint -&gt; Bool
+&gt; :: InlayHint -&gt; InlayHint -&gt; Bool
+$c&gt; :: InlayHint -&gt; InlayHint -&gt; Bool
+&lt;= :: InlayHint -&gt; InlayHint -&gt; Bool
+$c&lt;= :: InlayHint -&gt; InlayHint -&gt; Bool
+&lt; :: InlayHint -&gt; InlayHint -&gt; Bool
+$c&lt; :: InlayHint -&gt; InlayHint -&gt; Bool
+compare :: InlayHint -&gt; InlayHint -&gt; Ordering
+$ccompare :: InlayHint -&gt; InlayHint -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall x. Rep InlayHint x -&gt; InlayHint
+forall x. InlayHint -&gt; Rep InlayHint x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cto :: forall x. Rep InlayHint x -&gt; InlayHint
+$cfrom :: forall x. InlayHint -&gt; Rep InlayHint x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-82"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">anyclass</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682217937"><span class="annot"><span class="annottext">InlayHint -&gt; ()
+forall a. (a -&gt; ()) -&gt; NFData a
+rnf :: InlayHint -&gt; ()
+$crnf :: InlayHint -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682217930"><span id="local-6989586621682217932"><span class="annot"><span class="annottext">Eq InlayHint
+Int -&gt; InlayHint -&gt; Int
+InlayHint -&gt; Int
+forall a. Eq a -&gt; (Int -&gt; a -&gt; Int) -&gt; (a -&gt; Int) -&gt; Hashable a
+hash :: InlayHint -&gt; Int
+$chash :: InlayHint -&gt; Int
+hashWithSalt :: Int -&gt; InlayHint -&gt; Int
+$chashWithSalt :: Int -&gt; InlayHint -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Hashable</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-83"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621682217921"><span id="local-6989586621682217927"><span class="annot"><span class="annottext">forall ann. [InlayHint] -&gt; Doc ann
+forall ann. InlayHint -&gt; Doc ann
+forall a.
+(forall ann. a -&gt; Doc ann)
+-&gt; (forall ann. [a] -&gt; Doc ann) -&gt; Pretty a
+prettyList :: forall ann. [InlayHint] -&gt; Doc ann
+$cprettyList :: forall ann. [InlayHint] -&gt; Doc ann
+pretty :: forall ann. InlayHint -&gt; Doc ann
+$cpretty :: forall ann. InlayHint -&gt; Doc ann
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Pretty</span></span></span></span><span> </span><span class="hs-keyword">via</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html#ViaJSON"><span class="hs-identifier hs-type">ViaJSON</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.InlayHint.html#InlayHint"><span class="hs-identifier hs-type">InlayHint</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-84"></span><span>
+</span><span id="line-85"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682217909"><span id="local-6989586621682217911"><span id="local-6989586621682217913"><span class="annot"><span class="hs-identifier hs-type">Aeson.ToJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.InlayHint.html#InlayHint"><span class="hs-identifier hs-type">InlayHint</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-86"></span><span>  </span><span id="local-6989586621682217870"><span class="annot"><span class="annottext">toJSON :: InlayHint -&gt; Value
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">toJSON</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.InlayHint.html#InlayHint"><span class="hs-identifier hs-type">InlayHint</span></a></span><span> </span><span id="local-6989586621682217868"><span class="annot"><span class="annottext">Position
+</span><a href="#local-6989586621682217868"><span class="hs-identifier hs-var">arg0</span></a></span></span><span> </span><span id="local-6989586621682217867"><span class="annot"><span class="annottext">Text |? [InlayHintLabelPart]
+</span><a href="#local-6989586621682217867"><span class="hs-identifier hs-var">arg1</span></a></span></span><span> </span><span id="local-6989586621682217866"><span class="annot"><span class="annottext">Maybe InlayHintKind
+</span><a href="#local-6989586621682217866"><span class="hs-identifier hs-var">arg2</span></a></span></span><span> </span><span id="local-6989586621682217865"><span class="annot"><span class="annottext">Maybe [TextEdit]
+</span><a href="#local-6989586621682217865"><span class="hs-identifier hs-var">arg3</span></a></span></span><span> </span><span id="local-6989586621682217864"><span class="annot"><span class="annottext">Maybe (Text |? MarkupContent)
+</span><a href="#local-6989586621682217864"><span class="hs-identifier hs-var">arg4</span></a></span></span><span> </span><span id="local-6989586621682217863"><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682217863"><span class="hs-identifier hs-var">arg5</span></a></span></span><span> </span><span id="local-6989586621682217862"><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682217862"><span class="hs-identifier hs-var">arg6</span></a></span></span><span> </span><span id="local-6989586621682217861"><span class="annot"><span class="annottext">Maybe Value
+</span><a href="#local-6989586621682217861"><span class="hs-identifier hs-var">arg7</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">Aeson.object</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">concat</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>  </span><span class="hs-special">[</span><span class="hs-special">[</span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;position&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">Aeson..=</span></span><span> </span><span class="annot"><span class="annottext">Position
+</span><a href="#local-6989586621682217868"><span class="hs-identifier hs-var">arg0</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-87"></span><span>    </span><span class="hs-special">,</span><span class="hs-special">[</span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;label&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">Aeson..=</span></span><span> </span><span class="annot"><span class="annottext">Text |? [InlayHintLabelPart]
+</span><a href="#local-6989586621682217867"><span class="hs-identifier hs-var">arg1</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-88"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;kind&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe InlayHintKind
+</span><a href="#local-6989586621682217866"><span class="hs-identifier hs-var">arg2</span></a></span><span>
+</span><span id="line-89"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;textEdits&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe [TextEdit]
+</span><a href="#local-6989586621682217865"><span class="hs-identifier hs-var">arg3</span></a></span><span>
+</span><span id="line-90"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;tooltip&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe (Text |? MarkupContent)
+</span><a href="#local-6989586621682217864"><span class="hs-identifier hs-var">arg4</span></a></span><span>
+</span><span id="line-91"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;paddingLeft&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682217863"><span class="hs-identifier hs-var">arg5</span></a></span><span>
+</span><span id="line-92"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;paddingRight&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682217862"><span class="hs-identifier hs-var">arg6</span></a></span><span>
+</span><span id="line-93"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;data&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Value
+</span><a href="#local-6989586621682217861"><span class="hs-identifier hs-var">arg7</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-94"></span><span>
+</span><span id="line-95"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682217854"><span class="annot"><span class="hs-identifier hs-type">Aeson.FromJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.InlayHint.html#InlayHint"><span class="hs-identifier hs-type">InlayHint</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-96"></span><span>  </span><span id="local-6989586621682217807"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser InlayHint
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">Aeson.withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;InlayHint&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621682217804"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682217804"><span class="hs-identifier hs-var">arg</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Position
+-&gt; (Text |? [InlayHintLabelPart])
+-&gt; Maybe InlayHintKind
+-&gt; Maybe [TextEdit]
+-&gt; Maybe (Text |? MarkupContent)
+-&gt; Maybe Bool
+-&gt; Maybe Bool
+-&gt; Maybe Value
+-&gt; InlayHint
+</span><a href="Language.LSP.Protocol.Internal.Types.InlayHint.html#InlayHint"><span class="hs-identifier hs-var">InlayHint</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682217804"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">Aeson..:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;position&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682217804"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">Aeson..:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;label&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682217804"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">Aeson..:!</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;kind&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682217804"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">Aeson..:!</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;textEdits&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682217804"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">Aeson..:!</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;tooltip&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682217804"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">Aeson..:!</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;paddingLeft&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682217804"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">Aeson..:!</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;paddingRight&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682217804"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">Aeson..:!</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;data&quot;</span></span><span>
+</span><span id="line-97"></span></pre></body></html>

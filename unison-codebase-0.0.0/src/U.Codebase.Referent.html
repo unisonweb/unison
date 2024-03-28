@@ -1,0 +1,644 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DataKinds #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">U.Codebase.Referent</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Lens</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Prism</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Traversal</span></span><span class="hs-special">)</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Bifoldable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Bifoldable</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Bitraversable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Bitraversable</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Generics.Sum</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">_Ctor</span></span><span class="hs-special">)</span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="U.Codebase.Decl.html"><span class="hs-identifier">U.Codebase.Decl</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="U.Codebase.Decl.html#ConstructorId"><span class="hs-identifier">ConstructorId</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">U.Codebase.Reference</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Reference</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Reference'</span></span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">U.Codebase.Reference</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Reference</span></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Hash</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Hash</span></span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Prelude</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.ShortHash</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ShortHash</span></span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.ShortHash</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">SH</span></span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">data</span><span> </span><span id="ConstructorType"><span class="annot"><a href="U.Codebase.Referent.html#ConstructorType"><span class="hs-identifier hs-var">ConstructorType</span></a></span></span><span>
+</span><span id="line-18"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="DataConstructor"><span class="annot"><a href="U.Codebase.Referent.html#DataConstructor"><span class="hs-identifier hs-var">DataConstructor</span></a></span></span><span>
+</span><span id="line-19"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="EffectConstructor"><span class="annot"><a href="U.Codebase.Referent.html#EffectConstructor"><span class="hs-identifier hs-var">EffectConstructor</span></a></span></span><span>
+</span><span id="line-20"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679138859"><span id="local-6989586621679138861"><span id="local-6989586621679138863"><span class="annot"><span class="annottext">Int -&gt; ConstructorType -&gt; ShowS
+[ConstructorType] -&gt; ShowS
+ConstructorType -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [ConstructorType] -&gt; ShowS
+$cshowList :: [ConstructorType] -&gt; ShowS
+show :: ConstructorType -&gt; String
+$cshow :: ConstructorType -&gt; String
+showsPrec :: Int -&gt; ConstructorType -&gt; ShowS
+$cshowsPrec :: Int -&gt; ConstructorType -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679138854"><span id="local-6989586621679138856"><span class="annot"><span class="annottext">ConstructorType -&gt; ConstructorType -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: ConstructorType -&gt; ConstructorType -&gt; Bool
+$c/= :: ConstructorType -&gt; ConstructorType -&gt; Bool
+== :: ConstructorType -&gt; ConstructorType -&gt; Bool
+$c== :: ConstructorType -&gt; ConstructorType -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679138834"><span id="local-6989586621679138836"><span id="local-6989586621679138839"><span id="local-6989586621679138842"><span id="local-6989586621679138845"><span id="local-6989586621679138847"><span id="local-6989586621679138849"><span class="annot"><span class="annottext">Eq ConstructorType
+ConstructorType -&gt; ConstructorType -&gt; Bool
+ConstructorType -&gt; ConstructorType -&gt; Ordering
+ConstructorType -&gt; ConstructorType -&gt; ConstructorType
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: ConstructorType -&gt; ConstructorType -&gt; ConstructorType
+$cmin :: ConstructorType -&gt; ConstructorType -&gt; ConstructorType
+max :: ConstructorType -&gt; ConstructorType -&gt; ConstructorType
+$cmax :: ConstructorType -&gt; ConstructorType -&gt; ConstructorType
+&gt;= :: ConstructorType -&gt; ConstructorType -&gt; Bool
+$c&gt;= :: ConstructorType -&gt; ConstructorType -&gt; Bool
+&gt; :: ConstructorType -&gt; ConstructorType -&gt; Bool
+$c&gt; :: ConstructorType -&gt; ConstructorType -&gt; Bool
+&lt;= :: ConstructorType -&gt; ConstructorType -&gt; Bool
+$c&lt;= :: ConstructorType -&gt; ConstructorType -&gt; Bool
+&lt; :: ConstructorType -&gt; ConstructorType -&gt; Bool
+$c&lt; :: ConstructorType -&gt; ConstructorType -&gt; Bool
+compare :: ConstructorType -&gt; ConstructorType -&gt; Ordering
+$ccompare :: ConstructorType -&gt; ConstructorType -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">type</span><span> </span><span id="Referent"><span class="annot"><a href="U.Codebase.Referent.html#Referent"><span class="hs-identifier hs-var">Referent</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="U.Codebase.Referent.html#Referent%27"><span class="hs-identifier hs-type">Referent'</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Reference</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Reference</span></span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">type</span><span> </span><span id="ReferentH"><span class="annot"><a href="U.Codebase.Referent.html#ReferentH"><span class="hs-identifier hs-var">ReferentH</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="U.Codebase.Referent.html#Referent%27"><span class="hs-identifier hs-type">Referent'</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Reference'</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Hash</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Reference'</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Hash</span></span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span id="local-6989586621679138830"><span id="local-6989586621679138831"></span></span><span class="hs-keyword">data</span><span> </span><span id="Referent%27"><span class="annot"><a href="U.Codebase.Referent.html#Referent%27"><span class="hs-identifier hs-var">Referent'</span></a></span></span><span> </span><span id="local-6989586621679139233"><span class="annot"><a href="#local-6989586621679139233"><span class="hs-identifier hs-type">termRef</span></a></span></span><span> </span><span id="local-6989586621679139232"><span class="annot"><a href="#local-6989586621679139232"><span class="hs-identifier hs-type">typeRef</span></a></span></span><span>
+</span><span id="line-27"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="Ref"><span class="annot"><a href="U.Codebase.Referent.html#Ref"><span class="hs-identifier hs-var">Ref</span></a></span></span><span> </span><span class="annot"><a href="#local-6989586621679139233"><span class="hs-identifier hs-type">termRef</span></a></span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Con"><span class="annot"><a href="U.Codebase.Referent.html#Con"><span class="hs-identifier hs-var">Con</span></a></span></span><span> </span><span class="annot"><a href="#local-6989586621679139232"><span class="hs-identifier hs-type">typeRef</span></a></span><span> </span><span class="annot"><a href="U.Codebase.Decl.html#ConstructorId"><span class="hs-identifier hs-type">ConstructorId</span></a></span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679138820"><span id="local-6989586621679138826"><span class="annot"><span class="annottext">Referent' termRef typeRef -&gt; Referent' termRef typeRef -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+forall termRef typeRef.
+(Eq termRef, Eq typeRef) =&gt;
+Referent' termRef typeRef -&gt; Referent' termRef typeRef -&gt; Bool
+/= :: Referent' termRef typeRef -&gt; Referent' termRef typeRef -&gt; Bool
+$c/= :: forall termRef typeRef.
+(Eq termRef, Eq typeRef) =&gt;
+Referent' termRef typeRef -&gt; Referent' termRef typeRef -&gt; Bool
+== :: Referent' termRef typeRef -&gt; Referent' termRef typeRef -&gt; Bool
+$c== :: forall termRef typeRef.
+(Eq termRef, Eq typeRef) =&gt;
+Referent' termRef typeRef -&gt; Referent' termRef typeRef -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679138794"><span id="local-6989586621679138796"><span id="local-6989586621679138799"><span id="local-6989586621679138802"><span id="local-6989586621679138805"><span id="local-6989586621679138810"><span id="local-6989586621679138816"><span class="annot"><span class="annottext">Referent' termRef typeRef -&gt; Referent' termRef typeRef -&gt; Bool
+Referent' termRef typeRef -&gt; Referent' termRef typeRef -&gt; Ordering
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+forall {termRef} {typeRef}.
+(Ord termRef, Ord typeRef) =&gt;
+Eq (Referent' termRef typeRef)
+forall termRef typeRef.
+(Ord termRef, Ord typeRef) =&gt;
+Referent' termRef typeRef -&gt; Referent' termRef typeRef -&gt; Bool
+forall termRef typeRef.
+(Ord termRef, Ord typeRef) =&gt;
+Referent' termRef typeRef -&gt; Referent' termRef typeRef -&gt; Ordering
+forall termRef typeRef.
+(Ord termRef, Ord typeRef) =&gt;
+Referent' termRef typeRef
+-&gt; Referent' termRef typeRef -&gt; Referent' termRef typeRef
+min :: Referent' termRef typeRef
+-&gt; Referent' termRef typeRef -&gt; Referent' termRef typeRef
+$cmin :: forall termRef typeRef.
+(Ord termRef, Ord typeRef) =&gt;
+Referent' termRef typeRef
+-&gt; Referent' termRef typeRef -&gt; Referent' termRef typeRef
+max :: Referent' termRef typeRef
+-&gt; Referent' termRef typeRef -&gt; Referent' termRef typeRef
+$cmax :: forall termRef typeRef.
+(Ord termRef, Ord typeRef) =&gt;
+Referent' termRef typeRef
+-&gt; Referent' termRef typeRef -&gt; Referent' termRef typeRef
+&gt;= :: Referent' termRef typeRef -&gt; Referent' termRef typeRef -&gt; Bool
+$c&gt;= :: forall termRef typeRef.
+(Ord termRef, Ord typeRef) =&gt;
+Referent' termRef typeRef -&gt; Referent' termRef typeRef -&gt; Bool
+&gt; :: Referent' termRef typeRef -&gt; Referent' termRef typeRef -&gt; Bool
+$c&gt; :: forall termRef typeRef.
+(Ord termRef, Ord typeRef) =&gt;
+Referent' termRef typeRef -&gt; Referent' termRef typeRef -&gt; Bool
+&lt;= :: Referent' termRef typeRef -&gt; Referent' termRef typeRef -&gt; Bool
+$c&lt;= :: forall termRef typeRef.
+(Ord termRef, Ord typeRef) =&gt;
+Referent' termRef typeRef -&gt; Referent' termRef typeRef -&gt; Bool
+&lt; :: Referent' termRef typeRef -&gt; Referent' termRef typeRef -&gt; Bool
+$c&lt; :: forall termRef typeRef.
+(Ord termRef, Ord typeRef) =&gt;
+Referent' termRef typeRef -&gt; Referent' termRef typeRef -&gt; Bool
+compare :: Referent' termRef typeRef -&gt; Referent' termRef typeRef -&gt; Ordering
+$ccompare :: forall termRef typeRef.
+(Ord termRef, Ord typeRef) =&gt;
+Referent' termRef typeRef -&gt; Referent' termRef typeRef -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679138781"><span id="local-6989586621679138783"><span id="local-6989586621679138792"><span class="annot"><span class="annottext">Int -&gt; Referent' termRef typeRef -&gt; ShowS
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+forall termRef typeRef.
+(Show termRef, Show typeRef) =&gt;
+Int -&gt; Referent' termRef typeRef -&gt; ShowS
+forall termRef typeRef.
+(Show termRef, Show typeRef) =&gt;
+[Referent' termRef typeRef] -&gt; ShowS
+forall termRef typeRef.
+(Show termRef, Show typeRef) =&gt;
+Referent' termRef typeRef -&gt; String
+showList :: [Referent' termRef typeRef] -&gt; ShowS
+$cshowList :: forall termRef typeRef.
+(Show termRef, Show typeRef) =&gt;
+[Referent' termRef typeRef] -&gt; ShowS
+show :: Referent' termRef typeRef -&gt; String
+$cshow :: forall termRef typeRef.
+(Show termRef, Show typeRef) =&gt;
+Referent' termRef typeRef -&gt; String
+showsPrec :: Int -&gt; Referent' termRef typeRef -&gt; ShowS
+$cshowsPrec :: forall termRef typeRef.
+(Show termRef, Show typeRef) =&gt;
+Int -&gt; Referent' termRef typeRef -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+forall termRef typeRef x.
+Rep (Referent' termRef typeRef) x -&gt; Referent' termRef typeRef
+forall termRef typeRef x.
+Referent' termRef typeRef -&gt; Rep (Referent' termRef typeRef) x
+$cto :: forall termRef typeRef x.
+Rep (Referent' termRef typeRef) x -&gt; Referent' termRef typeRef
+$cfrom :: forall termRef typeRef x.
+Referent' termRef typeRef -&gt; Rep (Referent' termRef typeRef) x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679138773"><span id="local-6989586621679138775"><span class="annot"><span class="annottext">forall a b. a -&gt; Referent' termRef b -&gt; Referent' termRef a
+forall a b. (a -&gt; b) -&gt; Referent' termRef a -&gt; Referent' termRef b
+forall termRef a b. a -&gt; Referent' termRef b -&gt; Referent' termRef a
+forall termRef a b.
+(a -&gt; b) -&gt; Referent' termRef a -&gt; Referent' termRef b
+forall (f :: * -&gt; *).
+(forall a b. (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b. a -&gt; f b -&gt; f a) -&gt; Functor f
+&lt;$ :: forall a b. a -&gt; Referent' termRef b -&gt; Referent' termRef a
+$c&lt;$ :: forall termRef a b. a -&gt; Referent' termRef b -&gt; Referent' termRef a
+fmap :: forall a b. (a -&gt; b) -&gt; Referent' termRef a -&gt; Referent' termRef b
+$cfmap :: forall termRef a b.
+(a -&gt; b) -&gt; Referent' termRef a -&gt; Referent' termRef b
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Functor</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679138735"><span id="local-6989586621679138737"><span id="local-6989586621679138739"><span id="local-6989586621679138741"><span id="local-6989586621679138743"><span id="local-6989586621679138745"><span id="local-6989586621679138747"><span id="local-6989586621679138749"><span id="local-6989586621679138751"><span id="local-6989586621679138753"><span id="local-6989586621679138755"><span id="local-6989586621679138757"><span id="local-6989586621679138759"><span id="local-6989586621679138761"><span id="local-6989586621679138763"><span id="local-6989586621679138767"><span id="local-6989586621679138769"><span class="annot"><span class="annottext">forall a. Referent' termRef a -&gt; Bool
+forall termRef a. Eq a =&gt; a -&gt; Referent' termRef a -&gt; Bool
+forall termRef a. Num a =&gt; Referent' termRef a -&gt; a
+forall termRef a. Ord a =&gt; Referent' termRef a -&gt; a
+forall m a. Monoid m =&gt; (a -&gt; m) -&gt; Referent' termRef a -&gt; m
+forall termRef m. Monoid m =&gt; Referent' termRef m -&gt; m
+forall termRef a. Referent' termRef a -&gt; Bool
+forall termRef a. Referent' termRef a -&gt; Int
+forall termRef a. Referent' termRef a -&gt; [a]
+forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; Referent' termRef a -&gt; b
+forall termRef a. (a -&gt; a -&gt; a) -&gt; Referent' termRef a -&gt; a
+forall termRef m a.
+Monoid m =&gt;
+(a -&gt; m) -&gt; Referent' termRef a -&gt; m
+forall termRef b a. (b -&gt; a -&gt; b) -&gt; b -&gt; Referent' termRef a -&gt; b
+forall termRef a b. (a -&gt; b -&gt; b) -&gt; b -&gt; Referent' termRef a -&gt; b
+forall (t :: * -&gt; *).
+(forall m. Monoid m =&gt; t m -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; t a -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; t a -&gt; m)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; t a -&gt; a)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; t a -&gt; a)
+-&gt; (forall a. t a -&gt; [a])
+-&gt; (forall a. t a -&gt; Bool)
+-&gt; (forall a. t a -&gt; Int)
+-&gt; (forall a. Eq a =&gt; a -&gt; t a -&gt; Bool)
+-&gt; (forall a. Ord a =&gt; t a -&gt; a)
+-&gt; (forall a. Ord a =&gt; t a -&gt; a)
+-&gt; (forall a. Num a =&gt; t a -&gt; a)
+-&gt; (forall a. Num a =&gt; t a -&gt; a)
+-&gt; Foldable t
+product :: forall a. Num a =&gt; Referent' termRef a -&gt; a
+$cproduct :: forall termRef a. Num a =&gt; Referent' termRef a -&gt; a
+sum :: forall a. Num a =&gt; Referent' termRef a -&gt; a
+$csum :: forall termRef a. Num a =&gt; Referent' termRef a -&gt; a
+minimum :: forall a. Ord a =&gt; Referent' termRef a -&gt; a
+$cminimum :: forall termRef a. Ord a =&gt; Referent' termRef a -&gt; a
+maximum :: forall a. Ord a =&gt; Referent' termRef a -&gt; a
+$cmaximum :: forall termRef a. Ord a =&gt; Referent' termRef a -&gt; a
+elem :: forall a. Eq a =&gt; a -&gt; Referent' termRef a -&gt; Bool
+$celem :: forall termRef a. Eq a =&gt; a -&gt; Referent' termRef a -&gt; Bool
+length :: forall a. Referent' termRef a -&gt; Int
+$clength :: forall termRef a. Referent' termRef a -&gt; Int
+null :: forall a. Referent' termRef a -&gt; Bool
+$cnull :: forall termRef a. Referent' termRef a -&gt; Bool
+toList :: forall a. Referent' termRef a -&gt; [a]
+$ctoList :: forall termRef a. Referent' termRef a -&gt; [a]
+foldl1 :: forall a. (a -&gt; a -&gt; a) -&gt; Referent' termRef a -&gt; a
+$cfoldl1 :: forall termRef a. (a -&gt; a -&gt; a) -&gt; Referent' termRef a -&gt; a
+foldr1 :: forall a. (a -&gt; a -&gt; a) -&gt; Referent' termRef a -&gt; a
+$cfoldr1 :: forall termRef a. (a -&gt; a -&gt; a) -&gt; Referent' termRef a -&gt; a
+foldl' :: forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; Referent' termRef a -&gt; b
+$cfoldl' :: forall termRef b a. (b -&gt; a -&gt; b) -&gt; b -&gt; Referent' termRef a -&gt; b
+foldl :: forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; Referent' termRef a -&gt; b
+$cfoldl :: forall termRef b a. (b -&gt; a -&gt; b) -&gt; b -&gt; Referent' termRef a -&gt; b
+foldr' :: forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; Referent' termRef a -&gt; b
+$cfoldr' :: forall termRef a b. (a -&gt; b -&gt; b) -&gt; b -&gt; Referent' termRef a -&gt; b
+foldr :: forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; Referent' termRef a -&gt; b
+$cfoldr :: forall termRef a b. (a -&gt; b -&gt; b) -&gt; b -&gt; Referent' termRef a -&gt; b
+foldMap' :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; Referent' termRef a -&gt; m
+$cfoldMap' :: forall termRef m a.
+Monoid m =&gt;
+(a -&gt; m) -&gt; Referent' termRef a -&gt; m
+foldMap :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; Referent' termRef a -&gt; m
+$cfoldMap :: forall termRef m a.
+Monoid m =&gt;
+(a -&gt; m) -&gt; Referent' termRef a -&gt; m
+fold :: forall m. Monoid m =&gt; Referent' termRef m -&gt; m
+$cfold :: forall termRef m. Monoid m =&gt; Referent' termRef m -&gt; m
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Foldable</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679138718"><span id="local-6989586621679138720"><span id="local-6989586621679138722"><span id="local-6989586621679138728"><span class="annot"><span class="annottext">forall termRef. Functor (Referent' termRef)
+forall termRef. Foldable (Referent' termRef)
+forall termRef (m :: * -&gt; *) a.
+Monad m =&gt;
+Referent' termRef (m a) -&gt; m (Referent' termRef a)
+forall termRef (f :: * -&gt; *) a.
+Applicative f =&gt;
+Referent' termRef (f a) -&gt; f (Referent' termRef a)
+forall termRef (m :: * -&gt; *) a b.
+Monad m =&gt;
+(a -&gt; m b) -&gt; Referent' termRef a -&gt; m (Referent' termRef b)
+forall termRef (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; Referent' termRef a -&gt; f (Referent' termRef b)
+forall (t :: * -&gt; *).
+Functor t
+-&gt; Foldable t
+-&gt; (forall (f :: * -&gt; *) a b.
+    Applicative f =&gt;
+    (a -&gt; f b) -&gt; t a -&gt; f (t b))
+-&gt; (forall (f :: * -&gt; *) a. Applicative f =&gt; t (f a) -&gt; f (t a))
+-&gt; (forall (m :: * -&gt; *) a b.
+    Monad m =&gt;
+    (a -&gt; m b) -&gt; t a -&gt; m (t b))
+-&gt; (forall (m :: * -&gt; *) a. Monad m =&gt; t (m a) -&gt; m (t a))
+-&gt; Traversable t
+forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; Referent' termRef a -&gt; f (Referent' termRef b)
+sequence :: forall (m :: * -&gt; *) a.
+Monad m =&gt;
+Referent' termRef (m a) -&gt; m (Referent' termRef a)
+$csequence :: forall termRef (m :: * -&gt; *) a.
+Monad m =&gt;
+Referent' termRef (m a) -&gt; m (Referent' termRef a)
+mapM :: forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+(a -&gt; m b) -&gt; Referent' termRef a -&gt; m (Referent' termRef b)
+$cmapM :: forall termRef (m :: * -&gt; *) a b.
+Monad m =&gt;
+(a -&gt; m b) -&gt; Referent' termRef a -&gt; m (Referent' termRef b)
+sequenceA :: forall (f :: * -&gt; *) a.
+Applicative f =&gt;
+Referent' termRef (f a) -&gt; f (Referent' termRef a)
+$csequenceA :: forall termRef (f :: * -&gt; *) a.
+Applicative f =&gt;
+Referent' termRef (f a) -&gt; f (Referent' termRef a)
+traverse :: forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; Referent' termRef a -&gt; f (Referent' termRef b)
+$ctraverse :: forall termRef (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; Referent' termRef a -&gt; f (Referent' termRef b)
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Traversable</span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span id="local-6989586621679139189"><span id="local-6989586621679139190"><span class="annot"><a href="U.Codebase.Referent.html#refs_"><span class="hs-identifier hs-type">refs_</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Traversal</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="U.Codebase.Referent.html#Referent%27"><span class="hs-identifier hs-type">Referent'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139190"><span class="hs-identifier hs-type">ref</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139190"><span class="hs-identifier hs-type">ref</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="U.Codebase.Referent.html#Referent%27"><span class="hs-identifier hs-type">Referent'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139189"><span class="hs-identifier hs-type">ref'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139189"><span class="hs-identifier hs-type">ref'</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679139190"><span class="hs-identifier hs-type">ref</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139189"><span class="hs-identifier hs-type">ref'</span></a></span></span></span><span>
+</span><span id="line-32"></span><span id="refs_"><span class="annot"><span class="annottext">refs_ :: forall ref ref'.
+Traversal (Referent' ref ref) (Referent' ref' ref') ref ref'
+</span><a href="U.Codebase.Referent.html#refs_"><span class="hs-identifier hs-var hs-var">refs_</span></a></span></span><span> </span><span id="local-6989586621679138710"><span class="annot"><span class="annottext">ref -&gt; f ref'
+</span><a href="#local-6989586621679138710"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679138709"><span class="annot"><span class="annottext">Referent' ref ref
+</span><a href="#local-6989586621679138709"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; * -&gt; *) (f :: * -&gt; *) a c b d.
+(Bitraversable t, Applicative f) =&gt;
+(a -&gt; f c) -&gt; (b -&gt; f d) -&gt; t a b -&gt; f (t c d)
+</span><span class="hs-identifier hs-var">bitraverse</span></span><span> </span><span class="annot"><span class="annottext">ref -&gt; f ref'
+</span><a href="#local-6989586621679138710"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">ref -&gt; f ref'
+</span><a href="#local-6989586621679138710"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">Referent' ref ref
+</span><a href="#local-6989586621679138709"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span id="local-6989586621679139175"><span id="local-6989586621679139176"><span id="local-6989586621679139177"><span class="annot"><a href="U.Codebase.Referent.html#typeRef_"><span class="hs-identifier hs-type">typeRef_</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Traversal</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="U.Codebase.Referent.html#Referent%27"><span class="hs-identifier hs-type">Referent'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139177"><span class="hs-identifier hs-type">termRef</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139176"><span class="hs-identifier hs-type">typeRef</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="U.Codebase.Referent.html#Referent%27"><span class="hs-identifier hs-type">Referent'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139177"><span class="hs-identifier hs-type">termRef</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139175"><span class="hs-identifier hs-type">typeRef'</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679139176"><span class="hs-identifier hs-type">typeRef</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139175"><span class="hs-identifier hs-type">typeRef'</span></a></span></span></span></span><span>
+</span><span id="line-35"></span><span id="typeRef_"><span class="annot"><span class="annottext">typeRef_ :: forall termRef typeRef typeRef'.
+Traversal
+  (Referent' termRef typeRef)
+  (Referent' termRef typeRef')
+  typeRef
+  typeRef'
+</span><a href="U.Codebase.Referent.html#typeRef_"><span class="hs-identifier hs-var hs-var">typeRef_</span></a></span></span><span> </span><span id="local-6989586621679138702"><span class="annot"><span class="annottext">typeRef -&gt; f typeRef'
+</span><a href="#local-6989586621679138702"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; * -&gt; *) (f :: * -&gt; *) a c b d.
+(Bitraversable t, Applicative f) =&gt;
+(a -&gt; f c) -&gt; (b -&gt; f d) -&gt; t a b -&gt; f (t c d)
+</span><span class="hs-identifier hs-var">bitraverse</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">typeRef -&gt; f typeRef'
+</span><a href="#local-6989586621679138702"><span class="hs-identifier hs-var">f</span></a></span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span id="local-6989586621679139168"><span id="local-6989586621679139169"><span id="local-6989586621679139170"><span class="annot"><a href="U.Codebase.Referent.html#termRef_"><span class="hs-identifier hs-type">termRef_</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Traversal</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="U.Codebase.Referent.html#Referent%27"><span class="hs-identifier hs-type">Referent'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139170"><span class="hs-identifier hs-type">termRef</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139169"><span class="hs-identifier hs-type">typeRef</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="U.Codebase.Referent.html#Referent%27"><span class="hs-identifier hs-type">Referent'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139168"><span class="hs-identifier hs-type">termRef'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139169"><span class="hs-identifier hs-type">typeRef</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679139170"><span class="hs-identifier hs-type">termRef</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139168"><span class="hs-identifier hs-type">termRef'</span></a></span></span></span></span><span>
+</span><span id="line-38"></span><span id="termRef_"><span class="annot"><span class="annottext">termRef_ :: forall termRef typeRef termRef'.
+Traversal
+  (Referent' termRef typeRef)
+  (Referent' termRef' typeRef)
+  termRef
+  termRef'
+</span><a href="U.Codebase.Referent.html#termRef_"><span class="hs-identifier hs-var hs-var">termRef_</span></a></span></span><span> </span><span id="local-6989586621679138696"><span class="annot"><span class="annottext">termRef -&gt; f termRef'
+</span><a href="#local-6989586621679138696"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; * -&gt; *) (f :: * -&gt; *) a c b d.
+(Bitraversable t, Applicative f) =&gt;
+(a -&gt; f c) -&gt; (b -&gt; f d) -&gt; t a b -&gt; f (t c d)
+</span><span class="hs-identifier hs-var">bitraverse</span></span><span> </span><span class="annot"><span class="annottext">termRef -&gt; f termRef'
+</span><a href="#local-6989586621679138696"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span id="local-6989586621679139162"><span id="local-6989586621679139163"><span id="local-6989586621679139164"><span class="annot"><a href="U.Codebase.Referent.html#_Ref"><span class="hs-identifier hs-type">_Ref</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Prism</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="U.Codebase.Referent.html#Referent%27"><span class="hs-identifier hs-type">Referent'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139164"><span class="hs-identifier hs-type">tmr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139163"><span class="hs-identifier hs-type">tyr</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="U.Codebase.Referent.html#Referent%27"><span class="hs-identifier hs-type">Referent'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139162"><span class="hs-identifier hs-type">tmr'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139163"><span class="hs-identifier hs-type">tyr</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679139164"><span class="hs-identifier hs-type">tmr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139162"><span class="hs-identifier hs-type">tmr'</span></a></span></span></span></span><span>
+</span><span id="line-41"></span><span id="_Ref"><span class="annot"><span class="annottext">_Ref :: forall tmr tyr tmr'.
+Prism (Referent' tmr tyr) (Referent' tmr' tyr) tmr tmr'
+</span><a href="U.Codebase.Referent.html#_Ref"><span class="hs-identifier hs-var hs-var">_Ref</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (ctor :: Symbol) s t a b.
+AsConstructor ctor s t a b =&gt;
+Prism s t a b
+</span><span class="hs-identifier hs-var">_Ctor</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-string">&quot;Ref&quot;</span></span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span id="local-6989586621679139072"><span id="local-6989586621679139073"><span id="local-6989586621679139074"><span class="annot"><a href="U.Codebase.Referent.html#_Con"><span class="hs-identifier hs-type">_Con</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Prism</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="U.Codebase.Referent.html#Referent%27"><span class="hs-identifier hs-type">Referent'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139074"><span class="hs-identifier hs-type">tmr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139073"><span class="hs-identifier hs-type">tyr</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="U.Codebase.Referent.html#Referent%27"><span class="hs-identifier hs-type">Referent'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139074"><span class="hs-identifier hs-type">tmr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139072"><span class="hs-identifier hs-type">tyr'</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679139073"><span class="hs-identifier hs-type">tyr</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="U.Codebase.Decl.html#ConstructorId"><span class="hs-identifier hs-type">ConstructorId</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679139072"><span class="hs-identifier hs-type">tyr'</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="U.Codebase.Decl.html#ConstructorId"><span class="hs-identifier hs-type">ConstructorId</span></a></span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-44"></span><span id="_Con"><span class="annot"><span class="annottext">_Con :: forall tmr tyr tyr'.
+Prism
+  (Referent' tmr tyr)
+  (Referent' tmr tyr')
+  (tyr, ConstructorId)
+  (tyr', ConstructorId)
+</span><a href="U.Codebase.Referent.html#_Con"><span class="hs-identifier hs-var hs-var">_Con</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (ctor :: Symbol) s t a b.
+AsConstructor ctor s t a b =&gt;
+Prism s t a b
+</span><span class="hs-identifier hs-var">_Ctor</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-string">&quot;Con&quot;</span></span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span class="annot"><a href="U.Codebase.Referent.html#toReference"><span class="hs-identifier hs-type">toReference</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="U.Codebase.Referent.html#Referent"><span class="hs-identifier hs-type">Referent</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Reference</span></span><span>
+</span><span id="line-47"></span><span id="toReference"><span class="annot"><span class="annottext">toReference :: Referent -&gt; Reference
+</span><a href="U.Codebase.Referent.html#toReference"><span class="hs-identifier hs-var hs-var">toReference</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-48"></span><span>  </span><span class="annot"><a href="U.Codebase.Referent.html#Ref"><span class="hs-identifier hs-type">Ref</span></a></span><span> </span><span id="local-6989586621679138538"><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621679138538"><span class="hs-identifier hs-var">termRef</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621679138538"><span class="hs-identifier hs-var">termRef</span></a></span><span>
+</span><span id="line-49"></span><span>  </span><span class="annot"><a href="U.Codebase.Referent.html#Con"><span class="hs-identifier hs-type">Con</span></a></span><span> </span><span id="local-6989586621679138537"><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621679138537"><span class="hs-identifier hs-var">typeRef</span></a></span></span><span> </span><span class="annot"><span class="annottext">ConstructorId
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621679138537"><span class="hs-identifier hs-var">typeRef</span></a></span><span>
+</span><span id="line-50"></span><span>
+</span><span id="line-51"></span><span id="local-6989586621679139031"><span id="local-6989586621679139032"><span class="annot"><a href="U.Codebase.Referent.html#toTermReference"><span class="hs-identifier hs-type">toTermReference</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="U.Codebase.Referent.html#Referent%27"><span class="hs-identifier hs-type">Referent'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139032"><span class="hs-identifier hs-type">termRef</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139031"><span class="hs-identifier hs-type">typeRef</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679139032"><span class="hs-identifier hs-type">termRef</span></a></span></span></span><span>
+</span><span id="line-52"></span><span id="toTermReference"><span class="annot"><span class="annottext">toTermReference :: forall termRef typeRef. Referent' termRef typeRef -&gt; Maybe termRef
+</span><a href="U.Codebase.Referent.html#toTermReference"><span class="hs-identifier hs-var hs-var">toTermReference</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-53"></span><span>  </span><span class="annot"><a href="U.Codebase.Referent.html#Ref"><span class="hs-identifier hs-type">Ref</span></a></span><span> </span><span id="local-6989586621679138535"><span class="annot"><span class="annottext">termRef
+</span><a href="#local-6989586621679138535"><span class="hs-identifier hs-var">termRef</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">termRef
+</span><a href="#local-6989586621679138535"><span class="hs-identifier hs-var">termRef</span></a></span><span>
+</span><span id="line-54"></span><span>  </span><span class="annot"><a href="U.Codebase.Referent.html#Con"><span class="hs-identifier hs-type">Con</span></a></span><span> </span><span class="annot"><span class="annottext">typeRef
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">ConstructorId
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span class="hs-keyword">type</span><span> </span><span id="Id"><span class="annot"><a href="U.Codebase.Referent.html#Id"><span class="hs-identifier hs-var">Id</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="U.Codebase.Referent.html#Id%27"><span class="hs-identifier hs-type">Id'</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Hash</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Hash</span></span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span class="hs-keyword">data</span><span> </span><span id="Id%27"><span class="annot"><a href="U.Codebase.Referent.html#Id%27"><span class="hs-identifier hs-var">Id'</span></a></span></span><span> </span><span id="local-6989586621679139025"><span class="annot"><a href="#local-6989586621679139025"><span class="hs-identifier hs-type">hTm</span></a></span></span><span> </span><span id="local-6989586621679139024"><span class="annot"><a href="#local-6989586621679139024"><span class="hs-identifier hs-type">hTp</span></a></span></span><span>
+</span><span id="line-59"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="RefId"><span class="annot"><a href="U.Codebase.Referent.html#RefId"><span class="hs-identifier hs-var">RefId</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Reference.Id'</span></span><span> </span><span class="annot"><a href="#local-6989586621679139025"><span class="hs-identifier hs-type">hTm</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-60"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ConId"><span class="annot"><a href="U.Codebase.Referent.html#ConId"><span class="hs-identifier hs-var">ConId</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Reference.Id'</span></span><span> </span><span class="annot"><a href="#local-6989586621679139024"><span class="hs-identifier hs-type">hTp</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="U.Codebase.Decl.html#ConstructorId"><span class="hs-identifier hs-type">ConstructorId</span></a></span><span>
+</span><span id="line-61"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679138524"><span id="local-6989586621679138530"><span class="annot"><span class="annottext">Id' hTm hTp -&gt; Id' hTm hTp -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+forall hTm hTp.
+(Eq hTm, Eq hTp) =&gt;
+Id' hTm hTp -&gt; Id' hTm hTp -&gt; Bool
+/= :: Id' hTm hTp -&gt; Id' hTm hTp -&gt; Bool
+$c/= :: forall hTm hTp.
+(Eq hTm, Eq hTp) =&gt;
+Id' hTm hTp -&gt; Id' hTm hTp -&gt; Bool
+== :: Id' hTm hTp -&gt; Id' hTm hTp -&gt; Bool
+$c== :: forall hTm hTp.
+(Eq hTm, Eq hTp) =&gt;
+Id' hTm hTp -&gt; Id' hTm hTp -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679138498"><span id="local-6989586621679138500"><span id="local-6989586621679138503"><span id="local-6989586621679138506"><span id="local-6989586621679138509"><span id="local-6989586621679138514"><span id="local-6989586621679138520"><span class="annot"><span class="annottext">Id' hTm hTp -&gt; Id' hTm hTp -&gt; Bool
+Id' hTm hTp -&gt; Id' hTm hTp -&gt; Ordering
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+forall {hTm} {hTp}. (Ord hTm, Ord hTp) =&gt; Eq (Id' hTm hTp)
+forall hTm hTp.
+(Ord hTm, Ord hTp) =&gt;
+Id' hTm hTp -&gt; Id' hTm hTp -&gt; Bool
+forall hTm hTp.
+(Ord hTm, Ord hTp) =&gt;
+Id' hTm hTp -&gt; Id' hTm hTp -&gt; Ordering
+forall hTm hTp.
+(Ord hTm, Ord hTp) =&gt;
+Id' hTm hTp -&gt; Id' hTm hTp -&gt; Id' hTm hTp
+min :: Id' hTm hTp -&gt; Id' hTm hTp -&gt; Id' hTm hTp
+$cmin :: forall hTm hTp.
+(Ord hTm, Ord hTp) =&gt;
+Id' hTm hTp -&gt; Id' hTm hTp -&gt; Id' hTm hTp
+max :: Id' hTm hTp -&gt; Id' hTm hTp -&gt; Id' hTm hTp
+$cmax :: forall hTm hTp.
+(Ord hTm, Ord hTp) =&gt;
+Id' hTm hTp -&gt; Id' hTm hTp -&gt; Id' hTm hTp
+&gt;= :: Id' hTm hTp -&gt; Id' hTm hTp -&gt; Bool
+$c&gt;= :: forall hTm hTp.
+(Ord hTm, Ord hTp) =&gt;
+Id' hTm hTp -&gt; Id' hTm hTp -&gt; Bool
+&gt; :: Id' hTm hTp -&gt; Id' hTm hTp -&gt; Bool
+$c&gt; :: forall hTm hTp.
+(Ord hTm, Ord hTp) =&gt;
+Id' hTm hTp -&gt; Id' hTm hTp -&gt; Bool
+&lt;= :: Id' hTm hTp -&gt; Id' hTm hTp -&gt; Bool
+$c&lt;= :: forall hTm hTp.
+(Ord hTm, Ord hTp) =&gt;
+Id' hTm hTp -&gt; Id' hTm hTp -&gt; Bool
+&lt; :: Id' hTm hTp -&gt; Id' hTm hTp -&gt; Bool
+$c&lt; :: forall hTm hTp.
+(Ord hTm, Ord hTp) =&gt;
+Id' hTm hTp -&gt; Id' hTm hTp -&gt; Bool
+compare :: Id' hTm hTp -&gt; Id' hTm hTp -&gt; Ordering
+$ccompare :: forall hTm hTp.
+(Ord hTm, Ord hTp) =&gt;
+Id' hTm hTp -&gt; Id' hTm hTp -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679138486"><span id="local-6989586621679138488"><span id="local-6989586621679138496"><span class="annot"><span class="annottext">Int -&gt; Id' hTm hTp -&gt; ShowS
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+forall hTm hTp. (Show hTm, Show hTp) =&gt; Int -&gt; Id' hTm hTp -&gt; ShowS
+forall hTm hTp. (Show hTm, Show hTp) =&gt; [Id' hTm hTp] -&gt; ShowS
+forall hTm hTp. (Show hTm, Show hTp) =&gt; Id' hTm hTp -&gt; String
+showList :: [Id' hTm hTp] -&gt; ShowS
+$cshowList :: forall hTm hTp. (Show hTm, Show hTp) =&gt; [Id' hTm hTp] -&gt; ShowS
+show :: Id' hTm hTp -&gt; String
+$cshow :: forall hTm hTp. (Show hTm, Show hTp) =&gt; Id' hTm hTp -&gt; String
+showsPrec :: Int -&gt; Id' hTm hTp -&gt; ShowS
+$cshowsPrec :: forall hTm hTp. (Show hTm, Show hTp) =&gt; Int -&gt; Id' hTm hTp -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-62"></span><span>
+</span><span id="line-63"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679138481"><span id="local-6989586621679138483"><span class="annot"><span class="hs-identifier hs-type">Bifunctor</span></span><span> </span><span class="annot"><a href="U.Codebase.Referent.html#Referent%27"><span class="hs-identifier hs-type">Referent'</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-64"></span><span>  </span><span id="local-6989586621679138479"><span class="annot"><span class="annottext">bimap :: forall a b c d.
+(a -&gt; b) -&gt; (c -&gt; d) -&gt; Referent' a c -&gt; Referent' b d
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">bimap</span></span></span><span> </span><span id="local-6989586621679138477"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679138477"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679138476"><span class="annot"><span class="annottext">c -&gt; d
+</span><a href="#local-6989586621679138476"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-65"></span><span>    </span><span class="annot"><a href="U.Codebase.Referent.html#Ref"><span class="hs-identifier hs-type">Ref</span></a></span><span> </span><span id="local-6989586621679138475"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679138475"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall termRef typeRef. termRef -&gt; Referent' termRef typeRef
+</span><a href="U.Codebase.Referent.html#Ref"><span class="hs-identifier hs-var">Ref</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679138477"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679138475"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-66"></span><span>    </span><span class="annot"><a href="U.Codebase.Referent.html#Con"><span class="hs-identifier hs-type">Con</span></a></span><span> </span><span id="local-6989586621679138474"><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679138474"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span id="local-6989586621679138473"><span class="annot"><span class="annottext">ConstructorId
+</span><a href="#local-6989586621679138473"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall termRef typeRef.
+typeRef -&gt; ConstructorId -&gt; Referent' termRef typeRef
+</span><a href="U.Codebase.Referent.html#Con"><span class="hs-identifier hs-var">Con</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">c -&gt; d
+</span><a href="#local-6989586621679138476"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679138474"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ConstructorId
+</span><a href="#local-6989586621679138473"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-67"></span><span>
+</span><span id="line-68"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679138466"><span id="local-6989586621679138468"><span id="local-6989586621679138471"><span class="annot"><span class="hs-identifier hs-type">Bifoldable</span></span><span> </span><span class="annot"><a href="U.Codebase.Referent.html#Referent%27"><span class="hs-identifier hs-type">Referent'</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-69"></span><span>  </span><span id="local-6989586621679138463"><span class="annot"><span class="annottext">bifoldMap :: forall m a b.
+Monoid m =&gt;
+(a -&gt; m) -&gt; (b -&gt; m) -&gt; Referent' a b -&gt; m
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">bifoldMap</span></span></span><span> </span><span id="local-6989586621679138461"><span class="annot"><span class="annottext">a -&gt; m
+</span><a href="#local-6989586621679138461"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679138460"><span class="annot"><span class="annottext">b -&gt; m
+</span><a href="#local-6989586621679138460"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-70"></span><span>    </span><span class="annot"><a href="U.Codebase.Referent.html#Ref"><span class="hs-identifier hs-type">Ref</span></a></span><span> </span><span id="local-6989586621679138459"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679138459"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">a -&gt; m
+</span><a href="#local-6989586621679138461"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679138459"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-71"></span><span>    </span><span class="annot"><a href="U.Codebase.Referent.html#Con"><span class="hs-identifier hs-type">Con</span></a></span><span> </span><span id="local-6989586621679138458"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679138458"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="annot"><span class="annottext">ConstructorId
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">b -&gt; m
+</span><a href="#local-6989586621679138460"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679138458"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-72"></span><span>
+</span><span id="line-73"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bitraversable</span></span><span> </span><span class="annot"><a href="U.Codebase.Referent.html#Referent%27"><span class="hs-identifier hs-type">Referent'</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-74"></span><span>  </span><span id="local-6989586621679138447"><span class="annot"><span class="annottext">bitraverse :: forall (f :: * -&gt; *) a c b d.
+Applicative f =&gt;
+(a -&gt; f c) -&gt; (b -&gt; f d) -&gt; Referent' a b -&gt; f (Referent' c d)
+</span><a href="#local-6989586621679138447"><span class="hs-identifier hs-var hs-var hs-var hs-var">bitraverse</span></a></span></span><span> </span><span id="local-6989586621679138446"><span class="annot"><span class="annottext">a -&gt; f c
+</span><a href="#local-6989586621679138446"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679138445"><span class="annot"><span class="annottext">b -&gt; f d
+</span><a href="#local-6989586621679138445"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-75"></span><span>    </span><span class="annot"><a href="U.Codebase.Referent.html#Ref"><span class="hs-identifier hs-type">Ref</span></a></span><span> </span><span id="local-6989586621679138444"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679138444"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall termRef typeRef. termRef -&gt; Referent' termRef typeRef
+</span><a href="U.Codebase.Referent.html#Ref"><span class="hs-identifier hs-var">Ref</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; f c
+</span><a href="#local-6989586621679138446"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679138444"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-76"></span><span>    </span><span class="annot"><a href="U.Codebase.Referent.html#Con"><span class="hs-identifier hs-type">Con</span></a></span><span> </span><span id="local-6989586621679138442"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679138442"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span id="local-6989586621679138441"><span class="annot"><span class="annottext">ConstructorId
+</span><a href="#local-6989586621679138441"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a b c. (a -&gt; b -&gt; c) -&gt; b -&gt; a -&gt; c
+</span><span class="hs-identifier hs-var">flip</span></span><span> </span><span class="annot"><span class="annottext">forall termRef typeRef.
+typeRef -&gt; ConstructorId -&gt; Referent' termRef typeRef
+</span><a href="U.Codebase.Referent.html#Con"><span class="hs-identifier hs-var">Con</span></a></span><span> </span><span class="annot"><span class="annottext">ConstructorId
+</span><a href="#local-6989586621679138441"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">b -&gt; f d
+</span><a href="#local-6989586621679138445"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679138442"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-77"></span><span>
+</span><span id="line-78"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679138435"><span id="local-6989586621679138437"><span class="annot"><span class="hs-identifier hs-type">Bifunctor</span></span><span> </span><span class="annot"><a href="U.Codebase.Referent.html#Id%27"><span class="hs-identifier hs-type">Id'</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-79"></span><span>  </span><span id="local-6989586621679138431"><span class="annot"><span class="annottext">bimap :: forall a b c d. (a -&gt; b) -&gt; (c -&gt; d) -&gt; Id' a c -&gt; Id' b d
+</span><a href="#local-6989586621679138431"><span class="hs-identifier hs-var hs-var hs-var hs-var">bimap</span></a></span></span><span> </span><span id="local-6989586621679138430"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679138430"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679138429"><span class="annot"><span class="annottext">c -&gt; d
+</span><a href="#local-6989586621679138429"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-80"></span><span>    </span><span class="annot"><a href="U.Codebase.Referent.html#RefId"><span class="hs-identifier hs-type">RefId</span></a></span><span> </span><span id="local-6989586621679138428"><span class="annot"><span class="annottext">Id' a
+</span><a href="#local-6989586621679138428"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall hTm hTp. Id' hTm -&gt; Id' hTm hTp
+</span><a href="U.Codebase.Referent.html#RefId"><span class="hs-identifier hs-var">RefId</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679138430"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">Id' a
+</span><a href="#local-6989586621679138428"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-81"></span><span>    </span><span class="annot"><a href="U.Codebase.Referent.html#ConId"><span class="hs-identifier hs-type">ConId</span></a></span><span> </span><span id="local-6989586621679138427"><span class="annot"><span class="annottext">Id' c
+</span><a href="#local-6989586621679138427"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span id="local-6989586621679138426"><span class="annot"><span class="annottext">ConstructorId
+</span><a href="#local-6989586621679138426"><span class="hs-identifier hs-var">j</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall hTm hTp. Id' hTp -&gt; ConstructorId -&gt; Id' hTm hTp
+</span><a href="U.Codebase.Referent.html#ConId"><span class="hs-identifier hs-var">ConId</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">c -&gt; d
+</span><a href="#local-6989586621679138429"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">Id' c
+</span><a href="#local-6989586621679138427"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ConstructorId
+</span><a href="#local-6989586621679138426"><span class="hs-identifier hs-var">j</span></a></span><span>
+</span><span id="line-82"></span><span>
+</span><span id="line-83"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679138419"><span id="local-6989586621679138421"><span id="local-6989586621679138424"><span class="annot"><span class="hs-identifier hs-type">Bifoldable</span></span><span> </span><span class="annot"><a href="U.Codebase.Referent.html#Id%27"><span class="hs-identifier hs-type">Id'</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-84"></span><span>  </span><span id="local-6989586621679138412"><span class="annot"><span class="annottext">bifoldMap :: forall m a b. Monoid m =&gt; (a -&gt; m) -&gt; (b -&gt; m) -&gt; Id' a b -&gt; m
+</span><a href="#local-6989586621679138412"><span class="hs-identifier hs-var hs-var hs-var hs-var">bifoldMap</span></a></span></span><span> </span><span id="local-6989586621679138411"><span class="annot"><span class="annottext">a -&gt; m
+</span><a href="#local-6989586621679138411"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679138410"><span class="annot"><span class="annottext">b -&gt; m
+</span><a href="#local-6989586621679138410"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-85"></span><span>    </span><span class="annot"><a href="U.Codebase.Referent.html#RefId"><span class="hs-identifier hs-type">RefId</span></a></span><span> </span><span id="local-6989586621679138409"><span class="annot"><span class="annottext">Id' a
+</span><a href="#local-6989586621679138409"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) m a.
+(Foldable t, Monoid m) =&gt;
+(a -&gt; m) -&gt; t a -&gt; m
+</span><span class="hs-identifier hs-var">foldMap</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; m
+</span><a href="#local-6989586621679138411"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">Id' a
+</span><a href="#local-6989586621679138409"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-86"></span><span>    </span><span class="annot"><a href="U.Codebase.Referent.html#ConId"><span class="hs-identifier hs-type">ConId</span></a></span><span> </span><span id="local-6989586621679138407"><span class="annot"><span class="annottext">Id' b
+</span><a href="#local-6989586621679138407"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="annot"><span class="annottext">ConstructorId
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) m a.
+(Foldable t, Monoid m) =&gt;
+(a -&gt; m) -&gt; t a -&gt; m
+</span><span class="hs-identifier hs-var">foldMap</span></span><span> </span><span class="annot"><span class="annottext">b -&gt; m
+</span><a href="#local-6989586621679138410"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">Id' b
+</span><a href="#local-6989586621679138407"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-87"></span><span>
+</span><span id="line-88"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bitraversable</span></span><span> </span><span class="annot"><a href="U.Codebase.Referent.html#Id%27"><span class="hs-identifier hs-type">Id'</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-89"></span><span>  </span><span id="local-6989586621679138391"><span class="annot"><span class="annottext">bitraverse :: forall (f :: * -&gt; *) a c b d.
+Applicative f =&gt;
+(a -&gt; f c) -&gt; (b -&gt; f d) -&gt; Id' a b -&gt; f (Id' c d)
+</span><a href="#local-6989586621679138391"><span class="hs-identifier hs-var hs-var hs-var hs-var">bitraverse</span></a></span></span><span> </span><span id="local-6989586621679138390"><span class="annot"><span class="annottext">a -&gt; f c
+</span><a href="#local-6989586621679138390"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679138389"><span class="annot"><span class="annottext">b -&gt; f d
+</span><a href="#local-6989586621679138389"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-90"></span><span>    </span><span class="annot"><a href="U.Codebase.Referent.html#RefId"><span class="hs-identifier hs-type">RefId</span></a></span><span> </span><span id="local-6989586621679138388"><span class="annot"><span class="annottext">Id' a
+</span><a href="#local-6989586621679138388"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall hTm hTp. Id' hTm -&gt; Id' hTm hTp
+</span><a href="U.Codebase.Referent.html#RefId"><span class="hs-identifier hs-var">RefId</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) (f :: * -&gt; *) a b.
+(Traversable t, Applicative f) =&gt;
+(a -&gt; f b) -&gt; t a -&gt; f (t b)
+</span><span class="hs-identifier hs-var">traverse</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; f c
+</span><a href="#local-6989586621679138390"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">Id' a
+</span><a href="#local-6989586621679138388"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-91"></span><span>    </span><span class="annot"><a href="U.Codebase.Referent.html#ConId"><span class="hs-identifier hs-type">ConId</span></a></span><span> </span><span id="local-6989586621679138386"><span class="annot"><span class="annottext">Id' b
+</span><a href="#local-6989586621679138386"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span id="local-6989586621679138385"><span class="annot"><span class="annottext">ConstructorId
+</span><a href="#local-6989586621679138385"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a b c. (a -&gt; b -&gt; c) -&gt; b -&gt; a -&gt; c
+</span><span class="hs-identifier hs-var">flip</span></span><span> </span><span class="annot"><span class="annottext">forall hTm hTp. Id' hTp -&gt; ConstructorId -&gt; Id' hTm hTp
+</span><a href="U.Codebase.Referent.html#ConId"><span class="hs-identifier hs-var">ConId</span></a></span><span> </span><span class="annot"><span class="annottext">ConstructorId
+</span><a href="#local-6989586621679138385"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) (f :: * -&gt; *) a b.
+(Traversable t, Applicative f) =&gt;
+(a -&gt; f b) -&gt; t a -&gt; f (t b)
+</span><span class="hs-identifier hs-var">traverse</span></span><span> </span><span class="annot"><span class="annottext">b -&gt; f d
+</span><a href="#local-6989586621679138389"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">Id' b
+</span><a href="#local-6989586621679138386"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-92"></span><span>
+</span><span id="line-93"></span><span class="annot"><a href="U.Codebase.Referent.html#toShortHash"><span class="hs-identifier hs-type">toShortHash</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="U.Codebase.Referent.html#Referent"><span class="hs-identifier hs-type">Referent</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ShortHash</span></span><span>
+</span><span id="line-94"></span><span id="toShortHash"><span class="annot"><span class="annottext">toShortHash :: Referent -&gt; ShortHash
+</span><a href="U.Codebase.Referent.html#toShortHash"><span class="hs-identifier hs-var hs-var">toShortHash</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-95"></span><span>  </span><span class="annot"><a href="U.Codebase.Referent.html#Ref"><span class="hs-identifier hs-type">Ref</span></a></span><span> </span><span id="local-6989586621679138383"><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621679138383"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Reference -&gt; ShortHash
+</span><span class="hs-identifier hs-var">Reference.toShortHash</span></span><span> </span><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621679138383"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-96"></span><span>  </span><span class="annot"><a href="U.Codebase.Referent.html#Con"><span class="hs-identifier hs-type">Con</span></a></span><span> </span><span id="local-6989586621679138381"><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621679138381"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span id="local-6989586621679138380"><span class="annot"><span class="annottext">ConstructorId
+</span><a href="#local-6989586621679138380"><span class="hs-identifier hs-var">conId</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-97"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Reference -&gt; ShortHash
+</span><span class="hs-identifier hs-var">Reference.toShortHash</span></span><span> </span><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621679138381"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-98"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">SH.Builtin</span></span><span> </span><span id="local-6989586621679138378"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679138378"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text -&gt; ShortHash
+</span><span class="hs-identifier hs-var">SH.Builtin</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679138378"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-99"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">SH.ShortHash</span></span><span> </span><span id="local-6989586621679138376"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679138376"><span class="hs-identifier hs-var">prefix</span></a></span></span><span> </span><span id="local-6989586621679138375"><span class="annot"><span class="annottext">Maybe ConstructorId
+</span><a href="#local-6989586621679138375"><span class="hs-identifier hs-var">cycle</span></a></span></span><span> </span><span id="local-6989586621679138374"><span class="annot"><span class="annottext">Maybe ConstructorId
+</span><a href="#local-6989586621679138374"><span class="hs-identifier hs-var">_cid</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Maybe ConstructorId -&gt; Maybe ConstructorId -&gt; ShortHash
+</span><span class="hs-identifier hs-var">SH.ShortHash</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679138376"><span class="hs-identifier hs-var">prefix</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe ConstructorId
+</span><a href="#local-6989586621679138375"><span class="hs-identifier hs-var">cycle</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">ConstructorId
+</span><a href="#local-6989586621679138380"><span class="hs-identifier hs-var">conId</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-100"></span></pre></body></html>

@@ -1,0 +1,134 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- THIS IS A GENERATED FILE, DO NOT EDIT</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-imports #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-matches #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-deprecations #-}</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.WorkDoneProgressParams</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Hashable</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html"><span class="hs-identifier">Language.LSP.Protocol.Utils.Misc</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prettyprinter</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Aeson.html"><span class="hs-identifier">Data.Row.Aeson</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Hashable.html"><span class="hs-identifier">Data.Row.Hashable</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Hashable</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ProgressToken.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.ProgressToken</span></a></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html"><span class="hs-identifier">Language.LSP.Protocol.Types.Common</span></a></span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-comment">{-|
+
+-}</span><span>
+</span><span id="line-22"></span><span id="local-6989586621682148024"><span id="local-6989586621682148025"></span></span><span class="hs-keyword">data</span><span> </span><span id="WorkDoneProgressParams"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.WorkDoneProgressParams.html#WorkDoneProgressParams"><span class="hs-identifier hs-var">WorkDoneProgressParams</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="WorkDoneProgressParams"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.WorkDoneProgressParams.html#WorkDoneProgressParams"><span class="hs-identifier hs-var">WorkDoneProgressParams</span></a></span></span><span> </span><span>
+</span><span id="line-23"></span><span>  </span><span class="hs-special">{</span><span> </span><span class="hs-comment">{-|
+  An optional token that a server can use to report work done progress.
+  -}</span><span>
+</span><span id="line-26"></span><span>  </span><span id="%24sel%3A_workDoneToken%3AWorkDoneProgressParams"><span class="annot"><span class="annottext">WorkDoneProgressParams -&gt; Maybe ProgressToken
+</span><a href="Language.LSP.Protocol.Internal.Types.WorkDoneProgressParams.html#%24sel%3A_workDoneToken%3AWorkDoneProgressParams"><span class="hs-identifier hs-var hs-var">_workDoneToken</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ProgressToken.html#ProgressToken"><span class="hs-identifier hs-type">Language.LSP.Protocol.Internal.Types.ProgressToken.ProgressToken</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682148011"><span id="local-6989586621682148013"><span id="local-6989586621682148020"><span class="annot"><span class="annottext">Int -&gt; WorkDoneProgressParams -&gt; ShowS
+[WorkDoneProgressParams] -&gt; ShowS
+WorkDoneProgressParams -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [WorkDoneProgressParams] -&gt; ShowS
+$cshowList :: [WorkDoneProgressParams] -&gt; ShowS
+show :: WorkDoneProgressParams -&gt; String
+$cshow :: WorkDoneProgressParams -&gt; String
+showsPrec :: Int -&gt; WorkDoneProgressParams -&gt; ShowS
+$cshowsPrec :: Int -&gt; WorkDoneProgressParams -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682148002"><span id="local-6989586621682148007"><span class="annot"><span class="annottext">WorkDoneProgressParams -&gt; WorkDoneProgressParams -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: WorkDoneProgressParams -&gt; WorkDoneProgressParams -&gt; Bool
+$c/= :: WorkDoneProgressParams -&gt; WorkDoneProgressParams -&gt; Bool
+== :: WorkDoneProgressParams -&gt; WorkDoneProgressParams -&gt; Bool
+$c== :: WorkDoneProgressParams -&gt; WorkDoneProgressParams -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682147976"><span id="local-6989586621682147978"><span id="local-6989586621682147981"><span id="local-6989586621682147984"><span id="local-6989586621682147987"><span id="local-6989586621682147991"><span id="local-6989586621682147996"><span class="annot"><span class="annottext">Eq WorkDoneProgressParams
+WorkDoneProgressParams -&gt; WorkDoneProgressParams -&gt; Bool
+WorkDoneProgressParams -&gt; WorkDoneProgressParams -&gt; Ordering
+WorkDoneProgressParams
+-&gt; WorkDoneProgressParams -&gt; WorkDoneProgressParams
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: WorkDoneProgressParams
+-&gt; WorkDoneProgressParams -&gt; WorkDoneProgressParams
+$cmin :: WorkDoneProgressParams
+-&gt; WorkDoneProgressParams -&gt; WorkDoneProgressParams
+max :: WorkDoneProgressParams
+-&gt; WorkDoneProgressParams -&gt; WorkDoneProgressParams
+$cmax :: WorkDoneProgressParams
+-&gt; WorkDoneProgressParams -&gt; WorkDoneProgressParams
+&gt;= :: WorkDoneProgressParams -&gt; WorkDoneProgressParams -&gt; Bool
+$c&gt;= :: WorkDoneProgressParams -&gt; WorkDoneProgressParams -&gt; Bool
+&gt; :: WorkDoneProgressParams -&gt; WorkDoneProgressParams -&gt; Bool
+$c&gt; :: WorkDoneProgressParams -&gt; WorkDoneProgressParams -&gt; Bool
+&lt;= :: WorkDoneProgressParams -&gt; WorkDoneProgressParams -&gt; Bool
+$c&lt;= :: WorkDoneProgressParams -&gt; WorkDoneProgressParams -&gt; Bool
+&lt; :: WorkDoneProgressParams -&gt; WorkDoneProgressParams -&gt; Bool
+$c&lt; :: WorkDoneProgressParams -&gt; WorkDoneProgressParams -&gt; Bool
+compare :: WorkDoneProgressParams -&gt; WorkDoneProgressParams -&gt; Ordering
+$ccompare :: WorkDoneProgressParams -&gt; WorkDoneProgressParams -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall x. Rep WorkDoneProgressParams x -&gt; WorkDoneProgressParams
+forall x. WorkDoneProgressParams -&gt; Rep WorkDoneProgressParams x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cto :: forall x. Rep WorkDoneProgressParams x -&gt; WorkDoneProgressParams
+$cfrom :: forall x. WorkDoneProgressParams -&gt; Rep WorkDoneProgressParams x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">anyclass</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682147969"><span class="annot"><span class="annottext">WorkDoneProgressParams -&gt; ()
+forall a. (a -&gt; ()) -&gt; NFData a
+rnf :: WorkDoneProgressParams -&gt; ()
+$crnf :: WorkDoneProgressParams -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682147962"><span id="local-6989586621682147964"><span class="annot"><span class="annottext">Eq WorkDoneProgressParams
+Int -&gt; WorkDoneProgressParams -&gt; Int
+WorkDoneProgressParams -&gt; Int
+forall a. Eq a -&gt; (Int -&gt; a -&gt; Int) -&gt; (a -&gt; Int) -&gt; Hashable a
+hash :: WorkDoneProgressParams -&gt; Int
+$chash :: WorkDoneProgressParams -&gt; Int
+hashWithSalt :: Int -&gt; WorkDoneProgressParams -&gt; Int
+$chashWithSalt :: Int -&gt; WorkDoneProgressParams -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Hashable</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621682147953"><span id="local-6989586621682147959"><span class="annot"><span class="annottext">forall ann. [WorkDoneProgressParams] -&gt; Doc ann
+forall ann. WorkDoneProgressParams -&gt; Doc ann
+forall a.
+(forall ann. a -&gt; Doc ann)
+-&gt; (forall ann. [a] -&gt; Doc ann) -&gt; Pretty a
+prettyList :: forall ann. [WorkDoneProgressParams] -&gt; Doc ann
+$cprettyList :: forall ann. [WorkDoneProgressParams] -&gt; Doc ann
+pretty :: forall ann. WorkDoneProgressParams -&gt; Doc ann
+$cpretty :: forall ann. WorkDoneProgressParams -&gt; Doc ann
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Pretty</span></span></span></span><span> </span><span class="hs-keyword">via</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html#ViaJSON"><span class="hs-identifier hs-type">ViaJSON</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.WorkDoneProgressParams.html#WorkDoneProgressParams"><span class="hs-identifier hs-type">WorkDoneProgressParams</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682147941"><span id="local-6989586621682147943"><span id="local-6989586621682147945"><span class="annot"><span class="hs-identifier hs-type">Aeson.ToJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.WorkDoneProgressParams.html#WorkDoneProgressParams"><span class="hs-identifier hs-type">WorkDoneProgressParams</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-33"></span><span>  </span><span id="local-6989586621682147933"><span class="annot"><span class="annottext">toJSON :: WorkDoneProgressParams -&gt; Value
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">toJSON</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.WorkDoneProgressParams.html#WorkDoneProgressParams"><span class="hs-identifier hs-type">WorkDoneProgressParams</span></a></span><span> </span><span id="local-6989586621682147931"><span class="annot"><span class="annottext">Maybe ProgressToken
+</span><a href="#local-6989586621682147931"><span class="hs-identifier hs-var">arg0</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">Aeson.object</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">concat</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>  </span><span class="hs-special">[</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;workDoneToken&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe ProgressToken
+</span><a href="#local-6989586621682147931"><span class="hs-identifier hs-var">arg0</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682147925"><span class="annot"><span class="hs-identifier hs-type">Aeson.FromJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.WorkDoneProgressParams.html#WorkDoneProgressParams"><span class="hs-identifier hs-type">WorkDoneProgressParams</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-36"></span><span>  </span><span id="local-6989586621682147917"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser WorkDoneProgressParams
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">Aeson.withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;WorkDoneProgressParams&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621682147914"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682147914"><span class="hs-identifier hs-var">arg</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe ProgressToken -&gt; WorkDoneProgressParams
+</span><a href="Language.LSP.Protocol.Internal.Types.WorkDoneProgressParams.html#WorkDoneProgressParams"><span class="hs-identifier hs-var">WorkDoneProgressParams</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682147914"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">Aeson..:!</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;workDoneToken&quot;</span></span><span>
+</span><span id="line-37"></span></pre></body></html>

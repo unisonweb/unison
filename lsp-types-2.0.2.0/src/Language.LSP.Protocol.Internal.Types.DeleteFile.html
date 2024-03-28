@@ -1,0 +1,177 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- THIS IS A GENERATED FILE, DO NOT EDIT</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-imports #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-matches #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-deprecations #-}</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.DeleteFile</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Hashable</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html"><span class="hs-identifier">Language.LSP.Protocol.Utils.Misc</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prettyprinter</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Aeson.html"><span class="hs-identifier">Data.Row.Aeson</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Hashable.html"><span class="hs-identifier">Data.Row.Hashable</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Hashable</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ChangeAnnotationIdentifier.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.ChangeAnnotationIdentifier</span></a></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.DeleteFileOptions.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.DeleteFileOptions</span></a></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html"><span class="hs-identifier">Language.LSP.Protocol.Types.Common</span></a></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Singletons.html"><span class="hs-identifier">Language.LSP.Protocol.Types.Singletons</span></a></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Uri.html"><span class="hs-identifier">Language.LSP.Protocol.Types.Uri</span></a></span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="hs-comment">{-|
+Delete file operation
+-}</span><span>
+</span><span id="line-25"></span><span id="local-6989586621682230479"><span id="local-6989586621682230480"></span></span><span class="hs-keyword">data</span><span> </span><span id="DeleteFile"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.DeleteFile.html#DeleteFile"><span class="hs-identifier hs-var">DeleteFile</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="DeleteFile"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.DeleteFile.html#DeleteFile"><span class="hs-identifier hs-var">DeleteFile</span></a></span></span><span> </span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-special">{</span><span> </span><span class="hs-comment">{-|
+  An optional annotation identifier describing the operation.
+
+  @since 3.16.0
+  -}</span><span>
+</span><span id="line-31"></span><span>  </span><span id="%24sel%3A_annotationId%3ADeleteFile"><span class="annot"><span class="annottext">DeleteFile -&gt; Maybe ChangeAnnotationIdentifier
+</span><a href="Language.LSP.Protocol.Internal.Types.DeleteFile.html#%24sel%3A_annotationId%3ADeleteFile"><span class="hs-identifier hs-var hs-var">_annotationId</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ChangeAnnotationIdentifier.html#ChangeAnnotationIdentifier"><span class="hs-identifier hs-type">Language.LSP.Protocol.Internal.Types.ChangeAnnotationIdentifier.ChangeAnnotationIdentifier</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-comment">{-|
+  A delete
+  -}</span><span>
+</span><span id="line-35"></span><span>  </span><span id="%24sel%3A_kind%3ADeleteFile"><span class="annot"><span class="annottext">DeleteFile -&gt; AString &quot;delete&quot;
+</span><a href="Language.LSP.Protocol.Internal.Types.DeleteFile.html#%24sel%3A_kind%3ADeleteFile"><span class="hs-identifier hs-var hs-var">_kind</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Types.Singletons.html#AString"><span class="hs-identifier hs-type">Language.LSP.Protocol.Types.Singletons.AString</span></a></span><span> </span><span class="annot"><span class="hs-string">&quot;delete&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-comment">{-|
+  The file to delete.
+  -}</span><span>
+</span><span id="line-39"></span><span>  </span><span id="%24sel%3A_uri%3ADeleteFile"><span class="annot"><span class="annottext">DeleteFile -&gt; Uri
+</span><a href="Language.LSP.Protocol.Internal.Types.DeleteFile.html#%24sel%3A_uri%3ADeleteFile"><span class="hs-identifier hs-var hs-var">_uri</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Uri.html#Uri"><span class="hs-identifier hs-type">Language.LSP.Protocol.Types.Uri.Uri</span></a></span><span>
+</span><span id="line-40"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-comment">{-|
+  Delete options.
+  -}</span><span>
+</span><span id="line-43"></span><span>  </span><span id="%24sel%3A_options%3ADeleteFile"><span class="annot"><span class="annottext">DeleteFile -&gt; Maybe DeleteFileOptions
+</span><a href="Language.LSP.Protocol.Internal.Types.DeleteFile.html#%24sel%3A_options%3ADeleteFile"><span class="hs-identifier hs-var hs-var">_options</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.DeleteFileOptions.html#DeleteFileOptions"><span class="hs-identifier hs-type">Language.LSP.Protocol.Internal.Types.DeleteFileOptions.DeleteFileOptions</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-44"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-45"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682230457"><span id="local-6989586621682230459"><span id="local-6989586621682230472"><span class="annot"><span class="annottext">Int -&gt; DeleteFile -&gt; ShowS
+[DeleteFile] -&gt; ShowS
+DeleteFile -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [DeleteFile] -&gt; ShowS
+$cshowList :: [DeleteFile] -&gt; ShowS
+show :: DeleteFile -&gt; String
+$cshow :: DeleteFile -&gt; String
+showsPrec :: Int -&gt; DeleteFile -&gt; ShowS
+$cshowsPrec :: Int -&gt; DeleteFile -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682230441"><span id="local-6989586621682230452"><span class="annot"><span class="annottext">DeleteFile -&gt; DeleteFile -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: DeleteFile -&gt; DeleteFile -&gt; Bool
+$c/= :: DeleteFile -&gt; DeleteFile -&gt; Bool
+== :: DeleteFile -&gt; DeleteFile -&gt; Bool
+$c== :: DeleteFile -&gt; DeleteFile -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682230404"><span id="local-6989586621682230406"><span id="local-6989586621682230409"><span id="local-6989586621682230412"><span id="local-6989586621682230415"><span id="local-6989586621682230423"><span id="local-6989586621682230434"><span class="annot"><span class="annottext">Eq DeleteFile
+DeleteFile -&gt; DeleteFile -&gt; Bool
+DeleteFile -&gt; DeleteFile -&gt; Ordering
+DeleteFile -&gt; DeleteFile -&gt; DeleteFile
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: DeleteFile -&gt; DeleteFile -&gt; DeleteFile
+$cmin :: DeleteFile -&gt; DeleteFile -&gt; DeleteFile
+max :: DeleteFile -&gt; DeleteFile -&gt; DeleteFile
+$cmax :: DeleteFile -&gt; DeleteFile -&gt; DeleteFile
+&gt;= :: DeleteFile -&gt; DeleteFile -&gt; Bool
+$c&gt;= :: DeleteFile -&gt; DeleteFile -&gt; Bool
+&gt; :: DeleteFile -&gt; DeleteFile -&gt; Bool
+$c&gt; :: DeleteFile -&gt; DeleteFile -&gt; Bool
+&lt;= :: DeleteFile -&gt; DeleteFile -&gt; Bool
+$c&lt;= :: DeleteFile -&gt; DeleteFile -&gt; Bool
+&lt; :: DeleteFile -&gt; DeleteFile -&gt; Bool
+$c&lt; :: DeleteFile -&gt; DeleteFile -&gt; Bool
+compare :: DeleteFile -&gt; DeleteFile -&gt; Ordering
+$ccompare :: DeleteFile -&gt; DeleteFile -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall x. Rep DeleteFile x -&gt; DeleteFile
+forall x. DeleteFile -&gt; Rep DeleteFile x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cto :: forall x. Rep DeleteFile x -&gt; DeleteFile
+$cfrom :: forall x. DeleteFile -&gt; Rep DeleteFile x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-46"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">anyclass</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682230396"><span class="annot"><span class="annottext">DeleteFile -&gt; ()
+forall a. (a -&gt; ()) -&gt; NFData a
+rnf :: DeleteFile -&gt; ()
+$crnf :: DeleteFile -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682230389"><span id="local-6989586621682230391"><span class="annot"><span class="annottext">Eq DeleteFile
+Int -&gt; DeleteFile -&gt; Int
+DeleteFile -&gt; Int
+forall a. Eq a -&gt; (Int -&gt; a -&gt; Int) -&gt; (a -&gt; Int) -&gt; Hashable a
+hash :: DeleteFile -&gt; Int
+$chash :: DeleteFile -&gt; Int
+hashWithSalt :: Int -&gt; DeleteFile -&gt; Int
+$chashWithSalt :: Int -&gt; DeleteFile -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Hashable</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-47"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621682230380"><span id="local-6989586621682230386"><span class="annot"><span class="annottext">forall ann. [DeleteFile] -&gt; Doc ann
+forall ann. DeleteFile -&gt; Doc ann
+forall a.
+(forall ann. a -&gt; Doc ann)
+-&gt; (forall ann. [a] -&gt; Doc ann) -&gt; Pretty a
+prettyList :: forall ann. [DeleteFile] -&gt; Doc ann
+$cprettyList :: forall ann. [DeleteFile] -&gt; Doc ann
+pretty :: forall ann. DeleteFile -&gt; Doc ann
+$cpretty :: forall ann. DeleteFile -&gt; Doc ann
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Pretty</span></span></span></span><span> </span><span class="hs-keyword">via</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html#ViaJSON"><span class="hs-identifier hs-type">ViaJSON</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.DeleteFile.html#DeleteFile"><span class="hs-identifier hs-type">DeleteFile</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682230368"><span id="local-6989586621682230370"><span id="local-6989586621682230372"><span class="annot"><span class="hs-identifier hs-type">Aeson.ToJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.DeleteFile.html#DeleteFile"><span class="hs-identifier hs-type">DeleteFile</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-50"></span><span>  </span><span id="local-6989586621682230348"><span class="annot"><span class="annottext">toJSON :: DeleteFile -&gt; Value
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">toJSON</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.DeleteFile.html#DeleteFile"><span class="hs-identifier hs-type">DeleteFile</span></a></span><span> </span><span id="local-6989586621682230346"><span class="annot"><span class="annottext">Maybe ChangeAnnotationIdentifier
+</span><a href="#local-6989586621682230346"><span class="hs-identifier hs-var">arg0</span></a></span></span><span> </span><span id="local-6989586621682230345"><span class="annot"><span class="annottext">AString &quot;delete&quot;
+</span><a href="#local-6989586621682230345"><span class="hs-identifier hs-var">arg1</span></a></span></span><span> </span><span id="local-6989586621682230344"><span class="annot"><span class="annottext">Uri
+</span><a href="#local-6989586621682230344"><span class="hs-identifier hs-var">arg2</span></a></span></span><span> </span><span id="local-6989586621682230343"><span class="annot"><span class="annottext">Maybe DeleteFileOptions
+</span><a href="#local-6989586621682230343"><span class="hs-identifier hs-var">arg3</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">Aeson.object</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">concat</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>  </span><span class="hs-special">[</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;annotationId&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe ChangeAnnotationIdentifier
+</span><a href="#local-6989586621682230346"><span class="hs-identifier hs-var">arg0</span></a></span><span>
+</span><span id="line-51"></span><span>    </span><span class="hs-special">,</span><span class="hs-special">[</span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;kind&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">Aeson..=</span></span><span> </span><span class="annot"><span class="annottext">AString &quot;delete&quot;
+</span><a href="#local-6989586621682230345"><span class="hs-identifier hs-var">arg1</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-52"></span><span>    </span><span class="hs-special">,</span><span class="hs-special">[</span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;uri&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">Aeson..=</span></span><span> </span><span class="annot"><span class="annottext">Uri
+</span><a href="#local-6989586621682230344"><span class="hs-identifier hs-var">arg2</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-53"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;options&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe DeleteFileOptions
+</span><a href="#local-6989586621682230343"><span class="hs-identifier hs-var">arg3</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682230336"><span class="annot"><span class="hs-identifier hs-type">Aeson.FromJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.DeleteFile.html#DeleteFile"><span class="hs-identifier hs-type">DeleteFile</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-56"></span><span>  </span><span id="local-6989586621682230315"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser DeleteFile
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">Aeson.withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;DeleteFile&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621682230312"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682230312"><span class="hs-identifier hs-var">arg</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe ChangeAnnotationIdentifier
+-&gt; AString &quot;delete&quot; -&gt; Uri -&gt; Maybe DeleteFileOptions -&gt; DeleteFile
+</span><a href="Language.LSP.Protocol.Internal.Types.DeleteFile.html#DeleteFile"><span class="hs-identifier hs-var">DeleteFile</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682230312"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">Aeson..:!</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;annotationId&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682230312"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">Aeson..:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;kind&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682230312"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">Aeson..:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;uri&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682230312"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">Aeson..:!</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;options&quot;</span></span><span>
+</span><span id="line-57"></span></pre></body></html>

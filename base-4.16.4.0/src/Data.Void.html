@@ -1,0 +1,298 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span id="local-6989586621679643611"></span><span class="hs-pragma">{-# LANGUAGE DeriveDataTypeable #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE DeriveGeneric #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE EmptyCase #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE EmptyDataDeriving #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LANGUAGE Safe #-}</span><span>
+</span><span id="line-6"></span><span>
+</span><span id="line-7"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- Copyright   :  (C) 2008-2014 Edward Kmett</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- License     :  BSD-style (see the file libraries/base/LICENSE)</span><span>
+</span><span id="line-11"></span><span class="hs-comment">--</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- Maintainer  :  Edward Kmett &lt;ekmett@gmail.com&gt;</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- Stability   :  provisional</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- Portability :  portable</span><span>
+</span><span id="line-15"></span><span class="hs-comment">--</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- A logically uninhabited data type, used to indicate that a given</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- term should not exist.</span><span>
+</span><span id="line-18"></span><span class="hs-comment">--</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- @since 4.8.0.0</span><span>
+</span><span id="line-20"></span><span class="hs-comment">----------------------------------------------------------------------------</span><span>
+</span><span id="line-21"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Data.Void</span><span>
+</span><span id="line-22"></span><span>    </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Data.Void.html#Void"><span class="hs-identifier">Void</span></a></span><span>
+</span><span id="line-23"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Void.html#absurd"><span class="hs-identifier">absurd</span></a></span><span>
+</span><span id="line-24"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Void.html#vacuous"><span class="hs-identifier">vacuous</span></a></span><span>
+</span><span id="line-25"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Control.Exception.html"><span class="hs-identifier">Control.Exception</span></a></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Data.html"><span class="hs-identifier">Data.Data</span></a></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Ix.html"><span class="hs-identifier">Data.Ix</span></a></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Generics.html"><span class="hs-identifier">GHC.Generics</span></a></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Semigroup.html"><span class="hs-identifier">Data.Semigroup</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Base.html#Semigroup"><span class="hs-identifier">Semigroup</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Semigroup.Internal.html#stimesIdempotent"><span class="hs-identifier">stimesIdempotent</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span class="hs-comment">-- $setup</span><span>
+</span><span id="line-34"></span><span class="hs-comment">-- &gt;&gt;&gt; import Prelude</span><span>
+</span><span id="line-35"></span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- | Uninhabited data type</span><span>
+</span><span id="line-37"></span><span class="hs-comment">--</span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- @since 4.8.0.0</span><span>
+</span><span id="line-39"></span><span id="local-6989586621679643606"><span id="local-6989586621679643607"></span></span><span class="hs-keyword">data</span><span> </span><span id="Void"><span class="annot"><a href="Data.Void.html#Void"><span class="hs-identifier hs-var">Void</span></a></span></span><span> </span><span class="hs-keyword">deriving</span><span>
+</span><span id="line-40"></span><span>  </span><span class="hs-special">(</span><span> </span><span id="local-6989586621679643602"><span id="local-6989586621679643604"><span class="annot"><span class="annottext">Void -&gt; Void -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: Void -&gt; Void -&gt; Bool
+$c/= :: Void -&gt; Void -&gt; Bool
+== :: Void -&gt; Void -&gt; Bool
+$c== :: Void -&gt; Void -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#Eq"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></a></span></span></span><span>      </span><span class="hs-comment">-- ^ @since 4.8.0.0</span><span>
+</span><span id="line-41"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="local-6989586621679643571"><span id="local-6989586621679643573"><span id="local-6989586621679643575"><span id="local-6989586621679643577"><span id="local-6989586621679643579"><span id="local-6989586621679643581"><span id="local-6989586621679643583"><span id="local-6989586621679643585"><span id="local-6989586621679643587"><span id="local-6989586621679643589"><span id="local-6989586621679643591"><span id="local-6989586621679643593"><span id="local-6989586621679643595"><span id="local-6989586621679643597"><span class="annot"><span class="annottext">Typeable Void
+Void -&gt; Constr
+Void -&gt; DataType
+(forall b. Data b =&gt; b -&gt; b) -&gt; Void -&gt; Void
+forall a.
+Typeable a
+-&gt; (forall (c :: * -&gt; *).
+    (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+    -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Void -&gt; u
+forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Void -&gt; [u]
+forall r r'.
+(r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Void -&gt; r
+forall r r'.
+(r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Void -&gt; r
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Void -&gt; m Void
+forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Void -&gt; m Void
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Void
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Void -&gt; c Void
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Void)
+forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Void)
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Void -&gt; m Void
+$cgmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Void -&gt; m Void
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Void -&gt; m Void
+$cgmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Void -&gt; m Void
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Void -&gt; m Void
+$cgmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Void -&gt; m Void
+gmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Void -&gt; u
+$cgmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Void -&gt; u
+gmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Void -&gt; [u]
+$cgmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Void -&gt; [u]
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Void -&gt; r
+$cgmapQr :: forall r r'.
+(r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Void -&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Void -&gt; r
+$cgmapQl :: forall r r'.
+(r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Void -&gt; r
+gmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; Void -&gt; Void
+$cgmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; Void -&gt; Void
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Void)
+$cdataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Void)
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Void)
+$cdataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Void)
+dataTypeOf :: Void -&gt; DataType
+$cdataTypeOf :: Void -&gt; DataType
+toConstr :: Void -&gt; Constr
+$ctoConstr :: Void -&gt; Constr
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Void
+$cgunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Void
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Void -&gt; c Void
+$cgfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Void -&gt; c Void
+</span><a href="Data.Data.html#Data"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data</span></a></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span>    </span><span class="hs-comment">-- ^ @since 4.8.0.0</span><span>
+</span><span id="line-42"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall x. Rep Void x -&gt; Void
+forall x. Void -&gt; Rep Void x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cto :: forall x. Rep Void x -&gt; Void
+$cfrom :: forall x. Void -&gt; Rep Void x
+</span><a href="GHC.Generics.html#Generic"><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></a></span><span> </span><span class="hs-comment">-- ^ @since 4.8.0.0</span><span>
+</span><span id="line-43"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="local-6989586621679643550"><span id="local-6989586621679643552"><span id="local-6989586621679643554"><span id="local-6989586621679643556"><span id="local-6989586621679643558"><span id="local-6989586621679643560"><span id="local-6989586621679643562"><span class="annot"><span class="annottext">Eq Void
+Void -&gt; Void -&gt; Bool
+Void -&gt; Void -&gt; Ordering
+Void -&gt; Void -&gt; Void
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: Void -&gt; Void -&gt; Void
+$cmin :: Void -&gt; Void -&gt; Void
+max :: Void -&gt; Void -&gt; Void
+$cmax :: Void -&gt; Void -&gt; Void
+&gt;= :: Void -&gt; Void -&gt; Bool
+$c&gt;= :: Void -&gt; Void -&gt; Bool
+&gt; :: Void -&gt; Void -&gt; Bool
+$c&gt; :: Void -&gt; Void -&gt; Bool
+&lt;= :: Void -&gt; Void -&gt; Bool
+$c&lt;= :: Void -&gt; Void -&gt; Bool
+&lt; :: Void -&gt; Void -&gt; Bool
+$c&lt; :: Void -&gt; Void -&gt; Bool
+compare :: Void -&gt; Void -&gt; Ordering
+$ccompare :: Void -&gt; Void -&gt; Ordering
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#Ord"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></a></span></span></span></span></span></span></span></span><span>     </span><span class="hs-comment">-- ^ @since 4.8.0.0</span><span>
+</span><span id="line-44"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="local-6989586621679643540"><span id="local-6989586621679643542"><span id="local-6989586621679643545"><span id="local-6989586621679643547"><span class="annot"><span class="annottext">ReadPrec [Void]
+ReadPrec Void
+Int -&gt; ReadS Void
+ReadS [Void]
+forall a.
+(Int -&gt; ReadS a)
+-&gt; ReadS [a] -&gt; ReadPrec a -&gt; ReadPrec [a] -&gt; Read a
+readListPrec :: ReadPrec [Void]
+$creadListPrec :: ReadPrec [Void]
+readPrec :: ReadPrec Void
+$creadPrec :: ReadPrec Void
+readList :: ReadS [Void]
+$creadList :: ReadS [Void]
+readsPrec :: Int -&gt; ReadS Void
+$creadsPrec :: Int -&gt; ReadS Void
+</span><a href="GHC.Read.html#Read"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Read</span></a></span></span></span></span></span><span>    </span><span class="hs-comment">-- ^ Reading a 'Void' value is always a parse error, considering</span><span>
+</span><span id="line-45"></span><span>            </span><span class="hs-comment">-- 'Void' as a data type with no constructors.</span><span>
+</span><span id="line-46"></span><span>            </span><span class="hs-comment">--</span><span>
+</span><span id="line-47"></span><span>            </span><span class="hs-comment">-- @since 4.8.0.0</span><span>
+</span><span id="line-48"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="local-6989586621679643532"><span id="local-6989586621679643534"><span id="local-6989586621679643536"><span class="annot"><span class="annottext">Int -&gt; Void -&gt; ShowS
+[Void] -&gt; ShowS
+Void -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [Void] -&gt; ShowS
+$cshowList :: [Void] -&gt; ShowS
+show :: Void -&gt; String
+$cshow :: Void -&gt; String
+showsPrec :: Int -&gt; Void -&gt; ShowS
+$cshowsPrec :: Int -&gt; Void -&gt; ShowS
+</span><a href="GHC.Show.html#Show"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></a></span></span></span></span><span>    </span><span class="hs-comment">-- ^ @since 4.8.0.0</span><span>
+</span><span id="line-49"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-50"></span><span>
+</span><span id="line-51"></span><span class="hs-comment">-- | @since 4.8.0.0</span><span>
+</span><span id="line-52"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679643521"><span id="local-6989586621679643525"><span class="annot"><a href="GHC.Ix.html#Ix"><span class="hs-identifier hs-type">Ix</span></a></span><span> </span><span class="annot"><a href="Data.Void.html#Void"><span class="hs-identifier hs-type">Void</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-53"></span><span>    </span><span id="local-6989586621679643519"><span class="annot"><span class="annottext">range :: (Void, Void) -&gt; [Void]
+</span><a href="GHC.Ix.html#range"><span class="hs-identifier hs-var hs-var hs-var hs-var">range</span></a></span></span><span> </span><span class="annot"><span class="annottext">(Void, Void)
+</span><span class="hs-identifier">_</span></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-54"></span><span>    </span><span id="local-6989586621679643517"><span class="annot"><span class="annottext">index :: (Void, Void) -&gt; Void -&gt; Int
+</span><a href="GHC.Ix.html#index"><span class="hs-identifier hs-var hs-var hs-var hs-var">index</span></a></span></span><span> </span><span class="annot"><span class="annottext">(Void, Void)
+</span><span class="hs-identifier">_</span></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Void -&gt; a
+</span><a href="Data.Void.html#absurd"><span class="hs-identifier hs-var">absurd</span></a></span><span>
+</span><span id="line-55"></span><span>    </span><span id="local-6989586621679643515"><span class="annot"><span class="annottext">inRange :: (Void, Void) -&gt; Void -&gt; Bool
+</span><a href="GHC.Ix.html#inRange"><span class="hs-identifier hs-var hs-var hs-var hs-var">inRange</span></a></span></span><span> </span><span class="annot"><span class="annottext">(Void, Void)
+</span><span class="hs-identifier">_</span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Void -&gt; a
+</span><a href="Data.Void.html#absurd"><span class="hs-identifier hs-var">absurd</span></a></span><span>
+</span><span id="line-56"></span><span>    </span><span id="local-6989586621679643513"><span class="annot"><span class="annottext">rangeSize :: (Void, Void) -&gt; Int
+</span><a href="GHC.Ix.html#rangeSize"><span class="hs-identifier hs-var hs-var hs-var hs-var">rangeSize</span></a></span></span><span> </span><span class="annot"><span class="annottext">(Void, Void)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span class="hs-comment">-- | @since 4.8.0.0</span><span>
+</span><span id="line-59"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679643502"><span id="local-6989586621679643504"><span id="local-6989586621679643506"><span class="annot"><a href="GHC.Exception.Type.html#Exception"><span class="hs-identifier hs-type">Exception</span></a></span><span> </span><span class="annot"><a href="Data.Void.html#Void"><span class="hs-identifier hs-type">Void</span></a></span></span></span></span><span>
+</span><span id="line-60"></span><span>
+</span><span id="line-61"></span><span class="hs-comment">-- | @since 4.9.0.0</span><span>
+</span><span id="line-62"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679643498"><span class="annot"><a href="GHC.Base.html#Semigroup"><span class="hs-identifier hs-type">Semigroup</span></a></span><span> </span><span class="annot"><a href="Data.Void.html#Void"><span class="hs-identifier hs-type">Void</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-63"></span><span>    </span><span id="local-6989586621679643495"><span class="annot"><span class="annottext">Void
+</span><a href="#local-6989586621679643495"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679643494"><span class="annot"><span class="annottext">&lt;&gt; :: Void -&gt; Void -&gt; Void
+</span><a href="GHC.Base.html#%3C%3E"><span class="hs-operator hs-var hs-var hs-var hs-var">&lt;&gt;</span></a></span></span><span> </span><span class="annot"><span class="annottext">Void
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Void
+</span><a href="#local-6989586621679643495"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-64"></span><span>    </span><span id="local-6989586621679643491"><span class="annot"><span class="annottext">stimes :: forall b. Integral b =&gt; b -&gt; Void -&gt; Void
+</span><a href="GHC.Base.html#stimes"><span class="hs-identifier hs-var hs-var hs-var hs-var">stimes</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall b a. Integral b =&gt; b -&gt; a -&gt; a
+</span><a href="Data.Semigroup.Internal.html#stimesIdempotent"><span class="hs-identifier hs-var">stimesIdempotent</span></a></span><span>
+</span><span id="line-65"></span><span>
+</span><span id="line-66"></span><span class="hs-comment">-- | Since 'Void' values logically don't exist, this witnesses the</span><span>
+</span><span id="line-67"></span><span class="hs-comment">-- logical reasoning tool of \&quot;ex falso quodlibet\&quot;.</span><span>
+</span><span id="line-68"></span><span class="hs-comment">--</span><span>
+</span><span id="line-69"></span><span class="hs-comment">-- &gt;&gt;&gt; let x :: Either Void Int; x = Right 5</span><span>
+</span><span id="line-70"></span><span class="hs-comment">-- &gt;&gt;&gt; :{</span><span>
+</span><span id="line-71"></span><span class="hs-comment">-- case x of</span><span>
+</span><span id="line-72"></span><span class="hs-comment">--     Right r -&gt; r</span><span>
+</span><span id="line-73"></span><span class="hs-comment">--     Left l  -&gt; absurd l</span><span>
+</span><span id="line-74"></span><span class="hs-comment">-- :}</span><span>
+</span><span id="line-75"></span><span class="hs-comment">-- 5</span><span>
+</span><span id="line-76"></span><span class="hs-comment">--</span><span>
+</span><span id="line-77"></span><span class="hs-comment">-- @since 4.8.0.0</span><span>
+</span><span id="line-78"></span><span id="local-6989586621679643692"><span class="annot"><a href="Data.Void.html#absurd"><span class="hs-identifier hs-type">absurd</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Void.html#Void"><span class="hs-identifier hs-type">Void</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679643692"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-79"></span><span id="absurd"><span class="annot"><span class="annottext">absurd :: forall a. Void -&gt; a
+</span><a href="Data.Void.html#absurd"><span class="hs-identifier hs-var hs-var">absurd</span></a></span></span><span> </span><span id="local-6989586621679643489"><span class="annot"><span class="annottext">Void
+</span><a href="#local-6989586621679643489"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Void
+</span><a href="#local-6989586621679643489"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="hs-keyword">of</span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span>
+</span><span id="line-80"></span><span>
+</span><span id="line-81"></span><span class="hs-comment">-- | If 'Void' is uninhabited then any 'Functor' that holds only</span><span>
+</span><span id="line-82"></span><span class="hs-comment">-- values of type 'Void' is holding no values.</span><span>
+</span><span id="line-83"></span><span class="hs-comment">-- It is implemented in terms of @fmap absurd@.</span><span>
+</span><span id="line-84"></span><span class="hs-comment">--</span><span>
+</span><span id="line-85"></span><span class="hs-comment">-- @since 4.8.0.0</span><span>
+</span><span id="line-86"></span><span id="local-6989586621679643682"><span id="local-6989586621679643683"><span class="annot"><a href="Data.Void.html#vacuous"><span class="hs-identifier hs-type">vacuous</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Base.html#Functor"><span class="hs-identifier hs-type">Functor</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643683"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679643683"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="Data.Void.html#Void"><span class="hs-identifier hs-type">Void</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679643683"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679643682"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-87"></span><span id="vacuous"><span class="annot"><span class="annottext">vacuous :: forall (f :: * -&gt; *) a. Functor f =&gt; f Void -&gt; f a
+</span><a href="Data.Void.html#vacuous"><span class="hs-identifier hs-var hs-var">vacuous</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="GHC.Base.html#fmap"><span class="hs-identifier hs-var">fmap</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Void -&gt; a
+</span><a href="Data.Void.html#absurd"><span class="hs-identifier hs-var">absurd</span></a></span><span>
+</span><span id="line-88"></span></pre></body></html>

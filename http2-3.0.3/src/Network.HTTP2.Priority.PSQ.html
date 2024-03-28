@@ -1,0 +1,341 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE RecordWildCards #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Network.HTTP2.Priority.PSQ</span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-4"></span><span>    </span><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#Key"><span class="hs-identifier">Key</span></a></span><span>
+</span><span id="line-5"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#Weight"><span class="hs-identifier">Weight</span></a></span><span>
+</span><span id="line-6"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#Deficit"><span class="hs-identifier">Deficit</span></a></span><span>
+</span><span id="line-7"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#Precedence"><span class="hs-identifier">Precedence</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-8"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#newPrecedence"><span class="hs-identifier">newPrecedence</span></a></span><span>
+</span><span id="line-9"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#PriorityQueue"><span class="hs-identifier">PriorityQueue</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#Heap"><span class="hs-identifier">Heap</span></a></span><span>
+</span><span id="line-11"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#empty"><span class="hs-identifier">empty</span></a></span><span>
+</span><span id="line-12"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#isEmpty"><span class="hs-identifier">isEmpty</span></a></span><span>
+</span><span id="line-13"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#enqueue"><span class="hs-identifier">enqueue</span></a></span><span>
+</span><span id="line-14"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#dequeue"><span class="hs-identifier">dequeue</span></a></span><span>
+</span><span id="line-15"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#delete"><span class="hs-identifier">delete</span></a></span><span>
+</span><span id="line-16"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Array</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Array</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">listArray</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-operator">(!)</span></span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.IntPSQ</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">IntPSQ</span></span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.IntPSQ</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">P</span></span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">type</span><span> </span><span id="Key"><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#Key"><span class="hs-identifier hs-var">Key</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">type</span><span> </span><span id="Weight"><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#Weight"><span class="hs-identifier hs-var">Weight</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">type</span><span> </span><span id="Deficit"><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#Deficit"><span class="hs-identifier hs-var">Deficit</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word</span></span><span> </span><span class="hs-comment">-- Deficit can be overflowed</span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="hs-comment">-- | Internal representation of priority in priority queues.</span><span>
+</span><span id="line-29"></span><span class="hs-comment">--   The precedence of a dequeued entry should be specified</span><span>
+</span><span id="line-30"></span><span class="hs-comment">--   to enqueue when the entry is enqueued again.</span><span>
+</span><span id="line-31"></span><span class="hs-keyword">data</span><span> </span><span id="Precedence"><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#Precedence"><span class="hs-identifier hs-var">Precedence</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Precedence"><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#Precedence"><span class="hs-identifier hs-var">Precedence</span></a></span></span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-32"></span><span>    </span><span id="deficit"><span class="annot"><span class="annottext">Precedence -&gt; Word
+</span><a href="Network.HTTP2.Priority.PSQ.html#deficit"><span class="hs-identifier hs-var hs-var">deficit</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#Deficit"><span class="hs-identifier hs-type">Deficit</span></a></span><span>
+</span><span id="line-33"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="weight"><span class="annot"><span class="annottext">Precedence -&gt; Int
+</span><a href="Network.HTTP2.Priority.PSQ.html#weight"><span class="hs-identifier hs-var hs-var">weight</span></a></span></span><span>     </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#Weight"><span class="hs-identifier hs-type">Weight</span></a></span><span>
+</span><span id="line-34"></span><span>  </span><span class="hs-comment">-- stream dependency, used by the upper layer</span><span>
+</span><span id="line-35"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="dependency"><span class="annot"><span class="annottext">Precedence -&gt; Int
+</span><a href="Network.HTTP2.Priority.PSQ.html#dependency"><span class="hs-keyword hs-var hs-var">dependency</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#Key"><span class="hs-identifier hs-type">Key</span></a></span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-special">}</span><span> </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621679101897"><span id="local-6989586621679101899"><span id="local-6989586621679101908"><span class="annot"><span class="annottext">Int -&gt; Precedence -&gt; ShowS
+[Precedence] -&gt; ShowS
+Precedence -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [Precedence] -&gt; ShowS
+$cshowList :: [Precedence] -&gt; ShowS
+show :: Precedence -&gt; String
+$cshow :: Precedence -&gt; String
+showsPrec :: Int -&gt; Precedence -&gt; ShowS
+$cshowsPrec :: Int -&gt; Precedence -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- | For test only</span><span>
+</span><span id="line-39"></span><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#newPrecedence"><span class="hs-identifier hs-type">newPrecedence</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#Weight"><span class="hs-identifier hs-type">Weight</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#Precedence"><span class="hs-identifier hs-type">Precedence</span></a></span><span>
+</span><span id="line-40"></span><span id="newPrecedence"><span class="annot"><span class="annottext">newPrecedence :: Int -&gt; Precedence
+</span><a href="Network.HTTP2.Priority.PSQ.html#newPrecedence"><span class="hs-identifier hs-var hs-var">newPrecedence</span></a></span></span><span> </span><span id="local-6989586621679101895"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679101895"><span class="hs-identifier hs-var">w</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word -&gt; Int -&gt; Int -&gt; Precedence
+</span><a href="Network.HTTP2.Priority.PSQ.html#Precedence"><span class="hs-identifier hs-var">Precedence</span></a></span><span> </span><span class="annot"><span class="annottext">Word
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679101895"><span class="hs-identifier hs-var">w</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679101892"><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#Precedence"><span class="hs-identifier hs-type">Precedence</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-43"></span><span>  </span><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#Precedence"><span class="hs-identifier hs-type">Precedence</span></a></span><span> </span><span id="local-6989586621679101888"><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679101888"><span class="hs-identifier hs-var">d1</span></a></span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679101887"><span class="annot"><span class="annottext">== :: Precedence -&gt; Precedence -&gt; Bool
+</span><span class="hs-operator hs-var hs-var hs-var hs-var">==</span></span></span><span> </span><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#Precedence"><span class="hs-identifier hs-type">Precedence</span></a></span><span> </span><span id="local-6989586621679101886"><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679101886"><span class="hs-identifier hs-var">d2</span></a></span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679101888"><span class="hs-identifier hs-var">d1</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679101886"><span class="hs-identifier hs-var">d2</span></a></span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679101872"><span id="local-6989586621679101874"><span id="local-6989586621679101876"><span id="local-6989586621679101878"><span id="local-6989586621679101882"><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#Precedence"><span class="hs-identifier hs-type">Precedence</span></a></span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-46"></span><span>  </span><span class="hs-comment">-- This is correct even if one of them is overflowed</span><span>
+</span><span id="line-47"></span><span>  </span><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#Precedence"><span class="hs-identifier hs-type">Precedence</span></a></span><span> </span><span id="local-6989586621679101866"><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679101866"><span class="hs-identifier hs-var">d1</span></a></span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679101865"><span class="annot"><span class="annottext">&lt; :: Precedence -&gt; Precedence -&gt; Bool
+</span><span class="hs-operator hs-var hs-var hs-var hs-var">&lt;</span></span></span><span>  </span><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#Precedence"><span class="hs-identifier hs-type">Precedence</span></a></span><span> </span><span id="local-6989586621679101863"><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679101863"><span class="hs-identifier hs-var">d2</span></a></span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679101866"><span class="hs-identifier hs-var">d1</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679101863"><span class="hs-identifier hs-var">d2</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679101863"><span class="hs-identifier hs-var">d2</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679101866"><span class="hs-identifier hs-var">d1</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Word
+</span><a href="Network.HTTP2.Priority.PSQ.html#deficitStepsW"><span class="hs-identifier hs-var">deficitStepsW</span></a></span><span>
+</span><span id="line-48"></span><span>  </span><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#Precedence"><span class="hs-identifier hs-type">Precedence</span></a></span><span> </span><span id="local-6989586621679101856"><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679101856"><span class="hs-identifier hs-var">d1</span></a></span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679101855"><span class="annot"><span class="annottext">&lt;= :: Precedence -&gt; Precedence -&gt; Bool
+</span><a href="#local-6989586621679101855"><span class="hs-operator hs-var hs-var hs-var hs-var">&lt;=</span></a></span></span><span> </span><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#Precedence"><span class="hs-identifier hs-type">Precedence</span></a></span><span> </span><span id="local-6989586621679101854"><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679101854"><span class="hs-identifier hs-var">d2</span></a></span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679101854"><span class="hs-identifier hs-var">d2</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679101856"><span class="hs-identifier hs-var">d1</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Word
+</span><a href="Network.HTTP2.Priority.PSQ.html#deficitStepsW"><span class="hs-identifier hs-var">deficitStepsW</span></a></span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span class="hs-keyword">type</span><span> </span><span id="Heap"><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#Heap"><span class="hs-identifier hs-var">Heap</span></a></span></span><span> </span><span id="local-6989586621679101853"><span class="annot"><a href="#local-6989586621679101853"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IntPSQ</span></span><span> </span><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#Precedence"><span class="hs-identifier hs-type">Precedence</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679101853"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span class="hs-keyword">data</span><span> </span><span id="PriorityQueue"><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#PriorityQueue"><span class="hs-identifier hs-var">PriorityQueue</span></a></span></span><span> </span><span id="local-6989586621679101997"><span class="annot"><a href="#local-6989586621679101997"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="PriorityQueue"><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#PriorityQueue"><span class="hs-identifier hs-var">PriorityQueue</span></a></span></span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-53"></span><span>    </span><span id="baseDeficit"><span class="annot"><span class="annottext">forall a. PriorityQueue a -&gt; Word
+</span><a href="Network.HTTP2.Priority.PSQ.html#baseDeficit"><span class="hs-identifier hs-var hs-var">baseDeficit</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#Deficit"><span class="hs-identifier hs-type">Deficit</span></a></span><span>
+</span><span id="line-54"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="queue"><span class="annot"><span class="annottext">forall a. PriorityQueue a -&gt; Heap a
+</span><a href="Network.HTTP2.Priority.PSQ.html#queue"><span class="hs-identifier hs-var hs-var">queue</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#Heap"><span class="hs-identifier hs-type">Heap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679101997"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-55"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-58"></span><span>
+</span><span id="line-59"></span><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#deficitSteps"><span class="hs-identifier hs-type">deficitSteps</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-60"></span><span id="deficitSteps"><span class="annot"><span class="annottext">deficitSteps :: Int
+</span><a href="Network.HTTP2.Priority.PSQ.html#deficitSteps"><span class="hs-identifier hs-var hs-var">deficitSteps</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">65536</span></span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#deficitStepsW"><span class="hs-identifier hs-type">deficitStepsW</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word</span></span><span>
+</span><span id="line-63"></span><span id="deficitStepsW"><span class="annot"><span class="annottext">deficitStepsW :: Word
+</span><a href="Network.HTTP2.Priority.PSQ.html#deficitStepsW"><span class="hs-identifier hs-var hs-var">deficitStepsW</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="Network.HTTP2.Priority.PSQ.html#deficitSteps"><span class="hs-identifier hs-var">deficitSteps</span></a></span><span>
+</span><span id="line-64"></span><span>
+</span><span id="line-65"></span><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#deficitList"><span class="hs-identifier hs-type">deficitList</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#Deficit"><span class="hs-identifier hs-type">Deficit</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-66"></span><span id="deficitList"><span class="annot"><span class="annottext">deficitList :: [Word]
+</span><a href="Network.HTTP2.Priority.PSQ.html#deficitList"><span class="hs-identifier hs-var hs-var">deficitList</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">forall {a} {b}. (RealFrac a, Integral b) =&gt; a -&gt; b
+</span><a href="#local-6989586621679101847"><span class="hs-identifier hs-var">calc</span></a></span><span> </span><span class="annot"><span class="annottext">[Double]
+</span><a href="#local-6989586621679101846"><span class="hs-identifier hs-var">idxs</span></a></span><span>
+</span><span id="line-67"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-68"></span><span>    </span><span id="local-6989586621679101846"><span class="annot"><span class="annottext">idxs :: [Double]
+</span><a href="#local-6989586621679101846"><span class="hs-identifier hs-var hs-var">idxs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">1</span></span><span class="hs-glyph">..</span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">256</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span class="hs-special">]</span><span>
+</span><span id="line-69"></span><span>    </span><span id="local-6989586621679101847"><span class="annot"><span class="annottext">calc :: a -&gt; b
+</span><a href="#local-6989586621679101847"><span class="hs-identifier hs-var hs-var">calc</span></a></span></span><span> </span><span id="local-6989586621679101830"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679101830"><span class="hs-identifier hs-var">w</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (RealFrac a, Integral b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">round</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="Network.HTTP2.Priority.PSQ.html#deficitSteps"><span class="hs-identifier hs-var">deficitSteps</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Fractional a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">/</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679101830"><span class="hs-identifier hs-var">w</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-70"></span><span>
+</span><span id="line-71"></span><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#deficitTable"><span class="hs-identifier hs-type">deficitTable</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Array</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#Deficit"><span class="hs-identifier hs-type">Deficit</span></a></span><span>
+</span><span id="line-72"></span><span id="deficitTable"><span class="annot"><span class="annottext">deficitTable :: Array Int Word
+</span><a href="Network.HTTP2.Priority.PSQ.html#deficitTable"><span class="hs-identifier hs-var hs-var">deficitTable</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall i e. Ix i =&gt; (i, i) -&gt; [e] -&gt; Array i e
+</span><span class="hs-identifier hs-var">listArray</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">256</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Word]
+</span><a href="Network.HTTP2.Priority.PSQ.html#deficitList"><span class="hs-identifier hs-var">deficitList</span></a></span><span>
+</span><span id="line-73"></span><span>
+</span><span id="line-74"></span><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#weightToDeficit"><span class="hs-identifier hs-type">weightToDeficit</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#Weight"><span class="hs-identifier hs-type">Weight</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#Deficit"><span class="hs-identifier hs-type">Deficit</span></a></span><span>
+</span><span id="line-75"></span><span id="weightToDeficit"><span class="annot"><span class="annottext">weightToDeficit :: Int -&gt; Word
+</span><a href="Network.HTTP2.Priority.PSQ.html#weightToDeficit"><span class="hs-identifier hs-var hs-var">weightToDeficit</span></a></span></span><span> </span><span id="local-6989586621679101825"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679101825"><span class="hs-identifier hs-var">w</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Array Int Word
+</span><a href="Network.HTTP2.Priority.PSQ.html#deficitTable"><span class="hs-identifier hs-var">deficitTable</span></a></span><span> </span><span class="annot"><span class="annottext">forall i e. Ix i =&gt; Array i e -&gt; i -&gt; e
+</span><span class="hs-operator hs-var">!</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679101825"><span class="hs-identifier hs-var">w</span></a></span><span>
+</span><span id="line-76"></span><span>
+</span><span id="line-77"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-78"></span><span>
+</span><span id="line-79"></span><span id="local-6989586621679101977"><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#empty"><span class="hs-identifier hs-type">empty</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#PriorityQueue"><span class="hs-identifier hs-type">PriorityQueue</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679101977"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-80"></span><span id="empty"><span class="annot"><span class="annottext">empty :: forall a. PriorityQueue a
+</span><a href="Network.HTTP2.Priority.PSQ.html#empty"><span class="hs-identifier hs-var hs-var">empty</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Word -&gt; Heap a -&gt; PriorityQueue a
+</span><a href="Network.HTTP2.Priority.PSQ.html#PriorityQueue"><span class="hs-identifier hs-var">PriorityQueue</span></a></span><span> </span><span class="annot"><span class="annottext">Word
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">forall p v. IntPSQ p v
+</span><span class="hs-identifier hs-var">P.empty</span></span><span>
+</span><span id="line-81"></span><span>
+</span><span id="line-82"></span><span id="local-6989586621679101973"><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#isEmpty"><span class="hs-identifier hs-type">isEmpty</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#PriorityQueue"><span class="hs-identifier hs-type">PriorityQueue</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679101973"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span><span>
+</span><span id="line-83"></span><span id="isEmpty"><span class="annot"><span class="annottext">isEmpty :: forall a. PriorityQueue a -&gt; Bool
+</span><a href="Network.HTTP2.Priority.PSQ.html#isEmpty"><span class="hs-identifier hs-var hs-var">isEmpty</span></a></span></span><span> </span><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#PriorityQueue"><span class="hs-identifier hs-type">PriorityQueue</span></a></span><span class="hs-special">{</span><span id="local-6989586621679101822"><span id="local-6989586621679101823"><span class="annot"><span class="annottext">Word
+Heap a
+queue :: Heap a
+baseDeficit :: Word
+queue :: forall a. PriorityQueue a -&gt; Heap a
+baseDeficit :: forall a. PriorityQueue a -&gt; Word
+</span><a href="#local-6989586621679101822"><span class="hs-glyph hs-var hs-var hs-var hs-var">..</span></a></span></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall p v. IntPSQ p v -&gt; Bool
+</span><span class="hs-identifier hs-var">P.null</span></span><span> </span><span class="annot"><span class="annottext">Heap a
+</span><a href="#local-6989586621679101822"><span class="hs-identifier hs-var">queue</span></a></span><span>
+</span><span id="line-84"></span><span>
+</span><span id="line-85"></span><span id="local-6989586621679101969"><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#enqueue"><span class="hs-identifier hs-type">enqueue</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#Key"><span class="hs-identifier hs-type">Key</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#Precedence"><span class="hs-identifier hs-type">Precedence</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679101969"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#PriorityQueue"><span class="hs-identifier hs-type">PriorityQueue</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679101969"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#PriorityQueue"><span class="hs-identifier hs-type">PriorityQueue</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679101969"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-86"></span><span id="enqueue"><span class="annot"><span class="annottext">enqueue :: forall a.
+Int -&gt; Precedence -&gt; a -&gt; PriorityQueue a -&gt; PriorityQueue a
+</span><a href="Network.HTTP2.Priority.PSQ.html#enqueue"><span class="hs-identifier hs-var hs-var">enqueue</span></a></span></span><span> </span><span id="local-6989586621679101820"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679101820"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span id="local-6989586621679101819"><span class="annot"><span class="annottext">p :: Precedence
+</span><a href="#local-6989586621679101819"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-glyph">@</span><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#Precedence"><span class="hs-identifier hs-type">Precedence</span></a></span><span class="hs-special">{</span><span id="local-6989586621679101816"><span id="local-6989586621679101817"><span id="local-6989586621679101818"><span class="annot"><span class="annottext">Int
+Word
+dependency :: Int
+weight :: Int
+deficit :: Word
+dependency :: Precedence -&gt; Int
+weight :: Precedence -&gt; Int
+deficit :: Precedence -&gt; Word
+</span><a href="#local-6989586621679101816"><span class="hs-glyph hs-var hs-var hs-var hs-var hs-var hs-var">..</span></a></span></span></span></span><span class="hs-special">}</span><span> </span><span id="local-6989586621679101815"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679101815"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#PriorityQueue"><span class="hs-identifier hs-type">PriorityQueue</span></a></span><span class="hs-special">{</span><span id="local-6989586621679101813"><span id="local-6989586621679101814"><span class="annot"><span class="annottext">Word
+Heap a
+queue :: Heap a
+baseDeficit :: Word
+queue :: forall a. PriorityQueue a -&gt; Heap a
+baseDeficit :: forall a. PriorityQueue a -&gt; Word
+</span><a href="#local-6989586621679101813"><span class="hs-glyph hs-var hs-var hs-var hs-var">..</span></a></span></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-87"></span><span>    </span><span class="annot"><span class="annottext">forall a. Word -&gt; Heap a -&gt; PriorityQueue a
+</span><a href="Network.HTTP2.Priority.PSQ.html#PriorityQueue"><span class="hs-identifier hs-var">PriorityQueue</span></a></span><span> </span><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679101814"><span class="hs-identifier hs-var">baseDeficit</span></a></span><span> </span><span class="annot"><span class="annottext">Heap a
+</span><a href="#local-6989586621679101812"><span class="hs-identifier hs-var">queue'</span></a></span><span>
+</span><span id="line-88"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-89"></span><span>    </span><span id="local-6989586621679101811"><span class="annot"><span class="annottext">d :: Word
+</span><a href="#local-6989586621679101811"><span class="hs-identifier hs-var hs-var">d</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Word
+</span><a href="Network.HTTP2.Priority.PSQ.html#weightToDeficit"><span class="hs-identifier hs-var">weightToDeficit</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679101817"><span class="hs-identifier hs-var">weight</span></a></span><span>
+</span><span id="line-90"></span><span>    </span><span id="local-6989586621679101808"><span class="annot"><span class="annottext">b :: Word
+</span><a href="#local-6989586621679101808"><span class="hs-identifier hs-var hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679101818"><span class="hs-identifier hs-var">deficit</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Word
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679101814"><span class="hs-identifier hs-var">baseDeficit</span></a></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679101818"><span class="hs-identifier hs-var">deficit</span></a></span><span>
+</span><span id="line-91"></span><span>    </span><span id="local-6989586621679101805"><span class="annot"><span class="annottext">deficit' :: Word
+</span><a href="#local-6989586621679101805"><span class="hs-identifier hs-var hs-var">deficit'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">max</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679101808"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679101811"><span class="hs-identifier hs-var">d</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679101814"><span class="hs-identifier hs-var">baseDeficit</span></a></span><span>
+</span><span id="line-92"></span><span>    </span><span id="local-6989586621679101802"><span class="annot"><span class="annottext">p' :: Precedence
+</span><a href="#local-6989586621679101802"><span class="hs-identifier hs-var hs-var">p'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Precedence
+</span><a href="#local-6989586621679101819"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">deficit :: Word
+</span><a href="Network.HTTP2.Priority.PSQ.html#deficit"><span class="hs-identifier hs-var">deficit</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679101805"><span class="hs-identifier hs-var">deficit'</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-93"></span><span>    </span><span id="local-6989586621679101812"><span class="annot"><span class="annottext">queue' :: Heap a
+</span><a href="#local-6989586621679101812"><span class="hs-identifier hs-var hs-var">queue'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall p v. Ord p =&gt; Int -&gt; p -&gt; v -&gt; IntPSQ p v -&gt; IntPSQ p v
+</span><span class="hs-identifier hs-var">P.insert</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679101820"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">Precedence
+</span><a href="#local-6989586621679101802"><span class="hs-identifier hs-var">p'</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679101815"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">Heap a
+</span><a href="#local-6989586621679101813"><span class="hs-identifier hs-var">queue</span></a></span><span>
+</span><span id="line-94"></span><span>
+</span><span id="line-95"></span><span id="local-6989586621679101965"><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#dequeue"><span class="hs-identifier hs-type">dequeue</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#PriorityQueue"><span class="hs-identifier hs-type">PriorityQueue</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679101965"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#Key"><span class="hs-identifier hs-type">Key</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#Precedence"><span class="hs-identifier hs-type">Precedence</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679101965"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#PriorityQueue"><span class="hs-identifier hs-type">PriorityQueue</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679101965"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-96"></span><span id="dequeue"><span class="annot"><span class="annottext">dequeue :: forall a.
+PriorityQueue a -&gt; Maybe (Int, Precedence, a, PriorityQueue a)
+</span><a href="Network.HTTP2.Priority.PSQ.html#dequeue"><span class="hs-identifier hs-var hs-var">dequeue</span></a></span></span><span> </span><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#PriorityQueue"><span class="hs-identifier hs-type">PriorityQueue</span></a></span><span class="hs-special">{</span><span id="local-6989586621679101797"><span id="local-6989586621679101798"><span class="annot"><span class="annottext">Word
+Heap a
+queue :: Heap a
+baseDeficit :: Word
+queue :: forall a. PriorityQueue a -&gt; Heap a
+baseDeficit :: forall a. PriorityQueue a -&gt; Word
+</span><a href="#local-6989586621679101797"><span class="hs-glyph hs-var hs-var hs-var hs-var">..</span></a></span></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">forall p v. Ord p =&gt; IntPSQ p v -&gt; Maybe (Int, p, v, IntPSQ p v)
+</span><span class="hs-identifier hs-var">P.minView</span></span><span> </span><span class="annot"><span class="annottext">Heap a
+</span><a href="#local-6989586621679101797"><span class="hs-identifier hs-var">queue</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-97"></span><span>    </span><span class="annot"><span class="annottext">Maybe (Int, Precedence, a, Heap a)
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>                </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-98"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679101795"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679101795"><span class="hs-identifier hs-var">k</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679101794"><span class="annot"><span class="annottext">Precedence
+</span><a href="#local-6989586621679101794"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679101793"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679101793"><span class="hs-identifier hs-var">v</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679101792"><span class="annot"><span class="annottext">Heap a
+</span><a href="#local-6989586621679101792"><span class="hs-identifier hs-var">queue'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679101791"><span class="annot"><span class="annottext">base :: Word
+</span><a href="#local-6989586621679101791"><span class="hs-identifier hs-var hs-var">base</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Precedence -&gt; Word
+</span><a href="Network.HTTP2.Priority.PSQ.html#deficit"><span class="hs-identifier hs-var">deficit</span></a></span><span> </span><span class="annot"><span class="annottext">Precedence
+</span><a href="#local-6989586621679101794"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-99"></span><span>                              </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679101795"><span class="hs-identifier hs-var">k</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Precedence
+</span><a href="#local-6989586621679101794"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679101793"><span class="hs-identifier hs-var">v</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall a. Word -&gt; Heap a -&gt; PriorityQueue a
+</span><a href="Network.HTTP2.Priority.PSQ.html#PriorityQueue"><span class="hs-identifier hs-var">PriorityQueue</span></a></span><span> </span><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679101791"><span class="hs-identifier hs-var">base</span></a></span><span> </span><span class="annot"><span class="annottext">Heap a
+</span><a href="#local-6989586621679101792"><span class="hs-identifier hs-var">queue'</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-100"></span><span>
+</span><span id="line-101"></span><span id="local-6989586621679101960"><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#delete"><span class="hs-identifier hs-type">delete</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#Key"><span class="hs-identifier hs-type">Key</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#PriorityQueue"><span class="hs-identifier hs-type">PriorityQueue</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679101960"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679101960"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#PriorityQueue"><span class="hs-identifier hs-type">PriorityQueue</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679101960"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-102"></span><span id="delete"><span class="annot"><span class="annottext">delete :: forall a. Int -&gt; PriorityQueue a -&gt; (Maybe a, PriorityQueue a)
+</span><a href="Network.HTTP2.Priority.PSQ.html#delete"><span class="hs-identifier hs-var hs-var">delete</span></a></span></span><span> </span><span id="local-6989586621679101784"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679101784"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span id="local-6989586621679101783"><span class="annot"><span class="annottext">q :: PriorityQueue a
+</span><a href="#local-6989586621679101783"><span class="hs-identifier hs-var">q</span></a></span></span><span class="hs-glyph">@</span><span class="annot"><a href="Network.HTTP2.Priority.PSQ.html#PriorityQueue"><span class="hs-identifier hs-type">PriorityQueue</span></a></span><span class="hs-special">{</span><span id="local-6989586621679101781"><span id="local-6989586621679101782"><span class="annot"><span class="annottext">Word
+Heap a
+queue :: Heap a
+baseDeficit :: Word
+queue :: forall a. PriorityQueue a -&gt; Heap a
+baseDeficit :: forall a. PriorityQueue a -&gt; Word
+</span><a href="#local-6989586621679101781"><span class="hs-glyph hs-var hs-var hs-var hs-var">..</span></a></span></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">forall p v b.
+Ord p =&gt;
+(Maybe (p, v) -&gt; (b, Maybe (p, v)))
+-&gt; Int -&gt; IntPSQ p v -&gt; (b, IntPSQ p v)
+</span><span class="hs-identifier hs-var">P.alter</span></span><span> </span><span class="annot"><span class="annottext">forall {a} {a} {a}. Maybe (a, a) -&gt; (Maybe a, Maybe a)
+</span><a href="#local-6989586621679101779"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679101784"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">Heap a
+</span><a href="#local-6989586621679101781"><span class="hs-identifier hs-var">queue</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-103"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621679101778"><span class="annot"><span class="annottext">mv :: Maybe a
+</span><a href="#local-6989586621679101778"><span class="hs-identifier hs-var">mv</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span id="local-6989586621679101777"><span class="annot"><span class="annottext">Heap a
+</span><a href="#local-6989586621679101777"><span class="hs-identifier hs-var">queue'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">forall p v. Ord p =&gt; IntPSQ p v -&gt; Maybe (Int, p, v, IntPSQ p v)
+</span><span class="hs-identifier hs-var">P.minView</span></span><span> </span><span class="annot"><span class="annottext">Heap a
+</span><a href="#local-6989586621679101781"><span class="hs-identifier hs-var">queue</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-104"></span><span>        </span><span class="annot"><span class="annottext">Maybe (Int, Precedence, a, Heap a)
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>          </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. HasCallStack =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;delete&quot;</span></span><span>
+</span><span id="line-105"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679101775"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679101775"><span class="hs-identifier hs-var">k'</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679101774"><span class="annot"><span class="annottext">Precedence
+</span><a href="#local-6989586621679101774"><span class="hs-identifier hs-var">p'</span></a></span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Heap a
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>
+</span><span id="line-106"></span><span>          </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679101775"><span class="hs-identifier hs-var">k'</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679101784"><span class="hs-identifier hs-var">k</span></a></span><span>      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe a
+</span><a href="#local-6989586621679101778"><span class="hs-identifier hs-var">mv</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall a. Word -&gt; Heap a -&gt; PriorityQueue a
+</span><a href="Network.HTTP2.Priority.PSQ.html#PriorityQueue"><span class="hs-identifier hs-var">PriorityQueue</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Precedence -&gt; Word
+</span><a href="Network.HTTP2.Priority.PSQ.html#deficit"><span class="hs-identifier hs-var">deficit</span></a></span><span> </span><span class="annot"><span class="annottext">Precedence
+</span><a href="#local-6989586621679101774"><span class="hs-identifier hs-var">p'</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Heap a
+</span><a href="#local-6989586621679101777"><span class="hs-identifier hs-var">queue'</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-107"></span><span>          </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe a
+</span><a href="#local-6989586621679101778"><span class="hs-identifier hs-var">mv</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall a. Word -&gt; Heap a -&gt; PriorityQueue a
+</span><a href="Network.HTTP2.Priority.PSQ.html#PriorityQueue"><span class="hs-identifier hs-var">PriorityQueue</span></a></span><span> </span><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679101782"><span class="hs-identifier hs-var">baseDeficit</span></a></span><span> </span><span class="annot"><span class="annottext">Heap a
+</span><a href="#local-6989586621679101777"><span class="hs-identifier hs-var">queue'</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-108"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Heap a
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>         </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">PriorityQueue a
+</span><a href="#local-6989586621679101783"><span class="hs-identifier hs-var">q</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-109"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-110"></span><span>    </span><span id="local-6989586621679101779"><span class="annot"><span class="annottext">f :: Maybe (a, a) -&gt; (Maybe a, Maybe a)
+</span><a href="#local-6989586621679101779"><span class="hs-identifier hs-var hs-var">f</span></a></span></span><span> </span><span class="annot"><span class="annottext">Maybe (a, a)
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">)</span><span>
+</span><span id="line-111"></span><span>    </span><span class="annot"><a href="#local-6989586621679101779"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span id="local-6989586621679101773"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679101773"><span class="hs-identifier hs-var">v</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679101773"><span class="hs-identifier hs-var">v</span></a></span><span class="hs-special">,</span><span>  </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">)</span><span>
+</span><span id="line-112"></span></pre></body></html>

@@ -1,0 +1,153 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- |</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- /NOTE:/ This module is not meant for public consumption.  For user</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- documentation look at http://hspec.github.io/hspec-discover.html.</span><span>
+</span><span id="line-4"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Test.Hspec.Discover.Sort</span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-5"></span><span>  </span><span class="annot"><a href="Test.Hspec.Discover.Sort.html#sortNaturallyBy"><span class="hs-identifier">sortNaturallyBy</span></a></span><span>
+</span><span id="line-6"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Discover.Sort.html#NaturalSortKey"><span class="hs-identifier">NaturalSortKey</span></a></span><span>
+</span><span id="line-7"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Discover.Sort.html#naturalSortKey"><span class="hs-identifier">naturalSortKey</span></a></span><span>
+</span><span id="line-8"></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Arrow</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Char</span></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.List</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Ord</span></span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span id="local-6989586621679038068"><span class="annot"><a href="Test.Hspec.Discover.Sort.html#sortNaturallyBy"><span class="hs-identifier hs-type">sortNaturallyBy</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679038068"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679038068"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679038068"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span></span><span>
+</span><span id="line-16"></span><span id="sortNaturallyBy"><span class="annot"><span class="annottext">sortNaturallyBy :: forall a. (a -&gt; (String, Int)) -&gt; [a] -&gt; [a]
+</span><a href="Test.Hspec.Discover.Sort.html#sortNaturallyBy"><span class="hs-identifier hs-var hs-var">sortNaturallyBy</span></a></span></span><span> </span><span id="local-6989586621679038022"><span class="annot"><span class="annottext">a -&gt; (String, Int)
+</span><a href="#local-6989586621679038022"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. (a -&gt; a -&gt; Ordering) -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">sortBy</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. Ord a =&gt; (b -&gt; a) -&gt; b -&gt; b -&gt; Ordering
+</span><span class="hs-identifier hs-var">comparing</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-glyph">\</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679038019"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679038019"><span class="hs-identifier hs-var">k</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679038018"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679038018"><span class="hs-identifier hs-var">t</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; NaturalSortKey
+</span><a href="Test.Hspec.Discover.Sort.html#naturalSortKey"><span class="hs-identifier hs-var">naturalSortKey</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679038019"><span class="hs-identifier hs-var">k</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679038018"><span class="hs-identifier hs-var">t</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; (String, Int)
+</span><a href="#local-6989586621679038022"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">data</span><span> </span><span id="NaturalSortKey"><span class="annot"><a href="Test.Hspec.Discover.Sort.html#NaturalSortKey"><span class="hs-identifier hs-var">NaturalSortKey</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="NaturalSortKey"><span class="annot"><a href="Test.Hspec.Discover.Sort.html#NaturalSortKey"><span class="hs-identifier hs-var">NaturalSortKey</span></a></span></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Test.Hspec.Discover.Sort.html#Chunk"><span class="hs-identifier hs-type">Chunk</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-19"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679038009"><span id="local-6989586621679038014"><span class="annot"><span class="annottext">NaturalSortKey -&gt; NaturalSortKey -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: NaturalSortKey -&gt; NaturalSortKey -&gt; Bool
+$c/= :: NaturalSortKey -&gt; NaturalSortKey -&gt; Bool
+== :: NaturalSortKey -&gt; NaturalSortKey -&gt; Bool
+$c== :: NaturalSortKey -&gt; NaturalSortKey -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679037984"><span id="local-6989586621679037986"><span id="local-6989586621679037989"><span id="local-6989586621679037992"><span id="local-6989586621679037995"><span id="local-6989586621679037999"><span id="local-6989586621679038004"><span class="annot"><span class="annottext">Eq NaturalSortKey
+NaturalSortKey -&gt; NaturalSortKey -&gt; Bool
+NaturalSortKey -&gt; NaturalSortKey -&gt; Ordering
+NaturalSortKey -&gt; NaturalSortKey -&gt; NaturalSortKey
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: NaturalSortKey -&gt; NaturalSortKey -&gt; NaturalSortKey
+$cmin :: NaturalSortKey -&gt; NaturalSortKey -&gt; NaturalSortKey
+max :: NaturalSortKey -&gt; NaturalSortKey -&gt; NaturalSortKey
+$cmax :: NaturalSortKey -&gt; NaturalSortKey -&gt; NaturalSortKey
+&gt;= :: NaturalSortKey -&gt; NaturalSortKey -&gt; Bool
+$c&gt;= :: NaturalSortKey -&gt; NaturalSortKey -&gt; Bool
+&gt; :: NaturalSortKey -&gt; NaturalSortKey -&gt; Bool
+$c&gt; :: NaturalSortKey -&gt; NaturalSortKey -&gt; Bool
+&lt;= :: NaturalSortKey -&gt; NaturalSortKey -&gt; Bool
+$c&lt;= :: NaturalSortKey -&gt; NaturalSortKey -&gt; Bool
+&lt; :: NaturalSortKey -&gt; NaturalSortKey -&gt; Bool
+$c&lt; :: NaturalSortKey -&gt; NaturalSortKey -&gt; Bool
+compare :: NaturalSortKey -&gt; NaturalSortKey -&gt; Ordering
+$ccompare :: NaturalSortKey -&gt; NaturalSortKey -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">data</span><span> </span><span id="Chunk"><span class="annot"><a href="Test.Hspec.Discover.Sort.html#Chunk"><span class="hs-identifier hs-var">Chunk</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Numeric"><span class="annot"><a href="Test.Hspec.Discover.Sort.html#Numeric"><span class="hs-identifier hs-var">Numeric</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="Textual"><span class="annot"><a href="Test.Hspec.Discover.Sort.html#Textual"><span class="hs-identifier hs-var">Textual</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Char</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Char</span></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-22"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679037971"><span id="local-6989586621679037979"><span class="annot"><span class="annottext">Chunk -&gt; Chunk -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: Chunk -&gt; Chunk -&gt; Bool
+$c/= :: Chunk -&gt; Chunk -&gt; Bool
+== :: Chunk -&gt; Chunk -&gt; Bool
+$c== :: Chunk -&gt; Chunk -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679037939"><span id="local-6989586621679037941"><span id="local-6989586621679037944"><span id="local-6989586621679037947"><span id="local-6989586621679037950"><span id="local-6989586621679037956"><span id="local-6989586621679037963"><span class="annot"><span class="annottext">Eq Chunk
+Chunk -&gt; Chunk -&gt; Bool
+Chunk -&gt; Chunk -&gt; Ordering
+Chunk -&gt; Chunk -&gt; Chunk
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: Chunk -&gt; Chunk -&gt; Chunk
+$cmin :: Chunk -&gt; Chunk -&gt; Chunk
+max :: Chunk -&gt; Chunk -&gt; Chunk
+$cmax :: Chunk -&gt; Chunk -&gt; Chunk
+&gt;= :: Chunk -&gt; Chunk -&gt; Bool
+$c&gt;= :: Chunk -&gt; Chunk -&gt; Bool
+&gt; :: Chunk -&gt; Chunk -&gt; Bool
+$c&gt; :: Chunk -&gt; Chunk -&gt; Bool
+&lt;= :: Chunk -&gt; Chunk -&gt; Bool
+$c&lt;= :: Chunk -&gt; Chunk -&gt; Bool
+&lt; :: Chunk -&gt; Chunk -&gt; Bool
+$c&lt; :: Chunk -&gt; Chunk -&gt; Bool
+compare :: Chunk -&gt; Chunk -&gt; Ordering
+$ccompare :: Chunk -&gt; Chunk -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span class="annot"><a href="Test.Hspec.Discover.Sort.html#naturalSortKey"><span class="hs-identifier hs-type">naturalSortKey</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Discover.Sort.html#NaturalSortKey"><span class="hs-identifier hs-type">NaturalSortKey</span></a></span><span>
+</span><span id="line-25"></span><span id="naturalSortKey"><span class="annot"><span class="annottext">naturalSortKey :: String -&gt; NaturalSortKey
+</span><a href="Test.Hspec.Discover.Sort.html#naturalSortKey"><span class="hs-identifier hs-var hs-var">naturalSortKey</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Chunk] -&gt; NaturalSortKey
+</span><a href="Test.Hspec.Discover.Sort.html#NaturalSortKey"><span class="hs-identifier hs-var">NaturalSortKey</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; [Chunk]
+</span><a href="#local-6989586621679037933"><span class="hs-identifier hs-var">chunks</span></a></span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-27"></span><span>    </span><span id="local-6989586621679037933"><span class="annot"><span class="annottext">chunks :: String -&gt; [Chunk]
+</span><a href="#local-6989586621679037933"><span class="hs-identifier hs-var hs-var">chunks</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-28"></span><span>    </span><span class="annot"><a href="#local-6989586621679037933"><span class="hs-identifier hs-var">chunks</span></a></span><span> </span><span id="local-6989586621679037926"><span class="annot"><span class="annottext">s :: String
+</span><a href="#local-6989586621679037926"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span id="local-6989586621679037925"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679037925"><span class="hs-identifier hs-var">c</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span class="annot"><span class="annottext">String
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isDigit</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679037925"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Int -&gt; Chunk
+</span><a href="Test.Hspec.Discover.Sort.html#Numeric"><span class="hs-identifier hs-var">Numeric</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Read a =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">read</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679037922"><span class="hs-identifier hs-var">num</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679037922"><span class="hs-identifier hs-var">num</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; [Chunk]
+</span><a href="#local-6989586621679037933"><span class="hs-identifier hs-var">chunks</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679037920"><span class="hs-identifier hs-var">afterNum</span></a></span><span>
+</span><span id="line-30"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[(Char, Char)] -&gt; Chunk
+</span><a href="Test.Hspec.Discover.Sort.html#Textual"><span class="hs-identifier hs-var">Textual</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Char -&gt; Char
+</span><span class="hs-identifier hs-var">toLower</span></span><span> </span><span class="annot"><span class="annottext">forall (a :: * -&gt; * -&gt; *) b c c'.
+Arrow a =&gt;
+a b c -&gt; a b c' -&gt; a b (c, c')
+</span><span class="hs-operator hs-var">&amp;&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679037916"><span class="hs-identifier hs-var">str</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; [Chunk]
+</span><a href="#local-6989586621679037933"><span class="hs-identifier hs-var">chunks</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679037915"><span class="hs-identifier hs-var">afterStr</span></a></span><span>
+</span><span id="line-31"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-32"></span><span>        </span><span class="hs-special">(</span><span id="local-6989586621679037922"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679037922"><span class="hs-identifier hs-var">num</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679037920"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679037920"><span class="hs-identifier hs-var">afterNum</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. (a -&gt; Bool) -&gt; [a] -&gt; ([a], [a])
+</span><span class="hs-identifier hs-var">span</span></span><span>  </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isDigit</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679037926"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-33"></span><span>        </span><span class="hs-special">(</span><span id="local-6989586621679037916"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679037916"><span class="hs-identifier hs-var">str</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679037915"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679037915"><span class="hs-identifier hs-var">afterStr</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. (a -&gt; Bool) -&gt; [a] -&gt; ([a], [a])
+</span><span class="hs-identifier hs-var">break</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isDigit</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679037926"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-34"></span></pre></body></html>

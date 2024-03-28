@@ -1,0 +1,49 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ &gt;= 703
+</span><span class="hs-pragma">{-# LANGUAGE Safe #-}</span><span class="hs-cpp">
+#endif
+</span><span class="hs-comment">-- |</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- Maintainer  : judah.jacobson@gmail.com</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Stability   : experimental</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- Portability : portable (FFI)</span><span>
+</span><span id="line-9"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">System.Console.Terminfo.Edit</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="System.Console.Terminfo.Base.html"><span class="hs-identifier">System.Console.Terminfo.Base</span></a></span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- | Clear the screen, and move the cursor to the upper left.</span><span>
+</span><span id="line-14"></span><span class="annot"><a href="System.Console.Terminfo.Edit.html#clearScreen"><span class="hs-identifier hs-type">clearScreen</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.Console.Terminfo.Base.html#Capability"><span class="hs-identifier hs-type">Capability</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.Console.Terminfo.Base.html#LinesAffected"><span class="hs-identifier hs-type">LinesAffected</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="System.Console.Terminfo.Base.html#TermOutput"><span class="hs-identifier hs-type">TermOutput</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span id="clearScreen"><span class="annot"><span class="annottext">clearScreen :: Capability (LinesAffected -&gt; TermOutput)
+</span><a href="System.Console.Terminfo.Edit.html#clearScreen"><span class="hs-identifier hs-var hs-var">clearScreen</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#fmap"><span class="hs-identifier hs-var">fmap</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">String
+-&gt; Capability ([LinesAffected] -&gt; LinesAffected -&gt; TermOutput)
+</span><a href="System.Console.Terminfo.Base.html#tiGetOutput"><span class="hs-identifier hs-var">tiGetOutput</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;clear&quot;</span></span><span> </span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- | Clear from beginning of line to cursor.</span><span>
+</span><span id="line-18"></span><span id="local-6989586621679037583"><span class="annot"><a href="System.Console.Terminfo.Edit.html#clearBOL"><span class="hs-identifier hs-type">clearBOL</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.Console.Terminfo.Base.html#TermStr"><span class="hs-identifier hs-type">TermStr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679037583"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="System.Console.Terminfo.Base.html#Capability"><span class="hs-identifier hs-type">Capability</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679037583"><span class="hs-identifier hs-type">s</span></a></span></span><span>
+</span><span id="line-19"></span><span id="clearBOL"><span class="annot"><span class="annottext">clearBOL :: forall s. TermStr s =&gt; Capability s
+</span><a href="System.Console.Terminfo.Edit.html#clearBOL"><span class="hs-identifier hs-var hs-var">clearBOL</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall f. OutputCap f =&gt; String -&gt; Capability f
+</span><a href="System.Console.Terminfo.Base.html#tiGetOutput1"><span class="hs-identifier hs-var">tiGetOutput1</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;el1&quot;</span></span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- | Clear from cursor to end of line.</span><span>
+</span><span id="line-22"></span><span id="local-6989586621679037565"><span class="annot"><a href="System.Console.Terminfo.Edit.html#clearEOL"><span class="hs-identifier hs-type">clearEOL</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.Console.Terminfo.Base.html#TermStr"><span class="hs-identifier hs-type">TermStr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679037565"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="System.Console.Terminfo.Base.html#Capability"><span class="hs-identifier hs-type">Capability</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679037565"><span class="hs-identifier hs-type">s</span></a></span></span><span>
+</span><span id="line-23"></span><span id="clearEOL"><span class="annot"><span class="annottext">clearEOL :: forall s. TermStr s =&gt; Capability s
+</span><a href="System.Console.Terminfo.Edit.html#clearEOL"><span class="hs-identifier hs-var hs-var">clearEOL</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall f. OutputCap f =&gt; String -&gt; Capability f
+</span><a href="System.Console.Terminfo.Base.html#tiGetOutput1"><span class="hs-identifier hs-var">tiGetOutput1</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;el&quot;</span></span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span class="hs-comment">-- | Clear display after cursor.</span><span>
+</span><span id="line-26"></span><span class="annot"><a href="System.Console.Terminfo.Edit.html#clearEOS"><span class="hs-identifier hs-type">clearEOS</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.Console.Terminfo.Base.html#Capability"><span class="hs-identifier hs-type">Capability</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.Console.Terminfo.Base.html#LinesAffected"><span class="hs-identifier hs-type">LinesAffected</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="System.Console.Terminfo.Base.html#TermOutput"><span class="hs-identifier hs-type">TermOutput</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span id="clearEOS"><span class="annot"><span class="annottext">clearEOS :: Capability (LinesAffected -&gt; TermOutput)
+</span><a href="System.Console.Terminfo.Edit.html#clearEOS"><span class="hs-identifier hs-var hs-var">clearEOS</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#fmap"><span class="hs-identifier hs-var">fmap</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">String
+-&gt; Capability ([LinesAffected] -&gt; LinesAffected -&gt; TermOutput)
+</span><a href="System.Console.Terminfo.Base.html#tiGetOutput"><span class="hs-identifier hs-var">tiGetOutput</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;ed&quot;</span></span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span></pre></body></html>

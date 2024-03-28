@@ -1,0 +1,129 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- THIS IS A GENERATED FILE, DO NOT EDIT</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-imports #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-matches #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-deprecations #-}</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.MessageActionItem</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Hashable</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html"><span class="hs-identifier">Language.LSP.Protocol.Utils.Misc</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prettyprinter</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Aeson.html"><span class="hs-identifier">Data.Row.Aeson</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Hashable.html"><span class="hs-identifier">Data.Row.Hashable</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Hashable</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html"><span class="hs-identifier">Language.LSP.Protocol.Types.Common</span></a></span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-comment">{-|
+
+-}</span><span>
+</span><span id="line-22"></span><span id="local-6989586621682163327"><span id="local-6989586621682163328"></span></span><span class="hs-keyword">data</span><span> </span><span id="MessageActionItem"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.MessageActionItem.html#MessageActionItem"><span class="hs-identifier hs-var">MessageActionItem</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="MessageActionItem"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.MessageActionItem.html#MessageActionItem"><span class="hs-identifier hs-var">MessageActionItem</span></a></span></span><span> </span><span>
+</span><span id="line-23"></span><span>  </span><span class="hs-special">{</span><span> </span><span class="hs-comment">{-|
+  A short title like 'Retry', 'Open Log' etc.
+  -}</span><span>
+</span><span id="line-26"></span><span>  </span><span id="%24sel%3A_title%3AMessageActionItem"><span class="annot"><span class="annottext">MessageActionItem -&gt; Text
+</span><a href="Language.LSP.Protocol.Internal.Types.MessageActionItem.html#%24sel%3A_title%3AMessageActionItem"><span class="hs-identifier hs-var hs-var">_title</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Data.Text.Text</span></span><span>
+</span><span id="line-27"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682163315"><span id="local-6989586621682163317"><span id="local-6989586621682163323"><span class="annot"><span class="annottext">Int -&gt; MessageActionItem -&gt; ShowS
+[MessageActionItem] -&gt; ShowS
+MessageActionItem -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [MessageActionItem] -&gt; ShowS
+$cshowList :: [MessageActionItem] -&gt; ShowS
+show :: MessageActionItem -&gt; String
+$cshow :: MessageActionItem -&gt; String
+showsPrec :: Int -&gt; MessageActionItem -&gt; ShowS
+$cshowsPrec :: Int -&gt; MessageActionItem -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682163308"><span id="local-6989586621682163312"><span class="annot"><span class="annottext">MessageActionItem -&gt; MessageActionItem -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: MessageActionItem -&gt; MessageActionItem -&gt; Bool
+$c/= :: MessageActionItem -&gt; MessageActionItem -&gt; Bool
+== :: MessageActionItem -&gt; MessageActionItem -&gt; Bool
+$c== :: MessageActionItem -&gt; MessageActionItem -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682163285"><span id="local-6989586621682163287"><span id="local-6989586621682163290"><span id="local-6989586621682163293"><span id="local-6989586621682163296"><span id="local-6989586621682163299"><span id="local-6989586621682163303"><span class="annot"><span class="annottext">Eq MessageActionItem
+MessageActionItem -&gt; MessageActionItem -&gt; Bool
+MessageActionItem -&gt; MessageActionItem -&gt; Ordering
+MessageActionItem -&gt; MessageActionItem -&gt; MessageActionItem
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: MessageActionItem -&gt; MessageActionItem -&gt; MessageActionItem
+$cmin :: MessageActionItem -&gt; MessageActionItem -&gt; MessageActionItem
+max :: MessageActionItem -&gt; MessageActionItem -&gt; MessageActionItem
+$cmax :: MessageActionItem -&gt; MessageActionItem -&gt; MessageActionItem
+&gt;= :: MessageActionItem -&gt; MessageActionItem -&gt; Bool
+$c&gt;= :: MessageActionItem -&gt; MessageActionItem -&gt; Bool
+&gt; :: MessageActionItem -&gt; MessageActionItem -&gt; Bool
+$c&gt; :: MessageActionItem -&gt; MessageActionItem -&gt; Bool
+&lt;= :: MessageActionItem -&gt; MessageActionItem -&gt; Bool
+$c&lt;= :: MessageActionItem -&gt; MessageActionItem -&gt; Bool
+&lt; :: MessageActionItem -&gt; MessageActionItem -&gt; Bool
+$c&lt; :: MessageActionItem -&gt; MessageActionItem -&gt; Bool
+compare :: MessageActionItem -&gt; MessageActionItem -&gt; Ordering
+$ccompare :: MessageActionItem -&gt; MessageActionItem -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall x. Rep MessageActionItem x -&gt; MessageActionItem
+forall x. MessageActionItem -&gt; Rep MessageActionItem x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cto :: forall x. Rep MessageActionItem x -&gt; MessageActionItem
+$cfrom :: forall x. MessageActionItem -&gt; Rep MessageActionItem x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">anyclass</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682163279"><span class="annot"><span class="annottext">MessageActionItem -&gt; ()
+forall a. (a -&gt; ()) -&gt; NFData a
+rnf :: MessageActionItem -&gt; ()
+$crnf :: MessageActionItem -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682163272"><span id="local-6989586621682163274"><span class="annot"><span class="annottext">Eq MessageActionItem
+Int -&gt; MessageActionItem -&gt; Int
+MessageActionItem -&gt; Int
+forall a. Eq a -&gt; (Int -&gt; a -&gt; Int) -&gt; (a -&gt; Int) -&gt; Hashable a
+hash :: MessageActionItem -&gt; Int
+$chash :: MessageActionItem -&gt; Int
+hashWithSalt :: Int -&gt; MessageActionItem -&gt; Int
+$chashWithSalt :: Int -&gt; MessageActionItem -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Hashable</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621682163263"><span id="local-6989586621682163269"><span class="annot"><span class="annottext">forall ann. [MessageActionItem] -&gt; Doc ann
+forall ann. MessageActionItem -&gt; Doc ann
+forall a.
+(forall ann. a -&gt; Doc ann)
+-&gt; (forall ann. [a] -&gt; Doc ann) -&gt; Pretty a
+prettyList :: forall ann. [MessageActionItem] -&gt; Doc ann
+$cprettyList :: forall ann. [MessageActionItem] -&gt; Doc ann
+pretty :: forall ann. MessageActionItem -&gt; Doc ann
+$cpretty :: forall ann. MessageActionItem -&gt; Doc ann
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Pretty</span></span></span></span><span> </span><span class="hs-keyword">via</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html#ViaJSON"><span class="hs-identifier hs-type">ViaJSON</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.MessageActionItem.html#MessageActionItem"><span class="hs-identifier hs-type">MessageActionItem</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682163251"><span id="local-6989586621682163253"><span id="local-6989586621682163255"><span class="annot"><span class="hs-identifier hs-type">Aeson.ToJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.MessageActionItem.html#MessageActionItem"><span class="hs-identifier hs-type">MessageActionItem</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-33"></span><span>  </span><span id="local-6989586621682163241"><span class="annot"><span class="annottext">toJSON :: MessageActionItem -&gt; Value
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">toJSON</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.MessageActionItem.html#MessageActionItem"><span class="hs-identifier hs-type">MessageActionItem</span></a></span><span> </span><span id="local-6989586621682163239"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621682163239"><span class="hs-identifier hs-var">arg0</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">Aeson.object</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">concat</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>  </span><span class="hs-special">[</span><span class="hs-special">[</span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;title&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">Aeson..=</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621682163239"><span class="hs-identifier hs-var">arg0</span></a></span><span class="hs-special">]</span><span class="hs-special">]</span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682163233"><span class="annot"><span class="hs-identifier hs-type">Aeson.FromJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.MessageActionItem.html#MessageActionItem"><span class="hs-identifier hs-type">MessageActionItem</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-36"></span><span>  </span><span id="local-6989586621682163226"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser MessageActionItem
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">Aeson.withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;MessageActionItem&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621682163223"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682163223"><span class="hs-identifier hs-var">arg</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text -&gt; MessageActionItem
+</span><a href="Language.LSP.Protocol.Internal.Types.MessageActionItem.html#MessageActionItem"><span class="hs-identifier hs-var">MessageActionItem</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682163223"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">Aeson..:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;title&quot;</span></span><span>
+</span><span id="line-37"></span></pre></body></html>

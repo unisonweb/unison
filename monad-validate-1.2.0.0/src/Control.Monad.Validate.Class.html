@@ -1,0 +1,493 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# OPTIONS_HADDOCK not-home #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE UndecidableInstances #-}</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Control.Monad.Validate.Class</span><span>
+</span><span id="line-5"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Control.Monad.Validate.Class.html#MonadValidate"><span class="hs-identifier">MonadValidate</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-6"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Validate.Class.html#exceptToValidate"><span class="hs-identifier">exceptToValidate</span></a></span><span>
+</span><span id="line-7"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Validate.Class.html#exceptToValidateWith"><span class="hs-identifier">exceptToValidateWith</span></a></span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Deriving @MonadValidate@ instances with @DerivingVia@</span></span><span>
+</span><span id="line-10"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Validate.Class.html#WrappedMonadTrans"><span class="hs-identifier">WrappedMonadTrans</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Trans.RWS.CPS</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">CPS</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Trans.RWS.Lazy</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Lazy</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Trans.RWS.Strict</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Strict</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Trans.State.Lazy</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Lazy</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Trans.State.Strict</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Strict</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Trans.Writer.CPS</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">CPS</span></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Trans.Writer.Lazy</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Lazy</span></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Trans.Writer.Strict</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Strict</span></span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Trans.Class</span></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Trans.Control</span></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Trans.Except</span></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Trans.Identity</span></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Trans.Maybe</span></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Trans.Reader</span></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Functor</span></span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="hs-comment">{-| The class of validation monads, intended to be used to validate data structures while collecting
+errors along the way. In a sense, 'MonadValidate' is like a combination of
+'Control.Monad.Error.Class.MonadError' and 'Control.Monad.Writer.Class.MonadWriter', but it isn&#8217;t
+entirely like either. The two essential differences are:
+
+  1. Unlike 'Control.Monad.Error.Class.throwError', raising an error using 'refute' does not always
+     abort the entire computation&#8212;it may only abort a local part of it.
+
+  2. Unlike 'Control.Monad.Writer.Class.tell', raising an error using 'dispute' still causes the
+     computation to globally fail, it just doesn&#8217;t affect local execution.
+
+Instances must obey the following law:
+
+@
+'dispute' &#8801; 'void' '.' 'tolerate' '.' 'refute'
+@
+
+For a more thorough explanation, with examples, see the documentation for
+'Control.Monad.Validate.ValidateT'. -}</span><span>
+</span><span id="line-50"></span><span class="hs-keyword">class</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679053137"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Semigroup</span></span><span> </span><span class="annot"><a href="#local-6989586621679053138"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span id="MonadValidate"><span class="annot"><a href="Control.Monad.Validate.Class.html#MonadValidate"><span class="hs-identifier hs-var">MonadValidate</span></a></span></span><span> </span><span id="local-6989586621679053138"><span class="annot"><a href="#local-6989586621679053138"><span class="hs-identifier hs-type">e</span></a></span></span><span> </span><span id="local-6989586621679053137"><span class="annot"><a href="#local-6989586621679053137"><span class="hs-identifier hs-type">m</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><a href="#local-6989586621679053137"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679053138"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-51"></span><span>  </span><span class="hs-comment">-- | Raises a fatal validation error. Aborts the current branch of the validation (i.e. does not</span><span>
+</span><span id="line-52"></span><span>  </span><span class="hs-comment">-- return).</span><span>
+</span><span id="line-53"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-54"></span><span>  </span><span class="hs-comment">-- @</span><span>
+</span><span id="line-55"></span><span>  </span><span class="hs-comment">-- &gt;&gt;&gt; 'Control.Monad.Validate.runValidate' ('refute' [&quot;boom&quot;] '&gt;&gt;' 'refute' [&quot;bang&quot;])</span><span>
+</span><span id="line-56"></span><span>  </span><span class="hs-comment">-- 'Left' [&quot;boom&quot;]</span><span>
+</span><span id="line-57"></span><span>  </span><span class="hs-comment">-- @</span><span>
+</span><span id="line-58"></span><span>  </span><span id="refute"><span class="annot"><a href="Control.Monad.Validate.Class.html#refute"><span class="hs-identifier hs-type">refute</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span id="local-6989586621679053127"><span class="annot"><a href="#local-6989586621679053138"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679053137"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679053127"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span>  </span><span class="hs-comment">-- | Raises a non-fatal validation error. The overall validation fails, and the error is recorded,</span><span>
+</span><span id="line-61"></span><span>  </span><span class="hs-comment">-- but validation continues in an attempt to try and discover more errors.</span><span>
+</span><span id="line-62"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-63"></span><span>  </span><span class="hs-comment">-- @</span><span>
+</span><span id="line-64"></span><span>  </span><span class="hs-comment">-- &gt;&gt;&gt; 'Control.Monad.Validate.runValidate' ('dispute' [&quot;boom&quot;] '&gt;&gt;' 'dispute' [&quot;bang&quot;])</span><span>
+</span><span id="line-65"></span><span>  </span><span class="hs-comment">-- 'Left' [&quot;boom&quot;, &quot;bang&quot;]</span><span>
+</span><span id="line-66"></span><span>  </span><span class="hs-comment">-- @</span><span>
+</span><span id="line-67"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-68"></span><span>  </span><span class="hs-comment">-- If not explicitly implemented, the default implementation is @'void' '.' 'tolerate' '.'</span><span>
+</span><span id="line-69"></span><span>  </span><span class="hs-comment">-- 'refute'@ (which must behave equivalently by law), but it is sometimes possible to provide a</span><span>
+</span><span id="line-70"></span><span>  </span><span class="hs-comment">-- more efficient implementation.</span><span>
+</span><span id="line-71"></span><span>  </span><span id="dispute"><span class="annot"><a href="Control.Monad.Validate.Class.html#dispute"><span class="hs-identifier hs-type">dispute</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679053138"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679053137"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-72"></span><span>  </span><span id="local-6989586621679052821"><span class="annot"><a href="Control.Monad.Validate.Class.html#dispute"><span class="hs-identifier hs-var hs-var">dispute</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Functor f =&gt; f a -&gt; f ()
+</span><span class="hs-identifier hs-var">void</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall e (m :: * -&gt; *) a. MonadValidate e m =&gt; m a -&gt; m (Maybe a)
+</span><a href="Control.Monad.Validate.Class.html#tolerate"><span class="hs-identifier hs-var">tolerate</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall e (m :: * -&gt; *) a. MonadValidate e m =&gt; e -&gt; m a
+</span><a href="Control.Monad.Validate.Class.html#refute"><span class="hs-identifier hs-var">refute</span></a></span></span><span>
+</span><span id="line-73"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Control.Monad.Validate.Class.html#dispute"><span class="hs-pragma hs-type">dispute</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-74"></span><span>
+</span><span id="line-75"></span><span>  </span><span class="hs-comment">-- | @'tolerate' m@ behaves like @m@, except that any fatal errors raised by 'refute' are altered</span><span>
+</span><span id="line-76"></span><span>  </span><span class="hs-comment">-- to non-fatal errors that return 'Nothing'. This allows @m@&#8217;s result to be used for further</span><span>
+</span><span id="line-77"></span><span>  </span><span class="hs-comment">-- validation if it succeeds without preventing further validation from occurring upon failure.</span><span>
+</span><span id="line-78"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-79"></span><span>  </span><span class="hs-comment">-- @</span><span>
+</span><span id="line-80"></span><span>  </span><span class="hs-comment">-- &gt;&gt;&gt; 'Control.Monad.Validate.runValidate' ('tolerate' ('refute' [&quot;boom&quot;]) '&gt;&gt;' 'refute' [&quot;bang&quot;])</span><span>
+</span><span id="line-81"></span><span>  </span><span class="hs-comment">-- 'Left' [&quot;boom&quot;, &quot;bang&quot;]</span><span>
+</span><span id="line-82"></span><span>  </span><span class="hs-comment">-- @</span><span>
+</span><span id="line-83"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-84"></span><span>  </span><span class="hs-comment">-- @since 1.1.0.0</span><span>
+</span><span id="line-85"></span><span>  </span><span id="tolerate"><span class="annot"><a href="Control.Monad.Validate.Class.html#tolerate"><span class="hs-identifier hs-type">tolerate</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span id="local-6989586621679053128"><span class="annot"><a href="#local-6989586621679053137"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679053128"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679053137"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679053128"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-86"></span><span>
+</span><span id="line-87"></span><span class="hs-comment">{-| Runs an 'ExceptT' computation, and if it raised an error, re-raises it using 'refute'. This
+effectively converts a computation that uses 'ExceptT' (or 'Control.Monad.Except.MonadError') into
+one that uses 'MonadValidate'.
+
+@
+&gt;&gt;&gt; 'Control.Monad.Validate.runValidate' '$' 'exceptToValidate' ('pure' 42)
+'Right' 42
+&gt;&gt;&gt; 'Control.Monad.Validate.runValidate' '$' 'exceptToValidate' ('Control.Monad.Except.throwError' [&quot;boom&quot;])
+'Left' &quot;boom&quot;
+@
+
+@since 1.2.0.0 -}</span><span>
+</span><span id="line-99"></span><span class="annot"><a href="Control.Monad.Validate.Class.html#exceptToValidate"><span class="hs-identifier hs-type">exceptToValidate</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679053126"><span class="annot"><a href="#local-6989586621679053126"><span class="hs-identifier hs-type">e</span></a></span></span><span> </span><span id="local-6989586621679053125"><span class="annot"><a href="#local-6989586621679053125"><span class="hs-identifier hs-type">m</span></a></span></span><span> </span><span id="local-6989586621679053124"><span class="annot"><a href="#local-6989586621679053124"><span class="hs-identifier hs-type">a</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Validate.Class.html#MonadValidate"><span class="hs-identifier hs-type">MonadValidate</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679053126"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679053125"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ExceptT</span></span><span> </span><span class="annot"><a href="#local-6989586621679053126"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679053125"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679053124"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679053125"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679053124"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-100"></span><span id="exceptToValidate"><span class="annot"><span class="annottext">exceptToValidate :: forall e (m :: * -&gt; *) a. MonadValidate e m =&gt; ExceptT e m a -&gt; m a
+</span><a href="Control.Monad.Validate.Class.html#exceptToValidate"><span class="hs-identifier hs-var hs-var">exceptToValidate</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall e1 e2 (m :: * -&gt; *) a.
+MonadValidate e2 m =&gt;
+(e1 -&gt; e2) -&gt; ExceptT e1 m a -&gt; m a
+</span><a href="Control.Monad.Validate.Class.html#exceptToValidateWith"><span class="hs-identifier hs-var">exceptToValidateWith</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span>
+</span><span id="line-101"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Control.Monad.Validate.Class.html#exceptToValidate"><span class="hs-pragma hs-type">exceptToValidate</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-102"></span><span>
+</span><span id="line-103"></span><span class="hs-comment">{-| Like 'exceptToValidate', but additionally accepts a function, which is applied to the error
+raised by 'ExceptT' before passing it to 'refute'. This can be useful if the original error type is
+not a 'Semigroup'.
+
+@
+&gt;&gt;&gt; 'Control.Monad.Validate.runValidate' '$' 'exceptToValidateWith' (:[]) ('pure' 42)
+'Right' 42
+&gt;&gt;&gt; 'Control.Monad.Validate.runValidate' '$' 'exceptToValidateWith' (:[]) ('Control.Monad.Except.throwError' &quot;boom&quot;)
+'Left' [&quot;boom&quot;]
+@
+
+@since 1.2.0.0 -}</span><span>
+</span><span id="line-115"></span><span class="annot"><a href="Control.Monad.Validate.Class.html#exceptToValidateWith"><span class="hs-identifier hs-type">exceptToValidateWith</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679053118"><span class="annot"><a href="#local-6989586621679053118"><span class="hs-identifier hs-type">e1</span></a></span></span><span> </span><span id="local-6989586621679053120"><span class="annot"><a href="#local-6989586621679053120"><span class="hs-identifier hs-type">e2</span></a></span></span><span> </span><span id="local-6989586621679053119"><span class="annot"><a href="#local-6989586621679053119"><span class="hs-identifier hs-type">m</span></a></span></span><span> </span><span id="local-6989586621679053117"><span class="annot"><a href="#local-6989586621679053117"><span class="hs-identifier hs-type">a</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Validate.Class.html#MonadValidate"><span class="hs-identifier hs-type">MonadValidate</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679053120"><span class="hs-identifier hs-type">e2</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679053119"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679053118"><span class="hs-identifier hs-type">e1</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679053120"><span class="hs-identifier hs-type">e2</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ExceptT</span></span><span> </span><span class="annot"><a href="#local-6989586621679053118"><span class="hs-identifier hs-type">e1</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679053119"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679053117"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679053119"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679053117"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-116"></span><span id="exceptToValidateWith"><span class="annot"><span class="annottext">exceptToValidateWith :: forall e1 e2 (m :: * -&gt; *) a.
+MonadValidate e2 m =&gt;
+(e1 -&gt; e2) -&gt; ExceptT e1 m a -&gt; m a
+</span><a href="Control.Monad.Validate.Class.html#exceptToValidateWith"><span class="hs-identifier hs-var hs-var">exceptToValidateWith</span></a></span></span><span> </span><span id="local-6989586621679052800"><span class="annot"><span class="annottext">e1 -&gt; e2
+</span><a href="#local-6989586621679052800"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a c b. (a -&gt; c) -&gt; (b -&gt; c) -&gt; Either a b -&gt; c
+</span><span class="hs-identifier hs-var">either</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall e (m :: * -&gt; *) a. MonadValidate e m =&gt; e -&gt; m a
+</span><a href="Control.Monad.Validate.Class.html#refute"><span class="hs-identifier hs-var">refute</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">e1 -&gt; e2
+</span><a href="#local-6989586621679052800"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) b c a.
+Monad m =&gt;
+(b -&gt; m c) -&gt; (a -&gt; m b) -&gt; a -&gt; m c
+</span><span class="hs-operator hs-var">&lt;=&lt;</span></span><span> </span><span class="annot"><span class="annottext">forall e (m :: * -&gt; *) a. ExceptT e m a -&gt; m (Either e a)
+</span><span class="hs-identifier hs-var">runExceptT</span></span><span>
+</span><span id="line-117"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Control.Monad.Validate.Class.html#exceptToValidateWith"><span class="hs-pragma hs-type">exceptToValidateWith</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-118"></span><span>
+</span><span id="line-119"></span><span class="hs-comment">{-| If you have a monad transformer that implements the 'MonadTransControl' class, this newtype
+wrapper can be used to automatically derive instances of 'MonadValidate' using the @DerivingVia@
+GHC extension.
+
+Example:
+
+@
+{\-\# LANGUAGE DerivingVia \#-\}
+
+newtype CustomT c m a = CustomT { runCustomT :: ... }
+  deriving ('MonadValidate' e) via ('WrappedMonadTrans' (CustomT c) m)
+@
+
+@since 1.2.0.0 -}</span><span>
+</span><span id="line-133"></span><span class="hs-keyword">newtype</span><span> </span><span id="WrappedMonadTrans"><span class="annot"><a href="Control.Monad.Validate.Class.html#WrappedMonadTrans"><span class="hs-identifier hs-var">WrappedMonadTrans</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679053100"><span class="annot"><a href="#local-6989586621679053100"><span class="hs-identifier hs-type">t</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-operator">*</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-operator">*</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-operator">*</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-operator">*</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679053099"><span class="annot"><a href="#local-6989586621679053099"><span class="hs-identifier hs-type">m</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-operator">*</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-operator">*</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679053098"><span class="annot"><a href="#local-6989586621679053098"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-operator">*</span></span><span class="hs-special">)</span><span>
+</span><span id="line-134"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="WrapMonadTrans"><span class="annot"><a href="Control.Monad.Validate.Class.html#WrapMonadTrans"><span class="hs-identifier hs-var">WrapMonadTrans</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="unwrapMonadTrans"><span class="annot"><span class="annottext">forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+WrappedMonadTrans t m a -&gt; t m a
+</span><a href="Control.Monad.Validate.Class.html#unwrapMonadTrans"><span class="hs-identifier hs-var hs-var">unwrapMonadTrans</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679053100"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679053099"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679053098"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-135"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679052788"><span id="local-6989586621679052792"><span class="annot"><span class="annottext">forall a b. a -&gt; WrappedMonadTrans t m b -&gt; WrappedMonadTrans t m a
+forall a b.
+(a -&gt; b) -&gt; WrappedMonadTrans t m a -&gt; WrappedMonadTrans t m b
+forall (f :: * -&gt; *).
+(forall a b. (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b. a -&gt; f b -&gt; f a) -&gt; Functor f
+forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a b.
+Functor (t m) =&gt;
+a -&gt; WrappedMonadTrans t m b -&gt; WrappedMonadTrans t m a
+forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a b.
+Functor (t m) =&gt;
+(a -&gt; b) -&gt; WrappedMonadTrans t m a -&gt; WrappedMonadTrans t m b
+&lt;$ :: forall a b. a -&gt; WrappedMonadTrans t m b -&gt; WrappedMonadTrans t m a
+$c&lt;$ :: forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a b.
+Functor (t m) =&gt;
+a -&gt; WrappedMonadTrans t m b -&gt; WrappedMonadTrans t m a
+fmap :: forall a b.
+(a -&gt; b) -&gt; WrappedMonadTrans t m a -&gt; WrappedMonadTrans t m b
+$cfmap :: forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a b.
+Functor (t m) =&gt;
+(a -&gt; b) -&gt; WrappedMonadTrans t m a -&gt; WrappedMonadTrans t m b
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Functor</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679052762"><span id="local-6989586621679052766"><span id="local-6989586621679052770"><span id="local-6989586621679052774"><span id="local-6989586621679052778"><span class="annot"><span class="annottext">forall a. a -&gt; WrappedMonadTrans t m a
+forall a b.
+WrappedMonadTrans t m a
+-&gt; WrappedMonadTrans t m b -&gt; WrappedMonadTrans t m a
+forall a b.
+WrappedMonadTrans t m a
+-&gt; WrappedMonadTrans t m b -&gt; WrappedMonadTrans t m b
+forall a b.
+WrappedMonadTrans t m (a -&gt; b)
+-&gt; WrappedMonadTrans t m a -&gt; WrappedMonadTrans t m b
+forall a b c.
+(a -&gt; b -&gt; c)
+-&gt; WrappedMonadTrans t m a
+-&gt; WrappedMonadTrans t m b
+-&gt; WrappedMonadTrans t m c
+forall (f :: * -&gt; *).
+Functor f
+-&gt; (forall a. a -&gt; f a)
+-&gt; (forall a b. f (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b c. (a -&gt; b -&gt; c) -&gt; f a -&gt; f b -&gt; f c)
+-&gt; (forall a b. f a -&gt; f b -&gt; f b)
+-&gt; (forall a b. f a -&gt; f b -&gt; f a)
+-&gt; Applicative f
+forall {t :: (* -&gt; *) -&gt; * -&gt; *} {m :: * -&gt; *}.
+Applicative (t m) =&gt;
+Functor (WrappedMonadTrans t m)
+forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+Applicative (t m) =&gt;
+a -&gt; WrappedMonadTrans t m a
+forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a b.
+Applicative (t m) =&gt;
+WrappedMonadTrans t m a
+-&gt; WrappedMonadTrans t m b -&gt; WrappedMonadTrans t m a
+forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a b.
+Applicative (t m) =&gt;
+WrappedMonadTrans t m a
+-&gt; WrappedMonadTrans t m b -&gt; WrappedMonadTrans t m b
+forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a b.
+Applicative (t m) =&gt;
+WrappedMonadTrans t m (a -&gt; b)
+-&gt; WrappedMonadTrans t m a -&gt; WrappedMonadTrans t m b
+forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a b c.
+Applicative (t m) =&gt;
+(a -&gt; b -&gt; c)
+-&gt; WrappedMonadTrans t m a
+-&gt; WrappedMonadTrans t m b
+-&gt; WrappedMonadTrans t m c
+&lt;* :: forall a b.
+WrappedMonadTrans t m a
+-&gt; WrappedMonadTrans t m b -&gt; WrappedMonadTrans t m a
+$c&lt;* :: forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a b.
+Applicative (t m) =&gt;
+WrappedMonadTrans t m a
+-&gt; WrappedMonadTrans t m b -&gt; WrappedMonadTrans t m a
+*&gt; :: forall a b.
+WrappedMonadTrans t m a
+-&gt; WrappedMonadTrans t m b -&gt; WrappedMonadTrans t m b
+$c*&gt; :: forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a b.
+Applicative (t m) =&gt;
+WrappedMonadTrans t m a
+-&gt; WrappedMonadTrans t m b -&gt; WrappedMonadTrans t m b
+liftA2 :: forall a b c.
+(a -&gt; b -&gt; c)
+-&gt; WrappedMonadTrans t m a
+-&gt; WrappedMonadTrans t m b
+-&gt; WrappedMonadTrans t m c
+$cliftA2 :: forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a b c.
+Applicative (t m) =&gt;
+(a -&gt; b -&gt; c)
+-&gt; WrappedMonadTrans t m a
+-&gt; WrappedMonadTrans t m b
+-&gt; WrappedMonadTrans t m c
+&lt;*&gt; :: forall a b.
+WrappedMonadTrans t m (a -&gt; b)
+-&gt; WrappedMonadTrans t m a -&gt; WrappedMonadTrans t m b
+$c&lt;*&gt; :: forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a b.
+Applicative (t m) =&gt;
+WrappedMonadTrans t m (a -&gt; b)
+-&gt; WrappedMonadTrans t m a -&gt; WrappedMonadTrans t m b
+pure :: forall a. a -&gt; WrappedMonadTrans t m a
+$cpure :: forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+Applicative (t m) =&gt;
+a -&gt; WrappedMonadTrans t m a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Applicative</span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679052744"><span id="local-6989586621679052748"><span id="local-6989586621679052752"><span class="annot"><span class="annottext">forall a. a -&gt; WrappedMonadTrans t m a
+forall a b.
+WrappedMonadTrans t m a
+-&gt; WrappedMonadTrans t m b -&gt; WrappedMonadTrans t m b
+forall a b.
+WrappedMonadTrans t m a
+-&gt; (a -&gt; WrappedMonadTrans t m b) -&gt; WrappedMonadTrans t m b
+forall (m :: * -&gt; *).
+Applicative m
+-&gt; (forall a b. m a -&gt; (a -&gt; m b) -&gt; m b)
+-&gt; (forall a b. m a -&gt; m b -&gt; m b)
+-&gt; (forall a. a -&gt; m a)
+-&gt; Monad m
+forall {t :: (* -&gt; *) -&gt; * -&gt; *} {m :: * -&gt; *}.
+Monad (t m) =&gt;
+Applicative (WrappedMonadTrans t m)
+forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+Monad (t m) =&gt;
+a -&gt; WrappedMonadTrans t m a
+forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a b.
+Monad (t m) =&gt;
+WrappedMonadTrans t m a
+-&gt; WrappedMonadTrans t m b -&gt; WrappedMonadTrans t m b
+forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a b.
+Monad (t m) =&gt;
+WrappedMonadTrans t m a
+-&gt; (a -&gt; WrappedMonadTrans t m b) -&gt; WrappedMonadTrans t m b
+return :: forall a. a -&gt; WrappedMonadTrans t m a
+$creturn :: forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+Monad (t m) =&gt;
+a -&gt; WrappedMonadTrans t m a
+&gt;&gt; :: forall a b.
+WrappedMonadTrans t m a
+-&gt; WrappedMonadTrans t m b -&gt; WrappedMonadTrans t m b
+$c&gt;&gt; :: forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a b.
+Monad (t m) =&gt;
+WrappedMonadTrans t m a
+-&gt; WrappedMonadTrans t m b -&gt; WrappedMonadTrans t m b
+&gt;&gt;= :: forall a b.
+WrappedMonadTrans t m a
+-&gt; (a -&gt; WrappedMonadTrans t m b) -&gt; WrappedMonadTrans t m b
+$c&gt;&gt;= :: forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a b.
+Monad (t m) =&gt;
+WrappedMonadTrans t m a
+-&gt; (a -&gt; WrappedMonadTrans t m b) -&gt; WrappedMonadTrans t m b
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Monad</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679052735"><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; m a -&gt; WrappedMonadTrans t m a
+forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTrans t, Monad m) =&gt;
+m a -&gt; WrappedMonadTrans t m a
+forall (t :: (* -&gt; *) -&gt; * -&gt; *).
+(forall (m :: * -&gt; *) a. Monad m =&gt; m a -&gt; t m a) -&gt; MonadTrans t
+lift :: forall (m :: * -&gt; *) a. Monad m =&gt; m a -&gt; WrappedMonadTrans t m a
+$clift :: forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTrans t, Monad m) =&gt;
+m a -&gt; WrappedMonadTrans t m a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">MonadTrans</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679052710"><span id="local-6989586621679052719"><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a.
+Monad m =&gt;
+m (StT (WrappedMonadTrans t) a) -&gt; WrappedMonadTrans t m a
+forall (m :: * -&gt; *) a.
+Monad m =&gt;
+(Run (WrappedMonadTrans t) -&gt; m a) -&gt; WrappedMonadTrans t m a
+forall (t :: (* -&gt; *) -&gt; * -&gt; *).
+MonadTrans t
+-&gt; (forall (m :: * -&gt; *) a. Monad m =&gt; (Run t -&gt; m a) -&gt; t m a)
+-&gt; (forall (m :: * -&gt; *) a. Monad m =&gt; m (StT t a) -&gt; t m a)
+-&gt; MonadTransControl t
+forall {t :: (* -&gt; *) -&gt; * -&gt; *}.
+MonadTransControl t =&gt;
+MonadTrans (WrappedMonadTrans t)
+forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTransControl t, Monad m) =&gt;
+m (StT (WrappedMonadTrans t) a) -&gt; WrappedMonadTrans t m a
+forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTransControl t, Monad m) =&gt;
+(Run (WrappedMonadTrans t) -&gt; m a) -&gt; WrappedMonadTrans t m a
+restoreT :: forall (m :: * -&gt; *) a.
+Monad m =&gt;
+m (StT (WrappedMonadTrans t) a) -&gt; WrappedMonadTrans t m a
+$crestoreT :: forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTransControl t, Monad m) =&gt;
+m (StT (WrappedMonadTrans t) a) -&gt; WrappedMonadTrans t m a
+liftWith :: forall (m :: * -&gt; *) a.
+Monad m =&gt;
+(Run (WrappedMonadTrans t) -&gt; m a) -&gt; WrappedMonadTrans t m a
+$cliftWith :: forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTransControl t, Monad m) =&gt;
+(Run (WrappedMonadTrans t) -&gt; m a) -&gt; WrappedMonadTrans t m a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var">MonadTransControl</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-136"></span><span>
+</span><span id="line-137"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679053018"><span id="local-6989586621679053019"><span id="local-6989586621679053020"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MonadTransControl</span></span><span> </span><span class="annot"><a href="#local-6989586621679053020"><span class="hs-identifier hs-type">t</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679053020"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679053019"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Validate.Class.html#MonadValidate"><span class="hs-identifier hs-type">MonadValidate</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679053018"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679053019"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-138"></span><span>  </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Validate.Class.html#MonadValidate"><span class="hs-identifier hs-type">MonadValidate</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679053018"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Validate.Class.html#WrappedMonadTrans"><span class="hs-identifier hs-type">WrappedMonadTrans</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679053020"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679053019"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-139"></span><span>  </span><span id="local-6989586621679052680"><span class="annot"><span class="annottext">refute :: forall a. e -&gt; WrappedMonadTrans t m a
+</span><a href="#local-6989586621679052680"><span class="hs-identifier hs-var hs-var hs-var hs-var">refute</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTrans t, Monad m) =&gt;
+m a -&gt; t m a
+</span><span class="hs-identifier hs-var">lift</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall e (m :: * -&gt; *) a. MonadValidate e m =&gt; e -&gt; m a
+</span><a href="Control.Monad.Validate.Class.html#refute"><span class="hs-identifier hs-var">refute</span></a></span><span>
+</span><span id="line-140"></span><span>  </span><span id="local-6989586621679052675"><span class="annot"><span class="annottext">dispute :: e -&gt; WrappedMonadTrans t m ()
+</span><a href="#local-6989586621679052675"><span class="hs-identifier hs-var hs-var hs-var hs-var">dispute</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTrans t, Monad m) =&gt;
+m a -&gt; t m a
+</span><span class="hs-identifier hs-var">lift</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall e (m :: * -&gt; *). MonadValidate e m =&gt; e -&gt; m ()
+</span><a href="Control.Monad.Validate.Class.html#dispute"><span class="hs-identifier hs-var">dispute</span></a></span><span>
+</span><span id="line-141"></span><span>  </span><span id="local-6989586621679052664"><span class="annot"><span class="annottext">tolerate :: forall a.
+WrappedMonadTrans t m a -&gt; WrappedMonadTrans t m (Maybe a)
+</span><a href="#local-6989586621679052664"><span class="hs-identifier hs-var hs-var hs-var hs-var">tolerate</span></a></span></span><span> </span><span id="local-6989586621679052663"><span class="annot"><span class="annottext">WrappedMonadTrans t m a
+</span><a href="#local-6989586621679052663"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTransControl t, Monad m) =&gt;
+(Run t -&gt; m a) -&gt; t m a
+</span><span class="hs-identifier hs-var">liftWith</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679052661"><span class="annot"><span class="annottext">Run (WrappedMonadTrans t)
+</span><a href="#local-6989586621679052661"><span class="hs-identifier hs-var">run</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall e (m :: * -&gt; *) a. MonadValidate e m =&gt; m a -&gt; m (Maybe a)
+</span><a href="Control.Monad.Validate.Class.html#tolerate"><span class="hs-identifier hs-var">tolerate</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Run (WrappedMonadTrans t)
+</span><a href="#local-6989586621679052661"><span class="hs-identifier hs-var">run</span></a></span><span> </span><span class="annot"><span class="annottext">WrappedMonadTrans t m a
+</span><a href="#local-6989586621679052663"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span>
+</span><span id="line-142"></span><span>    </span><span class="annot"><span class="annottext">forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><span class="hs-identifier hs-var">maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTransControl t, Monad m) =&gt;
+m (StT t a) -&gt; t m a
+</span><span class="hs-identifier hs-var">restoreT</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span class="hs-special">)</span><span>
+</span><span id="line-143"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Control.Monad.Validate.Class.html#refute"><span class="hs-pragma hs-type">refute</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-144"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Control.Monad.Validate.Class.html#dispute"><span class="hs-pragma hs-type">dispute</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-145"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Control.Monad.Validate.Class.html#tolerate"><span class="hs-pragma hs-type">tolerate</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-146"></span><span>
+</span><span id="line-147"></span><span id="local-6989586621679052637"><span id="local-6989586621679052643"><span id="local-6989586621679052649"><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621679053006"><span class="hs-keyword">via</span><span> </span><span id="local-6989586621679053005"><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Validate.Class.html#WrappedMonadTrans"><span class="hs-identifier hs-type">WrappedMonadTrans</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IdentityT</span></span><span> </span><span class="annot"><a href="#local-6989586621679053005"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Validate.Class.html#MonadValidate"><span class="hs-identifier hs-type">MonadValidate</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679053006"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679053005"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Validate.Class.html#MonadValidate"><span class="hs-identifier hs-type">MonadValidate</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679053006"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IdentityT</span></span><span> </span><span class="annot"><a href="#local-6989586621679053005"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-148"></span><span id="local-6989586621679052609"><span id="local-6989586621679052615"><span id="local-6989586621679052621"><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621679052996"><span class="hs-keyword">via</span><span> </span><span id="local-6989586621679052994"><span id="local-6989586621679052995"><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Validate.Class.html#WrappedMonadTrans"><span class="hs-identifier hs-type">WrappedMonadTrans</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ExceptT</span></span><span> </span><span class="annot"><a href="#local-6989586621679052994"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679052995"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Validate.Class.html#MonadValidate"><span class="hs-identifier hs-type">MonadValidate</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052996"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052995"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Validate.Class.html#MonadValidate"><span class="hs-identifier hs-type">MonadValidate</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052996"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ExceptT</span></span><span> </span><span class="annot"><a href="#local-6989586621679052994"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052995"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-149"></span><span id="local-6989586621679052581"><span id="local-6989586621679052587"><span id="local-6989586621679052593"><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621679052987"><span class="hs-keyword">via</span><span> </span><span id="local-6989586621679052986"><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Validate.Class.html#WrappedMonadTrans"><span class="hs-identifier hs-type">WrappedMonadTrans</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">MaybeT</span></span><span> </span><span class="annot"><a href="#local-6989586621679052986"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Validate.Class.html#MonadValidate"><span class="hs-identifier hs-type">MonadValidate</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052987"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052986"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Validate.Class.html#MonadValidate"><span class="hs-identifier hs-type">MonadValidate</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052987"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MaybeT</span></span><span> </span><span class="annot"><a href="#local-6989586621679052986"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-150"></span><span id="local-6989586621679052553"><span id="local-6989586621679052559"><span id="local-6989586621679052565"><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621679052976"><span class="hs-keyword">via</span><span> </span><span id="local-6989586621679052974"><span id="local-6989586621679052975"><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Validate.Class.html#WrappedMonadTrans"><span class="hs-identifier hs-type">WrappedMonadTrans</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ReaderT</span></span><span> </span><span class="annot"><a href="#local-6989586621679052974"><span class="hs-identifier hs-type">r</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679052975"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Validate.Class.html#MonadValidate"><span class="hs-identifier hs-type">MonadValidate</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052976"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052975"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Validate.Class.html#MonadValidate"><span class="hs-identifier hs-type">MonadValidate</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052976"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ReaderT</span></span><span> </span><span class="annot"><a href="#local-6989586621679052974"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052975"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-151"></span><span id="local-6989586621679052524"><span id="local-6989586621679052530"><span id="local-6989586621679052536"><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621679052958"><span class="hs-keyword">via</span><span> </span><span id="local-6989586621679052954"><span id="local-6989586621679052955"><span id="local-6989586621679052956"><span id="local-6989586621679052957"><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Validate.Class.html#WrappedMonadTrans"><span class="hs-identifier hs-type">WrappedMonadTrans</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Lazy.RWST</span></span><span> </span><span class="annot"><a href="#local-6989586621679052955"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052956"><span class="hs-identifier hs-type">w</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052954"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679052957"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span></span></span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Validate.Class.html#MonadValidate"><span class="hs-identifier hs-type">MonadValidate</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052958"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052957"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monoid</span></span><span> </span><span class="annot"><a href="#local-6989586621679052956"><span class="hs-identifier hs-type">w</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Validate.Class.html#MonadValidate"><span class="hs-identifier hs-type">MonadValidate</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052958"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Lazy.RWST</span></span><span> </span><span class="annot"><a href="#local-6989586621679052955"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052956"><span class="hs-identifier hs-type">w</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052954"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052957"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-152"></span><span id="local-6989586621679052495"><span id="local-6989586621679052501"><span id="local-6989586621679052507"><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621679052938"><span class="hs-keyword">via</span><span> </span><span id="local-6989586621679052934"><span id="local-6989586621679052935"><span id="local-6989586621679052936"><span id="local-6989586621679052937"><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Validate.Class.html#WrappedMonadTrans"><span class="hs-identifier hs-type">WrappedMonadTrans</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Strict.RWST</span></span><span> </span><span class="annot"><a href="#local-6989586621679052935"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052936"><span class="hs-identifier hs-type">w</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052934"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679052937"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span></span></span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Validate.Class.html#MonadValidate"><span class="hs-identifier hs-type">MonadValidate</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052938"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052937"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monoid</span></span><span> </span><span class="annot"><a href="#local-6989586621679052936"><span class="hs-identifier hs-type">w</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Validate.Class.html#MonadValidate"><span class="hs-identifier hs-type">MonadValidate</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052938"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Strict.RWST</span></span><span> </span><span class="annot"><a href="#local-6989586621679052935"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052936"><span class="hs-identifier hs-type">w</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052934"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052937"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-153"></span><span id="local-6989586621679052467"><span id="local-6989586621679052473"><span id="local-6989586621679052479"><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621679052924"><span class="hs-keyword">via</span><span> </span><span id="local-6989586621679052922"><span id="local-6989586621679052923"><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Validate.Class.html#WrappedMonadTrans"><span class="hs-identifier hs-type">WrappedMonadTrans</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Lazy.StateT</span></span><span> </span><span class="annot"><a href="#local-6989586621679052922"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679052923"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Validate.Class.html#MonadValidate"><span class="hs-identifier hs-type">MonadValidate</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052924"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052923"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Validate.Class.html#MonadValidate"><span class="hs-identifier hs-type">MonadValidate</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052924"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Lazy.StateT</span></span><span> </span><span class="annot"><a href="#local-6989586621679052922"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052923"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-154"></span><span id="local-6989586621679052439"><span id="local-6989586621679052445"><span id="local-6989586621679052451"><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621679052912"><span class="hs-keyword">via</span><span> </span><span id="local-6989586621679052910"><span id="local-6989586621679052911"><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Validate.Class.html#WrappedMonadTrans"><span class="hs-identifier hs-type">WrappedMonadTrans</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Strict.StateT</span></span><span> </span><span class="annot"><a href="#local-6989586621679052910"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679052911"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Validate.Class.html#MonadValidate"><span class="hs-identifier hs-type">MonadValidate</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052912"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052911"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Validate.Class.html#MonadValidate"><span class="hs-identifier hs-type">MonadValidate</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052912"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Strict.StateT</span></span><span> </span><span class="annot"><a href="#local-6989586621679052910"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052911"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-155"></span><span id="local-6989586621679052410"><span id="local-6989586621679052416"><span id="local-6989586621679052422"><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621679052900"><span class="hs-keyword">via</span><span> </span><span id="local-6989586621679052898"><span id="local-6989586621679052899"><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Validate.Class.html#WrappedMonadTrans"><span class="hs-identifier hs-type">WrappedMonadTrans</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Lazy.WriterT</span></span><span> </span><span class="annot"><a href="#local-6989586621679052898"><span class="hs-identifier hs-type">w</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679052899"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Validate.Class.html#MonadValidate"><span class="hs-identifier hs-type">MonadValidate</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052900"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052899"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monoid</span></span><span> </span><span class="annot"><a href="#local-6989586621679052898"><span class="hs-identifier hs-type">w</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Validate.Class.html#MonadValidate"><span class="hs-identifier hs-type">MonadValidate</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052900"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Lazy.WriterT</span></span><span> </span><span class="annot"><a href="#local-6989586621679052898"><span class="hs-identifier hs-type">w</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052899"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-156"></span><span id="local-6989586621679052381"><span id="local-6989586621679052387"><span id="local-6989586621679052393"><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621679052888"><span class="hs-keyword">via</span><span> </span><span id="local-6989586621679052886"><span id="local-6989586621679052887"><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Validate.Class.html#WrappedMonadTrans"><span class="hs-identifier hs-type">WrappedMonadTrans</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Strict.WriterT</span></span><span> </span><span class="annot"><a href="#local-6989586621679052886"><span class="hs-identifier hs-type">w</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679052887"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Validate.Class.html#MonadValidate"><span class="hs-identifier hs-type">MonadValidate</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052888"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052887"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monoid</span></span><span> </span><span class="annot"><a href="#local-6989586621679052886"><span class="hs-identifier hs-type">w</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Validate.Class.html#MonadValidate"><span class="hs-identifier hs-type">MonadValidate</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052888"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Strict.WriterT</span></span><span> </span><span class="annot"><a href="#local-6989586621679052886"><span class="hs-identifier hs-type">w</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052887"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-157"></span><span>
+</span><span id="line-158"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679052877"><span id="local-6989586621679052878"><span id="local-6989586621679052879"><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Validate.Class.html#MonadValidate"><span class="hs-identifier hs-type">MonadValidate</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052879"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052878"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monoid</span></span><span> </span><span class="annot"><a href="#local-6989586621679052877"><span class="hs-identifier hs-type">w</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Validate.Class.html#MonadValidate"><span class="hs-identifier hs-type">MonadValidate</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052879"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">CPS.WriterT</span></span><span> </span><span class="annot"><a href="#local-6989586621679052877"><span class="hs-identifier hs-type">w</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052878"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-159"></span><span>  </span><span id="local-6989586621679052355"><span class="annot"><span class="annottext">refute :: forall a. e -&gt; WriterT w m a
+</span><a href="#local-6989586621679052355"><span class="hs-identifier hs-var hs-var hs-var hs-var">refute</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTrans t, Monad m) =&gt;
+m a -&gt; t m a
+</span><span class="hs-identifier hs-var">lift</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall e (m :: * -&gt; *) a. MonadValidate e m =&gt; e -&gt; m a
+</span><a href="Control.Monad.Validate.Class.html#refute"><span class="hs-identifier hs-var">refute</span></a></span><span>
+</span><span id="line-160"></span><span>  </span><span id="local-6989586621679052351"><span class="annot"><span class="annottext">dispute :: e -&gt; WriterT w m ()
+</span><a href="#local-6989586621679052351"><span class="hs-identifier hs-var hs-var hs-var hs-var">dispute</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTrans t, Monad m) =&gt;
+m a -&gt; t m a
+</span><span class="hs-identifier hs-var">lift</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall e (m :: * -&gt; *). MonadValidate e m =&gt; e -&gt; m ()
+</span><a href="Control.Monad.Validate.Class.html#dispute"><span class="hs-identifier hs-var">dispute</span></a></span><span>
+</span><span id="line-161"></span><span>  </span><span id="local-6989586621679052344"><span class="annot"><span class="annottext">tolerate :: forall a. WriterT w m a -&gt; WriterT w m (Maybe a)
+</span><a href="#local-6989586621679052344"><span class="hs-identifier hs-var hs-var hs-var hs-var">tolerate</span></a></span></span><span> </span><span id="local-6989586621679052343"><span class="annot"><span class="annottext">WriterT w m a
+</span><a href="#local-6989586621679052343"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) w a.
+(Functor m, Monoid w) =&gt;
+m (a, w) -&gt; WriterT w m a
+</span><span class="hs-identifier hs-var">CPS.writerT</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall e (m :: * -&gt; *) a. MonadValidate e m =&gt; m a -&gt; m (Maybe a)
+</span><a href="Control.Monad.Validate.Class.html#tolerate"><span class="hs-identifier hs-var">tolerate</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall w (m :: * -&gt; *) a. Monoid w =&gt; WriterT w m a -&gt; m (a, w)
+</span><span class="hs-identifier hs-var">CPS.runWriterT</span></span><span> </span><span class="annot"><span class="annottext">WriterT w m a
+</span><a href="#local-6989586621679052343"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; f a -&gt; (a -&gt; b) -&gt; f b
+</span><span class="hs-operator hs-var">&lt;&amp;&gt;</span></span><span>
+</span><span id="line-162"></span><span>    </span><span class="annot"><span class="annottext">forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><span class="hs-identifier hs-var">maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span id="local-6989586621679052339"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679052339"><span class="hs-identifier hs-var">v</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679052338"><span class="annot"><span class="annottext">w
+</span><a href="#local-6989586621679052338"><span class="hs-identifier hs-var">w</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679052339"><span class="hs-identifier hs-var">v</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">w
+</span><a href="#local-6989586621679052338"><span class="hs-identifier hs-var">w</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-163"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Control.Monad.Validate.Class.html#refute"><span class="hs-pragma hs-type">refute</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-164"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Control.Monad.Validate.Class.html#dispute"><span class="hs-pragma hs-type">dispute</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-165"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Control.Monad.Validate.Class.html#tolerate"><span class="hs-pragma hs-type">tolerate</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-166"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679052846"><span id="local-6989586621679052847"><span id="local-6989586621679052848"><span id="local-6989586621679052849"><span id="local-6989586621679052850"><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Validate.Class.html#MonadValidate"><span class="hs-identifier hs-type">MonadValidate</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052850"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052849"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monoid</span></span><span> </span><span class="annot"><a href="#local-6989586621679052848"><span class="hs-identifier hs-type">w</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Validate.Class.html#MonadValidate"><span class="hs-identifier hs-type">MonadValidate</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052850"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">CPS.RWST</span></span><span> </span><span class="annot"><a href="#local-6989586621679052847"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052848"><span class="hs-identifier hs-type">w</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052846"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052849"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-167"></span><span>  </span><span id="local-6989586621679052318"><span class="annot"><span class="annottext">refute :: forall a. e -&gt; RWST r w s m a
+</span><a href="#local-6989586621679052318"><span class="hs-identifier hs-var hs-var hs-var hs-var">refute</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTrans t, Monad m) =&gt;
+m a -&gt; t m a
+</span><span class="hs-identifier hs-var">lift</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall e (m :: * -&gt; *) a. MonadValidate e m =&gt; e -&gt; m a
+</span><a href="Control.Monad.Validate.Class.html#refute"><span class="hs-identifier hs-var">refute</span></a></span><span>
+</span><span id="line-168"></span><span>  </span><span id="local-6989586621679052314"><span class="annot"><span class="annottext">dispute :: e -&gt; RWST r w s m ()
+</span><a href="#local-6989586621679052314"><span class="hs-identifier hs-var hs-var hs-var hs-var">dispute</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTrans t, Monad m) =&gt;
+m a -&gt; t m a
+</span><span class="hs-identifier hs-var">lift</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall e (m :: * -&gt; *). MonadValidate e m =&gt; e -&gt; m ()
+</span><a href="Control.Monad.Validate.Class.html#dispute"><span class="hs-identifier hs-var">dispute</span></a></span><span>
+</span><span id="line-169"></span><span>  </span><span id="local-6989586621679052307"><span class="annot"><span class="annottext">tolerate :: forall a. RWST r w s m a -&gt; RWST r w s m (Maybe a)
+</span><a href="#local-6989586621679052307"><span class="hs-identifier hs-var hs-var hs-var hs-var">tolerate</span></a></span></span><span> </span><span id="local-6989586621679052306"><span class="annot"><span class="annottext">RWST r w s m a
+</span><a href="#local-6989586621679052306"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) w r s a.
+(Functor m, Monoid w) =&gt;
+(r -&gt; s -&gt; m (a, s, w)) -&gt; RWST r w s m a
+</span><span class="hs-identifier hs-var">CPS.rwsT</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679052304"><span class="annot"><span class="annottext">r
+</span><a href="#local-6989586621679052304"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span id="local-6989586621679052303"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679052303"><span class="hs-identifier hs-var">s1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall e (m :: * -&gt; *) a. MonadValidate e m =&gt; m a -&gt; m (Maybe a)
+</span><a href="Control.Monad.Validate.Class.html#tolerate"><span class="hs-identifier hs-var">tolerate</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall w r s (m :: * -&gt; *) a.
+Monoid w =&gt;
+RWST r w s m a -&gt; r -&gt; s -&gt; m (a, s, w)
+</span><span class="hs-identifier hs-var">CPS.runRWST</span></span><span> </span><span class="annot"><span class="annottext">RWST r w s m a
+</span><a href="#local-6989586621679052306"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">r
+</span><a href="#local-6989586621679052304"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679052303"><span class="hs-identifier hs-var">s1</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; f a -&gt; (a -&gt; b) -&gt; f b
+</span><span class="hs-operator hs-var">&lt;&amp;&gt;</span></span><span>
+</span><span id="line-170"></span><span>    </span><span class="annot"><span class="annottext">forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><span class="hs-identifier hs-var">maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679052303"><span class="hs-identifier hs-var">s1</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span id="local-6989586621679052301"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679052301"><span class="hs-identifier hs-var">v</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679052300"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679052300"><span class="hs-identifier hs-var">s2</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679052299"><span class="annot"><span class="annottext">w
+</span><a href="#local-6989586621679052299"><span class="hs-identifier hs-var">w</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679052301"><span class="hs-identifier hs-var">v</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679052300"><span class="hs-identifier hs-var">s2</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">w
+</span><a href="#local-6989586621679052299"><span class="hs-identifier hs-var">w</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-171"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Control.Monad.Validate.Class.html#refute"><span class="hs-pragma hs-type">refute</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-172"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Control.Monad.Validate.Class.html#dispute"><span class="hs-pragma hs-type">dispute</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-173"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Control.Monad.Validate.Class.html#tolerate"><span class="hs-pragma hs-type">tolerate</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-174"></span></pre></body></html>

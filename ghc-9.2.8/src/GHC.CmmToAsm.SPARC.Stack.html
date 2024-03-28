@@ -1,0 +1,118 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">GHC.CmmToAsm.SPARC.Stack</span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-2"></span><span>        </span><span class="annot"><a href="GHC.CmmToAsm.SPARC.Stack.html#spRel"><span class="hs-identifier">spRel</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-3"></span><span>        </span><span class="annot"><a href="GHC.CmmToAsm.SPARC.Stack.html#fpRel"><span class="hs-identifier">fpRel</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-4"></span><span>        </span><span class="annot"><a href="GHC.CmmToAsm.SPARC.Stack.html#spillSlotToOffset"><span class="hs-identifier">spillSlotToOffset</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-5"></span><span>        </span><span class="annot"><a href="GHC.CmmToAsm.SPARC.Stack.html#maxSpillSlots"><span class="hs-identifier">maxSpillSlots</span></a></span><span>
+</span><span id="line-6"></span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Prelude.html"><span class="hs-identifier">GHC.Prelude</span></a></span><span>
+</span><span id="line-11"></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.CmmToAsm.SPARC.AddrMode.html"><span class="hs-identifier">GHC.CmmToAsm.SPARC.AddrMode</span></a></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.CmmToAsm.SPARC.Regs.html"><span class="hs-identifier">GHC.CmmToAsm.SPARC.Regs</span></a></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.CmmToAsm.SPARC.Base.html"><span class="hs-identifier">GHC.CmmToAsm.SPARC.Base</span></a></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.CmmToAsm.SPARC.Imm.html"><span class="hs-identifier">GHC.CmmToAsm.SPARC.Imm</span></a></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.CmmToAsm.Config.html"><span class="hs-identifier">GHC.CmmToAsm.Config</span></a></span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html"><span class="hs-identifier">GHC.Utils.Outputable</span></a></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Panic.html"><span class="hs-identifier">GHC.Utils.Panic</span></a></span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- | Get an AddrMode relative to the address in sp.</span><span>
+</span><span id="line-22"></span><span class="hs-comment">--      This gives us a stack relative addressing mode for volatile</span><span>
+</span><span id="line-23"></span><span class="hs-comment">--      temporaries and for excess call arguments.</span><span>
+</span><span id="line-24"></span><span class="hs-comment">--</span><span>
+</span><span id="line-25"></span><span class="annot"><a href="GHC.CmmToAsm.SPARC.Stack.html#spRel"><span class="hs-identifier hs-type">spRel</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>            </span><span class="hs-comment">-- ^ stack offset in words, positive or negative</span><span>
+</span><span id="line-26"></span><span>      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.CmmToAsm.SPARC.AddrMode.html#AddrMode"><span class="hs-identifier hs-type">AddrMode</span></a></span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span id="spRel"><span class="annot"><span class="annottext">spRel :: Int -&gt; AddrMode
+</span><a href="GHC.CmmToAsm.SPARC.Stack.html#spRel"><span class="hs-identifier hs-var hs-var">spRel</span></a></span></span><span> </span><span id="local-6989586621681216710"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681216710"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Reg -&gt; Imm -&gt; AddrMode
+</span><a href="GHC.CmmToAsm.SPARC.AddrMode.html#AddrRegImm"><span class="hs-identifier hs-var">AddrRegImm</span></a></span><span> </span><span class="annot"><span class="annottext">Reg
+</span><a href="GHC.CmmToAsm.SPARC.Regs.html#sp"><span class="hs-identifier hs-var">sp</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Imm
+</span><a href="GHC.CmmToAsm.SPARC.Imm.html#ImmInt"><span class="hs-identifier hs-var">ImmInt</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681216710"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2A"><span class="hs-operator hs-var">*</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="GHC.CmmToAsm.SPARC.Base.html#wordLength"><span class="hs-identifier hs-var">wordLength</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- | Get an address relative to the frame pointer.</span><span>
+</span><span id="line-32"></span><span class="hs-comment">--      This doesn't work work for offsets greater than 13 bits; we just hope for the best</span><span>
+</span><span id="line-33"></span><span class="hs-comment">--</span><span>
+</span><span id="line-34"></span><span class="annot"><a href="GHC.CmmToAsm.SPARC.Stack.html#fpRel"><span class="hs-identifier hs-type">fpRel</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.CmmToAsm.SPARC.AddrMode.html#AddrMode"><span class="hs-identifier hs-type">AddrMode</span></a></span><span>
+</span><span id="line-35"></span><span id="fpRel"><span class="annot"><span class="annottext">fpRel :: Int -&gt; AddrMode
+</span><a href="GHC.CmmToAsm.SPARC.Stack.html#fpRel"><span class="hs-identifier hs-var hs-var">fpRel</span></a></span></span><span> </span><span id="local-6989586621681216704"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681216704"><span class="hs-identifier hs-var">n</span></a></span></span><span>
+</span><span id="line-36"></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Reg -&gt; Imm -&gt; AddrMode
+</span><a href="GHC.CmmToAsm.SPARC.AddrMode.html#AddrRegImm"><span class="hs-identifier hs-var">AddrRegImm</span></a></span><span> </span><span class="annot"><span class="annottext">Reg
+</span><a href="GHC.CmmToAsm.SPARC.Regs.html#fp"><span class="hs-identifier hs-var">fp</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Imm
+</span><a href="GHC.CmmToAsm.SPARC.Imm.html#ImmInt"><span class="hs-identifier hs-var">ImmInt</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681216704"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2A"><span class="hs-operator hs-var">*</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="GHC.CmmToAsm.SPARC.Base.html#wordLength"><span class="hs-identifier hs-var">wordLength</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span class="hs-comment">-- | Convert a spill slot number to a *byte* offset, with no sign.</span><span>
+</span><span id="line-40"></span><span class="hs-comment">--</span><span>
+</span><span id="line-41"></span><span class="annot"><a href="GHC.CmmToAsm.SPARC.Stack.html#spillSlotToOffset"><span class="hs-identifier hs-type">spillSlotToOffset</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.CmmToAsm.Config.html#NCGConfig"><span class="hs-identifier hs-type">NCGConfig</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-42"></span><span id="spillSlotToOffset"><span class="annot"><span class="annottext">spillSlotToOffset :: NCGConfig -&gt; Int -&gt; Int
+</span><a href="GHC.CmmToAsm.SPARC.Stack.html#spillSlotToOffset"><span class="hs-identifier hs-var hs-var">spillSlotToOffset</span></a></span></span><span> </span><span id="local-6989586621681216702"><span class="annot"><span class="annottext">NCGConfig
+</span><a href="#local-6989586621681216702"><span class="hs-identifier hs-var">config</span></a></span></span><span> </span><span id="local-6989586621681216701"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681216701"><span class="hs-identifier hs-var">slot</span></a></span></span><span>
+</span><span id="line-43"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681216701"><span class="hs-identifier hs-var">slot</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681216701"><span class="hs-identifier hs-var">slot</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">NCGConfig -&gt; Int
+</span><a href="GHC.CmmToAsm.SPARC.Stack.html#maxSpillSlots"><span class="hs-identifier hs-var">maxSpillSlots</span></a></span><span> </span><span class="annot"><span class="annottext">NCGConfig
+</span><a href="#local-6989586621681216702"><span class="hs-identifier hs-var">config</span></a></span><span>
+</span><span id="line-44"></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">64</span></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="GHC.CmmToAsm.SPARC.Base.html#spillSlotSize"><span class="hs-identifier hs-var">spillSlotSize</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2A"><span class="hs-operator hs-var">*</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681216701"><span class="hs-identifier hs-var">slot</span></a></span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#otherwise"><span class="hs-identifier hs-var">otherwise</span></a></span><span>
+</span><span id="line-47"></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. HasCallStack =&gt; String -&gt; SDoc -&gt; a
+</span><a href="GHC.Utils.Panic.html#pprPanic"><span class="hs-identifier hs-var">pprPanic</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;spillSlotToOffset:&quot;</span></span><span>
+</span><span id="line-48"></span><span>                      </span><span class="hs-special">(</span><span>   </span><span class="annot"><span class="annottext">String -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;invalid spill location: &quot;</span></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#%3C%3E"><span class="hs-operator hs-var">&lt;&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#int"><span class="hs-identifier hs-var">int</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681216701"><span class="hs-identifier hs-var">slot</span></a></span><span>
+</span><span id="line-49"></span><span>                      </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#%24%24"><span class="hs-operator hs-var">$$</span></a></span><span>  </span><span class="annot"><span class="annottext">String -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;maxSpillSlots:          &quot;</span></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#%3C%3E"><span class="hs-operator hs-var">&lt;&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#int"><span class="hs-identifier hs-var">int</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">NCGConfig -&gt; Int
+</span><a href="GHC.CmmToAsm.SPARC.Stack.html#maxSpillSlots"><span class="hs-identifier hs-var">maxSpillSlots</span></a></span><span> </span><span class="annot"><span class="annottext">NCGConfig
+</span><a href="#local-6989586621681216702"><span class="hs-identifier hs-var">config</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-50"></span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span class="hs-comment">-- | The maximum number of spill slots available on the C stack.</span><span>
+</span><span id="line-53"></span><span class="hs-comment">--      If we use up all of the slots, then we're screwed.</span><span>
+</span><span id="line-54"></span><span class="hs-comment">--</span><span>
+</span><span id="line-55"></span><span class="hs-comment">--      Why do we reserve 64 bytes, instead of using the whole thing??</span><span>
+</span><span id="line-56"></span><span class="hs-comment">--              -- BL 2009/02/15</span><span>
+</span><span id="line-57"></span><span class="hs-comment">--</span><span>
+</span><span id="line-58"></span><span class="annot"><a href="GHC.CmmToAsm.SPARC.Stack.html#maxSpillSlots"><span class="hs-identifier hs-type">maxSpillSlots</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.CmmToAsm.Config.html#NCGConfig"><span class="hs-identifier hs-type">NCGConfig</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-59"></span><span id="maxSpillSlots"><span class="annot"><span class="annottext">maxSpillSlots :: NCGConfig -&gt; Int
+</span><a href="GHC.CmmToAsm.SPARC.Stack.html#maxSpillSlots"><span class="hs-identifier hs-var hs-var">maxSpillSlots</span></a></span></span><span> </span><span id="local-6989586621681216691"><span class="annot"><span class="annottext">NCGConfig
+</span><a href="#local-6989586621681216691"><span class="hs-identifier hs-var">config</span></a></span></span><span>
+</span><span id="line-60"></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">NCGConfig -&gt; Int
+</span><a href="GHC.CmmToAsm.Config.html#ncgSpillPreallocSize"><span class="hs-identifier hs-var">ncgSpillPreallocSize</span></a></span><span> </span><span class="annot"><span class="annottext">NCGConfig
+</span><a href="#local-6989586621681216691"><span class="hs-identifier hs-var">config</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#-"><span class="hs-glyph hs-var">-</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">64</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Integral a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Real.html#div"><span class="hs-operator hs-var">`div`</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="GHC.CmmToAsm.SPARC.Base.html#spillSlotSize"><span class="hs-identifier hs-var">spillSlotSize</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#-"><span class="hs-glyph hs-var">-</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-61"></span></pre></body></html>

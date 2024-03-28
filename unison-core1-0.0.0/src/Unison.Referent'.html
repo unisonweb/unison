@@ -1,0 +1,192 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE OverloadedStrings #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE PatternSynonyms #-}</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Unison.Referent'</span><span>
+</span><span id="line-5"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.Referent'.html#Referent%27"><span class="hs-identifier">Referent'</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-6"></span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Basic queries</span></span><span>
+</span><span id="line-8"></span><span>    </span><span class="annot"><a href="Unison.Referent'.html#isConstructor"><span class="hs-identifier">isConstructor</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-9"></span><span>    </span><span class="annot"><a href="Unison.Referent'.html#fold"><span class="hs-identifier">Unison.Referent'.fold</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Lenses</span></span><span>
+</span><span id="line-12"></span><span>    </span><span class="annot"><a href="Unison.Referent'.html#reference_"><span class="hs-identifier">reference_</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-13"></span><span>
+</span><span id="line-14"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Conversions</span></span><span>
+</span><span id="line-15"></span><span>    </span><span class="annot"><a href="Unison.Referent'.html#toReference%27"><span class="hs-identifier">toReference'</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-16"></span><span>    </span><span class="annot"><a href="Unison.Referent'.html#toTermReference"><span class="hs-identifier">toTermReference</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-17"></span><span>    </span><span class="annot"><a href="Unison.Referent'.html#toTypeReference"><span class="hs-identifier">toTypeReference</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-18"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Lens</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Lens</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">lens</span></span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.ConstructorReference.html"><span class="hs-identifier">Unison.ConstructorReference</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.ConstructorReference.html#GConstructorReference"><span class="hs-identifier">GConstructorReference</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.ConstructorType.html"><span class="hs-identifier">Unison.ConstructorType</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.ConstructorType.html#ConstructorType"><span class="hs-identifier">ConstructorType</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.DataDeclaration.ConstructorId.html"><span class="hs-identifier">Unison.DataDeclaration.ConstructorId</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.DataDeclaration.ConstructorId.html#ConstructorId"><span class="hs-identifier">ConstructorId</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Prelude</span></span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="hs-comment">-- | Specifies a term.</span><span>
+</span><span id="line-28"></span><span class="hs-comment">--</span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- Either a term 'Reference', a data constructor, or an effect constructor.</span><span>
+</span><span id="line-30"></span><span class="hs-comment">--</span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- Slightly odd naming. This is the &quot;referent of term name in the codebase&quot;,</span><span>
+</span><span id="line-32"></span><span class="hs-comment">-- rather than the target of a Reference.</span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="hs-comment">-- | When @Ref'@ then @r@ represents a term.</span><span>
+</span><span id="line-35"></span><span class="hs-comment">--</span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- When @Con'@ then @r@ is a type declaration.</span><span>
+</span><span id="line-37"></span><span id="local-6989586621679222629"><span id="local-6989586621679222630"></span></span><span class="hs-keyword">data</span><span> </span><span id="Referent%27"><span class="annot"><a href="Unison.Referent'.html#Referent%27"><span class="hs-identifier hs-var">Referent'</span></a></span></span><span> </span><span id="local-6989586621679222682"><span class="annot"><a href="#local-6989586621679222682"><span class="hs-identifier hs-type">r</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Ref%27"><span class="annot"><a href="Unison.Referent'.html#Ref%27"><span class="hs-identifier hs-var">Ref'</span></a></span></span><span> </span><span class="annot"><a href="#local-6989586621679222682"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="Con%27"><span class="annot"><a href="Unison.Referent'.html#Con%27"><span class="hs-identifier hs-var">Con'</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.ConstructorReference.html#GConstructorReference"><span class="hs-identifier hs-type">GConstructorReference</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679222682"><span class="hs-identifier hs-type">r</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="Unison.ConstructorType.html#ConstructorType"><span class="hs-identifier hs-type">ConstructorType</span></a></span><span>
+</span><span id="line-38"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679222613"><span id="local-6989586621679222615"><span id="local-6989586621679222625"><span class="annot"><span class="annottext">Int -&gt; Referent' r -&gt; ShowS
+forall r. Show r =&gt; Int -&gt; Referent' r -&gt; ShowS
+forall r. Show r =&gt; [Referent' r] -&gt; ShowS
+forall r. Show r =&gt; Referent' r -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [Referent' r] -&gt; ShowS
+$cshowList :: forall r. Show r =&gt; [Referent' r] -&gt; ShowS
+show :: Referent' r -&gt; String
+$cshow :: forall r. Show r =&gt; Referent' r -&gt; String
+showsPrec :: Int -&gt; Referent' r -&gt; ShowS
+$cshowsPrec :: forall r. Show r =&gt; Int -&gt; Referent' r -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679222603"><span id="local-6989586621679222610"><span class="annot"><span class="annottext">Referent' r -&gt; Referent' r -&gt; Bool
+forall r. Eq r =&gt; Referent' r -&gt; Referent' r -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: Referent' r -&gt; Referent' r -&gt; Bool
+$c/= :: forall r. Eq r =&gt; Referent' r -&gt; Referent' r -&gt; Bool
+== :: Referent' r -&gt; Referent' r -&gt; Bool
+$c== :: forall r. Eq r =&gt; Referent' r -&gt; Referent' r -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679222575"><span id="local-6989586621679222577"><span id="local-6989586621679222580"><span id="local-6989586621679222583"><span id="local-6989586621679222586"><span id="local-6989586621679222591"><span id="local-6989586621679222598"><span class="annot"><span class="annottext">Referent' r -&gt; Referent' r -&gt; Bool
+Referent' r -&gt; Referent' r -&gt; Ordering
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+forall {r}. Ord r =&gt; Eq (Referent' r)
+forall r. Ord r =&gt; Referent' r -&gt; Referent' r -&gt; Bool
+forall r. Ord r =&gt; Referent' r -&gt; Referent' r -&gt; Ordering
+forall r. Ord r =&gt; Referent' r -&gt; Referent' r -&gt; Referent' r
+min :: Referent' r -&gt; Referent' r -&gt; Referent' r
+$cmin :: forall r. Ord r =&gt; Referent' r -&gt; Referent' r -&gt; Referent' r
+max :: Referent' r -&gt; Referent' r -&gt; Referent' r
+$cmax :: forall r. Ord r =&gt; Referent' r -&gt; Referent' r -&gt; Referent' r
+&gt;= :: Referent' r -&gt; Referent' r -&gt; Bool
+$c&gt;= :: forall r. Ord r =&gt; Referent' r -&gt; Referent' r -&gt; Bool
+&gt; :: Referent' r -&gt; Referent' r -&gt; Bool
+$c&gt; :: forall r. Ord r =&gt; Referent' r -&gt; Referent' r -&gt; Bool
+&lt;= :: Referent' r -&gt; Referent' r -&gt; Bool
+$c&lt;= :: forall r. Ord r =&gt; Referent' r -&gt; Referent' r -&gt; Bool
+&lt; :: Referent' r -&gt; Referent' r -&gt; Bool
+$c&lt; :: forall r. Ord r =&gt; Referent' r -&gt; Referent' r -&gt; Bool
+compare :: Referent' r -&gt; Referent' r -&gt; Ordering
+$ccompare :: forall r. Ord r =&gt; Referent' r -&gt; Referent' r -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679222568"><span id="local-6989586621679222572"><span class="annot"><span class="annottext">forall a b. a -&gt; Referent' b -&gt; Referent' a
+forall a b. (a -&gt; b) -&gt; Referent' a -&gt; Referent' b
+forall (f :: * -&gt; *).
+(forall a b. (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b. a -&gt; f b -&gt; f a) -&gt; Functor f
+&lt;$ :: forall a b. a -&gt; Referent' b -&gt; Referent' a
+$c&lt;$ :: forall a b. a -&gt; Referent' b -&gt; Referent' a
+fmap :: forall a b. (a -&gt; b) -&gt; Referent' a -&gt; Referent' b
+$cfmap :: forall a b. (a -&gt; b) -&gt; Referent' a -&gt; Referent' b
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Functor</span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+forall r x. Rep (Referent' r) x -&gt; Referent' r
+forall r x. Referent' r -&gt; Rep (Referent' r) x
+$cto :: forall r x. Rep (Referent' r) x -&gt; Referent' r
+$cfrom :: forall r x. Referent' r -&gt; Rep (Referent' r) x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- | A lens onto the reference in a referent.</span><span>
+</span><span id="line-41"></span><span id="local-6989586621679222672"><span id="local-6989586621679222673"><span class="annot"><a href="Unison.Referent'.html#reference_"><span class="hs-identifier hs-type">reference_</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Lens</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Referent'.html#Referent%27"><span class="hs-identifier hs-type">Referent'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679222673"><span class="hs-identifier hs-type">r</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Referent'.html#Referent%27"><span class="hs-identifier hs-type">Referent'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679222672"><span class="hs-identifier hs-type">r'</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679222673"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679222672"><span class="hs-identifier hs-type">r'</span></a></span></span></span><span>
+</span><span id="line-42"></span><span id="reference_"><span class="annot"><span class="annottext">reference_ :: forall r r'. Lens (Referent' r) (Referent' r') r r'
+</span><a href="Unison.Referent'.html#reference_"><span class="hs-identifier hs-var hs-var">reference_</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-43"></span><span>  </span><span class="annot"><span class="annottext">forall s a b t. (s -&gt; a) -&gt; (s -&gt; b -&gt; t) -&gt; Lens s t a b
+</span><span class="hs-identifier hs-var">lens</span></span><span> </span><span class="annot"><span class="annottext">forall r. Referent' r -&gt; r
+</span><a href="Unison.Referent'.html#toReference%27"><span class="hs-identifier hs-var">toReference'</span></a></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679222558"><span class="annot"><span class="annottext">Referent' r
+</span><a href="#local-6989586621679222558"><span class="hs-identifier hs-var">rt</span></a></span></span><span> </span><span id="local-6989586621679222557"><span class="annot"><span class="annottext">r'
+</span><a href="#local-6989586621679222557"><span class="hs-identifier hs-var">rc</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-44"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Referent' r
+</span><a href="#local-6989586621679222558"><span class="hs-identifier hs-var">rt</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-45"></span><span>      </span><span class="annot"><a href="Unison.Referent'.html#Ref%27"><span class="hs-identifier hs-type">Ref'</span></a></span><span> </span><span class="annot"><span class="annottext">r
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall r. r -&gt; Referent' r
+</span><a href="Unison.Referent'.html#Ref%27"><span class="hs-identifier hs-var">Ref'</span></a></span><span> </span><span class="annot"><span class="annottext">r'
+</span><a href="#local-6989586621679222557"><span class="hs-identifier hs-var">rc</span></a></span><span>
+</span><span id="line-46"></span><span>      </span><span class="annot"><a href="Unison.Referent'.html#Con%27"><span class="hs-identifier hs-type">Con'</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.ConstructorReference.html#ConstructorReference"><span class="hs-identifier hs-type">ConstructorReference</span></a></span><span> </span><span class="annot"><span class="annottext">r
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679222555"><span class="annot"><span class="annottext">ConstructorId
+</span><a href="#local-6989586621679222555"><span class="hs-identifier hs-var">cid</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679222554"><span class="annot"><span class="annottext">ConstructorType
+</span><a href="#local-6989586621679222554"><span class="hs-identifier hs-var">ct</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall r. GConstructorReference r -&gt; ConstructorType -&gt; Referent' r
+</span><a href="Unison.Referent'.html#Con%27"><span class="hs-identifier hs-var">Con'</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall r. r -&gt; ConstructorId -&gt; GConstructorReference r
+</span><a href="Unison.ConstructorReference.html#ConstructorReference"><span class="hs-identifier hs-var">ConstructorReference</span></a></span><span> </span><span class="annot"><span class="annottext">r'
+</span><a href="#local-6989586621679222557"><span class="hs-identifier hs-var">rc</span></a></span><span> </span><span class="annot"><span class="annottext">ConstructorId
+</span><a href="#local-6989586621679222555"><span class="hs-identifier hs-var">cid</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ConstructorType
+</span><a href="#local-6989586621679222554"><span class="hs-identifier hs-var">ct</span></a></span><span>
+</span><span id="line-47"></span><span>
+</span><span id="line-48"></span><span id="local-6989586621679222661"><span class="annot"><a href="Unison.Referent'.html#isConstructor"><span class="hs-identifier hs-type">isConstructor</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Referent'.html#Referent%27"><span class="hs-identifier hs-type">Referent'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679222661"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span><span>
+</span><span id="line-49"></span><span id="isConstructor"><span class="annot"><span class="annottext">isConstructor :: forall r. Referent' r -&gt; Bool
+</span><a href="Unison.Referent'.html#isConstructor"><span class="hs-identifier hs-var hs-var">isConstructor</span></a></span></span><span> </span><span class="annot"><a href="Unison.Referent'.html#Con%27"><span class="hs-identifier hs-type">Con'</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-50"></span><span class="annot"><a href="Unison.Referent'.html#isConstructor"><span class="hs-identifier hs-var">isConstructor</span></a></span><span> </span><span class="annot"><span class="annottext">Referent' r
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span id="local-6989586621679222659"><span class="annot"><a href="Unison.Referent'.html#toTermReference"><span class="hs-identifier hs-type">toTermReference</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Referent'.html#Referent%27"><span class="hs-identifier hs-type">Referent'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679222659"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679222659"><span class="hs-identifier hs-type">r</span></a></span></span><span>
+</span><span id="line-53"></span><span id="toTermReference"><span class="annot"><span class="annottext">toTermReference :: forall r. Referent' r -&gt; Maybe r
+</span><a href="Unison.Referent'.html#toTermReference"><span class="hs-identifier hs-var hs-var">toTermReference</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-54"></span><span>  </span><span class="annot"><a href="Unison.Referent'.html#Ref%27"><span class="hs-identifier hs-type">Ref'</span></a></span><span> </span><span id="local-6989586621679222553"><span class="annot"><span class="annottext">r
+</span><a href="#local-6989586621679222553"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">r
+</span><a href="#local-6989586621679222553"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-55"></span><span>  </span><span class="annot"><span class="annottext">Referent' r
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span id="local-6989586621679222665"><span class="annot"><a href="Unison.Referent'.html#toReference%27"><span class="hs-identifier hs-type">toReference'</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Referent'.html#Referent%27"><span class="hs-identifier hs-type">Referent'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679222665"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679222665"><span class="hs-identifier hs-type">r</span></a></span></span><span>
+</span><span id="line-58"></span><span id="toReference%27"><span class="annot"><span class="annottext">toReference' :: forall r. Referent' r -&gt; r
+</span><a href="Unison.Referent'.html#toReference%27"><span class="hs-identifier hs-var hs-var">toReference'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-59"></span><span>  </span><span class="annot"><a href="Unison.Referent'.html#Ref%27"><span class="hs-identifier hs-type">Ref'</span></a></span><span> </span><span id="local-6989586621679222552"><span class="annot"><span class="annottext">r
+</span><a href="#local-6989586621679222552"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">r
+</span><a href="#local-6989586621679222552"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-60"></span><span>  </span><span class="annot"><a href="Unison.Referent'.html#Con%27"><span class="hs-identifier hs-type">Con'</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.ConstructorReference.html#ConstructorReference"><span class="hs-identifier hs-type">ConstructorReference</span></a></span><span> </span><span id="local-6989586621679222551"><span class="annot"><span class="annottext">r
+</span><a href="#local-6989586621679222551"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span id="local-6989586621679222550"><span class="annot"><span class="annottext">ConstructorId
+</span><a href="#local-6989586621679222550"><span class="hs-identifier hs-var">_i</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679222549"><span class="annot"><span class="annottext">ConstructorType
+</span><a href="#local-6989586621679222549"><span class="hs-identifier hs-var">_t</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">r
+</span><a href="#local-6989586621679222551"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span><span id="local-6989586621679222548"><span class="annot"><a href="Unison.Referent'.html#toTypeReference"><span class="hs-identifier hs-type">toTypeReference</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Referent'.html#Referent%27"><span class="hs-identifier hs-type">Referent'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679222548"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679222548"><span class="hs-identifier hs-type">r</span></a></span></span><span>
+</span><span id="line-63"></span><span id="toTypeReference"><span class="annot"><span class="annottext">toTypeReference :: forall r. Referent' r -&gt; Maybe r
+</span><a href="Unison.Referent'.html#toTypeReference"><span class="hs-identifier hs-var hs-var">toTypeReference</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-64"></span><span>  </span><span class="annot"><a href="Unison.Referent'.html#Con%27"><span class="hs-identifier hs-type">Con'</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.ConstructorReference.html#ConstructorReference"><span class="hs-identifier hs-type">ConstructorReference</span></a></span><span> </span><span id="local-6989586621679222547"><span class="annot"><span class="annottext">r
+</span><a href="#local-6989586621679222547"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span id="local-6989586621679222546"><span class="annot"><span class="annottext">ConstructorId
+</span><a href="#local-6989586621679222546"><span class="hs-identifier hs-var">_i</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679222545"><span class="annot"><span class="annottext">ConstructorType
+</span><a href="#local-6989586621679222545"><span class="hs-identifier hs-var">_t</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">r
+</span><a href="#local-6989586621679222547"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-65"></span><span>  </span><span class="annot"><span class="annottext">Referent' r
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span id="local-6989586621679222653"><span id="local-6989586621679222654"><span class="annot"><a href="Unison.Referent'.html#fold"><span class="hs-identifier hs-type">fold</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679222654"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679222653"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679222654"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.DataDeclaration.ConstructorId.html#ConstructorId"><span class="hs-identifier hs-type">ConstructorId</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.ConstructorType.html#ConstructorType"><span class="hs-identifier hs-type">ConstructorType</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679222653"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Referent'.html#Referent%27"><span class="hs-identifier hs-type">Referent'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679222654"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679222653"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-68"></span><span id="fold"><span class="annot"><span class="annottext">fold :: forall r a.
+(r -&gt; a)
+-&gt; (r -&gt; ConstructorId -&gt; ConstructorType -&gt; a) -&gt; Referent' r -&gt; a
+</span><a href="Unison.Referent'.html#fold"><span class="hs-identifier hs-var hs-var">fold</span></a></span></span><span> </span><span id="local-6989586621679222544"><span class="annot"><span class="annottext">r -&gt; a
+</span><a href="#local-6989586621679222544"><span class="hs-identifier hs-var">fr</span></a></span></span><span> </span><span id="local-6989586621679222543"><span class="annot"><span class="annottext">r -&gt; ConstructorId -&gt; ConstructorType -&gt; a
+</span><a href="#local-6989586621679222543"><span class="hs-identifier hs-var">fc</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-69"></span><span>  </span><span class="annot"><a href="Unison.Referent'.html#Ref%27"><span class="hs-identifier hs-type">Ref'</span></a></span><span> </span><span id="local-6989586621679222542"><span class="annot"><span class="annottext">r
+</span><a href="#local-6989586621679222542"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">r -&gt; a
+</span><a href="#local-6989586621679222544"><span class="hs-identifier hs-var">fr</span></a></span><span> </span><span class="annot"><span class="annottext">r
+</span><a href="#local-6989586621679222542"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-70"></span><span>  </span><span class="annot"><a href="Unison.Referent'.html#Con%27"><span class="hs-identifier hs-type">Con'</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.ConstructorReference.html#ConstructorReference"><span class="hs-identifier hs-type">ConstructorReference</span></a></span><span> </span><span id="local-6989586621679222541"><span class="annot"><span class="annottext">r
+</span><a href="#local-6989586621679222541"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span id="local-6989586621679222540"><span class="annot"><span class="annottext">ConstructorId
+</span><a href="#local-6989586621679222540"><span class="hs-identifier hs-var">i</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679222539"><span class="annot"><span class="annottext">ConstructorType
+</span><a href="#local-6989586621679222539"><span class="hs-identifier hs-var">ct</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">r -&gt; ConstructorId -&gt; ConstructorType -&gt; a
+</span><a href="#local-6989586621679222543"><span class="hs-identifier hs-var">fc</span></a></span><span> </span><span class="annot"><span class="annottext">r
+</span><a href="#local-6989586621679222541"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">ConstructorId
+</span><a href="#local-6989586621679222540"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">ConstructorType
+</span><a href="#local-6989586621679222539"><span class="hs-identifier hs-var">ct</span></a></span><span>
+</span><span id="line-71"></span></pre></body></html>

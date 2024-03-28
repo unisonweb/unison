@@ -1,0 +1,106 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE MagicHash #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE UnboxedTuples #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE NoImplicitPrelude #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LANGUAGE GHCForeignImportPrim #-}</span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# LANGUAGE UnliftedFFITypes #-}</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- We need platform defines (tests for mingw32 below).</span><span class="hs-cpp">
+#include &quot;ghcplatform.h&quot;
+</span><span class="hs-cpp">#include &quot;MachDeps.h&quot;
+</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- See note [When do out-of-line primops go in primops.txt.pp]. More primops</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- there are eligible according to the description below, but cannot yet be moved</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- here because of superficial restrictions to `foreign import prim`. Hopefully</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- that is fixed soon.</span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- | Extra C-- routines exposed from the RTS</span><span>
+</span><span id="line-18"></span><span class="hs-comment">--</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- Actual primops are emitted by the compiler itself. They are special bits of</span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- code with backend support. The foreign functions in this module aren't actual</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- primops because the compiler doesn't care about them at all: they just are</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- extra foreign C-- calls libraries can make into the RTS.</span><span>
+</span><span id="line-23"></span><span class="hs-comment">--</span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- Note that 'GHC.Prim' has the same haddock section names as this module, but</span><span>
+</span><span id="line-25"></span><span class="hs-comment">-- with descriptions. Consult that module's documentation for what each section means.</span><span>
+</span><span id="line-26"></span><span class="hs-comment">-- are described over there.</span><span>
+</span><span id="line-27"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">GHC.Prim.Ext</span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-special">(</span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-comment">-- 64-bit bit aliases</span><span>
+</span><span id="line-30"></span><span>    </span><span class="annot"><a href="GHC.Prim.Ext.html#INT64"><span class="hs-identifier">INT64</span></a></span><span>
+</span><span id="line-31"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Prim.Ext.html#WORD64"><span class="hs-identifier">WORD64</span></a></span><span>
+</span><span id="line-32"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Delay\/wait operations</span></span><span class="hs-cpp">
+#if defined(mingw32_HOST_OS)
+</span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-identifier">asyncRead#</span><span>
+</span><span id="line-35"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-identifier">asyncWrite#</span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-identifier">asyncDoProc#</span><span class="hs-cpp">
+#endif
+</span><span>  </span><span class="annot"><span class="hs-comment">-- * Misc</span></span><span>
+</span><span id="line-39"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Prim.Ext.html#getThreadAllocationCounter%23"><span class="hs-identifier">getThreadAllocationCounter#</span></a></span><span>
+</span><span id="line-40"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Prim.html"><span class="hs-identifier">GHC.Prim</span></a></span><span>
+</span><span id="line-43"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.html"><span class="hs-identifier">GHC.Types</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-comment">-- Make implicit dependency known to build system</span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span class="hs-keyword">default</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-comment">-- Double and Integer aren't available yet</span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span class="hs-comment">------------------------------------------------------------------------</span><span>
+</span><span id="line-48"></span><span class="hs-comment">-- 64-bit bit aliases</span><span>
+</span><span id="line-49"></span><span class="hs-comment">------------------------------------------------------------------------</span><span>
+</span><span id="line-50"></span><span>
+</span><span id="line-51"></span><span class="hs-keyword">type</span><span> </span><span id="INT64"><span class="annot"><a href="GHC.Prim.Ext.html#INT64"><span class="hs-identifier hs-var">INT64</span></a></span></span><span> </span><span class="hs-glyph">=</span><span class="hs-cpp">
+#if WORD_SIZE_IN_BITS &lt; 64
+</span><span>  </span><span class="hs-identifier">Int64#</span><span class="hs-cpp">
+#else
+</span><span>  </span><span class="annot"><a href="GHC.Prim.html#Int%23"><span class="hs-identifier hs-type">Int#</span></a></span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-58"></span><span class="hs-keyword">type</span><span> </span><span id="WORD64"><span class="annot"><a href="GHC.Prim.Ext.html#WORD64"><span class="hs-identifier hs-var">WORD64</span></a></span></span><span> </span><span class="hs-glyph">=</span><span class="hs-cpp">
+#if WORD_SIZE_IN_BITS &lt; 64
+</span><span>  </span><span class="hs-identifier">Word64#</span><span class="hs-cpp">
+#else
+</span><span>  </span><span class="annot"><a href="GHC.Prim.html#Word%23"><span class="hs-identifier hs-type">Word#</span></a></span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-65"></span><span class="hs-comment">------------------------------------------------------------------------</span><span>
+</span><span id="line-66"></span><span class="hs-comment">-- Delay/wait operations</span><span>
+</span><span id="line-67"></span><span class="hs-comment">------------------------------------------------------------------------</span><span class="hs-cpp">
+
+#if defined(mingw32_HOST_OS)
+</span><span>
+</span><span id="line-71"></span><span class="hs-comment">-- | Asynchronously read bytes from specified file descriptor.</span><span>
+</span><span id="line-72"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">prim</span><span> </span><span class="hs-string">&quot;stg_asyncReadzh&quot;</span><span> </span><span class="hs-identifier">asyncRead#</span><span>
+</span><span id="line-73"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Int#</span><span>
+</span><span id="line-74"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">Int#</span><span>
+</span><span id="line-75"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">Int#</span><span>
+</span><span id="line-76"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">Addr#</span><span>
+</span><span id="line-77"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">State#</span><span> </span><span class="hs-identifier">RealWorld</span><span>
+</span><span id="line-78"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(#</span><span> </span><span class="hs-identifier">State#</span><span> </span><span class="hs-identifier">RealWorld</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">Int#</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">Int#</span><span> </span><span class="hs-special">#)</span><span>
+</span><span id="line-79"></span><span>
+</span><span id="line-80"></span><span class="hs-comment">-- | Asynchronously write bytes from specified file descriptor.</span><span>
+</span><span id="line-81"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">prim</span><span> </span><span class="hs-string">&quot;stg_asyncWritezh&quot;</span><span> </span><span class="hs-identifier">asyncWrite#</span><span>
+</span><span id="line-82"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Int#</span><span>
+</span><span id="line-83"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">Int#</span><span>
+</span><span id="line-84"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">Int#</span><span>
+</span><span id="line-85"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">Addr#</span><span>
+</span><span id="line-86"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">State#</span><span> </span><span class="hs-identifier">RealWorld</span><span>
+</span><span id="line-87"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(#</span><span> </span><span class="hs-identifier">State#</span><span> </span><span class="hs-identifier">RealWorld</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">Int#</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">Int#</span><span> </span><span class="hs-special">#)</span><span>
+</span><span id="line-88"></span><span>
+</span><span id="line-89"></span><span class="hs-comment">-- | Asynchronously perform procedure (first arg), passing it 2nd arg.</span><span>
+</span><span id="line-90"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">prim</span><span> </span><span class="hs-string">&quot;stg_asyncDoProczh&quot;</span><span> </span><span class="hs-identifier">asyncDoProc#</span><span>
+</span><span id="line-91"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Addr#</span><span>
+</span><span id="line-92"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">Addr#</span><span>
+</span><span id="line-93"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">State#</span><span> </span><span class="hs-identifier">RealWorld</span><span>
+</span><span id="line-94"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(#</span><span> </span><span class="hs-identifier">State#</span><span> </span><span class="hs-identifier">RealWorld</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">Int#</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">Int#</span><span> </span><span class="hs-special">#)</span><span class="hs-cpp">
+
+#endif
+</span><span>
+</span><span id="line-98"></span><span class="hs-comment">------------------------------------------------------------------------</span><span>
+</span><span id="line-99"></span><span class="hs-comment">-- Misc</span><span>
+</span><span id="line-100"></span><span class="hs-comment">------------------------------------------------------------------------</span><span>
+</span><span id="line-101"></span><span>
+</span><span id="line-102"></span><span class="hs-comment">-- | Retrieves the allocation counter for the current thread.</span><span>
+</span><span id="line-103"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">prim</span></span><span> </span><span class="annot"><span class="hs-string">&quot;stg_getThreadAllocationCounterzh&quot;</span></span><span> </span><span id="getThreadAllocationCounter%23"><span class="annot"><a href="GHC.Prim.Ext.html#getThreadAllocationCounter%23"><span class="hs-identifier hs-var">getThreadAllocationCounter#</span></a></span></span><span>
+</span><span id="line-104"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Prim.html#State%23"><span class="hs-identifier hs-type">State#</span></a></span><span> </span><span class="annot"><a href="GHC.Prim.html#RealWorld"><span class="hs-identifier hs-type">RealWorld</span></a></span><span>
+</span><span id="line-105"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(#</span><span> </span><span class="annot"><a href="GHC.Prim.html#State%23"><span class="hs-identifier hs-type">State#</span></a></span><span> </span><span class="annot"><a href="GHC.Prim.html#RealWorld"><span class="hs-identifier hs-type">RealWorld</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Prim.Ext.html#INT64"><span class="hs-identifier hs-type">INT64</span></a></span><span> </span><span class="hs-special">#)</span><span>
+</span><span id="line-106"></span></pre></body></html>

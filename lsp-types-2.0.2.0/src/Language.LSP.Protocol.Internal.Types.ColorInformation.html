@@ -1,0 +1,144 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- THIS IS A GENERATED FILE, DO NOT EDIT</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-imports #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-matches #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-deprecations #-}</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.ColorInformation</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Hashable</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html"><span class="hs-identifier">Language.LSP.Protocol.Utils.Misc</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prettyprinter</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Aeson.html"><span class="hs-identifier">Data.Row.Aeson</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Hashable.html"><span class="hs-identifier">Data.Row.Hashable</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Hashable</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.Color.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.Color</span></a></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.Range.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.Range</span></a></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html"><span class="hs-identifier">Language.LSP.Protocol.Types.Common</span></a></span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="hs-comment">{-|
+Represents a color range from a document.
+-}</span><span>
+</span><span id="line-23"></span><span id="local-6989586621682221109"><span id="local-6989586621682221110"></span></span><span class="hs-keyword">data</span><span> </span><span id="ColorInformation"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ColorInformation.html#ColorInformation"><span class="hs-identifier hs-var">ColorInformation</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="ColorInformation"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ColorInformation.html#ColorInformation"><span class="hs-identifier hs-var">ColorInformation</span></a></span></span><span> </span><span>
+</span><span id="line-24"></span><span>  </span><span class="hs-special">{</span><span> </span><span class="hs-comment">{-|
+  The range in the document where this color appears.
+  -}</span><span>
+</span><span id="line-27"></span><span>  </span><span id="%24sel%3A_range%3AColorInformation"><span class="annot"><span class="annottext">ColorInformation -&gt; Range
+</span><a href="Language.LSP.Protocol.Internal.Types.ColorInformation.html#%24sel%3A_range%3AColorInformation"><span class="hs-identifier hs-var hs-var">_range</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.Range.html#Range"><span class="hs-identifier hs-type">Language.LSP.Protocol.Internal.Types.Range.Range</span></a></span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-comment">{-|
+  The actual color value for this color range.
+  -}</span><span>
+</span><span id="line-31"></span><span>  </span><span id="%24sel%3A_color%3AColorInformation"><span class="annot"><span class="annottext">ColorInformation -&gt; Color
+</span><a href="Language.LSP.Protocol.Internal.Types.ColorInformation.html#%24sel%3A_color%3AColorInformation"><span class="hs-identifier hs-var hs-var">_color</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.Color.html#Color"><span class="hs-identifier hs-type">Language.LSP.Protocol.Internal.Types.Color.Color</span></a></span><span>
+</span><span id="line-32"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-33"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682221094"><span id="local-6989586621682221096"><span id="local-6989586621682221104"><span class="annot"><span class="annottext">Int -&gt; ColorInformation -&gt; ShowS
+[ColorInformation] -&gt; ShowS
+ColorInformation -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [ColorInformation] -&gt; ShowS
+$cshowList :: [ColorInformation] -&gt; ShowS
+show :: ColorInformation -&gt; String
+$cshow :: ColorInformation -&gt; String
+showsPrec :: Int -&gt; ColorInformation -&gt; ShowS
+$cshowsPrec :: Int -&gt; ColorInformation -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682221085"><span id="local-6989586621682221091"><span class="annot"><span class="annottext">ColorInformation -&gt; ColorInformation -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: ColorInformation -&gt; ColorInformation -&gt; Bool
+$c/= :: ColorInformation -&gt; ColorInformation -&gt; Bool
+== :: ColorInformation -&gt; ColorInformation -&gt; Bool
+$c== :: ColorInformation -&gt; ColorInformation -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682221059"><span id="local-6989586621682221061"><span id="local-6989586621682221064"><span id="local-6989586621682221067"><span id="local-6989586621682221070"><span id="local-6989586621682221074"><span id="local-6989586621682221080"><span class="annot"><span class="annottext">Eq ColorInformation
+ColorInformation -&gt; ColorInformation -&gt; Bool
+ColorInformation -&gt; ColorInformation -&gt; Ordering
+ColorInformation -&gt; ColorInformation -&gt; ColorInformation
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: ColorInformation -&gt; ColorInformation -&gt; ColorInformation
+$cmin :: ColorInformation -&gt; ColorInformation -&gt; ColorInformation
+max :: ColorInformation -&gt; ColorInformation -&gt; ColorInformation
+$cmax :: ColorInformation -&gt; ColorInformation -&gt; ColorInformation
+&gt;= :: ColorInformation -&gt; ColorInformation -&gt; Bool
+$c&gt;= :: ColorInformation -&gt; ColorInformation -&gt; Bool
+&gt; :: ColorInformation -&gt; ColorInformation -&gt; Bool
+$c&gt; :: ColorInformation -&gt; ColorInformation -&gt; Bool
+&lt;= :: ColorInformation -&gt; ColorInformation -&gt; Bool
+$c&lt;= :: ColorInformation -&gt; ColorInformation -&gt; Bool
+&lt; :: ColorInformation -&gt; ColorInformation -&gt; Bool
+$c&lt; :: ColorInformation -&gt; ColorInformation -&gt; Bool
+compare :: ColorInformation -&gt; ColorInformation -&gt; Ordering
+$ccompare :: ColorInformation -&gt; ColorInformation -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall x. Rep ColorInformation x -&gt; ColorInformation
+forall x. ColorInformation -&gt; Rep ColorInformation x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cto :: forall x. Rep ColorInformation x -&gt; ColorInformation
+$cfrom :: forall x. ColorInformation -&gt; Rep ColorInformation x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-34"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">anyclass</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682221053"><span class="annot"><span class="annottext">ColorInformation -&gt; ()
+forall a. (a -&gt; ()) -&gt; NFData a
+rnf :: ColorInformation -&gt; ()
+$crnf :: ColorInformation -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682221046"><span id="local-6989586621682221048"><span class="annot"><span class="annottext">Eq ColorInformation
+Int -&gt; ColorInformation -&gt; Int
+ColorInformation -&gt; Int
+forall a. Eq a -&gt; (Int -&gt; a -&gt; Int) -&gt; (a -&gt; Int) -&gt; Hashable a
+hash :: ColorInformation -&gt; Int
+$chash :: ColorInformation -&gt; Int
+hashWithSalt :: Int -&gt; ColorInformation -&gt; Int
+$chashWithSalt :: Int -&gt; ColorInformation -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Hashable</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621682221037"><span id="local-6989586621682221043"><span class="annot"><span class="annottext">forall ann. [ColorInformation] -&gt; Doc ann
+forall ann. ColorInformation -&gt; Doc ann
+forall a.
+(forall ann. a -&gt; Doc ann)
+-&gt; (forall ann. [a] -&gt; Doc ann) -&gt; Pretty a
+prettyList :: forall ann. [ColorInformation] -&gt; Doc ann
+$cprettyList :: forall ann. [ColorInformation] -&gt; Doc ann
+pretty :: forall ann. ColorInformation -&gt; Doc ann
+$cpretty :: forall ann. ColorInformation -&gt; Doc ann
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Pretty</span></span></span></span><span> </span><span class="hs-keyword">via</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html#ViaJSON"><span class="hs-identifier hs-type">ViaJSON</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ColorInformation.html#ColorInformation"><span class="hs-identifier hs-type">ColorInformation</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682221025"><span id="local-6989586621682221027"><span id="local-6989586621682221029"><span class="annot"><span class="hs-identifier hs-type">Aeson.ToJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ColorInformation.html#ColorInformation"><span class="hs-identifier hs-type">ColorInformation</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-38"></span><span>  </span><span id="local-6989586621682221011"><span class="annot"><span class="annottext">toJSON :: ColorInformation -&gt; Value
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">toJSON</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ColorInformation.html#ColorInformation"><span class="hs-identifier hs-type">ColorInformation</span></a></span><span> </span><span id="local-6989586621682221009"><span class="annot"><span class="annottext">Range
+</span><a href="#local-6989586621682221009"><span class="hs-identifier hs-var">arg0</span></a></span></span><span> </span><span id="local-6989586621682221008"><span class="annot"><span class="annottext">Color
+</span><a href="#local-6989586621682221008"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">Aeson.object</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">concat</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>  </span><span class="hs-special">[</span><span class="hs-special">[</span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;range&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">Aeson..=</span></span><span> </span><span class="annot"><span class="annottext">Range
+</span><a href="#local-6989586621682221009"><span class="hs-identifier hs-var">arg0</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-39"></span><span>    </span><span class="hs-special">,</span><span class="hs-special">[</span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;color&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">Aeson..=</span></span><span> </span><span class="annot"><span class="annottext">Color
+</span><a href="#local-6989586621682221008"><span class="hs-identifier hs-var">arg1</span></a></span><span class="hs-special">]</span><span class="hs-special">]</span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682221002"><span class="annot"><span class="hs-identifier hs-type">Aeson.FromJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ColorInformation.html#ColorInformation"><span class="hs-identifier hs-type">ColorInformation</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-42"></span><span>  </span><span id="local-6989586621682220990"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser ColorInformation
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">Aeson.withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;ColorInformation&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621682220987"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682220987"><span class="hs-identifier hs-var">arg</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Range -&gt; Color -&gt; ColorInformation
+</span><a href="Language.LSP.Protocol.Internal.Types.ColorInformation.html#ColorInformation"><span class="hs-identifier hs-var">ColorInformation</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682220987"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">Aeson..:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;range&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682220987"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">Aeson..:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;color&quot;</span></span><span>
+</span><span id="line-43"></span></pre></body></html>

@@ -1,0 +1,736 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- |</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- Module      : Data.Memory.Hash.SipHash</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- License     : BSD-style</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- Maintainer  : Vincent Hanquez &lt;vincent@snarc.org&gt;</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Stability   : experimental</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- Portability : good</span><span>
+</span><span id="line-7"></span><span class="hs-comment">--</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- provide the SipHash algorithm.</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- reference: &lt;http://131002.net/siphash/siphash.pdf&gt;</span><span>
+</span><span id="line-10"></span><span class="hs-comment">--</span><span>
+</span><span id="line-11"></span><span class="hs-pragma">{-# LANGUAGE BangPatterns #-}</span><span>
+</span><span id="line-12"></span><span class="hs-pragma">{-# LANGUAGE DeriveDataTypeable #-}</span><span>
+</span><span id="line-13"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Data.Memory.Hash.SipHash</span><span>
+</span><span id="line-14"></span><span>    </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Data.Memory.Hash.SipHash.html#SipKey"><span class="hs-identifier">SipKey</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Memory.Hash.SipHash.html#SipHash"><span class="hs-identifier">SipHash</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Memory.Hash.SipHash.html#hash"><span class="hs-identifier">hash</span></a></span><span>
+</span><span id="line-17"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Memory.Hash.SipHash.html#hashWith"><span class="hs-identifier">hashWith</span></a></span><span>
+</span><span id="line-18"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Data.Memory.Endian.html"><span class="hs-identifier">Data.Memory.Endian</span></a></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Data.Memory.Internal.Compat.html"><span class="hs-identifier">Data.Memory.Internal.Compat</span></a></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Word</span></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Bits</span></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Typeable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Typeable</span></span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Foreign.Ptr</span></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Foreign.Storable</span></span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- | SigHash Key</span><span>
+</span><span id="line-30"></span><span class="hs-keyword">data</span><span> </span><span id="SipKey"><span class="annot"><a href="Data.Memory.Hash.SipHash.html#SipKey"><span class="hs-identifier hs-var">SipKey</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="SipKey"><span class="annot"><a href="Data.Memory.Hash.SipHash.html#SipKey"><span class="hs-identifier hs-var">SipKey</span></a></span></span><span> </span><span class="hs-pragma">{-# UNPACK</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span> </span><span class="hs-pragma">{-# UNPACK</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="hs-comment">-- | Siphash tag value</span><span>
+</span><span id="line-33"></span><span class="hs-keyword">newtype</span><span> </span><span id="SipHash"><span class="annot"><a href="Data.Memory.Hash.SipHash.html#SipHash"><span class="hs-identifier hs-var">SipHash</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="SipHash"><span class="annot"><a href="Data.Memory.Hash.SipHash.html#SipHash"><span class="hs-identifier hs-var">SipHash</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span>
+</span><span id="line-34"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679073914"><span id="local-6989586621679073916"><span id="local-6989586621679073921"><span class="annot"><span class="annottext">Int -&gt; SipHash -&gt; ShowS
+[SipHash] -&gt; ShowS
+SipHash -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [SipHash] -&gt; ShowS
+$cshowList :: [SipHash] -&gt; ShowS
+show :: SipHash -&gt; String
+$cshow :: SipHash -&gt; String
+showsPrec :: Int -&gt; SipHash -&gt; ShowS
+$cshowsPrec :: Int -&gt; SipHash -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679073906"><span id="local-6989586621679073911"><span class="annot"><span class="annottext">SipHash -&gt; SipHash -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: SipHash -&gt; SipHash -&gt; Bool
+$c/= :: SipHash -&gt; SipHash -&gt; Bool
+== :: SipHash -&gt; SipHash -&gt; Bool
+$c== :: SipHash -&gt; SipHash -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679073873"><span id="local-6989586621679073877"><span id="local-6989586621679073881"><span id="local-6989586621679073885"><span id="local-6989586621679073889"><span id="local-6989586621679073893"><span id="local-6989586621679073898"><span class="annot"><span class="annottext">Eq SipHash
+SipHash -&gt; SipHash -&gt; Bool
+SipHash -&gt; SipHash -&gt; Ordering
+SipHash -&gt; SipHash -&gt; SipHash
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: SipHash -&gt; SipHash -&gt; SipHash
+$cmin :: SipHash -&gt; SipHash -&gt; SipHash
+max :: SipHash -&gt; SipHash -&gt; SipHash
+$cmax :: SipHash -&gt; SipHash -&gt; SipHash
+&gt;= :: SipHash -&gt; SipHash -&gt; Bool
+$c&gt;= :: SipHash -&gt; SipHash -&gt; Bool
+&gt; :: SipHash -&gt; SipHash -&gt; Bool
+$c&gt; :: SipHash -&gt; SipHash -&gt; Bool
+&lt;= :: SipHash -&gt; SipHash -&gt; Bool
+$c&lt;= :: SipHash -&gt; SipHash -&gt; Bool
+&lt; :: SipHash -&gt; SipHash -&gt; Bool
+$c&lt; :: SipHash -&gt; SipHash -&gt; Bool
+compare :: SipHash -&gt; SipHash -&gt; Ordering
+$ccompare :: SipHash -&gt; SipHash -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier hs-type">Typeable</span></span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span>
+</span><span id="line-36"></span><span class="hs-keyword">data</span><span> </span><span id="InternalState"><span class="annot"><a href="Data.Memory.Hash.SipHash.html#InternalState"><span class="hs-identifier hs-var">InternalState</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="InternalState"><span class="annot"><a href="Data.Memory.Hash.SipHash.html#InternalState"><span class="hs-identifier hs-var">InternalState</span></a></span></span><span> </span><span class="hs-pragma">{-# UNPACK</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span> </span><span class="hs-pragma">{-# UNPACK</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span> </span><span class="hs-pragma">{-# UNPACK</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span> </span><span class="hs-pragma">{-# UNPACK</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- | produce a siphash with a key and a memory pointer + length.</span><span>
+</span><span id="line-39"></span><span class="annot"><a href="Data.Memory.Hash.SipHash.html#hash"><span class="hs-identifier hs-type">hash</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Memory.Hash.SipHash.html#SipKey"><span class="hs-identifier hs-type">SipKey</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Data.Memory.Hash.SipHash.html#SipHash"><span class="hs-identifier hs-type">SipHash</span></a></span><span>
+</span><span id="line-40"></span><span id="hash"><span class="annot"><span class="annottext">hash :: SipKey -&gt; Ptr Word8 -&gt; Int -&gt; IO SipHash
+</span><a href="Data.Memory.Hash.SipHash.html#hash"><span class="hs-identifier hs-var hs-var">hash</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; SipKey -&gt; Ptr Word8 -&gt; Int -&gt; IO SipHash
+</span><a href="Data.Memory.Hash.SipHash.html#hashWith"><span class="hs-identifier hs-var">hashWith</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span class="hs-comment">-- | same as 'hash', except also specifies the number of sipround iterations for compression and digest.</span><span>
+</span><span id="line-43"></span><span class="annot"><a href="Data.Memory.Hash.SipHash.html#hashWith"><span class="hs-identifier hs-type">hashWith</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>       </span><span class="hs-comment">-- ^ siphash C</span><span>
+</span><span id="line-44"></span><span>         </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>       </span><span class="hs-comment">-- ^ siphash D</span><span>
+</span><span id="line-45"></span><span>         </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Memory.Hash.SipHash.html#SipKey"><span class="hs-identifier hs-type">SipKey</span></a></span><span>    </span><span class="hs-comment">-- ^ key for the hash</span><span>
+</span><span id="line-46"></span><span>         </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span> </span><span class="hs-comment">-- ^ memory pointer</span><span>
+</span><span id="line-47"></span><span>         </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>       </span><span class="hs-comment">-- ^ length of the data</span><span>
+</span><span id="line-48"></span><span>         </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Data.Memory.Hash.SipHash.html#SipHash"><span class="hs-identifier hs-type">SipHash</span></a></span><span>
+</span><span id="line-49"></span><span id="hashWith"><span class="annot"><span class="annottext">hashWith :: Int -&gt; Int -&gt; SipKey -&gt; Ptr Word8 -&gt; Int -&gt; IO SipHash
+</span><a href="Data.Memory.Hash.SipHash.html#hashWith"><span class="hs-identifier hs-var hs-var">hashWith</span></a></span></span><span> </span><span id="local-6989586621679073867"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679073867"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span id="local-6989586621679073866"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679073866"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span id="local-6989586621679073865"><span class="annot"><span class="annottext">SipKey
+</span><a href="#local-6989586621679073865"><span class="hs-identifier hs-var">key</span></a></span></span><span> </span><span id="local-6989586621679073864"><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679073864"><span class="hs-identifier hs-var">startPtr</span></a></span></span><span> </span><span id="local-6989586621679073863"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679073863"><span class="hs-identifier hs-var">totalLen</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {a} {b}.
+(Ord a, Num a) =&gt;
+InternalState -&gt; Ptr b -&gt; a -&gt; IO SipHash
+</span><a href="#local-6989586621679073862"><span class="hs-identifier hs-var">runHash</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SipKey -&gt; InternalState
+</span><a href="#local-6989586621679073861"><span class="hs-identifier hs-var">initSip</span></a></span><span> </span><span class="annot"><span class="annottext">SipKey
+</span><a href="#local-6989586621679073865"><span class="hs-identifier hs-var">key</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679073864"><span class="hs-identifier hs-var">startPtr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679073863"><span class="hs-identifier hs-var">totalLen</span></a></span><span>
+</span><span id="line-50"></span><span>  </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679073862"><span class="annot"><span class="annottext">runHash :: InternalState -&gt; Ptr b -&gt; a -&gt; IO SipHash
+</span><a href="#local-6989586621679073862"><span class="hs-identifier hs-var hs-var">runHash</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679073715"><span class="annot"><span class="annottext">InternalState
+</span><a href="#local-6989586621679073715"><span class="hs-identifier hs-var">st</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679073714"><span class="annot"><span class="annottext">Ptr b
+</span><a href="#local-6989586621679073714"><span class="hs-identifier hs-var">ptr</span></a></span></span><span> </span><span id="local-6989586621679073713"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679073713"><span class="hs-identifier hs-var">l</span></a></span></span><span>
+</span><span id="line-51"></span><span>            </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679073713"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">7</span></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Storable a =&gt; Ptr a -&gt; IO a
+</span><span class="hs-identifier hs-var">peek</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. Ptr a -&gt; Ptr b
+</span><span class="hs-identifier hs-var">castPtr</span></span><span> </span><span class="annot"><span class="annottext">Ptr b
+</span><a href="#local-6989586621679073714"><span class="hs-identifier hs-var">ptr</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679073709"><span class="annot"><span class="annottext">LE Word64
+</span><a href="#local-6989586621679073709"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">InternalState -&gt; Ptr b -&gt; a -&gt; IO SipHash
+</span><a href="#local-6989586621679073862"><span class="hs-identifier hs-var">runHash</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">InternalState -&gt; Word64 -&gt; InternalState
+</span><a href="#local-6989586621679073708"><span class="hs-identifier hs-var">process</span></a></span><span> </span><span class="annot"><span class="annottext">InternalState
+</span><a href="#local-6989586621679073715"><span class="hs-identifier hs-var">st</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. ByteSwap a =&gt; LE a -&gt; a
+</span><a href="Data.Memory.Endian.html#fromLE"><span class="hs-identifier hs-var">fromLE</span></a></span><span> </span><span class="annot"><span class="annottext">LE Word64
+</span><a href="#local-6989586621679073709"><span class="hs-identifier hs-var">v</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr b
+</span><a href="#local-6989586621679073714"><span class="hs-identifier hs-var">ptr</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. Ptr a -&gt; Int -&gt; Ptr b
+</span><span class="hs-operator hs-var">`plusPtr`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679073713"><span class="hs-identifier hs-var">l</span></a></span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">8</span></span><span class="hs-special">)</span><span>
+</span><span id="line-52"></span><span>            </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-53"></span><span>                </span><span class="hs-keyword">let</span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679073698"><span class="annot"><span class="annottext">lengthBlock :: Word64
+</span><a href="#local-6989586621679073698"><span class="hs-identifier hs-var hs-var">lengthBlock</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679073863"><span class="hs-identifier hs-var">totalLen</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Integral a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`mod`</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-number">256</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`unsafeShiftL`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">56</span></span><span>
+</span><span id="line-54"></span><span>                </span><span class="hs-special">(</span><span class="annot"><span class="annottext">InternalState -&gt; SipHash
+</span><a href="#local-6989586621679073695"><span class="hs-identifier hs-var">finish</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">InternalState -&gt; Word64 -&gt; InternalState
+</span><a href="#local-6989586621679073708"><span class="hs-identifier hs-var">process</span></a></span><span> </span><span class="annot"><span class="annottext">InternalState
+</span><a href="#local-6989586621679073715"><span class="hs-identifier hs-var">st</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">`fmap`</span></span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679073713"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-55"></span><span>                    </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073698"><span class="hs-identifier hs-var">lengthBlock</span></a></span><span>
+</span><span id="line-56"></span><span>                    </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span> </span><span id="local-6989586621679073693"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679073693"><span class="hs-identifier hs-var">v0</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a b. Storable a =&gt; Ptr b -&gt; Int -&gt; IO a
+</span><span class="hs-identifier hs-var">peekByteOff</span></span><span> </span><span class="annot"><span class="annottext">Ptr b
+</span><a href="#local-6989586621679073714"><span class="hs-identifier hs-var">ptr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-57"></span><span>                            </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073698"><span class="hs-identifier hs-var">lengthBlock</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.|.</span></span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Word64
+</span><a href="#local-6989586621679073690"><span class="hs-identifier hs-var">to64</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679073693"><span class="hs-identifier hs-var">v0</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-58"></span><span>                    </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">2</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679073689"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679073689"><span class="hs-identifier hs-var">v0</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679073688"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679073688"><span class="hs-identifier hs-var">v1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a1 a2 r.
+Monad m =&gt;
+(a1 -&gt; a2 -&gt; r) -&gt; m a1 -&gt; m a2 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM2</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">,</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. Storable a =&gt; Ptr b -&gt; Int -&gt; IO a
+</span><span class="hs-identifier hs-var">peekByteOff</span></span><span> </span><span class="annot"><span class="annottext">Ptr b
+</span><a href="#local-6989586621679073714"><span class="hs-identifier hs-var">ptr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. Storable a =&gt; Ptr b -&gt; Int -&gt; IO a
+</span><span class="hs-identifier hs-var">peekByteOff</span></span><span> </span><span class="annot"><span class="annottext">Ptr b
+</span><a href="#local-6989586621679073714"><span class="hs-identifier hs-var">ptr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span>
+</span><span id="line-59"></span><span>                            </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073698"><span class="hs-identifier hs-var">lengthBlock</span></a></span><span>
+</span><span id="line-60"></span><span>                                    </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.|.</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8 -&gt; Word64
+</span><a href="#local-6989586621679073690"><span class="hs-identifier hs-var">to64</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679073688"><span class="hs-identifier hs-var">v1</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`unsafeShiftL`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span class="hs-special">)</span><span>
+</span><span id="line-61"></span><span>                                    </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.|.</span></span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Word64
+</span><a href="#local-6989586621679073690"><span class="hs-identifier hs-var">to64</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679073689"><span class="hs-identifier hs-var">v0</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-62"></span><span>                    </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">3</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679073686"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679073686"><span class="hs-identifier hs-var">v0</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679073685"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679073685"><span class="hs-identifier hs-var">v1</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679073684"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679073684"><span class="hs-identifier hs-var">v2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a1 a2 a3 r.
+Monad m =&gt;
+(a1 -&gt; a2 -&gt; a3 -&gt; r) -&gt; m a1 -&gt; m a2 -&gt; m a3 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM3</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">,</span><span class="hs-special">,</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. Storable a =&gt; Ptr b -&gt; Int -&gt; IO a
+</span><span class="hs-identifier hs-var">peekByteOff</span></span><span> </span><span class="annot"><span class="annottext">Ptr b
+</span><a href="#local-6989586621679073714"><span class="hs-identifier hs-var">ptr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. Storable a =&gt; Ptr b -&gt; Int -&gt; IO a
+</span><span class="hs-identifier hs-var">peekByteOff</span></span><span> </span><span class="annot"><span class="annottext">Ptr b
+</span><a href="#local-6989586621679073714"><span class="hs-identifier hs-var">ptr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. Storable a =&gt; Ptr b -&gt; Int -&gt; IO a
+</span><span class="hs-identifier hs-var">peekByteOff</span></span><span> </span><span class="annot"><span class="annottext">Ptr b
+</span><a href="#local-6989586621679073714"><span class="hs-identifier hs-var">ptr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span class="hs-special">)</span><span>
+</span><span id="line-63"></span><span>                            </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span>    </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073698"><span class="hs-identifier hs-var">lengthBlock</span></a></span><span>
+</span><span id="line-64"></span><span>                                    </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.|.</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8 -&gt; Word64
+</span><a href="#local-6989586621679073690"><span class="hs-identifier hs-var">to64</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679073684"><span class="hs-identifier hs-var">v2</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`unsafeShiftL`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">16</span></span><span class="hs-special">)</span><span>
+</span><span id="line-65"></span><span>                                    </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.|.</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8 -&gt; Word64
+</span><a href="#local-6989586621679073690"><span class="hs-identifier hs-var">to64</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679073685"><span class="hs-identifier hs-var">v1</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`unsafeShiftL`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span class="hs-special">)</span><span>
+</span><span id="line-66"></span><span>                                    </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.|.</span></span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Word64
+</span><a href="#local-6989586621679073690"><span class="hs-identifier hs-var">to64</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679073686"><span class="hs-identifier hs-var">v0</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-67"></span><span>                    </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">4</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679073682"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679073682"><span class="hs-identifier hs-var">v0</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679073681"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679073681"><span class="hs-identifier hs-var">v1</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679073680"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679073680"><span class="hs-identifier hs-var">v2</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679073679"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679073679"><span class="hs-identifier hs-var">v3</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a1 a2 a3 a4 r.
+Monad m =&gt;
+(a1 -&gt; a2 -&gt; a3 -&gt; a4 -&gt; r) -&gt; m a1 -&gt; m a2 -&gt; m a3 -&gt; m a4 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM4</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">,</span><span class="hs-special">,</span><span class="hs-special">,</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. Storable a =&gt; Ptr b -&gt; Int -&gt; IO a
+</span><span class="hs-identifier hs-var">peekByteOff</span></span><span> </span><span class="annot"><span class="annottext">Ptr b
+</span><a href="#local-6989586621679073714"><span class="hs-identifier hs-var">ptr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. Storable a =&gt; Ptr b -&gt; Int -&gt; IO a
+</span><span class="hs-identifier hs-var">peekByteOff</span></span><span> </span><span class="annot"><span class="annottext">Ptr b
+</span><a href="#local-6989586621679073714"><span class="hs-identifier hs-var">ptr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. Storable a =&gt; Ptr b -&gt; Int -&gt; IO a
+</span><span class="hs-identifier hs-var">peekByteOff</span></span><span> </span><span class="annot"><span class="annottext">Ptr b
+</span><a href="#local-6989586621679073714"><span class="hs-identifier hs-var">ptr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span class="hs-special">)</span><span>
+</span><span id="line-68"></span><span>                                                          </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. Storable a =&gt; Ptr b -&gt; Int -&gt; IO a
+</span><span class="hs-identifier hs-var">peekByteOff</span></span><span> </span><span class="annot"><span class="annottext">Ptr b
+</span><a href="#local-6989586621679073714"><span class="hs-identifier hs-var">ptr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span class="hs-special">)</span><span>
+</span><span id="line-69"></span><span>                            </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span>    </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073698"><span class="hs-identifier hs-var">lengthBlock</span></a></span><span>
+</span><span id="line-70"></span><span>                                    </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.|.</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8 -&gt; Word64
+</span><a href="#local-6989586621679073690"><span class="hs-identifier hs-var">to64</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679073679"><span class="hs-identifier hs-var">v3</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`unsafeShiftL`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">24</span></span><span class="hs-special">)</span><span>
+</span><span id="line-71"></span><span>                                    </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.|.</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8 -&gt; Word64
+</span><a href="#local-6989586621679073690"><span class="hs-identifier hs-var">to64</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679073680"><span class="hs-identifier hs-var">v2</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`unsafeShiftL`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">16</span></span><span class="hs-special">)</span><span>
+</span><span id="line-72"></span><span>                                    </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.|.</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8 -&gt; Word64
+</span><a href="#local-6989586621679073690"><span class="hs-identifier hs-var">to64</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679073681"><span class="hs-identifier hs-var">v1</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`unsafeShiftL`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span class="hs-special">)</span><span>
+</span><span id="line-73"></span><span>                                    </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.|.</span></span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Word64
+</span><a href="#local-6989586621679073690"><span class="hs-identifier hs-var">to64</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679073682"><span class="hs-identifier hs-var">v0</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-74"></span><span>                    </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">5</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679073677"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679073677"><span class="hs-identifier hs-var">v0</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679073676"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679073676"><span class="hs-identifier hs-var">v1</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679073675"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679073675"><span class="hs-identifier hs-var">v2</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679073674"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679073674"><span class="hs-identifier hs-var">v3</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679073673"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679073673"><span class="hs-identifier hs-var">v4</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a1 a2 a3 a4 a5 r.
+Monad m =&gt;
+(a1 -&gt; a2 -&gt; a3 -&gt; a4 -&gt; a5 -&gt; r)
+-&gt; m a1 -&gt; m a2 -&gt; m a3 -&gt; m a4 -&gt; m a5 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM5</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">,</span><span class="hs-special">,</span><span class="hs-special">,</span><span class="hs-special">,</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. Storable a =&gt; Ptr b -&gt; Int -&gt; IO a
+</span><span class="hs-identifier hs-var">peekByteOff</span></span><span> </span><span class="annot"><span class="annottext">Ptr b
+</span><a href="#local-6989586621679073714"><span class="hs-identifier hs-var">ptr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. Storable a =&gt; Ptr b -&gt; Int -&gt; IO a
+</span><span class="hs-identifier hs-var">peekByteOff</span></span><span> </span><span class="annot"><span class="annottext">Ptr b
+</span><a href="#local-6989586621679073714"><span class="hs-identifier hs-var">ptr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. Storable a =&gt; Ptr b -&gt; Int -&gt; IO a
+</span><span class="hs-identifier hs-var">peekByteOff</span></span><span> </span><span class="annot"><span class="annottext">Ptr b
+</span><a href="#local-6989586621679073714"><span class="hs-identifier hs-var">ptr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span class="hs-special">)</span><span>
+</span><span id="line-75"></span><span>                                                              </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. Storable a =&gt; Ptr b -&gt; Int -&gt; IO a
+</span><span class="hs-identifier hs-var">peekByteOff</span></span><span> </span><span class="annot"><span class="annottext">Ptr b
+</span><a href="#local-6989586621679073714"><span class="hs-identifier hs-var">ptr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. Storable a =&gt; Ptr b -&gt; Int -&gt; IO a
+</span><span class="hs-identifier hs-var">peekByteOff</span></span><span> </span><span class="annot"><span class="annottext">Ptr b
+</span><a href="#local-6989586621679073714"><span class="hs-identifier hs-var">ptr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span class="hs-special">)</span><span>
+</span><span id="line-76"></span><span>                            </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span>    </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073698"><span class="hs-identifier hs-var">lengthBlock</span></a></span><span>
+</span><span id="line-77"></span><span>                                    </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.|.</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8 -&gt; Word64
+</span><a href="#local-6989586621679073690"><span class="hs-identifier hs-var">to64</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679073673"><span class="hs-identifier hs-var">v4</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`unsafeShiftL`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">32</span></span><span class="hs-special">)</span><span>
+</span><span id="line-78"></span><span>                                    </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.|.</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8 -&gt; Word64
+</span><a href="#local-6989586621679073690"><span class="hs-identifier hs-var">to64</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679073674"><span class="hs-identifier hs-var">v3</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`unsafeShiftL`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">24</span></span><span class="hs-special">)</span><span>
+</span><span id="line-79"></span><span>                                    </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.|.</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8 -&gt; Word64
+</span><a href="#local-6989586621679073690"><span class="hs-identifier hs-var">to64</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679073675"><span class="hs-identifier hs-var">v2</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`unsafeShiftL`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">16</span></span><span class="hs-special">)</span><span>
+</span><span id="line-80"></span><span>                                    </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.|.</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8 -&gt; Word64
+</span><a href="#local-6989586621679073690"><span class="hs-identifier hs-var">to64</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679073676"><span class="hs-identifier hs-var">v1</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`unsafeShiftL`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span class="hs-special">)</span><span>
+</span><span id="line-81"></span><span>                                    </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.|.</span></span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Word64
+</span><a href="#local-6989586621679073690"><span class="hs-identifier hs-var">to64</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679073677"><span class="hs-identifier hs-var">v0</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-82"></span><span>                    </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">6</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span> </span><span id="local-6989586621679073671"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679073671"><span class="hs-identifier hs-var">v0</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a b. Storable a =&gt; Ptr b -&gt; Int -&gt; IO a
+</span><span class="hs-identifier hs-var">peekByteOff</span></span><span> </span><span class="annot"><span class="annottext">Ptr b
+</span><a href="#local-6989586621679073714"><span class="hs-identifier hs-var">ptr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-83"></span><span>                            </span><span id="local-6989586621679073670"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679073670"><span class="hs-identifier hs-var">v1</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a b. Storable a =&gt; Ptr b -&gt; Int -&gt; IO a
+</span><span class="hs-identifier hs-var">peekByteOff</span></span><span> </span><span class="annot"><span class="annottext">Ptr b
+</span><a href="#local-6989586621679073714"><span class="hs-identifier hs-var">ptr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-84"></span><span>                            </span><span id="local-6989586621679073669"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679073669"><span class="hs-identifier hs-var">v2</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a b. Storable a =&gt; Ptr b -&gt; Int -&gt; IO a
+</span><span class="hs-identifier hs-var">peekByteOff</span></span><span> </span><span class="annot"><span class="annottext">Ptr b
+</span><a href="#local-6989586621679073714"><span class="hs-identifier hs-var">ptr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span>
+</span><span id="line-85"></span><span>                            </span><span id="local-6989586621679073668"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679073668"><span class="hs-identifier hs-var">v3</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a b. Storable a =&gt; Ptr b -&gt; Int -&gt; IO a
+</span><span class="hs-identifier hs-var">peekByteOff</span></span><span> </span><span class="annot"><span class="annottext">Ptr b
+</span><a href="#local-6989586621679073714"><span class="hs-identifier hs-var">ptr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span>
+</span><span id="line-86"></span><span>                            </span><span id="local-6989586621679073667"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679073667"><span class="hs-identifier hs-var">v4</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a b. Storable a =&gt; Ptr b -&gt; Int -&gt; IO a
+</span><span class="hs-identifier hs-var">peekByteOff</span></span><span> </span><span class="annot"><span class="annottext">Ptr b
+</span><a href="#local-6989586621679073714"><span class="hs-identifier hs-var">ptr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span>
+</span><span id="line-87"></span><span>                            </span><span id="local-6989586621679073666"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679073666"><span class="hs-identifier hs-var">v5</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a b. Storable a =&gt; Ptr b -&gt; Int -&gt; IO a
+</span><span class="hs-identifier hs-var">peekByteOff</span></span><span> </span><span class="annot"><span class="annottext">Ptr b
+</span><a href="#local-6989586621679073714"><span class="hs-identifier hs-var">ptr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">5</span></span><span>
+</span><span id="line-88"></span><span>                            </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span>    </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073698"><span class="hs-identifier hs-var">lengthBlock</span></a></span><span>
+</span><span id="line-89"></span><span>                                    </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.|.</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8 -&gt; Word64
+</span><a href="#local-6989586621679073690"><span class="hs-identifier hs-var">to64</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679073666"><span class="hs-identifier hs-var">v5</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`unsafeShiftL`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">40</span></span><span class="hs-special">)</span><span>
+</span><span id="line-90"></span><span>                                    </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.|.</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8 -&gt; Word64
+</span><a href="#local-6989586621679073690"><span class="hs-identifier hs-var">to64</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679073667"><span class="hs-identifier hs-var">v4</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`unsafeShiftL`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">32</span></span><span class="hs-special">)</span><span>
+</span><span id="line-91"></span><span>                                    </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.|.</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8 -&gt; Word64
+</span><a href="#local-6989586621679073690"><span class="hs-identifier hs-var">to64</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679073668"><span class="hs-identifier hs-var">v3</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`unsafeShiftL`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">24</span></span><span class="hs-special">)</span><span>
+</span><span id="line-92"></span><span>                                    </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.|.</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8 -&gt; Word64
+</span><a href="#local-6989586621679073690"><span class="hs-identifier hs-var">to64</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679073669"><span class="hs-identifier hs-var">v2</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`unsafeShiftL`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">16</span></span><span class="hs-special">)</span><span>
+</span><span id="line-93"></span><span>                                    </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.|.</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8 -&gt; Word64
+</span><a href="#local-6989586621679073690"><span class="hs-identifier hs-var">to64</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679073670"><span class="hs-identifier hs-var">v1</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`unsafeShiftL`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span class="hs-special">)</span><span>
+</span><span id="line-94"></span><span>                                    </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.|.</span></span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Word64
+</span><a href="#local-6989586621679073690"><span class="hs-identifier hs-var">to64</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679073671"><span class="hs-identifier hs-var">v0</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-95"></span><span>                    </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">7</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span> </span><span id="local-6989586621679073665"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679073665"><span class="hs-identifier hs-var">v0</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a b. Storable a =&gt; Ptr b -&gt; Int -&gt; IO a
+</span><span class="hs-identifier hs-var">peekByteOff</span></span><span> </span><span class="annot"><span class="annottext">Ptr b
+</span><a href="#local-6989586621679073714"><span class="hs-identifier hs-var">ptr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-96"></span><span>                            </span><span id="local-6989586621679073664"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679073664"><span class="hs-identifier hs-var">v1</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a b. Storable a =&gt; Ptr b -&gt; Int -&gt; IO a
+</span><span class="hs-identifier hs-var">peekByteOff</span></span><span> </span><span class="annot"><span class="annottext">Ptr b
+</span><a href="#local-6989586621679073714"><span class="hs-identifier hs-var">ptr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-97"></span><span>                            </span><span id="local-6989586621679073663"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679073663"><span class="hs-identifier hs-var">v2</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a b. Storable a =&gt; Ptr b -&gt; Int -&gt; IO a
+</span><span class="hs-identifier hs-var">peekByteOff</span></span><span> </span><span class="annot"><span class="annottext">Ptr b
+</span><a href="#local-6989586621679073714"><span class="hs-identifier hs-var">ptr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span>
+</span><span id="line-98"></span><span>                            </span><span id="local-6989586621679073662"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679073662"><span class="hs-identifier hs-var">v3</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a b. Storable a =&gt; Ptr b -&gt; Int -&gt; IO a
+</span><span class="hs-identifier hs-var">peekByteOff</span></span><span> </span><span class="annot"><span class="annottext">Ptr b
+</span><a href="#local-6989586621679073714"><span class="hs-identifier hs-var">ptr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span>
+</span><span id="line-99"></span><span>                            </span><span id="local-6989586621679073661"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679073661"><span class="hs-identifier hs-var">v4</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a b. Storable a =&gt; Ptr b -&gt; Int -&gt; IO a
+</span><span class="hs-identifier hs-var">peekByteOff</span></span><span> </span><span class="annot"><span class="annottext">Ptr b
+</span><a href="#local-6989586621679073714"><span class="hs-identifier hs-var">ptr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span>
+</span><span id="line-100"></span><span>                            </span><span id="local-6989586621679073660"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679073660"><span class="hs-identifier hs-var">v5</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a b. Storable a =&gt; Ptr b -&gt; Int -&gt; IO a
+</span><span class="hs-identifier hs-var">peekByteOff</span></span><span> </span><span class="annot"><span class="annottext">Ptr b
+</span><a href="#local-6989586621679073714"><span class="hs-identifier hs-var">ptr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">5</span></span><span>
+</span><span id="line-101"></span><span>                            </span><span id="local-6989586621679073659"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679073659"><span class="hs-identifier hs-var">v6</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a b. Storable a =&gt; Ptr b -&gt; Int -&gt; IO a
+</span><span class="hs-identifier hs-var">peekByteOff</span></span><span> </span><span class="annot"><span class="annottext">Ptr b
+</span><a href="#local-6989586621679073714"><span class="hs-identifier hs-var">ptr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">6</span></span><span>
+</span><span id="line-102"></span><span>                            </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span>    </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073698"><span class="hs-identifier hs-var">lengthBlock</span></a></span><span>
+</span><span id="line-103"></span><span>                                    </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.|.</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8 -&gt; Word64
+</span><a href="#local-6989586621679073690"><span class="hs-identifier hs-var">to64</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679073659"><span class="hs-identifier hs-var">v6</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`unsafeShiftL`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">48</span></span><span class="hs-special">)</span><span>
+</span><span id="line-104"></span><span>                                    </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.|.</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8 -&gt; Word64
+</span><a href="#local-6989586621679073690"><span class="hs-identifier hs-var">to64</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679073660"><span class="hs-identifier hs-var">v5</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`unsafeShiftL`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">40</span></span><span class="hs-special">)</span><span>
+</span><span id="line-105"></span><span>                                    </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.|.</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8 -&gt; Word64
+</span><a href="#local-6989586621679073690"><span class="hs-identifier hs-var">to64</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679073661"><span class="hs-identifier hs-var">v4</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`unsafeShiftL`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">32</span></span><span class="hs-special">)</span><span>
+</span><span id="line-106"></span><span>                                    </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.|.</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8 -&gt; Word64
+</span><a href="#local-6989586621679073690"><span class="hs-identifier hs-var">to64</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679073662"><span class="hs-identifier hs-var">v3</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`unsafeShiftL`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">24</span></span><span class="hs-special">)</span><span>
+</span><span id="line-107"></span><span>                                    </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.|.</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8 -&gt; Word64
+</span><a href="#local-6989586621679073690"><span class="hs-identifier hs-var">to64</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679073663"><span class="hs-identifier hs-var">v2</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`unsafeShiftL`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">16</span></span><span class="hs-special">)</span><span>
+</span><span id="line-108"></span><span>                                    </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.|.</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8 -&gt; Word64
+</span><a href="#local-6989586621679073690"><span class="hs-identifier hs-var">to64</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679073664"><span class="hs-identifier hs-var">v1</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`unsafeShiftL`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span class="hs-special">)</span><span>
+</span><span id="line-109"></span><span>                                    </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.|.</span></span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Word64
+</span><a href="#local-6989586621679073690"><span class="hs-identifier hs-var">to64</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679073665"><span class="hs-identifier hs-var">v0</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-110"></span><span>                    </span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. HasCallStack =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;siphash: internal error: cannot happens&quot;</span></span><span>
+</span><span id="line-111"></span><span>
+</span><span id="line-112"></span><span>        </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="#local-6989586621679073690"><span class="hs-pragma hs-type">to64</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-113"></span><span>        </span><span class="annot"><a href="#local-6989586621679073690"><span class="hs-identifier hs-type">to64</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span>
+</span><span id="line-114"></span><span>        </span><span id="local-6989586621679073690"><span class="annot"><span class="annottext">to64 :: Word8 -&gt; Word64
+</span><a href="#local-6989586621679073690"><span class="hs-identifier hs-var hs-var">to64</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span>
+</span><span id="line-115"></span><span>
+</span><span id="line-116"></span><span>        </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="#local-6989586621679073708"><span class="hs-pragma hs-type">process</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-117"></span><span>        </span><span id="local-6989586621679073708"><span class="annot"><span class="annottext">process :: InternalState -&gt; Word64 -&gt; InternalState
+</span><a href="#local-6989586621679073708"><span class="hs-identifier hs-var hs-var">process</span></a></span></span><span> </span><span id="local-6989586621679073657"><span class="annot"><span class="annottext">InternalState
+</span><a href="#local-6989586621679073657"><span class="hs-identifier hs-var">istate</span></a></span></span><span> </span><span id="local-6989586621679073656"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073656"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">InternalState
+</span><a href="#local-6989586621679073655"><span class="hs-identifier hs-var">newState</span></a></span><span>
+</span><span id="line-118"></span><span>            </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679073655"><span class="annot"><span class="annottext">newState :: InternalState
+</span><a href="#local-6989586621679073655"><span class="hs-identifier hs-var hs-var">newState</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">InternalState -&gt; InternalState
+</span><a href="#local-6989586621679073654"><span class="hs-identifier hs-var">postInject</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$!</span></span><span> </span><span class="annot"><span class="annottext">InternalState -&gt; InternalState
+</span><a href="#local-6989586621679073652"><span class="hs-identifier hs-var">runRoundsCompression</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$!</span></span><span> </span><span class="annot"><span class="annottext">InternalState -&gt; InternalState
+</span><a href="#local-6989586621679073651"><span class="hs-identifier hs-var">preInject</span></a></span><span> </span><span class="annot"><span class="annottext">InternalState
+</span><a href="#local-6989586621679073657"><span class="hs-identifier hs-var">istate</span></a></span><span>
+</span><span id="line-119"></span><span>                  </span><span id="local-6989586621679073651"><span class="annot"><span class="annottext">preInject :: InternalState -&gt; InternalState
+</span><a href="#local-6989586621679073651"><span class="hs-identifier hs-var hs-var">preInject</span></a></span></span><span>  </span><span class="hs-special">(</span><span class="annot"><a href="Data.Memory.Hash.SipHash.html#InternalState"><span class="hs-identifier hs-type">InternalState</span></a></span><span> </span><span id="local-6989586621679073649"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073649"><span class="hs-identifier hs-var">v0</span></a></span></span><span> </span><span id="local-6989586621679073648"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073648"><span class="hs-identifier hs-var">v1</span></a></span></span><span> </span><span id="local-6989586621679073647"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073647"><span class="hs-identifier hs-var">v2</span></a></span></span><span> </span><span id="local-6989586621679073646"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073646"><span class="hs-identifier hs-var">v3</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Word64 -&gt; Word64 -&gt; Word64 -&gt; InternalState
+</span><a href="Data.Memory.Hash.SipHash.html#InternalState"><span class="hs-identifier hs-var">InternalState</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073649"><span class="hs-identifier hs-var">v0</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073648"><span class="hs-identifier hs-var">v1</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073647"><span class="hs-identifier hs-var">v2</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073646"><span class="hs-identifier hs-var">v3</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`xor`</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073656"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-120"></span><span>                  </span><span id="local-6989586621679073654"><span class="annot"><span class="annottext">postInject :: InternalState -&gt; InternalState
+</span><a href="#local-6989586621679073654"><span class="hs-identifier hs-var hs-var">postInject</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Memory.Hash.SipHash.html#InternalState"><span class="hs-identifier hs-type">InternalState</span></a></span><span> </span><span id="local-6989586621679073643"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073643"><span class="hs-identifier hs-var">v0</span></a></span></span><span> </span><span id="local-6989586621679073642"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073642"><span class="hs-identifier hs-var">v1</span></a></span></span><span> </span><span id="local-6989586621679073641"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073641"><span class="hs-identifier hs-var">v2</span></a></span></span><span> </span><span id="local-6989586621679073640"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073640"><span class="hs-identifier hs-var">v3</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Word64 -&gt; Word64 -&gt; Word64 -&gt; InternalState
+</span><a href="Data.Memory.Hash.SipHash.html#InternalState"><span class="hs-identifier hs-var">InternalState</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073643"><span class="hs-identifier hs-var">v0</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`xor`</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073656"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073642"><span class="hs-identifier hs-var">v1</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073641"><span class="hs-identifier hs-var">v2</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073640"><span class="hs-identifier hs-var">v3</span></a></span><span>
+</span><span id="line-121"></span><span>
+</span><span id="line-122"></span><span>        </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="#local-6989586621679073695"><span class="hs-pragma hs-type">finish</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-123"></span><span>        </span><span id="local-6989586621679073695"><span class="annot"><span class="annottext">finish :: InternalState -&gt; SipHash
+</span><a href="#local-6989586621679073695"><span class="hs-identifier hs-var hs-var">finish</span></a></span></span><span> </span><span id="local-6989586621679073639"><span class="annot"><span class="annottext">InternalState
+</span><a href="#local-6989586621679073639"><span class="hs-identifier hs-var">istate</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">InternalState -&gt; SipHash
+</span><a href="#local-6989586621679073638"><span class="hs-identifier hs-var">getDigest</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$!</span></span><span> </span><span class="annot"><span class="annottext">InternalState -&gt; InternalState
+</span><a href="#local-6989586621679073637"><span class="hs-identifier hs-var">runRoundsDigest</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$!</span></span><span> </span><span class="annot"><span class="annottext">InternalState -&gt; InternalState
+</span><a href="#local-6989586621679073636"><span class="hs-identifier hs-var">preInject</span></a></span><span> </span><span class="annot"><span class="annottext">InternalState
+</span><a href="#local-6989586621679073639"><span class="hs-identifier hs-var">istate</span></a></span><span>
+</span><span id="line-124"></span><span>            </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679073638"><span class="annot"><span class="annottext">getDigest :: InternalState -&gt; SipHash
+</span><a href="#local-6989586621679073638"><span class="hs-identifier hs-var hs-var">getDigest</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Memory.Hash.SipHash.html#InternalState"><span class="hs-identifier hs-type">InternalState</span></a></span><span> </span><span id="local-6989586621679073632"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073632"><span class="hs-identifier hs-var">v0</span></a></span></span><span> </span><span id="local-6989586621679073631"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073631"><span class="hs-identifier hs-var">v1</span></a></span></span><span> </span><span id="local-6989586621679073630"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073630"><span class="hs-identifier hs-var">v2</span></a></span></span><span> </span><span id="local-6989586621679073629"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073629"><span class="hs-identifier hs-var">v3</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; SipHash
+</span><a href="Data.Memory.Hash.SipHash.html#SipHash"><span class="hs-identifier hs-var">SipHash</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073632"><span class="hs-identifier hs-var">v0</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`xor`</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073631"><span class="hs-identifier hs-var">v1</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`xor`</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073630"><span class="hs-identifier hs-var">v2</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`xor`</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073629"><span class="hs-identifier hs-var">v3</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-125"></span><span>                  </span><span id="local-6989586621679073636"><span class="annot"><span class="annottext">preInject :: InternalState -&gt; InternalState
+</span><a href="#local-6989586621679073636"><span class="hs-identifier hs-var hs-var">preInject</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Memory.Hash.SipHash.html#InternalState"><span class="hs-identifier hs-type">InternalState</span></a></span><span> </span><span id="local-6989586621679073626"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073626"><span class="hs-identifier hs-var">v0</span></a></span></span><span> </span><span id="local-6989586621679073625"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073625"><span class="hs-identifier hs-var">v1</span></a></span></span><span> </span><span id="local-6989586621679073624"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073624"><span class="hs-identifier hs-var">v2</span></a></span></span><span> </span><span id="local-6989586621679073623"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073623"><span class="hs-identifier hs-var">v3</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Word64 -&gt; Word64 -&gt; Word64 -&gt; InternalState
+</span><a href="Data.Memory.Hash.SipHash.html#InternalState"><span class="hs-identifier hs-var">InternalState</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073626"><span class="hs-identifier hs-var">v0</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073625"><span class="hs-identifier hs-var">v1</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073624"><span class="hs-identifier hs-var">v2</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`xor`</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-number">0xff</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073623"><span class="hs-identifier hs-var">v3</span></a></span><span>
+</span><span id="line-126"></span><span>
+</span><span id="line-127"></span><span>        </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="#local-6989586621679073622"><span class="hs-pragma hs-type">doRound</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-128"></span><span>        </span><span id="local-6989586621679073622"><span class="annot"><span class="annottext">doRound :: InternalState -&gt; InternalState
+</span><a href="#local-6989586621679073622"><span class="hs-identifier hs-var hs-var">doRound</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Memory.Hash.SipHash.html#InternalState"><span class="hs-identifier hs-type">InternalState</span></a></span><span> </span><span id="local-6989586621679073621"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073621"><span class="hs-identifier hs-var">v0</span></a></span></span><span> </span><span id="local-6989586621679073620"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073620"><span class="hs-identifier hs-var">v1</span></a></span></span><span> </span><span id="local-6989586621679073619"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073619"><span class="hs-identifier hs-var">v2</span></a></span></span><span> </span><span id="local-6989586621679073618"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073618"><span class="hs-identifier hs-var">v3</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-129"></span><span>              </span><span class="hs-keyword">let</span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679073616"><span class="annot"><span class="annottext">v0' :: Word64
+</span><a href="#local-6989586621679073616"><span class="hs-identifier hs-var hs-var">v0'</span></a></span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073621"><span class="hs-identifier hs-var">v0</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073620"><span class="hs-identifier hs-var">v1</span></a></span><span>
+</span><span id="line-130"></span><span>                  </span><span class="hs-glyph">!</span><span id="local-6989586621679073613"><span class="annot"><span class="annottext">v2' :: Word64
+</span><a href="#local-6989586621679073613"><span class="hs-identifier hs-var hs-var">v2'</span></a></span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073619"><span class="hs-identifier hs-var">v2</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073618"><span class="hs-identifier hs-var">v3</span></a></span><span>
+</span><span id="line-131"></span><span>                  </span><span class="hs-glyph">!</span><span id="local-6989586621679073611"><span class="annot"><span class="annottext">v1' :: Word64
+</span><a href="#local-6989586621679073611"><span class="hs-identifier hs-var hs-var">v1'</span></a></span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073620"><span class="hs-identifier hs-var">v1</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`rotateL`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">13</span></span><span>
+</span><span id="line-132"></span><span>                  </span><span class="hs-glyph">!</span><span id="local-6989586621679073608"><span class="annot"><span class="annottext">v3' :: Word64
+</span><a href="#local-6989586621679073608"><span class="hs-identifier hs-var hs-var">v3'</span></a></span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073618"><span class="hs-identifier hs-var">v3</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`rotateL`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">16</span></span><span>
+</span><span id="line-133"></span><span>                  </span><span class="hs-glyph">!</span><span id="local-6989586621679073606"><span class="annot"><span class="annottext">v1'' :: Word64
+</span><a href="#local-6989586621679073606"><span class="hs-identifier hs-var hs-var">v1''</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073611"><span class="hs-identifier hs-var">v1'</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`xor`</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073616"><span class="hs-identifier hs-var">v0'</span></a></span><span>
+</span><span id="line-134"></span><span>                  </span><span class="hs-glyph">!</span><span id="local-6989586621679073604"><span class="annot"><span class="annottext">v3'' :: Word64
+</span><a href="#local-6989586621679073604"><span class="hs-identifier hs-var hs-var">v3''</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073608"><span class="hs-identifier hs-var">v3'</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`xor`</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073613"><span class="hs-identifier hs-var">v2'</span></a></span><span>
+</span><span id="line-135"></span><span>                  </span><span class="hs-glyph">!</span><span id="local-6989586621679073602"><span class="annot"><span class="annottext">v0'' :: Word64
+</span><a href="#local-6989586621679073602"><span class="hs-identifier hs-var hs-var">v0''</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073616"><span class="hs-identifier hs-var">v0'</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`rotateL`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">32</span></span><span>
+</span><span id="line-136"></span><span>                  </span><span class="hs-glyph">!</span><span id="local-6989586621679073600"><span class="annot"><span class="annottext">v2'' :: Word64
+</span><a href="#local-6989586621679073600"><span class="hs-identifier hs-var hs-var">v2''</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073613"><span class="hs-identifier hs-var">v2'</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073606"><span class="hs-identifier hs-var">v1''</span></a></span><span>
+</span><span id="line-137"></span><span>                  </span><span class="hs-glyph">!</span><span id="local-6989586621679073598"><span class="annot"><span class="annottext">v0''' :: Word64
+</span><a href="#local-6989586621679073598"><span class="hs-identifier hs-var hs-var">v0'''</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073602"><span class="hs-identifier hs-var">v0''</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073604"><span class="hs-identifier hs-var">v3''</span></a></span><span>
+</span><span id="line-138"></span><span>                  </span><span class="hs-glyph">!</span><span id="local-6989586621679073596"><span class="annot"><span class="annottext">v1''' :: Word64
+</span><a href="#local-6989586621679073596"><span class="hs-identifier hs-var hs-var">v1'''</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073606"><span class="hs-identifier hs-var">v1''</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`rotateL`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">17</span></span><span>
+</span><span id="line-139"></span><span>                  </span><span class="hs-glyph">!</span><span id="local-6989586621679073594"><span class="annot"><span class="annottext">v3''' :: Word64
+</span><a href="#local-6989586621679073594"><span class="hs-identifier hs-var hs-var">v3'''</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073604"><span class="hs-identifier hs-var">v3''</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`rotateL`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">21</span></span><span>
+</span><span id="line-140"></span><span>                  </span><span class="hs-glyph">!</span><span id="local-6989586621679073592"><span class="annot"><span class="annottext">v1'''' :: Word64
+</span><a href="#local-6989586621679073592"><span class="hs-identifier hs-var hs-var">v1''''</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073596"><span class="hs-identifier hs-var">v1'''</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`xor`</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073600"><span class="hs-identifier hs-var">v2''</span></a></span><span>
+</span><span id="line-141"></span><span>                  </span><span class="hs-glyph">!</span><span id="local-6989586621679073590"><span class="annot"><span class="annottext">v3'''' :: Word64
+</span><a href="#local-6989586621679073590"><span class="hs-identifier hs-var hs-var">v3''''</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073594"><span class="hs-identifier hs-var">v3'''</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`xor`</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073598"><span class="hs-identifier hs-var">v0'''</span></a></span><span>
+</span><span id="line-142"></span><span>                  </span><span class="hs-glyph">!</span><span id="local-6989586621679073588"><span class="annot"><span class="annottext">v2''' :: Word64
+</span><a href="#local-6989586621679073588"><span class="hs-identifier hs-var hs-var">v2'''</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073600"><span class="hs-identifier hs-var">v2''</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`rotateL`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">32</span></span><span>
+</span><span id="line-143"></span><span>               </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Word64 -&gt; Word64 -&gt; Word64 -&gt; InternalState
+</span><a href="Data.Memory.Hash.SipHash.html#InternalState"><span class="hs-identifier hs-var">InternalState</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073598"><span class="hs-identifier hs-var">v0'''</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073592"><span class="hs-identifier hs-var">v1''''</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073588"><span class="hs-identifier hs-var">v2'''</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073590"><span class="hs-identifier hs-var">v3''''</span></a></span><span>
+</span><span id="line-144"></span><span>
+</span><span id="line-145"></span><span>        </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="#local-6989586621679073652"><span class="hs-pragma hs-type">runRoundsCompression</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-146"></span><span>        </span><span id="local-6989586621679073652"><span class="annot"><span class="annottext">runRoundsCompression :: InternalState -&gt; InternalState
+</span><a href="#local-6989586621679073652"><span class="hs-identifier hs-var hs-var">runRoundsCompression</span></a></span></span><span> </span><span id="local-6989586621679073582"><span class="annot"><span class="annottext">InternalState
+</span><a href="#local-6989586621679073582"><span class="hs-identifier hs-var">st</span></a></span></span><span>
+</span><span id="line-147"></span><span>            </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679073867"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">InternalState -&gt; InternalState
+</span><a href="#local-6989586621679073622"><span class="hs-identifier hs-var">doRound</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$!</span></span><span> </span><span class="annot"><span class="annottext">InternalState -&gt; InternalState
+</span><a href="#local-6989586621679073622"><span class="hs-identifier hs-var">doRound</span></a></span><span> </span><span class="annot"><span class="annottext">InternalState
+</span><a href="#local-6989586621679073582"><span class="hs-identifier hs-var">st</span></a></span><span>
+</span><span id="line-148"></span><span>            </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {t}. (Eq t, Num t) =&gt; t -&gt; InternalState -&gt; InternalState
+</span><a href="#local-6989586621679073581"><span class="hs-identifier hs-var">loopRounds</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679073867"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">InternalState
+</span><a href="#local-6989586621679073582"><span class="hs-identifier hs-var">st</span></a></span><span>
+</span><span id="line-149"></span><span>
+</span><span id="line-150"></span><span>        </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="#local-6989586621679073637"><span class="hs-pragma hs-type">runRoundsDigest</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-151"></span><span>        </span><span id="local-6989586621679073637"><span class="annot"><span class="annottext">runRoundsDigest :: InternalState -&gt; InternalState
+</span><a href="#local-6989586621679073637"><span class="hs-identifier hs-var hs-var">runRoundsDigest</span></a></span></span><span> </span><span id="local-6989586621679073576"><span class="annot"><span class="annottext">InternalState
+</span><a href="#local-6989586621679073576"><span class="hs-identifier hs-var">st</span></a></span></span><span>
+</span><span id="line-152"></span><span>            </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679073866"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">InternalState -&gt; InternalState
+</span><a href="#local-6989586621679073622"><span class="hs-identifier hs-var">doRound</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$!</span></span><span> </span><span class="annot"><span class="annottext">InternalState -&gt; InternalState
+</span><a href="#local-6989586621679073622"><span class="hs-identifier hs-var">doRound</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$!</span></span><span> </span><span class="annot"><span class="annottext">InternalState -&gt; InternalState
+</span><a href="#local-6989586621679073622"><span class="hs-identifier hs-var">doRound</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$!</span></span><span> </span><span class="annot"><span class="annottext">InternalState -&gt; InternalState
+</span><a href="#local-6989586621679073622"><span class="hs-identifier hs-var">doRound</span></a></span><span> </span><span class="annot"><span class="annottext">InternalState
+</span><a href="#local-6989586621679073576"><span class="hs-identifier hs-var">st</span></a></span><span>
+</span><span id="line-153"></span><span>            </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {t}. (Eq t, Num t) =&gt; t -&gt; InternalState -&gt; InternalState
+</span><a href="#local-6989586621679073581"><span class="hs-identifier hs-var">loopRounds</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679073866"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">InternalState
+</span><a href="#local-6989586621679073576"><span class="hs-identifier hs-var">st</span></a></span><span>
+</span><span id="line-154"></span><span>
+</span><span id="line-155"></span><span>        </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="#local-6989586621679073581"><span class="hs-pragma hs-type">loopRounds</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-156"></span><span>        </span><span id="local-6989586621679073581"><span class="annot"><span class="annottext">loopRounds :: t -&gt; InternalState -&gt; InternalState
+</span><a href="#local-6989586621679073581"><span class="hs-identifier hs-var hs-var">loopRounds</span></a></span></span><span> </span><span class="annot"><span class="annottext">t
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679073569"><span class="annot"><span class="annottext">InternalState
+</span><a href="#local-6989586621679073569"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">InternalState -&gt; InternalState
+</span><a href="#local-6989586621679073622"><span class="hs-identifier hs-var">doRound</span></a></span><span> </span><span class="annot"><span class="annottext">InternalState
+</span><a href="#local-6989586621679073569"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-157"></span><span>        </span><span class="annot"><a href="#local-6989586621679073581"><span class="hs-identifier hs-var">loopRounds</span></a></span><span> </span><span id="local-6989586621679073568"><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679073568"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679073567"><span class="annot"><span class="annottext">InternalState
+</span><a href="#local-6989586621679073567"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">t -&gt; InternalState -&gt; InternalState
+</span><a href="#local-6989586621679073581"><span class="hs-identifier hs-var">loopRounds</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679073568"><span class="hs-identifier hs-var">n</span></a></span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span class="annot"><span class="annottext">t
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">InternalState -&gt; InternalState
+</span><a href="#local-6989586621679073622"><span class="hs-identifier hs-var">doRound</span></a></span><span> </span><span class="annot"><span class="annottext">InternalState
+</span><a href="#local-6989586621679073567"><span class="hs-identifier hs-var">v</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-158"></span><span>
+</span><span id="line-159"></span><span>        </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="#local-6989586621679073861"><span class="hs-pragma hs-type">initSip</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-160"></span><span>        </span><span id="local-6989586621679073861"><span class="annot"><span class="annottext">initSip :: SipKey -&gt; InternalState
+</span><a href="#local-6989586621679073861"><span class="hs-identifier hs-var hs-var">initSip</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Memory.Hash.SipHash.html#SipKey"><span class="hs-identifier hs-type">SipKey</span></a></span><span> </span><span id="local-6989586621679073558"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073558"><span class="hs-identifier hs-var">k0</span></a></span></span><span> </span><span id="local-6989586621679073557"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073557"><span class="hs-identifier hs-var">k1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Word64 -&gt; Word64 -&gt; Word64 -&gt; InternalState
+</span><a href="Data.Memory.Hash.SipHash.html#InternalState"><span class="hs-identifier hs-var">InternalState</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073558"><span class="hs-identifier hs-var">k0</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`xor`</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-number">0x736f6d6570736575</span></span><span class="hs-special">)</span><span>
+</span><span id="line-161"></span><span>                                               </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073557"><span class="hs-identifier hs-var">k1</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`xor`</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-number">0x646f72616e646f6d</span></span><span class="hs-special">)</span><span>
+</span><span id="line-162"></span><span>                                               </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073558"><span class="hs-identifier hs-var">k0</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`xor`</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-number">0x6c7967656e657261</span></span><span class="hs-special">)</span><span>
+</span><span id="line-163"></span><span>                                               </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679073557"><span class="hs-identifier hs-var">k1</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`xor`</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-number">0x7465646279746573</span></span><span class="hs-special">)</span><span>
+</span><span id="line-164"></span></pre></body></html>

@@ -1,0 +1,185 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE Safe #-}</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- Module       : Data.Text.Encoding.Base16.Lazy</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- Copyright    : (c) 2020 Emily Pillmore</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- License      : BSD-style</span><span>
+</span><span id="line-6"></span><span class="hs-comment">--</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Maintainer   : Emily Pillmore &lt;emilypi@cohomolo.gy&gt;</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- Stability    : stable</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- Portability  : non-portable</span><span>
+</span><span id="line-10"></span><span class="hs-comment">--</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- This module contains 'Data.Text.Lazy.Text'-valued combinators for</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- implementing the RFC 4648 specification of the Base16</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- encoding format. This includes lenient decoding variants, as well as</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- internal and external validation for canonicity.</span><span>
+</span><span id="line-15"></span><span class="hs-comment">--</span><span>
+</span><span id="line-16"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Data.Text.Lazy.Encoding.Base16</span><span>
+</span><span id="line-17"></span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Data.Text.Lazy.Encoding.Base16.html#encodeBase16"><span class="hs-identifier">encodeBase16</span></a></span><span>
+</span><span id="line-18"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Text.Lazy.Encoding.Base16.html#decodeBase16"><span class="hs-identifier">decodeBase16</span></a></span><span>
+</span><span id="line-19"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Text.Lazy.Encoding.Base16.html#decodeBase16With"><span class="hs-identifier">decodeBase16With</span></a></span><span>
+</span><span id="line-20"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Text.Lazy.Encoding.Base16.html#decodeBase16Lenient"><span class="hs-identifier">decodeBase16Lenient</span></a></span><span>
+</span><span id="line-21"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Text.Lazy.Encoding.Base16.html#isBase16"><span class="hs-identifier">isBase16</span></a></span><span>
+</span><span id="line-22"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Text.Lazy.Encoding.Base16.html#isValidBase16"><span class="hs-identifier">isValidBase16</span></a></span><span>
+</span><span id="line-23"></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Bifunctor</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">first</span></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString.Lazy</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ByteString</span></span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.ByteString.Lazy.Base16.html"><span class="hs-identifier">Data.ByteString.Lazy.Base16</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">B16L</span></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">T</span></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Text.Encoding.Base16.Error.html"><span class="hs-identifier">Data.Text.Encoding.Base16.Error</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Text.Encoding.Base16.Error.html#Base16Error"><span class="hs-identifier">Base16Error</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text.Lazy</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text.Lazy.Encoding</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">TL</span></span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span class="hs-comment">-- | Encode a lazy 'Text' value in Base16 with padding.</span><span>
+</span><span id="line-36"></span><span class="hs-comment">--</span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- See: &lt;https://tools.ietf.org/html/rfc4648#section-8 RFC-4648 section 8&gt;</span><span>
+</span><span id="line-38"></span><span class="hs-comment">--</span><span>
+</span><span id="line-39"></span><span class="hs-comment">-- === __Examples__:</span><span>
+</span><span id="line-40"></span><span class="hs-comment">--</span><span>
+</span><span id="line-41"></span><span class="hs-comment">-- &gt;&gt;&gt; encodeBase16 &quot;Sun&quot;</span><span>
+</span><span id="line-42"></span><span class="hs-comment">-- &quot;53756e&quot;</span><span>
+</span><span id="line-43"></span><span class="hs-comment">--</span><span>
+</span><span id="line-44"></span><span class="annot"><a href="Data.Text.Lazy.Encoding.Base16.html#encodeBase16"><span class="hs-identifier hs-type">encodeBase16</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-45"></span><span id="encodeBase16"><span class="annot"><span class="annottext">encodeBase16 :: Text -&gt; Text
+</span><a href="Data.Text.Lazy.Encoding.Base16.html#encodeBase16"><span class="hs-identifier hs-var hs-var">encodeBase16</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Text
+</span><a href="Data.ByteString.Lazy.Base16.html#encodeBase16"><span class="hs-identifier hs-var">B16L.encodeBase16</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; ByteString
+</span><span class="hs-identifier hs-var">TL.encodeUtf8</span></span><span>
+</span><span id="line-46"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Text.Lazy.Encoding.Base16.html#encodeBase16"><span class="hs-pragma hs-type">encodeBase16</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-47"></span><span>
+</span><span id="line-48"></span><span class="hs-comment">-- | Decode a Base16-encoded lazy 'Text' value.</span><span>
+</span><span id="line-49"></span><span class="hs-comment">--</span><span>
+</span><span id="line-50"></span><span class="hs-comment">-- See: &lt;https://tools.ietf.org/html/rfc4648#section-8 RFC-4648 section 8&gt;</span><span>
+</span><span id="line-51"></span><span class="hs-comment">--</span><span>
+</span><span id="line-52"></span><span class="hs-comment">-- === __Examples__:</span><span>
+</span><span id="line-53"></span><span class="hs-comment">--</span><span>
+</span><span id="line-54"></span><span class="hs-comment">-- &gt;&gt;&gt; decodeBase16 &quot;53756e&quot;</span><span>
+</span><span id="line-55"></span><span class="hs-comment">-- Right &quot;Sun&quot;</span><span>
+</span><span id="line-56"></span><span class="hs-comment">--</span><span>
+</span><span id="line-57"></span><span class="hs-comment">-- &gt;&gt;&gt; decodeBase16 &quot;6x&quot;</span><span>
+</span><span id="line-58"></span><span class="hs-comment">-- Left &quot;invalid character at offset: 1&quot;</span><span>
+</span><span id="line-59"></span><span class="hs-comment">--</span><span>
+</span><span id="line-60"></span><span class="annot"><a href="Data.Text.Lazy.Encoding.Base16.html#decodeBase16"><span class="hs-identifier hs-type">decodeBase16</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">T.Text</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-61"></span><span id="decodeBase16"><span class="annot"><span class="annottext">decodeBase16 :: Text -&gt; Either Text Text
+</span><a href="Data.Text.Lazy.Encoding.Base16.html#decodeBase16"><span class="hs-identifier hs-var hs-var">decodeBase16</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Text
+</span><span class="hs-identifier hs-var">TL.decodeLatin1</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Either Text ByteString
+</span><a href="Data.ByteString.Lazy.Base16.html#decodeBase16"><span class="hs-identifier hs-var">B16L.decodeBase16</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; ByteString
+</span><span class="hs-identifier hs-var">TL.encodeUtf8</span></span><span>
+</span><span id="line-62"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Text.Lazy.Encoding.Base16.html#decodeBase16"><span class="hs-pragma hs-type">decodeBase16</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-63"></span><span>
+</span><span id="line-64"></span><span class="hs-comment">-- | Attempt to decode a lazy 'Text' value as Base16, converting from</span><span>
+</span><span id="line-65"></span><span class="hs-comment">-- 'ByteString' to 'Text' according to some encoding function. In practice,</span><span>
+</span><span id="line-66"></span><span class="hs-comment">-- This is something like 'decodeUtf8'', which may produce an error.</span><span>
+</span><span id="line-67"></span><span class="hs-comment">--</span><span>
+</span><span id="line-68"></span><span class="hs-comment">-- See: &lt;https://tools.ietf.org/html/rfc4648#section-8 RFC-4648 section 8&gt;</span><span>
+</span><span id="line-69"></span><span class="hs-comment">--</span><span>
+</span><span id="line-70"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-71"></span><span class="hs-comment">-- 'decodeBase16With' 'TL.decodeUtf8''</span><span>
+</span><span id="line-72"></span><span class="hs-comment">--   :: 'ByteString' -&gt; 'Either' ('Base16Error' 'UnicodeException') 'Text'</span><span>
+</span><span id="line-73"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-74"></span><span class="hs-comment">--</span><span>
+</span><span id="line-75"></span><span class="hs-comment">-- @since 0.3.0.0</span><span>
+</span><span id="line-76"></span><span class="hs-comment">--</span><span>
+</span><span id="line-77"></span><span id="local-6989586621679058486"><span class="annot"><a href="Data.Text.Lazy.Encoding.Base16.html#decodeBase16With"><span class="hs-identifier hs-type">decodeBase16With</span></a></span><span>
+</span><span id="line-78"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="#local-6989586621679058486"><span class="hs-identifier hs-type">err</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-79"></span><span>      </span><span class="hs-comment">-- ^ convert a bytestring to text (e.g. 'T.decodeUtf8'')</span><span>
+</span><span id="line-80"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span>
+</span><span id="line-81"></span><span>      </span><span class="hs-comment">-- ^ Input to decode</span><span>
+</span><span id="line-82"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Text.Encoding.Base16.Error.html#Base16Error"><span class="hs-identifier hs-type">Base16Error</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679058486"><span class="hs-identifier hs-type">err</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span></span><span>
+</span><span id="line-83"></span><span id="decodeBase16With"><span class="annot"><span class="annottext">decodeBase16With :: forall err.
+(ByteString -&gt; Either err Text)
+-&gt; ByteString -&gt; Either (Base16Error err) Text
+</span><a href="Data.Text.Lazy.Encoding.Base16.html#decodeBase16With"><span class="hs-identifier hs-var hs-var">decodeBase16With</span></a></span></span><span> </span><span id="local-6989586621679058456"><span class="annot"><span class="annottext">ByteString -&gt; Either err Text
+</span><a href="#local-6989586621679058456"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679058455"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679058455"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Either Text ByteString
+</span><a href="Data.ByteString.Lazy.Base16.html#decodeBase16"><span class="hs-identifier hs-var">B16L.decodeBase16</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679058455"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-84"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span id="local-6989586621679058454"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679058454"><span class="hs-identifier hs-var">de</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall e. Text -&gt; Base16Error e
+</span><a href="Data.Text.Encoding.Base16.Error.html#DecodeError"><span class="hs-identifier hs-var">DecodeError</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679058454"><span class="hs-identifier hs-var">de</span></a></span><span>
+</span><span id="line-85"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span id="local-6989586621679058452"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679058452"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (p :: * -&gt; * -&gt; *) a b c.
+Bifunctor p =&gt;
+(a -&gt; b) -&gt; p a c -&gt; p b c
+</span><span class="hs-identifier hs-var">first</span></span><span> </span><span class="annot"><span class="annottext">forall e. e -&gt; Base16Error e
+</span><a href="Data.Text.Encoding.Base16.Error.html#ConversionError"><span class="hs-identifier hs-var">ConversionError</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString -&gt; Either err Text
+</span><a href="#local-6989586621679058456"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679058452"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-86"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Text.Lazy.Encoding.Base16.html#decodeBase16With"><span class="hs-pragma hs-type">decodeBase16With</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-87"></span><span>
+</span><span id="line-88"></span><span class="hs-comment">-- | Decode a Base16-encoded lazy 'Text' value leniently, using a</span><span>
+</span><span id="line-89"></span><span class="hs-comment">-- strategy that never fails.</span><span>
+</span><span id="line-90"></span><span class="hs-comment">--</span><span>
+</span><span id="line-91"></span><span class="hs-comment">-- /Warning/: in the conversion to unicode text, exceptions may be thrown.</span><span>
+</span><span id="line-92"></span><span class="hs-comment">-- Please use 'decodeBase16'' if you are unsure if you are working with</span><span>
+</span><span id="line-93"></span><span class="hs-comment">-- base16-encoded values, or if you expect garbage.</span><span>
+</span><span id="line-94"></span><span class="hs-comment">--</span><span>
+</span><span id="line-95"></span><span class="hs-comment">-- N.B.: this is not RFC 4648-compliant. It may give you garbage if you're not careful!</span><span>
+</span><span id="line-96"></span><span class="hs-comment">--</span><span>
+</span><span id="line-97"></span><span class="hs-comment">-- === __Examples__:</span><span>
+</span><span id="line-98"></span><span class="hs-comment">--</span><span>
+</span><span id="line-99"></span><span class="hs-comment">-- &gt;&gt;&gt; decodeBase16Lenient &quot;53756e&quot;</span><span>
+</span><span id="line-100"></span><span class="hs-comment">-- &quot;Sun&quot;</span><span>
+</span><span id="line-101"></span><span class="hs-comment">--</span><span>
+</span><span id="line-102"></span><span class="hs-comment">-- &gt;&gt;&gt; decodeBase16Lenient &quot;6x6x&quot;</span><span>
+</span><span id="line-103"></span><span class="hs-comment">-- &quot;f&quot;</span><span>
+</span><span id="line-104"></span><span class="hs-comment">--</span><span>
+</span><span id="line-105"></span><span class="annot"><a href="Data.Text.Lazy.Encoding.Base16.html#decodeBase16Lenient"><span class="hs-identifier hs-type">decodeBase16Lenient</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-106"></span><span id="decodeBase16Lenient"><span class="annot"><span class="annottext">decodeBase16Lenient :: Text -&gt; Text
+</span><a href="Data.Text.Lazy.Encoding.Base16.html#decodeBase16Lenient"><span class="hs-identifier hs-var hs-var">decodeBase16Lenient</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Text
+</span><span class="hs-identifier hs-var">TL.decodeLatin1</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ByteString
+</span><a href="Data.ByteString.Lazy.Base16.html#decodeBase16Lenient"><span class="hs-identifier hs-var">B16L.decodeBase16Lenient</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; ByteString
+</span><span class="hs-identifier hs-var">TL.encodeUtf8</span></span><span>
+</span><span id="line-107"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Text.Lazy.Encoding.Base16.html#decodeBase16Lenient"><span class="hs-pragma hs-type">decodeBase16Lenient</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-108"></span><span>
+</span><span id="line-109"></span><span class="hs-comment">-- | Tell whether a lazy 'Text' value is Base16-encoded.</span><span>
+</span><span id="line-110"></span><span class="hs-comment">--</span><span>
+</span><span id="line-111"></span><span class="hs-comment">-- === __Examples__:</span><span>
+</span><span id="line-112"></span><span class="hs-comment">--</span><span>
+</span><span id="line-113"></span><span class="hs-comment">-- &gt;&gt;&gt; isBase16 &quot;666f6&quot;</span><span>
+</span><span id="line-114"></span><span class="hs-comment">-- False</span><span>
+</span><span id="line-115"></span><span class="hs-comment">--</span><span>
+</span><span id="line-116"></span><span class="hs-comment">-- &gt;&gt;&gt; isBase16 &quot;666f&quot;</span><span>
+</span><span id="line-117"></span><span class="hs-comment">-- True</span><span>
+</span><span id="line-118"></span><span class="hs-comment">--</span><span>
+</span><span id="line-119"></span><span class="annot"><a href="Data.Text.Lazy.Encoding.Base16.html#isBase16"><span class="hs-identifier hs-type">isBase16</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-120"></span><span id="isBase16"><span class="annot"><span class="annottext">isBase16 :: Text -&gt; Bool
+</span><a href="Data.Text.Lazy.Encoding.Base16.html#isBase16"><span class="hs-identifier hs-var hs-var">isBase16</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Bool
+</span><a href="Data.ByteString.Lazy.Base16.html#isBase16"><span class="hs-identifier hs-var">B16L.isBase16</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; ByteString
+</span><span class="hs-identifier hs-var">TL.encodeUtf8</span></span><span>
+</span><span id="line-121"></span><span>
+</span><span id="line-122"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Text.Lazy.Encoding.Base16.html#isBase16"><span class="hs-pragma hs-type">isBase16</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-123"></span><span>
+</span><span id="line-124"></span><span class="hs-comment">-- | Tell whether a lazy 'Text' value is a valid Base16 format.</span><span>
+</span><span id="line-125"></span><span class="hs-comment">--</span><span>
+</span><span id="line-126"></span><span class="hs-comment">-- This will not tell you whether or not this is a correct Base16 representation,</span><span>
+</span><span id="line-127"></span><span class="hs-comment">-- only that it conforms to the correct shape. To check whether it is a true</span><span>
+</span><span id="line-128"></span><span class="hs-comment">-- Base16 encoded 'Text' value, use 'isBase16'.</span><span>
+</span><span id="line-129"></span><span class="hs-comment">--</span><span>
+</span><span id="line-130"></span><span class="hs-comment">-- === __Examples__:</span><span>
+</span><span id="line-131"></span><span class="hs-comment">--</span><span>
+</span><span id="line-132"></span><span class="hs-comment">-- &gt;&gt;&gt; isValidBase16 &quot;666f+/6&quot;</span><span>
+</span><span id="line-133"></span><span class="hs-comment">-- False</span><span>
+</span><span id="line-134"></span><span class="hs-comment">--</span><span>
+</span><span id="line-135"></span><span class="hs-comment">-- &gt;&gt;&gt; isValidBase16 &quot;666f6&quot;</span><span>
+</span><span id="line-136"></span><span class="hs-comment">-- True</span><span>
+</span><span id="line-137"></span><span class="hs-comment">--</span><span>
+</span><span id="line-138"></span><span class="annot"><a href="Data.Text.Lazy.Encoding.Base16.html#isValidBase16"><span class="hs-identifier hs-type">isValidBase16</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-139"></span><span id="isValidBase16"><span class="annot"><span class="annottext">isValidBase16 :: Text -&gt; Bool
+</span><a href="Data.Text.Lazy.Encoding.Base16.html#isValidBase16"><span class="hs-identifier hs-var hs-var">isValidBase16</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Bool
+</span><a href="Data.ByteString.Lazy.Base16.html#isValidBase16"><span class="hs-identifier hs-var">B16L.isValidBase16</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; ByteString
+</span><span class="hs-identifier hs-var">TL.encodeUtf8</span></span><span>
+</span><span id="line-140"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Text.Lazy.Encoding.Base16.html#isValidBase16"><span class="hs-pragma hs-type">isValidBase16</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-141"></span></pre></body></html>

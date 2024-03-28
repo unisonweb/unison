@@ -1,0 +1,426 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE RecordWildCards #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- | Hash-related types in the Share API.</span><span>
+</span><span id="line-4"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Unison.Share.API.Hash</span><span>
+</span><span id="line-5"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-comment">-- * Hash types</span></span><span>
+</span><span id="line-6"></span><span>    </span><span class="annot"><a href="Unison.Share.API.Hash.html#HashJWT"><span class="hs-identifier">HashJWT</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><a href="Unison.Share.API.Hash.html#hashJWTHash"><span class="hs-identifier">hashJWTHash</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>    </span><span class="annot"><a href="Unison.Share.API.Hash.html#HashJWTClaims"><span class="hs-identifier">HashJWTClaims</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-9"></span><span>    </span><span class="annot"><a href="Unison.Share.API.Hash.html#DecodedHashJWT"><span class="hs-identifier">DecodedHashJWT</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-10"></span><span>    </span><span class="annot"><a href="Unison.Share.API.Hash.html#decodeHashJWT"><span class="hs-identifier">decodeHashJWT</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-11"></span><span>    </span><span class="annot"><a href="Unison.Share.API.Hash.html#decodeHashJWTClaims"><span class="hs-identifier">decodeHashJWTClaims</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-12"></span><span>    </span><span class="annot"><a href="Unison.Share.API.Hash.html#decodedHashJWTHash"><span class="hs-identifier">decodedHashJWTHash</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-13"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Lens</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">folding</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">ix</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-operator">(^?)</span></span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Crypto.JWT</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Jose</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson.KeyMap</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson.KeyMap</span></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Servant.Auth.JWT</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Servant.Auth</span></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Hash32</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Hash32</span></span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Hash32.Orphans.Aeson</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Prelude</span></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Web.JWT</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">JWT</span></span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">newtype</span><span> </span><span id="HashJWT"><span class="annot"><a href="Unison.Share.API.Hash.html#HashJWT"><span class="hs-identifier hs-var">HashJWT</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="HashJWT"><span class="annot"><a href="Unison.Share.API.Hash.html#HashJWT"><span class="hs-identifier hs-var">HashJWT</span></a></span></span><span> </span><span class="hs-special">{</span><span id="%24sel%3AunHashJWT%3AHashJWT"><span class="annot"><span class="annottext">HashJWT -&gt; Text
+</span><a href="Unison.Share.API.Hash.html#%24sel%3AunHashJWT%3AHashJWT"><span class="hs-identifier hs-var hs-var">unHashJWT</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">}</span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">newtype</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679141701"><span id="local-6989586621679141705"><span id="local-6989586621679141710"><span class="annot"><span class="annottext">Int -&gt; HashJWT -&gt; ShowS
+[HashJWT] -&gt; ShowS
+HashJWT -&gt; [Char]
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; [Char]) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [HashJWT] -&gt; ShowS
+$cshowList :: [HashJWT] -&gt; ShowS
+show :: HashJWT -&gt; [Char]
+$cshow :: HashJWT -&gt; [Char]
+showsPrec :: Int -&gt; HashJWT -&gt; ShowS
+$cshowsPrec :: Int -&gt; HashJWT -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679141690"><span id="local-6989586621679141695"><span class="annot"><span class="annottext">HashJWT -&gt; HashJWT -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: HashJWT -&gt; HashJWT -&gt; Bool
+$c/= :: HashJWT -&gt; HashJWT -&gt; Bool
+== :: HashJWT -&gt; HashJWT -&gt; Bool
+$c== :: HashJWT -&gt; HashJWT -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679141657"><span id="local-6989586621679141661"><span id="local-6989586621679141665"><span id="local-6989586621679141669"><span id="local-6989586621679141673"><span id="local-6989586621679141677"><span id="local-6989586621679141682"><span class="annot"><span class="annottext">Eq HashJWT
+HashJWT -&gt; HashJWT -&gt; Bool
+HashJWT -&gt; HashJWT -&gt; Ordering
+HashJWT -&gt; HashJWT -&gt; HashJWT
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: HashJWT -&gt; HashJWT -&gt; HashJWT
+$cmin :: HashJWT -&gt; HashJWT -&gt; HashJWT
+max :: HashJWT -&gt; HashJWT -&gt; HashJWT
+$cmax :: HashJWT -&gt; HashJWT -&gt; HashJWT
+&gt;= :: HashJWT -&gt; HashJWT -&gt; Bool
+$c&gt;= :: HashJWT -&gt; HashJWT -&gt; Bool
+&gt; :: HashJWT -&gt; HashJWT -&gt; Bool
+$c&gt; :: HashJWT -&gt; HashJWT -&gt; Bool
+&lt;= :: HashJWT -&gt; HashJWT -&gt; Bool
+$c&lt;= :: HashJWT -&gt; HashJWT -&gt; Bool
+&lt; :: HashJWT -&gt; HashJWT -&gt; Bool
+$c&lt; :: HashJWT -&gt; HashJWT -&gt; Bool
+compare :: HashJWT -&gt; HashJWT -&gt; Ordering
+$ccompare :: HashJWT -&gt; HashJWT -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679141638"><span id="local-6989586621679141642"><span id="local-6989586621679141646"><span id="local-6989586621679141651"><span class="annot"><span class="annottext">[HashJWT] -&gt; Encoding
+[HashJWT] -&gt; Value
+HashJWT -&gt; Encoding
+HashJWT -&gt; Value
+forall a.
+(a -&gt; Value)
+-&gt; (a -&gt; Encoding)
+-&gt; ([a] -&gt; Value)
+-&gt; ([a] -&gt; Encoding)
+-&gt; ToJSON a
+toEncodingList :: [HashJWT] -&gt; Encoding
+$ctoEncodingList :: [HashJWT] -&gt; Encoding
+toJSONList :: [HashJWT] -&gt; Value
+$ctoJSONList :: [HashJWT] -&gt; Value
+toEncoding :: HashJWT -&gt; Encoding
+$ctoEncoding :: HashJWT -&gt; Encoding
+toJSON :: HashJWT -&gt; Value
+$ctoJSON :: HashJWT -&gt; Value
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">ToJSON</span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679141627"><span id="local-6989586621679141632"><span class="annot"><span class="annottext">Value -&gt; Parser [HashJWT]
+Value -&gt; Parser HashJWT
+forall a.
+(Value -&gt; Parser a) -&gt; (Value -&gt; Parser [a]) -&gt; FromJSON a
+parseJSONList :: Value -&gt; Parser [HashJWT]
+$cparseJSONList :: Value -&gt; Parser [HashJWT]
+parseJSON :: Value -&gt; Parser HashJWT
+$cparseJSON :: Value -&gt; Parser HashJWT
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">FromJSON</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- | Grab the hash out of a hash JWT.</span><span>
+</span><span id="line-31"></span><span class="hs-comment">--</span><span>
+</span><span id="line-32"></span><span class="hs-comment">-- This decodes the whole JWT, then throws away the claims; use it if you really only need the hash!</span><span>
+</span><span id="line-33"></span><span class="annot"><a href="Unison.Share.API.Hash.html#hashJWTHash"><span class="hs-identifier hs-type">hashJWTHash</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Share.API.Hash.html#HashJWT"><span class="hs-identifier hs-type">HashJWT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Hash32</span></span><span>
+</span><span id="line-34"></span><span id="hashJWTHash"><span class="annot"><span class="annottext">hashJWTHash :: HashJWT -&gt; Hash32
+</span><a href="Unison.Share.API.Hash.html#hashJWTHash"><span class="hs-identifier hs-var hs-var">hashJWTHash</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-35"></span><span>  </span><span class="annot"><span class="annottext">DecodedHashJWT -&gt; Hash32
+</span><a href="Unison.Share.API.Hash.html#decodedHashJWTHash"><span class="hs-identifier hs-var">decodedHashJWTHash</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">HashJWT -&gt; DecodedHashJWT
+</span><a href="Unison.Share.API.Hash.html#decodeHashJWT"><span class="hs-identifier hs-var">decodeHashJWT</span></a></span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">data</span><span> </span><span id="HashJWTClaims"><span class="annot"><a href="Unison.Share.API.Hash.html#HashJWTClaims"><span class="hs-identifier hs-var">HashJWTClaims</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="HashJWTClaims"><span class="annot"><a href="Unison.Share.API.Hash.html#HashJWTClaims"><span class="hs-identifier hs-var">HashJWTClaims</span></a></span></span><span>
+</span><span id="line-38"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="%24sel%3Ahash%3AHashJWTClaims"><span class="annot"><span class="annottext">HashJWTClaims -&gt; Hash32
+</span><a href="Unison.Share.API.Hash.html#%24sel%3Ahash%3AHashJWTClaims"><span class="hs-identifier hs-var hs-var">hash</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Hash32</span></span><span class="hs-special">,</span><span>
+</span><span id="line-39"></span><span>    </span><span id="%24sel%3AuserId%3AHashJWTClaims"><span class="annot"><span class="annottext">HashJWTClaims -&gt; Maybe Text
+</span><a href="Unison.Share.API.Hash.html#%24sel%3AuserId%3AHashJWTClaims"><span class="hs-identifier hs-var hs-var">userId</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-40"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-41"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679141606"><span id="local-6989586621679141608"><span id="local-6989586621679141617"><span class="annot"><span class="annottext">Int -&gt; HashJWTClaims -&gt; ShowS
+[HashJWTClaims] -&gt; ShowS
+HashJWTClaims -&gt; [Char]
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; [Char]) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [HashJWTClaims] -&gt; ShowS
+$cshowList :: [HashJWTClaims] -&gt; ShowS
+show :: HashJWTClaims -&gt; [Char]
+$cshow :: HashJWTClaims -&gt; [Char]
+showsPrec :: Int -&gt; HashJWTClaims -&gt; ShowS
+$cshowsPrec :: Int -&gt; HashJWTClaims -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679141597"><span id="local-6989586621679141604"><span class="annot"><span class="annottext">HashJWTClaims -&gt; HashJWTClaims -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: HashJWTClaims -&gt; HashJWTClaims -&gt; Bool
+$c/= :: HashJWTClaims -&gt; HashJWTClaims -&gt; Bool
+== :: HashJWTClaims -&gt; HashJWTClaims -&gt; Bool
+$c== :: HashJWTClaims -&gt; HashJWTClaims -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679141570"><span id="local-6989586621679141572"><span id="local-6989586621679141575"><span id="local-6989586621679141578"><span id="local-6989586621679141581"><span id="local-6989586621679141586"><span id="local-6989586621679141593"><span class="annot"><span class="annottext">Eq HashJWTClaims
+HashJWTClaims -&gt; HashJWTClaims -&gt; Bool
+HashJWTClaims -&gt; HashJWTClaims -&gt; Ordering
+HashJWTClaims -&gt; HashJWTClaims -&gt; HashJWTClaims
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: HashJWTClaims -&gt; HashJWTClaims -&gt; HashJWTClaims
+$cmin :: HashJWTClaims -&gt; HashJWTClaims -&gt; HashJWTClaims
+max :: HashJWTClaims -&gt; HashJWTClaims -&gt; HashJWTClaims
+$cmax :: HashJWTClaims -&gt; HashJWTClaims -&gt; HashJWTClaims
+&gt;= :: HashJWTClaims -&gt; HashJWTClaims -&gt; Bool
+$c&gt;= :: HashJWTClaims -&gt; HashJWTClaims -&gt; Bool
+&gt; :: HashJWTClaims -&gt; HashJWTClaims -&gt; Bool
+$c&gt; :: HashJWTClaims -&gt; HashJWTClaims -&gt; Bool
+&lt;= :: HashJWTClaims -&gt; HashJWTClaims -&gt; Bool
+$c&lt;= :: HashJWTClaims -&gt; HashJWTClaims -&gt; Bool
+&lt; :: HashJWTClaims -&gt; HashJWTClaims -&gt; Bool
+$c&lt; :: HashJWTClaims -&gt; HashJWTClaims -&gt; Bool
+compare :: HashJWTClaims -&gt; HashJWTClaims -&gt; Ordering
+$ccompare :: HashJWTClaims -&gt; HashJWTClaims -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- | Adding a type tag to the jwt prevents users from using jwts we issue for other things</span><span>
+</span><span id="line-44"></span><span class="hs-comment">-- in this spot. All of our jwts should have a type parameter of some kind.</span><span>
+</span><span id="line-45"></span><span class="annot"><a href="Unison.Share.API.Hash.html#hashJWTType"><span class="hs-identifier hs-type">hashJWTType</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-46"></span><span id="hashJWTType"><span class="annot"><span class="annottext">hashJWTType :: [Char]
+</span><a href="Unison.Share.API.Hash.html#hashJWTType"><span class="hs-identifier hs-var hs-var">hashJWTType</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;hj&quot;</span></span><span>
+</span><span id="line-47"></span><span>
+</span><span id="line-48"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Servant.Auth.ToJWT</span></span><span> </span><span class="annot"><a href="Unison.Share.API.Hash.html#HashJWTClaims"><span class="hs-identifier hs-type">HashJWTClaims</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-49"></span><span>  </span><span id="local-6989586621679141552"><span class="annot"><span class="annottext">encodeJWT :: HashJWTClaims -&gt; ClaimsSet
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">encodeJWT</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Share.API.Hash.html#HashJWTClaims"><span class="hs-identifier hs-type">HashJWTClaims</span></a></span><span> </span><span id="local-6989586621679141550"><span class="annot"><span class="annottext">Hash32
+</span><a href="#local-6989586621679141550"><span class="hs-identifier hs-var">h</span></a></span></span><span> </span><span id="local-6989586621679141549"><span class="annot"><span class="annottext">Maybe Text
+</span><a href="#local-6989586621679141549"><span class="hs-identifier hs-var">u</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-50"></span><span>    </span><span class="annot"><span class="annottext">ClaimsSet
+</span><span class="hs-identifier hs-var">Jose.emptyClaimsSet</span></span><span>
+</span><span id="line-51"></span><span>      </span><span class="annot"><span class="annottext">forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Value -&gt; ClaimsSet -&gt; ClaimsSet
+</span><span class="hs-identifier hs-var">Jose.addClaim</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;h&quot;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. ToJSON a =&gt; a -&gt; Value
+</span><span class="hs-identifier hs-var">toJSON</span></span><span> </span><span class="annot"><span class="annottext">Hash32
+</span><a href="#local-6989586621679141550"><span class="hs-identifier hs-var">h</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-52"></span><span>      </span><span class="annot"><span class="annottext">forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Value -&gt; ClaimsSet -&gt; ClaimsSet
+</span><span class="hs-identifier hs-var">Jose.addClaim</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;u&quot;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. ToJSON a =&gt; a -&gt; Value
+</span><span class="hs-identifier hs-var">toJSON</span></span><span> </span><span class="annot"><span class="annottext">Maybe Text
+</span><a href="#local-6989586621679141549"><span class="hs-identifier hs-var">u</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-53"></span><span>      </span><span class="annot"><span class="annottext">forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Value -&gt; ClaimsSet -&gt; ClaimsSet
+</span><span class="hs-identifier hs-var">Jose.addClaim</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;t&quot;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. ToJSON a =&gt; a -&gt; Value
+</span><span class="hs-identifier hs-var">toJSON</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="Unison.Share.API.Hash.html#hashJWTType"><span class="hs-identifier hs-var">hashJWTType</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Servant.Auth.FromJWT</span></span><span> </span><span class="annot"><a href="Unison.Share.API.Hash.html#HashJWTClaims"><span class="hs-identifier hs-type">HashJWTClaims</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-56"></span><span>  </span><span id="local-6989586621679141485"><span class="annot"><span class="annottext">decodeJWT :: ClaimsSet -&gt; Either Text HashJWTClaims
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">decodeJWT</span></span></span><span> </span><span id="local-6989586621679141483"><span class="annot"><span class="annottext">ClaimsSet
+</span><a href="#local-6989586621679141483"><span class="hs-identifier hs-var">claims</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><span class="hs-identifier hs-var">maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;Invalid HashJWTClaims&quot;</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-57"></span><span>    </span><span id="local-6989586621679141481"><span class="annot"><span class="annottext">Hash32
+</span><a href="#local-6989586621679141481"><span class="hs-identifier hs-var">hash</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ClaimsSet
+</span><a href="#local-6989586621679141483"><span class="hs-identifier hs-var">claims</span></a></span><span> </span><span class="annot"><span class="annottext">forall s a. s -&gt; Getting (First a) s a -&gt; Maybe a
+</span><span class="hs-operator hs-var">^?</span></span><span> </span><span class="annot"><span class="annottext">Lens' ClaimsSet (Map Text Value)
+</span><span class="hs-identifier hs-var">Jose.unregisteredClaims</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall m. Ixed m =&gt; Index m -&gt; Traversal' m (IxValue m)
+</span><span class="hs-identifier hs-var">ix</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;h&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) s a. Foldable f =&gt; (s -&gt; f a) -&gt; Fold s a
+</span><span class="hs-identifier hs-var">folding</span></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Value -&gt; Result a
+</span><span class="hs-identifier hs-var">fromJSON</span></span><span>
+</span><span id="line-58"></span><span>    </span><span id="local-6989586621679141478"><span class="annot"><span class="annottext">Maybe Text
+</span><a href="#local-6989586621679141478"><span class="hs-identifier hs-var">userId</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ClaimsSet
+</span><a href="#local-6989586621679141483"><span class="hs-identifier hs-var">claims</span></a></span><span> </span><span class="annot"><span class="annottext">forall s a. s -&gt; Getting (First a) s a -&gt; Maybe a
+</span><span class="hs-operator hs-var">^?</span></span><span> </span><span class="annot"><span class="annottext">Lens' ClaimsSet (Map Text Value)
+</span><span class="hs-identifier hs-var">Jose.unregisteredClaims</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall m. Ixed m =&gt; Index m -&gt; Traversal' m (IxValue m)
+</span><span class="hs-identifier hs-var">ix</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;u&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) s a. Foldable f =&gt; (s -&gt; f a) -&gt; Fold s a
+</span><span class="hs-identifier hs-var">folding</span></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Value -&gt; Result a
+</span><span class="hs-identifier hs-var">fromJSON</span></span><span>
+</span><span id="line-59"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">ClaimsSet
+</span><a href="#local-6989586621679141483"><span class="hs-identifier hs-var">claims</span></a></span><span> </span><span class="annot"><span class="annottext">forall s a. s -&gt; Getting (First a) s a -&gt; Maybe a
+</span><span class="hs-operator hs-var">^?</span></span><span> </span><span class="annot"><span class="annottext">Lens' ClaimsSet (Map Text Value)
+</span><span class="hs-identifier hs-var">Jose.unregisteredClaims</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall m. Ixed m =&gt; Index m -&gt; Traversal' m (IxValue m)
+</span><span class="hs-identifier hs-var">ix</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;t&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) s a. Foldable f =&gt; (s -&gt; f a) -&gt; Fold s a
+</span><span class="hs-identifier hs-var">folding</span></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Value -&gt; Result a
+</span><span class="hs-identifier hs-var">fromJSON</span></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-60"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679141477"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679141477"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679141477"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="Unison.Share.API.Hash.html#hashJWTType"><span class="hs-identifier hs-var">hashJWTType</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-61"></span><span>      </span><span class="annot"><span class="annottext">Maybe [Char]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Alternative f =&gt; f a
+</span><span class="hs-identifier hs-var">empty</span></span><span>
+</span><span id="line-62"></span><span>    </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><a href="Unison.Share.API.Hash.html#HashJWTClaims"><span class="hs-identifier hs-type">HashJWTClaims</span></a></span><span> </span><span class="hs-special">{</span><span class="annot"><span class="annottext">Maybe Text
+Hash32
+userId :: Maybe Text
+hash :: Hash32
+$sel:userId:HashJWTClaims :: Maybe Text
+$sel:hash:HashJWTClaims :: Hash32
+</span><a href="#local-6989586621679141478"><span class="hs-glyph hs-var hs-var hs-var hs-var">..</span></a></span><span class="hs-special">}</span><span>
+</span><span id="line-63"></span><span>
+</span><span id="line-64"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679141469"><span id="local-6989586621679141471"><span id="local-6989586621679141473"><span class="annot"><span class="hs-identifier hs-type">ToJSON</span></span><span> </span><span class="annot"><a href="Unison.Share.API.Hash.html#HashJWTClaims"><span class="hs-identifier hs-type">HashJWTClaims</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-65"></span><span>  </span><span id="local-6989586621679141459"><span class="annot"><span class="annottext">toJSON :: HashJWTClaims -&gt; Value
+</span><a href="#local-6989586621679141459"><span class="hs-identifier hs-var hs-var hs-var hs-var">toJSON</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Share.API.Hash.html#HashJWTClaims"><span class="hs-identifier hs-type">HashJWTClaims</span></a></span><span> </span><span id="local-6989586621679141458"><span class="annot"><span class="annottext">Hash32
+</span><a href="#local-6989586621679141458"><span class="hs-identifier hs-var">hash</span></a></span></span><span> </span><span id="local-6989586621679141457"><span class="annot"><span class="annottext">Maybe Text
+</span><a href="#local-6989586621679141457"><span class="hs-identifier hs-var">userId</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-66"></span><span>    </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">object</span></span><span>
+</span><span id="line-67"></span><span>      </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;h&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="annot"><span class="annottext">Hash32
+</span><a href="#local-6989586621679141458"><span class="hs-identifier hs-var">hash</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-68"></span><span>        </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;u&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="annot"><span class="annottext">Maybe Text
+</span><a href="#local-6989586621679141457"><span class="hs-identifier hs-var">userId</span></a></span><span>
+</span><span id="line-69"></span><span>      </span><span class="hs-special">]</span><span>
+</span><span id="line-70"></span><span>
+</span><span id="line-71"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679141452"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="Unison.Share.API.Hash.html#HashJWTClaims"><span class="hs-identifier hs-type">HashJWTClaims</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-72"></span><span>  </span><span id="local-6989586621679141441"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser HashJWTClaims
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. [Char] -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">Aeson.withObject</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;HashJWTClaims&quot;</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679141438"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679141438"><span class="hs-identifier hs-var">obj</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-73"></span><span>    </span><span id="local-6989586621679141437"><span class="annot"><span class="annottext">Hash32
+</span><a href="#local-6989586621679141437"><span class="hs-identifier hs-var">hash</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679141438"><span class="hs-identifier hs-var">obj</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;h&quot;</span></span><span>
+</span><span id="line-74"></span><span>    </span><span id="local-6989586621679141435"><span class="annot"><span class="annottext">Maybe Text
+</span><a href="#local-6989586621679141435"><span class="hs-identifier hs-var">userId</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679141438"><span class="hs-identifier hs-var">obj</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;u&quot;</span></span><span>
+</span><span id="line-75"></span><span>    </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><a href="Unison.Share.API.Hash.html#HashJWTClaims"><span class="hs-identifier hs-type">HashJWTClaims</span></a></span><span> </span><span class="hs-special">{</span><span class="annot"><span class="annottext">Maybe Text
+Hash32
+userId :: Maybe Text
+hash :: Hash32
+$sel:userId:HashJWTClaims :: Maybe Text
+$sel:hash:HashJWTClaims :: Hash32
+</span><a href="#local-6989586621679141435"><span class="hs-glyph hs-var hs-var hs-var hs-var">..</span></a></span><span class="hs-special">}</span><span>
+</span><span id="line-76"></span><span>
+</span><span id="line-77"></span><span class="hs-comment">-- | A decoded hash JWT that retains the original encoded JWT.</span><span>
+</span><span id="line-78"></span><span class="hs-keyword">data</span><span> </span><span id="DecodedHashJWT"><span class="annot"><a href="Unison.Share.API.Hash.html#DecodedHashJWT"><span class="hs-identifier hs-var">DecodedHashJWT</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="DecodedHashJWT"><span class="annot"><a href="Unison.Share.API.Hash.html#DecodedHashJWT"><span class="hs-identifier hs-var">DecodedHashJWT</span></a></span></span><span>
+</span><span id="line-79"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="%24sel%3Aclaims%3ADecodedHashJWT"><span class="annot"><span class="annottext">DecodedHashJWT -&gt; HashJWTClaims
+</span><a href="Unison.Share.API.Hash.html#%24sel%3Aclaims%3ADecodedHashJWT"><span class="hs-identifier hs-var hs-var">claims</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Share.API.Hash.html#HashJWTClaims"><span class="hs-identifier hs-type">HashJWTClaims</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-80"></span><span>    </span><span id="%24sel%3AhashJWT%3ADecodedHashJWT"><span class="annot"><span class="annottext">DecodedHashJWT -&gt; HashJWT
+</span><a href="Unison.Share.API.Hash.html#%24sel%3AhashJWT%3ADecodedHashJWT"><span class="hs-identifier hs-var hs-var">hashJWT</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Share.API.Hash.html#HashJWT"><span class="hs-identifier hs-type">HashJWT</span></a></span><span>
+</span><span id="line-81"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-82"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679141426"><span id="local-6989586621679141430"><span class="annot"><span class="annottext">DecodedHashJWT -&gt; DecodedHashJWT -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: DecodedHashJWT -&gt; DecodedHashJWT -&gt; Bool
+$c/= :: DecodedHashJWT -&gt; DecodedHashJWT -&gt; Bool
+== :: DecodedHashJWT -&gt; DecodedHashJWT -&gt; Bool
+$c== :: DecodedHashJWT -&gt; DecodedHashJWT -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679141403"><span id="local-6989586621679141405"><span id="local-6989586621679141408"><span id="local-6989586621679141411"><span id="local-6989586621679141414"><span id="local-6989586621679141418"><span id="local-6989586621679141422"><span class="annot"><span class="annottext">Eq DecodedHashJWT
+DecodedHashJWT -&gt; DecodedHashJWT -&gt; Bool
+DecodedHashJWT -&gt; DecodedHashJWT -&gt; Ordering
+DecodedHashJWT -&gt; DecodedHashJWT -&gt; DecodedHashJWT
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: DecodedHashJWT -&gt; DecodedHashJWT -&gt; DecodedHashJWT
+$cmin :: DecodedHashJWT -&gt; DecodedHashJWT -&gt; DecodedHashJWT
+max :: DecodedHashJWT -&gt; DecodedHashJWT -&gt; DecodedHashJWT
+$cmax :: DecodedHashJWT -&gt; DecodedHashJWT -&gt; DecodedHashJWT
+&gt;= :: DecodedHashJWT -&gt; DecodedHashJWT -&gt; Bool
+$c&gt;= :: DecodedHashJWT -&gt; DecodedHashJWT -&gt; Bool
+&gt; :: DecodedHashJWT -&gt; DecodedHashJWT -&gt; Bool
+$c&gt; :: DecodedHashJWT -&gt; DecodedHashJWT -&gt; Bool
+&lt;= :: DecodedHashJWT -&gt; DecodedHashJWT -&gt; Bool
+$c&lt;= :: DecodedHashJWT -&gt; DecodedHashJWT -&gt; Bool
+&lt; :: DecodedHashJWT -&gt; DecodedHashJWT -&gt; Bool
+$c&lt; :: DecodedHashJWT -&gt; DecodedHashJWT -&gt; Bool
+compare :: DecodedHashJWT -&gt; DecodedHashJWT -&gt; Ordering
+$ccompare :: DecodedHashJWT -&gt; DecodedHashJWT -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679141394"><span id="local-6989586621679141396"><span id="local-6989586621679141401"><span class="annot"><span class="annottext">Int -&gt; DecodedHashJWT -&gt; ShowS
+[DecodedHashJWT] -&gt; ShowS
+DecodedHashJWT -&gt; [Char]
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; [Char]) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [DecodedHashJWT] -&gt; ShowS
+$cshowList :: [DecodedHashJWT] -&gt; ShowS
+show :: DecodedHashJWT -&gt; [Char]
+$cshow :: DecodedHashJWT -&gt; [Char]
+showsPrec :: Int -&gt; DecodedHashJWT -&gt; ShowS
+$cshowsPrec :: Int -&gt; DecodedHashJWT -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-83"></span><span>
+</span><span id="line-84"></span><span class="hs-comment">-- | Decode a hash JWT.</span><span>
+</span><span id="line-85"></span><span class="annot"><a href="Unison.Share.API.Hash.html#decodeHashJWT"><span class="hs-identifier hs-type">decodeHashJWT</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Share.API.Hash.html#HashJWT"><span class="hs-identifier hs-type">HashJWT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Share.API.Hash.html#DecodedHashJWT"><span class="hs-identifier hs-type">DecodedHashJWT</span></a></span><span>
+</span><span id="line-86"></span><span id="decodeHashJWT"><span class="annot"><span class="annottext">decodeHashJWT :: HashJWT -&gt; DecodedHashJWT
+</span><a href="Unison.Share.API.Hash.html#decodeHashJWT"><span class="hs-identifier hs-var hs-var">decodeHashJWT</span></a></span></span><span> </span><span id="local-6989586621679141393"><span class="annot"><span class="annottext">HashJWT
+</span><a href="#local-6989586621679141393"><span class="hs-identifier hs-var">hashJWT</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-87"></span><span>  </span><span class="annot"><a href="Unison.Share.API.Hash.html#DecodedHashJWT"><span class="hs-identifier hs-type">DecodedHashJWT</span></a></span><span>
+</span><span id="line-88"></span><span>    </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">$sel:claims:DecodedHashJWT :: HashJWTClaims
+</span><a href="Unison.Share.API.Hash.html#%24sel%3Aclaims%3ADecodedHashJWT"><span class="hs-identifier hs-var">claims</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HashJWT -&gt; HashJWTClaims
+</span><a href="Unison.Share.API.Hash.html#decodeHashJWTClaims"><span class="hs-identifier hs-var">decodeHashJWTClaims</span></a></span><span> </span><span class="annot"><span class="annottext">HashJWT
+</span><a href="#local-6989586621679141393"><span class="hs-identifier hs-var">hashJWT</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-89"></span><span>      </span><span class="annot"><span class="annottext">HashJWT
+hashJWT :: HashJWT
+$sel:hashJWT:DecodedHashJWT :: HashJWT
+</span><a href="#local-6989586621679141393"><span class="hs-identifier hs-var hs-var">hashJWT</span></a></span><span>
+</span><span id="line-90"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-91"></span><span>
+</span><span id="line-92"></span><span class="hs-comment">-- | Decode the claims out of a hash JWT.</span><span>
+</span><span id="line-93"></span><span class="annot"><a href="Unison.Share.API.Hash.html#decodeHashJWTClaims"><span class="hs-identifier hs-type">decodeHashJWTClaims</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Share.API.Hash.html#HashJWT"><span class="hs-identifier hs-type">HashJWT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Share.API.Hash.html#HashJWTClaims"><span class="hs-identifier hs-type">HashJWTClaims</span></a></span><span>
+</span><span id="line-94"></span><span id="decodeHashJWTClaims"><span class="annot"><span class="annottext">decodeHashJWTClaims :: HashJWT -&gt; HashJWTClaims
+</span><a href="Unison.Share.API.Hash.html#decodeHashJWTClaims"><span class="hs-identifier hs-var hs-var">decodeHashJWTClaims</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Share.API.Hash.html#HashJWT"><span class="hs-identifier hs-type">HashJWT</span></a></span><span> </span><span id="local-6989586621679141392"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679141392"><span class="hs-identifier hs-var">text</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-95"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Maybe (JWT UnverifiedJWT)
+</span><span class="hs-identifier hs-var">JWT.decode</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679141392"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-96"></span><span>    </span><span class="annot"><span class="annottext">Maybe (JWT UnverifiedJWT)
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. HasCallStack =&gt; [Char] -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;bad JWT&quot;</span></span><span>
+</span><span id="line-97"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679141389"><span class="annot"><span class="annottext">JWT UnverifiedJWT
+</span><a href="#local-6989586621679141389"><span class="hs-identifier hs-var">jwt</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-98"></span><span>      </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679141388"><span class="annot"><span class="annottext">object :: Value
+</span><a href="#local-6989586621679141388"><span class="hs-identifier hs-var hs-var">object</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-99"></span><span>            </span><span class="annot"><span class="annottext">JWT UnverifiedJWT
+</span><a href="#local-6989586621679141389"><span class="hs-identifier hs-var">jwt</span></a></span><span>
+</span><span id="line-100"></span><span>              </span><span class="annot"><span class="annottext">forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">forall r. JWT r -&gt; JWTClaimsSet
+</span><span class="hs-identifier hs-var">JWT.claims</span></span><span>
+</span><span id="line-101"></span><span>              </span><span class="annot"><span class="annottext">forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">JWTClaimsSet -&gt; ClaimsMap
+</span><span class="hs-identifier hs-var">JWT.unregisteredClaims</span></span><span>
+</span><span id="line-102"></span><span>              </span><span class="annot"><span class="annottext">forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">ClaimsMap -&gt; Map Text Value
+</span><span class="hs-identifier hs-var">JWT.unClaimsMap</span></span><span>
+</span><span id="line-103"></span><span>              </span><span class="annot"><span class="annottext">forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">forall v. Map Text v -&gt; KeyMap v
+</span><span class="hs-identifier hs-var">Aeson.KeyMap.fromMapText</span></span><span>
+</span><span id="line-104"></span><span>              </span><span class="annot"><span class="annottext">forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Value
+</span><span class="hs-identifier hs-var">Aeson.Object</span></span><span>
+</span><span id="line-105"></span><span>       </span><span class="hs-keyword">in</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Value -&gt; Result a
+</span><span class="hs-identifier hs-var">Aeson.fromJSON</span></span><span> </span><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679141388"><span class="hs-identifier hs-var">object</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-106"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Aeson.Error</span></span><span> </span><span id="local-6989586621679141381"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679141381"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. HasCallStack =&gt; [Char] -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;bad JWT: &quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679141381"><span class="hs-identifier hs-var">err</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-107"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Aeson.Success</span></span><span> </span><span id="local-6989586621679141379"><span class="annot"><span class="annottext">HashJWTClaims
+</span><a href="#local-6989586621679141379"><span class="hs-identifier hs-var">claims</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">HashJWTClaims
+</span><a href="#local-6989586621679141379"><span class="hs-identifier hs-var">claims</span></a></span><span>
+</span><span id="line-108"></span><span>
+</span><span id="line-109"></span><span class="hs-comment">-- | Grab the hash out of a decoded hash JWT.</span><span>
+</span><span id="line-110"></span><span class="annot"><a href="Unison.Share.API.Hash.html#decodedHashJWTHash"><span class="hs-identifier hs-type">decodedHashJWTHash</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Share.API.Hash.html#DecodedHashJWT"><span class="hs-identifier hs-type">DecodedHashJWT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Hash32</span></span><span>
+</span><span id="line-111"></span><span id="decodedHashJWTHash"><span class="annot"><span class="annottext">decodedHashJWTHash :: DecodedHashJWT -&gt; Hash32
+</span><a href="Unison.Share.API.Hash.html#decodedHashJWTHash"><span class="hs-identifier hs-var hs-var">decodedHashJWTHash</span></a></span></span><span> </span><span class="annot"><a href="Unison.Share.API.Hash.html#DecodedHashJWT"><span class="hs-identifier hs-type">DecodedHashJWT</span></a></span><span> </span><span class="hs-special">{</span><span class="annot"><span class="annottext">$sel:claims:DecodedHashJWT :: DecodedHashJWT -&gt; HashJWTClaims
+</span><a href="Unison.Share.API.Hash.html#%24sel%3Aclaims%3ADecodedHashJWT"><span class="hs-identifier hs-var">claims</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Unison.Share.API.Hash.html#HashJWTClaims"><span class="hs-identifier hs-type">HashJWTClaims</span></a></span><span> </span><span class="hs-special">{</span><span id="local-6989586621679141378"><span class="annot"><span class="annottext">Hash32
+hash :: Hash32
+$sel:hash:HashJWTClaims :: HashJWTClaims -&gt; Hash32
+</span><a href="#local-6989586621679141378"><span class="hs-identifier hs-var hs-var">hash</span></a></span></span><span class="hs-special">}</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-112"></span><span>  </span><span class="annot"><span class="annottext">Hash32
+</span><a href="#local-6989586621679141378"><span class="hs-identifier hs-var">hash</span></a></span><span>
+</span><span id="line-113"></span></pre></body></html>

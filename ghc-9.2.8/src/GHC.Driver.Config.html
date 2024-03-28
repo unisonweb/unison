@@ -1,0 +1,71 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- | Subsystem configuration</span><span>
+</span><span id="line-2"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">GHC.Driver.Config</span><span>
+</span><span id="line-3"></span><span>   </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Driver.Config.html#initOptCoercionOpts"><span class="hs-identifier">initOptCoercionOpts</span></a></span><span>
+</span><span id="line-4"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Driver.Config.html#initSimpleOpts"><span class="hs-identifier">initSimpleOpts</span></a></span><span>
+</span><span id="line-5"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Driver.Config.html#initParserOpts"><span class="hs-identifier">initParserOpts</span></a></span><span>
+</span><span id="line-6"></span><span>   </span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Prelude.html"><span class="hs-identifier">GHC.Prelude</span></a></span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Driver.Session.html"><span class="hs-identifier">GHC.Driver.Session</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Core.SimpleOpt.html"><span class="hs-identifier">GHC.Core.SimpleOpt</span></a></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Opt.html"><span class="hs-identifier">GHC.Core.Coercion.Opt</span></a></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Parser.Lexer.html"><span class="hs-identifier">GHC.Parser.Lexer</span></a></span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- | Initialise coercion optimiser configuration from DynFlags</span><span>
+</span><span id="line-17"></span><span class="annot"><a href="GHC.Driver.Config.html#initOptCoercionOpts"><span class="hs-identifier hs-type">initOptCoercionOpts</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Driver.Session.html#DynFlags"><span class="hs-identifier hs-type">DynFlags</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Opt.html#OptCoercionOpts"><span class="hs-identifier hs-type">OptCoercionOpts</span></a></span><span>
+</span><span id="line-18"></span><span id="initOptCoercionOpts"><span class="annot"><span class="annottext">initOptCoercionOpts :: DynFlags -&gt; OptCoercionOpts
+</span><a href="GHC.Driver.Config.html#initOptCoercionOpts"><span class="hs-identifier hs-var hs-var">initOptCoercionOpts</span></a></span></span><span> </span><span id="local-6989586621681185729"><span class="annot"><span class="annottext">DynFlags
+</span><a href="#local-6989586621681185729"><span class="hs-identifier hs-var">dflags</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Opt.html#OptCoercionOpts"><span class="hs-identifier hs-type">OptCoercionOpts</span></a></span><span>
+</span><span id="line-19"></span><span>   </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">optCoercionEnabled :: Bool
+</span><a href="GHC.Core.Coercion.Opt.html#optCoercionEnabled"><span class="hs-identifier hs-var">optCoercionEnabled</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">DynFlags -&gt; Bool
+</span><a href="GHC.Driver.Session.html#hasNoOptCoercion"><span class="hs-identifier hs-var">hasNoOptCoercion</span></a></span><span> </span><span class="annot"><span class="annottext">DynFlags
+</span><a href="#local-6989586621681185729"><span class="hs-identifier hs-var">dflags</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span>   </span><span class="hs-special">}</span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- | Initialise Simple optimiser configuration from DynFlags</span><span>
+</span><span id="line-23"></span><span class="annot"><a href="GHC.Driver.Config.html#initSimpleOpts"><span class="hs-identifier hs-type">initSimpleOpts</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Driver.Session.html#DynFlags"><span class="hs-identifier hs-type">DynFlags</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.SimpleOpt.html#SimpleOpts"><span class="hs-identifier hs-type">SimpleOpts</span></a></span><span>
+</span><span id="line-24"></span><span id="initSimpleOpts"><span class="annot"><span class="annottext">initSimpleOpts :: DynFlags -&gt; SimpleOpts
+</span><a href="GHC.Driver.Config.html#initSimpleOpts"><span class="hs-identifier hs-var hs-var">initSimpleOpts</span></a></span></span><span> </span><span id="local-6989586621681185724"><span class="annot"><span class="annottext">DynFlags
+</span><a href="#local-6989586621681185724"><span class="hs-identifier hs-var">dflags</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.Core.SimpleOpt.html#SimpleOpts"><span class="hs-identifier hs-type">SimpleOpts</span></a></span><span>
+</span><span id="line-25"></span><span>   </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">so_uf_opts :: UnfoldingOpts
+</span><a href="GHC.Core.SimpleOpt.html#so_uf_opts"><span class="hs-identifier hs-var">so_uf_opts</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">DynFlags -&gt; UnfoldingOpts
+</span><a href="GHC.Driver.Session.html#unfoldingOpts"><span class="hs-identifier hs-var">unfoldingOpts</span></a></span><span> </span><span class="annot"><span class="annottext">DynFlags
+</span><a href="#local-6989586621681185724"><span class="hs-identifier hs-var">dflags</span></a></span><span>
+</span><span id="line-26"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">so_co_opts :: OptCoercionOpts
+</span><a href="GHC.Core.SimpleOpt.html#so_co_opts"><span class="hs-identifier hs-var">so_co_opts</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">DynFlags -&gt; OptCoercionOpts
+</span><a href="GHC.Driver.Config.html#initOptCoercionOpts"><span class="hs-identifier hs-var">initOptCoercionOpts</span></a></span><span> </span><span class="annot"><span class="annottext">DynFlags
+</span><a href="#local-6989586621681185724"><span class="hs-identifier hs-var">dflags</span></a></span><span>
+</span><span id="line-27"></span><span>   </span><span class="hs-special">}</span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- | Extracts the flag information needed for parsing</span><span>
+</span><span id="line-30"></span><span class="annot"><a href="GHC.Driver.Config.html#initParserOpts"><span class="hs-identifier hs-type">initParserOpts</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Driver.Session.html#DynFlags"><span class="hs-identifier hs-type">DynFlags</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Parser.Lexer.html#ParserOpts"><span class="hs-identifier hs-type">ParserOpts</span></a></span><span>
+</span><span id="line-31"></span><span id="initParserOpts"><span class="annot"><span class="annottext">initParserOpts :: DynFlags -&gt; ParserOpts
+</span><a href="GHC.Driver.Config.html#initParserOpts"><span class="hs-identifier hs-var hs-var">initParserOpts</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-32"></span><span>  </span><span class="annot"><span class="annottext">EnumSet WarningFlag
+-&gt; EnumSet Extension -&gt; Bool -&gt; Bool -&gt; Bool -&gt; Bool -&gt; ParserOpts
+</span><a href="GHC.Parser.Lexer.html#mkParserOpts"><span class="hs-identifier hs-var">mkParserOpts</span></a></span><span>
+</span><span id="line-33"></span><span>    </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="../../base-4.16.4.0/src/Data-Functor.html#%3C%24%3E"><span class="hs-operator hs-var">&lt;$&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">DynFlags -&gt; EnumSet WarningFlag
+</span><a href="GHC.Driver.Session.html#warningFlags"><span class="hs-identifier hs-var">warningFlags</span></a></span><span>
+</span><span id="line-34"></span><span>    </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%3C%2A%3E"><span class="hs-operator hs-var">&lt;*&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">DynFlags -&gt; EnumSet Extension
+</span><a href="GHC.Driver.Session.html#extensionFlags"><span class="hs-identifier hs-var">extensionFlags</span></a></span><span>
+</span><span id="line-35"></span><span>    </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%3C%2A%3E"><span class="hs-operator hs-var">&lt;*&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">DynFlags -&gt; Bool
+</span><a href="GHC.Driver.Session.html#safeImportsOn"><span class="hs-identifier hs-var">safeImportsOn</span></a></span><span>
+</span><span id="line-36"></span><span>    </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%3C%2A%3E"><span class="hs-operator hs-var">&lt;*&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">GeneralFlag -&gt; DynFlags -&gt; Bool
+</span><a href="GHC.Driver.Session.html#gopt"><span class="hs-identifier hs-var">gopt</span></a></span><span> </span><span class="annot"><span class="annottext">GeneralFlag
+</span><a href="GHC.Driver.Flags.html#Opt_Haddock"><span class="hs-identifier hs-var">Opt_Haddock</span></a></span><span>
+</span><span id="line-37"></span><span>    </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%3C%2A%3E"><span class="hs-operator hs-var">&lt;*&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">GeneralFlag -&gt; DynFlags -&gt; Bool
+</span><a href="GHC.Driver.Session.html#gopt"><span class="hs-identifier hs-var">gopt</span></a></span><span> </span><span class="annot"><span class="annottext">GeneralFlag
+</span><a href="GHC.Driver.Flags.html#Opt_KeepRawTokenStream"><span class="hs-identifier hs-var">Opt_KeepRawTokenStream</span></a></span><span>
+</span><span id="line-38"></span><span>    </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%3C%2A%3E"><span class="hs-operator hs-var">&lt;*&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. a -&gt; b -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#const"><span class="hs-identifier hs-var">const</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-39"></span></pre></body></html>

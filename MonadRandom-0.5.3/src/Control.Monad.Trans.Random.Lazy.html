@@ -1,0 +1,846 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP                        #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE FlexibleInstances          #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE GeneralizedNewtypeDeriving #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE MultiParamTypeClasses      #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LANGUAGE Trustworthy                #-}</span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# LANGUAGE TypeFamilies               #-}</span><span>
+</span><span id="line-7"></span><span class="hs-pragma">{-# LANGUAGE UndecidableInstances       #-}</span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span class="hs-comment">{- |
+Module       :  Control.Monad.Trans.Random.Lazy
+Copyright    :  (c) Brent Yorgey 2016
+License      :  BSD3 (see LICENSE)
+
+Maintainer   :  byorgey@gmail.com
+Stability    :  experimental
+Portability  :  non-portable (multi-param classes, functional dependencies, undecidable instances)
+
+Lazy random monads, passing a random number generator through a computation.
+See below for examples.
+
+For a strict version with the same interface, see
+&quot;Control.Monad.Trans.Random.Strict&quot;.
+-}</span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Control.Monad.Trans.Random.Lazy</span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-comment">-- * The Rand monad transformer</span></span><span>
+</span><span id="line-27"></span><span>    </span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#Rand"><span class="hs-identifier">Rand</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-28"></span><span>    </span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#liftRand"><span class="hs-identifier">liftRand</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-29"></span><span>    </span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#runRand"><span class="hs-identifier">runRand</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-30"></span><span>    </span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#evalRand"><span class="hs-identifier">evalRand</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-31"></span><span>    </span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#execRand"><span class="hs-identifier">execRand</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-32"></span><span>    </span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#mapRand"><span class="hs-identifier">mapRand</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-33"></span><span>    </span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#withRand"><span class="hs-identifier">withRand</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-34"></span><span>    </span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#evalRandIO"><span class="hs-identifier">evalRandIO</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-35"></span><span>    </span><span class="annot"><span class="hs-comment">-- * The RandT monad transformer</span></span><span>
+</span><span id="line-36"></span><span>    </span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#RandT"><span class="hs-identifier">RandT</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-37"></span><span>    </span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#liftRandT"><span class="hs-identifier">liftRandT</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-38"></span><span>    </span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#runRandT"><span class="hs-identifier">runRandT</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-39"></span><span>    </span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#evalRandT"><span class="hs-identifier">evalRandT</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-40"></span><span>    </span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#execRandT"><span class="hs-identifier">execRandT</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-41"></span><span>    </span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#mapRandT"><span class="hs-identifier">mapRandT</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-42"></span><span>    </span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#withRandT"><span class="hs-identifier">withRandT</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-43"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Lifting other operations</span></span><span>
+</span><span id="line-44"></span><span>    </span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#liftCallCC"><span class="hs-identifier">liftCallCC</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-45"></span><span>    </span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#liftCallCC%27"><span class="hs-identifier">liftCallCC'</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-46"></span><span>    </span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#liftCatch"><span class="hs-identifier">liftCatch</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-47"></span><span>    </span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#liftListen"><span class="hs-identifier">liftListen</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-48"></span><span>    </span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#liftPass"><span class="hs-identifier">liftPass</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-49"></span><span>    </span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#evalRandTIO"><span class="hs-identifier">evalRandTIO</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-50"></span><span>    </span><span class="annot"><span class="hs-comment">-- * StatefulGen interface</span></span><span>
+</span><span id="line-51"></span><span>    </span><span class="annot"><a href="Control.Monad.Trans.Random.Strict.html#RandGen"><span class="hs-identifier">RandGen</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-52"></span><span>    </span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#withRandGen"><span class="hs-identifier">withRandGen</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-53"></span><span>    </span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#withRandGen_"><span class="hs-identifier">withRandGen_</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-54"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Examples</span></span><span>
+</span><span id="line-55"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Random monads</span></span><span>
+</span><span id="line-56"></span><span>    </span><span class="annot"><span class="hs-comment">-- $examples</span></span><span>
+</span><span id="line-57"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-58"></span><span>
+</span><span id="line-59"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Applicative</span></span><span>
+</span><span id="line-60"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Arrow</span></span><span>                  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">first</span></span><span class="hs-special">)</span><span>
+</span><span id="line-61"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span>
+</span><span id="line-62"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad.Cont.Class</span></span><span>
+</span><span id="line-63"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad.Error.Class</span></span><span>
+</span><span id="line-64"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Fail</span></span><span>             </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Fail</span></span><span>
+</span><span id="line-65"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad.Fix</span></span><span>
+</span><span id="line-66"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad.IO.Class</span></span><span>
+</span><span id="line-67"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad.Primitive</span></span><span>
+</span><span id="line-68"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Control.Monad.Random.Class.html"><span class="hs-identifier">Control.Monad.Random.Class</span></a></span><span>
+</span><span id="line-69"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad.RWS.Class</span></span><span>
+</span><span id="line-70"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad.Signatures</span></span><span>
+</span><span id="line-71"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad.Trans.Class</span></span><span>
+</span><span id="line-72"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Trans.State.Lazy</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">LazyState</span></span><span>
+</span><span id="line-73"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Control.Monad.Trans.Random.Strict.html"><span class="hs-identifier">Control.Monad.Trans.Random.Strict</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Random.Strict.html#RandGen"><span class="hs-identifier">RandGen</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-74"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Functor.Identity</span></span><span class="hs-cpp">
+#if MIN_VERSION_random(1,2,0)
+</span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">System.Random.Stateful</span></span><span class="hs-cpp">
+#else
+</span><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">System.Random</span><span class="hs-cpp">
+#endif
+</span><span class="hs-comment">-- | A random monad parameterized by the type @g@ of the generator to carry.</span><span>
+</span><span id="line-81"></span><span class="hs-comment">--</span><span>
+</span><span id="line-82"></span><span class="hs-comment">-- The 'return' function leaves the generator unchanged, while '&gt;&gt;=' uses the</span><span>
+</span><span id="line-83"></span><span class="hs-comment">-- final generator of the first computation as the initial generator of the</span><span>
+</span><span id="line-84"></span><span class="hs-comment">-- second.</span><span>
+</span><span id="line-85"></span><span class="hs-keyword">type</span><span> </span><span id="Rand"><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#Rand"><span class="hs-identifier hs-var">Rand</span></a></span></span><span> </span><span id="local-6989586621679062976"><span class="annot"><a href="#local-6989586621679062976"><span class="hs-identifier hs-type">g</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#RandT"><span class="hs-identifier hs-type">RandT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679062976"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Identity</span></span><span>
+</span><span id="line-86"></span><span>
+</span><span id="line-87"></span><span class="hs-comment">-- | Construct a random monad computation from a function.</span><span>
+</span><span id="line-88"></span><span class="hs-comment">-- (The inverse of 'runRand'.)</span><span>
+</span><span id="line-89"></span><span id="local-6989586621679063439"><span id="local-6989586621679063440"><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#liftRand"><span class="hs-identifier hs-type">liftRand</span></a></span><span>
+</span><span id="line-90"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679063440"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679063439"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679063440"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-91"></span><span>  </span><span class="hs-comment">-- ^ pure random transformer</span><span>
+</span><span id="line-92"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#Rand"><span class="hs-identifier hs-type">Rand</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063440"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063439"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-93"></span><span>  </span><span class="hs-comment">-- ^ equivalent generator-passing computation</span><span>
+</span><span id="line-94"></span><span id="liftRand"><span class="annot"><span class="annottext">liftRand :: forall g a. (g -&gt; (a, g)) -&gt; Rand g a
+</span><a href="Control.Monad.Trans.Random.Lazy.html#liftRand"><span class="hs-identifier hs-var hs-var">liftRand</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall g (m :: * -&gt; *) a. StateT g m a -&gt; RandT g m a
+</span><a href="Control.Monad.Trans.Random.Lazy.html#RandT"><span class="hs-identifier hs-var">RandT</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall s (m :: * -&gt; *) a. MonadState s m =&gt; (s -&gt; (a, s)) -&gt; m a
+</span><span class="hs-identifier hs-var">state</span></span><span>
+</span><span id="line-95"></span><span>
+</span><span id="line-96"></span><span class="hs-comment">-- | Unwrap a random monad computation as a function.</span><span>
+</span><span id="line-97"></span><span class="hs-comment">-- (The inverse of 'liftRand'.)</span><span>
+</span><span id="line-98"></span><span id="local-6989586621679063421"><span id="local-6989586621679063422"><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#runRand"><span class="hs-identifier hs-type">runRand</span></a></span><span>
+</span><span id="line-99"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#Rand"><span class="hs-identifier hs-type">Rand</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063422"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063421"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-100"></span><span>  </span><span class="hs-comment">-- ^ generator-passing computation to execute</span><span>
+</span><span id="line-101"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679063422"><span class="hs-identifier hs-type">g</span></a></span><span>
+</span><span id="line-102"></span><span>  </span><span class="hs-comment">-- ^ initial generator</span><span>
+</span><span id="line-103"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679063421"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679063422"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-104"></span><span>  </span><span class="hs-comment">-- ^ return value and final generator</span><span>
+</span><span id="line-105"></span><span id="runRand"><span class="annot"><span class="annottext">runRand :: forall g a. Rand g a -&gt; g -&gt; (a, g)
+</span><a href="Control.Monad.Trans.Random.Lazy.html#runRand"><span class="hs-identifier hs-var hs-var">runRand</span></a></span></span><span> </span><span id="local-6989586621679062968"><span class="annot"><span class="annottext">Rand g a
+</span><a href="#local-6989586621679062968"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Identity a -&gt; a
+</span><span class="hs-identifier hs-var">runIdentity</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall g (m :: * -&gt; *) a. RandT g m a -&gt; g -&gt; m (a, g)
+</span><a href="Control.Monad.Trans.Random.Lazy.html#runRandT"><span class="hs-identifier hs-var">runRandT</span></a></span><span> </span><span class="annot"><span class="annottext">Rand g a
+</span><a href="#local-6989586621679062968"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-106"></span><span>
+</span><span id="line-107"></span><span class="hs-comment">-- | Evaluate a random computation with the given initial generator and return</span><span>
+</span><span id="line-108"></span><span class="hs-comment">-- the final value, discarding the final generator.</span><span>
+</span><span id="line-109"></span><span class="hs-comment">--</span><span>
+</span><span id="line-110"></span><span class="hs-comment">-- * @'evalRand' m s = fst ('runRand' m s)@</span><span>
+</span><span id="line-111"></span><span id="local-6989586621679063413"><span id="local-6989586621679063414"><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#evalRand"><span class="hs-identifier hs-type">evalRand</span></a></span><span>
+</span><span id="line-112"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#Rand"><span class="hs-identifier hs-type">Rand</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063414"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063413"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-113"></span><span>  </span><span class="hs-comment">-- ^ generator-passing computation to execute</span><span>
+</span><span id="line-114"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679063414"><span class="hs-identifier hs-type">g</span></a></span><span>
+</span><span id="line-115"></span><span>  </span><span class="hs-comment">-- ^ initial generator</span><span>
+</span><span id="line-116"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679063413"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-117"></span><span>  </span><span class="hs-comment">-- ^ return value of the random computation</span><span>
+</span><span id="line-118"></span><span id="evalRand"><span class="annot"><span class="annottext">evalRand :: forall g a. Rand g a -&gt; g -&gt; a
+</span><a href="Control.Monad.Trans.Random.Lazy.html#evalRand"><span class="hs-identifier hs-var hs-var">evalRand</span></a></span></span><span> </span><span id="local-6989586621679062965"><span class="annot"><span class="annottext">Rand g a
+</span><a href="#local-6989586621679062965"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Identity a -&gt; a
+</span><span class="hs-identifier hs-var">runIdentity</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) g a. Monad m =&gt; RandT g m a -&gt; g -&gt; m a
+</span><a href="Control.Monad.Trans.Random.Lazy.html#evalRandT"><span class="hs-identifier hs-var">evalRandT</span></a></span><span> </span><span class="annot"><span class="annottext">Rand g a
+</span><a href="#local-6989586621679062965"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-119"></span><span>
+</span><span id="line-120"></span><span class="hs-comment">-- | Evaluate a random computation with the given initial generator and return</span><span>
+</span><span id="line-121"></span><span class="hs-comment">-- the final generator, discarding the final value.</span><span>
+</span><span id="line-122"></span><span class="hs-comment">--</span><span>
+</span><span id="line-123"></span><span class="hs-comment">-- * @'execRand' m s = snd ('runRand' m s)@</span><span>
+</span><span id="line-124"></span><span id="local-6989586621679063406"><span id="local-6989586621679063407"><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#execRand"><span class="hs-identifier hs-type">execRand</span></a></span><span>
+</span><span id="line-125"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#Rand"><span class="hs-identifier hs-type">Rand</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063407"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063406"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-126"></span><span>  </span><span class="hs-comment">-- ^ generator-passing computation to execute</span><span>
+</span><span id="line-127"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679063407"><span class="hs-identifier hs-type">g</span></a></span><span>
+</span><span id="line-128"></span><span>  </span><span class="hs-comment">-- ^ initial generator</span><span>
+</span><span id="line-129"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679063407"><span class="hs-identifier hs-type">g</span></a></span></span></span><span>
+</span><span id="line-130"></span><span>  </span><span class="hs-comment">-- ^ final generator</span><span>
+</span><span id="line-131"></span><span id="execRand"><span class="annot"><span class="annottext">execRand :: forall g a. Rand g a -&gt; g -&gt; g
+</span><a href="Control.Monad.Trans.Random.Lazy.html#execRand"><span class="hs-identifier hs-var hs-var">execRand</span></a></span></span><span> </span><span id="local-6989586621679062963"><span class="annot"><span class="annottext">Rand g a
+</span><a href="#local-6989586621679062963"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Identity a -&gt; a
+</span><span class="hs-identifier hs-var">runIdentity</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) g a. Monad m =&gt; RandT g m a -&gt; g -&gt; m g
+</span><a href="Control.Monad.Trans.Random.Lazy.html#execRandT"><span class="hs-identifier hs-var">execRandT</span></a></span><span> </span><span class="annot"><span class="annottext">Rand g a
+</span><a href="#local-6989586621679062963"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-132"></span><span>
+</span><span id="line-133"></span><span class="hs-comment">-- | Map both the return value and final generator of a computation using the</span><span>
+</span><span id="line-134"></span><span class="hs-comment">-- given function.</span><span>
+</span><span id="line-135"></span><span class="hs-comment">--</span><span>
+</span><span id="line-136"></span><span class="hs-comment">-- * @'runRand' ('mapRand' f m) = f . 'runRand' m@</span><span>
+</span><span id="line-137"></span><span id="local-6989586621679063398"><span id="local-6989586621679063399"><span id="local-6989586621679063400"><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#mapRand"><span class="hs-identifier hs-type">mapRand</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679063400"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679063399"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679063398"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679063399"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#Rand"><span class="hs-identifier hs-type">Rand</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063399"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063400"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#Rand"><span class="hs-identifier hs-type">Rand</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063399"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063398"><span class="hs-identifier hs-type">b</span></a></span></span></span></span><span>
+</span><span id="line-138"></span><span id="mapRand"><span class="annot"><span class="annottext">mapRand :: forall a g b. ((a, g) -&gt; (b, g)) -&gt; Rand g a -&gt; Rand g b
+</span><a href="Control.Monad.Trans.Random.Lazy.html#mapRand"><span class="hs-identifier hs-var hs-var">mapRand</span></a></span></span><span> </span><span id="local-6989586621679062961"><span class="annot"><span class="annottext">(a, g) -&gt; (b, g)
+</span><a href="#local-6989586621679062961"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a g (n :: * -&gt; *) b.
+(m (a, g) -&gt; n (b, g)) -&gt; RandT g m a -&gt; RandT g n b
+</span><a href="Control.Monad.Trans.Random.Lazy.html#mapRandT"><span class="hs-identifier hs-var">mapRandT</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a1 r. Monad m =&gt; (a1 -&gt; r) -&gt; m a1 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM</span></span><span> </span><span class="annot"><span class="annottext">(a, g) -&gt; (b, g)
+</span><a href="#local-6989586621679062961"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-139"></span><span>
+</span><span id="line-140"></span><span class="hs-comment">-- | @'withRand' f m@ executes action @m@ on a generator modified by applying @f@.</span><span>
+</span><span id="line-141"></span><span class="hs-comment">--</span><span>
+</span><span id="line-142"></span><span class="hs-comment">-- * @'withRand' f m = 'modify' f &gt;&gt; m@</span><span>
+</span><span id="line-143"></span><span id="local-6989586621679063385"><span id="local-6989586621679063386"><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#withRand"><span class="hs-identifier hs-type">withRand</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679063386"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679063386"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#Rand"><span class="hs-identifier hs-type">Rand</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063386"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063385"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#Rand"><span class="hs-identifier hs-type">Rand</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063386"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063385"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-144"></span><span id="withRand"><span class="annot"><span class="annottext">withRand :: forall g a. (g -&gt; g) -&gt; Rand g a -&gt; Rand g a
+</span><a href="Control.Monad.Trans.Random.Lazy.html#withRand"><span class="hs-identifier hs-var hs-var">withRand</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall g (m :: * -&gt; *) a. (g -&gt; g) -&gt; RandT g m a -&gt; RandT g m a
+</span><a href="Control.Monad.Trans.Random.Lazy.html#withRandT"><span class="hs-identifier hs-var">withRandT</span></a></span><span>
+</span><span id="line-145"></span><span>
+</span><span id="line-146"></span><span class="hs-comment">-- | A random transformer monad parameterized by:</span><span>
+</span><span id="line-147"></span><span class="hs-comment">--</span><span>
+</span><span id="line-148"></span><span class="hs-comment">-- * @g@ - The generator.</span><span>
+</span><span id="line-149"></span><span class="hs-comment">--</span><span>
+</span><span id="line-150"></span><span class="hs-comment">-- * @m@ - The inner monad.</span><span>
+</span><span id="line-151"></span><span class="hs-comment">--</span><span>
+</span><span id="line-152"></span><span class="hs-comment">-- The 'return' function leaves the generator unchanged, while '&gt;&gt;=' uses the</span><span>
+</span><span id="line-153"></span><span class="hs-comment">-- final generator of the first computation as the initial generator of the</span><span>
+</span><span id="line-154"></span><span class="hs-comment">-- second.</span><span>
+</span><span id="line-155"></span><span class="hs-keyword">newtype</span><span> </span><span id="RandT"><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#RandT"><span class="hs-identifier hs-var">RandT</span></a></span></span><span> </span><span id="local-6989586621679063431"><span class="annot"><a href="#local-6989586621679063431"><span class="hs-identifier hs-type">g</span></a></span></span><span> </span><span id="local-6989586621679063430"><span class="annot"><a href="#local-6989586621679063430"><span class="hs-identifier hs-type">m</span></a></span></span><span> </span><span id="local-6989586621679063429"><span class="annot"><a href="#local-6989586621679063429"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="RandT"><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#RandT"><span class="hs-identifier hs-var">RandT</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="unRandT"><span class="annot"><span class="annottext">forall g (m :: * -&gt; *) a. RandT g m a -&gt; StateT g m a
+</span><a href="Control.Monad.Trans.Random.Lazy.html#unRandT"><span class="hs-identifier hs-var hs-var">unRandT</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">LazyState.StateT</span></span><span> </span><span class="annot"><a href="#local-6989586621679063431"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063430"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063429"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-156"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679062951"><span id="local-6989586621679062956"><span class="annot"><span class="annottext">forall a b. a -&gt; RandT g m b -&gt; RandT g m a
+forall a b. (a -&gt; b) -&gt; RandT g m a -&gt; RandT g m b
+forall g (m :: * -&gt; *) a b.
+Functor m =&gt;
+a -&gt; RandT g m b -&gt; RandT g m a
+forall g (m :: * -&gt; *) a b.
+Functor m =&gt;
+(a -&gt; b) -&gt; RandT g m a -&gt; RandT g m b
+forall (f :: * -&gt; *).
+(forall a b. (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b. a -&gt; f b -&gt; f a) -&gt; Functor f
+&lt;$ :: forall a b. a -&gt; RandT g m b -&gt; RandT g m a
+$c&lt;$ :: forall g (m :: * -&gt; *) a b.
+Functor m =&gt;
+a -&gt; RandT g m b -&gt; RandT g m a
+fmap :: forall a b. (a -&gt; b) -&gt; RandT g m a -&gt; RandT g m b
+$cfmap :: forall g (m :: * -&gt; *) a b.
+Functor m =&gt;
+(a -&gt; b) -&gt; RandT g m a -&gt; RandT g m b
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Functor</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679062924"><span id="local-6989586621679062928"><span id="local-6989586621679062932"><span id="local-6989586621679062936"><span id="local-6989586621679062941"><span class="annot"><span class="annottext">forall a. a -&gt; RandT g m a
+forall a b. RandT g m a -&gt; RandT g m b -&gt; RandT g m a
+forall a b. RandT g m a -&gt; RandT g m b -&gt; RandT g m b
+forall a b. RandT g m (a -&gt; b) -&gt; RandT g m a -&gt; RandT g m b
+forall a b c.
+(a -&gt; b -&gt; c) -&gt; RandT g m a -&gt; RandT g m b -&gt; RandT g m c
+forall {g} {m :: * -&gt; *}. Monad m =&gt; Functor (RandT g m)
+forall g (m :: * -&gt; *) a. Monad m =&gt; a -&gt; RandT g m a
+forall g (m :: * -&gt; *) a b.
+Monad m =&gt;
+RandT g m a -&gt; RandT g m b -&gt; RandT g m a
+forall g (m :: * -&gt; *) a b.
+Monad m =&gt;
+RandT g m a -&gt; RandT g m b -&gt; RandT g m b
+forall g (m :: * -&gt; *) a b.
+Monad m =&gt;
+RandT g m (a -&gt; b) -&gt; RandT g m a -&gt; RandT g m b
+forall g (m :: * -&gt; *) a b c.
+Monad m =&gt;
+(a -&gt; b -&gt; c) -&gt; RandT g m a -&gt; RandT g m b -&gt; RandT g m c
+forall (f :: * -&gt; *).
+Functor f
+-&gt; (forall a. a -&gt; f a)
+-&gt; (forall a b. f (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b c. (a -&gt; b -&gt; c) -&gt; f a -&gt; f b -&gt; f c)
+-&gt; (forall a b. f a -&gt; f b -&gt; f b)
+-&gt; (forall a b. f a -&gt; f b -&gt; f a)
+-&gt; Applicative f
+&lt;* :: forall a b. RandT g m a -&gt; RandT g m b -&gt; RandT g m a
+$c&lt;* :: forall g (m :: * -&gt; *) a b.
+Monad m =&gt;
+RandT g m a -&gt; RandT g m b -&gt; RandT g m a
+*&gt; :: forall a b. RandT g m a -&gt; RandT g m b -&gt; RandT g m b
+$c*&gt; :: forall g (m :: * -&gt; *) a b.
+Monad m =&gt;
+RandT g m a -&gt; RandT g m b -&gt; RandT g m b
+liftA2 :: forall a b c.
+(a -&gt; b -&gt; c) -&gt; RandT g m a -&gt; RandT g m b -&gt; RandT g m c
+$cliftA2 :: forall g (m :: * -&gt; *) a b c.
+Monad m =&gt;
+(a -&gt; b -&gt; c) -&gt; RandT g m a -&gt; RandT g m b -&gt; RandT g m c
+&lt;*&gt; :: forall a b. RandT g m (a -&gt; b) -&gt; RandT g m a -&gt; RandT g m b
+$c&lt;*&gt; :: forall g (m :: * -&gt; *) a b.
+Monad m =&gt;
+RandT g m (a -&gt; b) -&gt; RandT g m a -&gt; RandT g m b
+pure :: forall a. a -&gt; RandT g m a
+$cpure :: forall g (m :: * -&gt; *) a. Monad m =&gt; a -&gt; RandT g m a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Applicative</span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679062897"><span id="local-6989586621679062901"><span id="local-6989586621679062905"><span id="local-6989586621679062911"><span class="annot"><span class="annottext">forall a. RandT g m a
+forall a. RandT g m a -&gt; RandT g m [a]
+forall a. RandT g m a -&gt; RandT g m a -&gt; RandT g m a
+forall {g} {m :: * -&gt; *}. MonadPlus m =&gt; Applicative (RandT g m)
+forall g (m :: * -&gt; *) a. MonadPlus m =&gt; RandT g m a
+forall g (m :: * -&gt; *) a.
+MonadPlus m =&gt;
+RandT g m a -&gt; RandT g m [a]
+forall g (m :: * -&gt; *) a.
+MonadPlus m =&gt;
+RandT g m a -&gt; RandT g m a -&gt; RandT g m a
+forall (f :: * -&gt; *).
+Applicative f
+-&gt; (forall a. f a)
+-&gt; (forall a. f a -&gt; f a -&gt; f a)
+-&gt; (forall a. f a -&gt; f [a])
+-&gt; (forall a. f a -&gt; f [a])
+-&gt; Alternative f
+many :: forall a. RandT g m a -&gt; RandT g m [a]
+$cmany :: forall g (m :: * -&gt; *) a.
+MonadPlus m =&gt;
+RandT g m a -&gt; RandT g m [a]
+some :: forall a. RandT g m a -&gt; RandT g m [a]
+$csome :: forall g (m :: * -&gt; *) a.
+MonadPlus m =&gt;
+RandT g m a -&gt; RandT g m [a]
+&lt;|&gt; :: forall a. RandT g m a -&gt; RandT g m a -&gt; RandT g m a
+$c&lt;|&gt; :: forall g (m :: * -&gt; *) a.
+MonadPlus m =&gt;
+RandT g m a -&gt; RandT g m a -&gt; RandT g m a
+empty :: forall a. RandT g m a
+$cempty :: forall g (m :: * -&gt; *) a. MonadPlus m =&gt; RandT g m a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Alternative</span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679062874"><span id="local-6989586621679062878"><span id="local-6989586621679062883"><span class="annot"><span class="annottext">forall a. a -&gt; RandT g m a
+forall a b. RandT g m a -&gt; RandT g m b -&gt; RandT g m b
+forall a b. RandT g m a -&gt; (a -&gt; RandT g m b) -&gt; RandT g m b
+forall g (m :: * -&gt; *). Monad m =&gt; Applicative (RandT g m)
+forall g (m :: * -&gt; *) a. Monad m =&gt; a -&gt; RandT g m a
+forall g (m :: * -&gt; *) a b.
+Monad m =&gt;
+RandT g m a -&gt; RandT g m b -&gt; RandT g m b
+forall g (m :: * -&gt; *) a b.
+Monad m =&gt;
+RandT g m a -&gt; (a -&gt; RandT g m b) -&gt; RandT g m b
+forall (m :: * -&gt; *).
+Applicative m
+-&gt; (forall a b. m a -&gt; (a -&gt; m b) -&gt; m b)
+-&gt; (forall a b. m a -&gt; m b -&gt; m b)
+-&gt; (forall a. a -&gt; m a)
+-&gt; Monad m
+return :: forall a. a -&gt; RandT g m a
+$creturn :: forall g (m :: * -&gt; *) a. Monad m =&gt; a -&gt; RandT g m a
+&gt;&gt; :: forall a b. RandT g m a -&gt; RandT g m b -&gt; RandT g m b
+$c&gt;&gt; :: forall g (m :: * -&gt; *) a b.
+Monad m =&gt;
+RandT g m a -&gt; RandT g m b -&gt; RandT g m b
+&gt;&gt;= :: forall a b. RandT g m a -&gt; (a -&gt; RandT g m b) -&gt; RandT g m b
+$c&gt;&gt;= :: forall g (m :: * -&gt; *) a b.
+Monad m =&gt;
+RandT g m a -&gt; (a -&gt; RandT g m b) -&gt; RandT g m b
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Monad</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679062857"><span id="local-6989586621679062862"><span class="annot"><span class="annottext">forall a. RandT g m a
+forall a. RandT g m a -&gt; RandT g m a -&gt; RandT g m a
+forall {g} {m :: * -&gt; *}. MonadPlus m =&gt; Monad (RandT g m)
+forall g (m :: * -&gt; *). MonadPlus m =&gt; Alternative (RandT g m)
+forall g (m :: * -&gt; *) a. MonadPlus m =&gt; RandT g m a
+forall g (m :: * -&gt; *) a.
+MonadPlus m =&gt;
+RandT g m a -&gt; RandT g m a -&gt; RandT g m a
+forall (m :: * -&gt; *).
+Alternative m
+-&gt; Monad m
+-&gt; (forall a. m a)
+-&gt; (forall a. m a -&gt; m a -&gt; m a)
+-&gt; MonadPlus m
+mplus :: forall a. RandT g m a -&gt; RandT g m a -&gt; RandT g m a
+$cmplus :: forall g (m :: * -&gt; *) a.
+MonadPlus m =&gt;
+RandT g m a -&gt; RandT g m a -&gt; RandT g m a
+mzero :: forall a. RandT g m a
+$cmzero :: forall g (m :: * -&gt; *) a. MonadPlus m =&gt; RandT g m a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">MonadPlus</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679062849"><span class="annot"><span class="annottext">forall g (m :: * -&gt; *) a. Monad m =&gt; m a -&gt; RandT g m a
+forall (m :: * -&gt; *) a. Monad m =&gt; m a -&gt; RandT g m a
+forall (t :: (* -&gt; *) -&gt; * -&gt; *).
+(forall (m :: * -&gt; *) a. Monad m =&gt; m a -&gt; t m a) -&gt; MonadTrans t
+lift :: forall (m :: * -&gt; *) a. Monad m =&gt; m a -&gt; RandT g m a
+$clift :: forall g (m :: * -&gt; *) a. Monad m =&gt; m a -&gt; RandT g m a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">MonadTrans</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679062836"><span class="annot"><span class="annottext">forall a. IO a -&gt; RandT g m a
+forall {g} {m :: * -&gt; *}. MonadIO m =&gt; Monad (RandT g m)
+forall g (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; RandT g m a
+forall (m :: * -&gt; *).
+Monad m -&gt; (forall a. IO a -&gt; m a) -&gt; MonadIO m
+liftIO :: forall a. IO a -&gt; RandT g m a
+$cliftIO :: forall g (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; RandT g m a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var">MonadIO</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679062824"><span class="annot"><span class="annottext">forall a. (a -&gt; RandT g m a) -&gt; RandT g m a
+forall {g} {m :: * -&gt; *}. MonadFix m =&gt; Monad (RandT g m)
+forall g (m :: * -&gt; *) a.
+MonadFix m =&gt;
+(a -&gt; RandT g m a) -&gt; RandT g m a
+forall (m :: * -&gt; *).
+Monad m -&gt; (forall a. (a -&gt; m a) -&gt; m a) -&gt; MonadFix m
+mfix :: forall a. (a -&gt; RandT g m a) -&gt; RandT g m a
+$cmfix :: forall g (m :: * -&gt; *) a.
+MonadFix m =&gt;
+(a -&gt; RandT g m a) -&gt; RandT g m a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var">MonadFix</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679062803"><span id="local-6989586621679062807"><span id="local-6989586621679062812"><span id="local-6989586621679063264"><span class="annot"><span class="hs-identifier hs-type">MonadReader</span></span><span> </span><span class="annot"><a href="#local-6989586621679063264"><span class="hs-identifier hs-type">r</span></a></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679062776"><span id="local-6989586621679062780"><span id="local-6989586621679062784"><span id="local-6989586621679062789"><span id="local-6989586621679063248"><span class="annot"><span class="hs-identifier hs-type">MonadWriter</span></span><span> </span><span class="annot"><a href="#local-6989586621679063248"><span class="hs-identifier hs-type">w</span></a></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-157"></span><span>
+</span><span id="line-158"></span><span class="hs-comment">-- | Construct a random monad computation from an impure function.</span><span>
+</span><span id="line-159"></span><span class="hs-comment">-- (The inverse of 'runRandT'.)</span><span>
+</span><span id="line-160"></span><span id="local-6989586621679063245"><span id="local-6989586621679063246"><span id="local-6989586621679063247"><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#liftRandT"><span class="hs-identifier hs-type">liftRandT</span></a></span><span>
+</span><span id="line-161"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679063247"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679063246"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679063245"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679063247"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-162"></span><span>  </span><span class="hs-comment">-- ^ impure random transformer</span><span>
+</span><span id="line-163"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#RandT"><span class="hs-identifier hs-type">RandT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063247"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063246"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063245"><span class="hs-identifier hs-type">a</span></a></span></span></span></span><span>
+</span><span id="line-164"></span><span>  </span><span class="hs-comment">-- ^ equivalent generator-passing computation</span><span>
+</span><span id="line-165"></span><span id="liftRandT"><span class="annot"><span class="annottext">liftRandT :: forall g (m :: * -&gt; *) a. (g -&gt; m (a, g)) -&gt; RandT g m a
+</span><a href="Control.Monad.Trans.Random.Lazy.html#liftRandT"><span class="hs-identifier hs-var hs-var">liftRandT</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall g (m :: * -&gt; *) a. StateT g m a -&gt; RandT g m a
+</span><a href="Control.Monad.Trans.Random.Lazy.html#RandT"><span class="hs-identifier hs-var">RandT</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall s (m :: * -&gt; *) a. (s -&gt; m (a, s)) -&gt; StateT s m a
+</span><span class="hs-identifier hs-var">LazyState.StateT</span></span><span>
+</span><span id="line-166"></span><span>
+</span><span id="line-167"></span><span class="hs-comment">-- | Unwrap a random monad computation as an impure function.</span><span>
+</span><span id="line-168"></span><span class="hs-comment">-- (The inverse of 'liftRandT'.)</span><span>
+</span><span id="line-169"></span><span id="local-6989586621679063415"><span id="local-6989586621679063416"><span id="local-6989586621679063417"><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#runRandT"><span class="hs-identifier hs-type">runRandT</span></a></span><span>
+</span><span id="line-170"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#RandT"><span class="hs-identifier hs-type">RandT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063417"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063416"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063415"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-171"></span><span>  </span><span class="hs-comment">-- ^ generator-passing computation to execute</span><span>
+</span><span id="line-172"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679063417"><span class="hs-identifier hs-type">g</span></a></span><span>
+</span><span id="line-173"></span><span>  </span><span class="hs-comment">-- ^ initial generator</span><span>
+</span><span id="line-174"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679063416"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679063415"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679063417"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-175"></span><span>  </span><span class="hs-comment">-- ^ return value and final generator</span><span>
+</span><span id="line-176"></span><span id="runRandT"><span class="annot"><span class="annottext">runRandT :: forall g (m :: * -&gt; *) a. RandT g m a -&gt; g -&gt; m (a, g)
+</span><a href="Control.Monad.Trans.Random.Lazy.html#runRandT"><span class="hs-identifier hs-var hs-var">runRandT</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall s (m :: * -&gt; *) a. StateT s m a -&gt; s -&gt; m (a, s)
+</span><span class="hs-identifier hs-var">LazyState.runStateT</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall g (m :: * -&gt; *) a. RandT g m a -&gt; StateT g m a
+</span><a href="Control.Monad.Trans.Random.Lazy.html#unRandT"><span class="hs-identifier hs-var">unRandT</span></a></span><span>
+</span><span id="line-177"></span><span>
+</span><span id="line-178"></span><span class="hs-comment">-- | Evaluate a random computation with the given initial generator and return</span><span>
+</span><span id="line-179"></span><span class="hs-comment">-- the final value, discarding the final generator.</span><span>
+</span><span id="line-180"></span><span class="hs-comment">--</span><span>
+</span><span id="line-181"></span><span class="hs-comment">-- * @'evalRandT' m g = liftM fst ('runRandT' m g)@</span><span>
+</span><span id="line-182"></span><span id="local-6989586621679063408"><span id="local-6989586621679063409"><span id="local-6989586621679063410"><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#evalRandT"><span class="hs-identifier hs-type">evalRandT</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679063410"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#RandT"><span class="hs-identifier hs-type">RandT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063409"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063410"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063408"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679063409"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679063410"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063408"><span class="hs-identifier hs-type">a</span></a></span></span></span></span><span>
+</span><span id="line-183"></span><span id="evalRandT"><span class="annot"><span class="annottext">evalRandT :: forall (m :: * -&gt; *) g a. Monad m =&gt; RandT g m a -&gt; g -&gt; m a
+</span><a href="Control.Monad.Trans.Random.Lazy.html#evalRandT"><span class="hs-identifier hs-var hs-var">evalRandT</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) s a. Monad m =&gt; StateT s m a -&gt; s -&gt; m a
+</span><span class="hs-identifier hs-var">LazyState.evalStateT</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall g (m :: * -&gt; *) a. RandT g m a -&gt; StateT g m a
+</span><a href="Control.Monad.Trans.Random.Lazy.html#unRandT"><span class="hs-identifier hs-var">unRandT</span></a></span><span>
+</span><span id="line-184"></span><span>
+</span><span id="line-185"></span><span class="hs-comment">-- | Evaluate a random computation with the given initial generator and return</span><span>
+</span><span id="line-186"></span><span class="hs-comment">-- the final generator, discarding the final value.</span><span>
+</span><span id="line-187"></span><span class="hs-comment">--</span><span>
+</span><span id="line-188"></span><span class="hs-comment">-- * @'execRandT' m g = liftM snd ('runRandT' m g)@</span><span>
+</span><span id="line-189"></span><span id="local-6989586621679063401"><span id="local-6989586621679063402"><span id="local-6989586621679063403"><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#execRandT"><span class="hs-identifier hs-type">execRandT</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679063403"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#RandT"><span class="hs-identifier hs-type">RandT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063402"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063403"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063401"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679063402"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679063403"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063402"><span class="hs-identifier hs-type">g</span></a></span></span></span></span><span>
+</span><span id="line-190"></span><span id="execRandT"><span class="annot"><span class="annottext">execRandT :: forall (m :: * -&gt; *) g a. Monad m =&gt; RandT g m a -&gt; g -&gt; m g
+</span><a href="Control.Monad.Trans.Random.Lazy.html#execRandT"><span class="hs-identifier hs-var hs-var">execRandT</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) s a. Monad m =&gt; StateT s m a -&gt; s -&gt; m s
+</span><span class="hs-identifier hs-var">LazyState.execStateT</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall g (m :: * -&gt; *) a. RandT g m a -&gt; StateT g m a
+</span><a href="Control.Monad.Trans.Random.Lazy.html#unRandT"><span class="hs-identifier hs-var">unRandT</span></a></span><span>
+</span><span id="line-191"></span><span>
+</span><span id="line-192"></span><span class="hs-comment">-- | Map both the return value and final generator of a computation using the</span><span>
+</span><span id="line-193"></span><span class="hs-comment">-- given function.</span><span>
+</span><span id="line-194"></span><span class="hs-comment">--</span><span>
+</span><span id="line-195"></span><span class="hs-comment">-- * @'runRandT' ('mapRandT' f m) = f . 'runRandT' m@</span><span>
+</span><span id="line-196"></span><span id="local-6989586621679063390"><span id="local-6989586621679063391"><span id="local-6989586621679063392"><span id="local-6989586621679063393"><span id="local-6989586621679063394"><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#mapRandT"><span class="hs-identifier hs-type">mapRandT</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679063394"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679063393"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679063392"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679063391"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679063390"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679063392"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#RandT"><span class="hs-identifier hs-type">RandT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063392"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063394"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063393"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#RandT"><span class="hs-identifier hs-type">RandT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063392"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063391"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063390"><span class="hs-identifier hs-type">b</span></a></span></span></span></span></span></span><span>
+</span><span id="line-197"></span><span id="mapRandT"><span class="annot"><span class="annottext">mapRandT :: forall (m :: * -&gt; *) a g (n :: * -&gt; *) b.
+(m (a, g) -&gt; n (b, g)) -&gt; RandT g m a -&gt; RandT g n b
+</span><a href="Control.Monad.Trans.Random.Lazy.html#mapRandT"><span class="hs-identifier hs-var hs-var">mapRandT</span></a></span></span><span> </span><span id="local-6989586621679062761"><span class="annot"><span class="annottext">m (a, g) -&gt; n (b, g)
+</span><a href="#local-6989586621679062761"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall g (m :: * -&gt; *) a. StateT g m a -&gt; RandT g m a
+</span><a href="Control.Monad.Trans.Random.Lazy.html#RandT"><span class="hs-identifier hs-var">RandT</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a s (n :: * -&gt; *) b.
+(m (a, s) -&gt; n (b, s)) -&gt; StateT s m a -&gt; StateT s n b
+</span><span class="hs-identifier hs-var">LazyState.mapStateT</span></span><span> </span><span class="annot"><span class="annottext">m (a, g) -&gt; n (b, g)
+</span><a href="#local-6989586621679062761"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall g (m :: * -&gt; *) a. RandT g m a -&gt; StateT g m a
+</span><a href="Control.Monad.Trans.Random.Lazy.html#unRandT"><span class="hs-identifier hs-var">unRandT</span></a></span><span>
+</span><span id="line-198"></span><span>
+</span><span id="line-199"></span><span class="hs-comment">-- | @'withRandT' f m@ executes action @m@ on a generator modified by applying @f@.</span><span>
+</span><span id="line-200"></span><span class="hs-comment">--</span><span>
+</span><span id="line-201"></span><span class="hs-comment">-- * @'withRandT' f m = 'modify' f &gt;&gt; m@</span><span>
+</span><span id="line-202"></span><span id="local-6989586621679063382"><span id="local-6989586621679063383"><span id="local-6989586621679063384"><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#withRandT"><span class="hs-identifier hs-type">withRandT</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679063384"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679063384"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#RandT"><span class="hs-identifier hs-type">RandT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063384"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063383"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063382"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#RandT"><span class="hs-identifier hs-type">RandT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063384"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063383"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063382"><span class="hs-identifier hs-type">a</span></a></span></span></span></span><span>
+</span><span id="line-203"></span><span id="withRandT"><span class="annot"><span class="annottext">withRandT :: forall g (m :: * -&gt; *) a. (g -&gt; g) -&gt; RandT g m a -&gt; RandT g m a
+</span><a href="Control.Monad.Trans.Random.Lazy.html#withRandT"><span class="hs-identifier hs-var hs-var">withRandT</span></a></span></span><span> </span><span id="local-6989586621679062759"><span class="annot"><span class="annottext">g -&gt; g
+</span><a href="#local-6989586621679062759"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall g (m :: * -&gt; *) a. StateT g m a -&gt; RandT g m a
+</span><a href="Control.Monad.Trans.Random.Lazy.html#RandT"><span class="hs-identifier hs-var">RandT</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall s (m :: * -&gt; *) a. (s -&gt; s) -&gt; StateT s m a -&gt; StateT s m a
+</span><span class="hs-identifier hs-var">LazyState.withStateT</span></span><span> </span><span class="annot"><span class="annottext">g -&gt; g
+</span><a href="#local-6989586621679062759"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall g (m :: * -&gt; *) a. RandT g m a -&gt; StateT g m a
+</span><a href="Control.Monad.Trans.Random.Lazy.html#unRandT"><span class="hs-identifier hs-var">unRandT</span></a></span><span>
+</span><span id="line-204"></span><span>
+</span><span id="line-205"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679063197"><span id="local-6989586621679063198"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MonadCont</span></span><span> </span><span class="annot"><a href="#local-6989586621679063198"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadCont</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#RandT"><span class="hs-identifier hs-type">RandT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063197"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063198"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-206"></span><span>  </span><span id="local-6989586621679062748"><span class="annot"><span class="annottext">callCC :: forall a b. ((a -&gt; RandT g m b) -&gt; RandT g m a) -&gt; RandT g m a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">callCC</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a g b.
+CallCC m (a, g) (b, g) -&gt; CallCC (RandT g m) a b
+</span><a href="Control.Monad.Trans.Random.Lazy.html#liftCallCC%27"><span class="hs-identifier hs-var">liftCallCC'</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. MonadCont m =&gt; ((a -&gt; m b) -&gt; m a) -&gt; m a
+</span><span class="hs-identifier hs-var">callCC</span></span><span>
+</span><span id="line-207"></span><span>
+</span><span id="line-208"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679063181"><span id="local-6989586621679063182"><span id="local-6989586621679063183"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MonadError</span></span><span> </span><span class="annot"><a href="#local-6989586621679063183"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063182"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadError</span></span><span> </span><span class="annot"><a href="#local-6989586621679063183"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#RandT"><span class="hs-identifier hs-type">RandT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063181"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063182"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-209"></span><span>  </span><span id="local-6989586621679062734"><span class="annot"><span class="annottext">throwError :: forall a. e -&gt; RandT g m a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">throwError</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTrans t, Monad m) =&gt;
+m a -&gt; t m a
+</span><span class="hs-identifier hs-var">lift</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall e (m :: * -&gt; *) a. MonadError e m =&gt; e -&gt; m a
+</span><span class="hs-identifier hs-var">throwError</span></span><span>
+</span><span id="line-210"></span><span>  </span><span id="local-6989586621679062730"><span class="annot"><span class="annottext">catchError :: forall a. RandT g m a -&gt; (e -&gt; RandT g m a) -&gt; RandT g m a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">catchError</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall e (m :: * -&gt; *) a g.
+Catch e m (a, g) -&gt; Catch e (RandT g m) a
+</span><a href="Control.Monad.Trans.Random.Lazy.html#liftCatch"><span class="hs-identifier hs-var">liftCatch</span></a></span><span> </span><span class="annot"><span class="annottext">forall e (m :: * -&gt; *) a.
+MonadError e m =&gt;
+m a -&gt; (e -&gt; m a) -&gt; m a
+</span><span class="hs-identifier hs-var">catchError</span></span><span>
+</span><span id="line-211"></span><span>
+</span><span id="line-212"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679063157"><span id="local-6989586621679063158"><span id="local-6989586621679063159"><span id="local-6989586621679063160"><span id="local-6989586621679063161"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MonadReader</span></span><span> </span><span class="annot"><a href="#local-6989586621679063161"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063160"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadWriter</span></span><span> </span><span class="annot"><a href="#local-6989586621679063159"><span class="hs-identifier hs-type">w</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063160"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadState</span></span><span> </span><span class="annot"><a href="#local-6989586621679063158"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063160"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadRWS</span></span><span> </span><span class="annot"><a href="#local-6989586621679063161"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063159"><span class="hs-identifier hs-type">w</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063158"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#RandT"><span class="hs-identifier hs-type">RandT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063157"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063160"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span></span></span><span>
+</span><span id="line-213"></span><span>
+</span><span id="line-214"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679063145"><span id="local-6989586621679063146"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">RandomGen</span></span><span> </span><span class="annot"><a href="#local-6989586621679063146"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679063145"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Random.Class.html#MonadRandom"><span class="hs-identifier hs-type">MonadRandom</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#RandT"><span class="hs-identifier hs-type">RandT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063146"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063145"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-215"></span><span>  </span><span id="local-6989586621679062700"><span class="annot"><span class="annottext">getRandomR :: forall a. Random a =&gt; (a, a) -&gt; RandT g m a
+</span><a href="Control.Monad.Random.Class.html#getRandomR"><span class="hs-identifier hs-var hs-var hs-var hs-var">getRandomR</span></a></span></span><span> </span><span id="local-6989586621679062698"><span class="annot"><span class="annottext">(a, a)
+</span><a href="#local-6989586621679062698"><span class="hs-identifier hs-var">lohi</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall g (m :: * -&gt; *) a. StateT g m a -&gt; RandT g m a
+</span><a href="Control.Monad.Trans.Random.Lazy.html#RandT"><span class="hs-identifier hs-var">RandT</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall s (m :: * -&gt; *) a. MonadState s m =&gt; (s -&gt; (a, s)) -&gt; m a
+</span><span class="hs-identifier hs-var">state</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall a g. (Random a, RandomGen g) =&gt; (a, a) -&gt; g -&gt; (a, g)
+</span><span class="hs-identifier hs-var">randomR</span></span><span> </span><span class="annot"><span class="annottext">(a, a)
+</span><a href="#local-6989586621679062698"><span class="hs-identifier hs-var">lohi</span></a></span><span>
+</span><span id="line-216"></span><span>  </span><span id="local-6989586621679062692"><span class="annot"><span class="annottext">getRandom :: forall a. Random a =&gt; RandT g m a
+</span><a href="Control.Monad.Random.Class.html#getRandom"><span class="hs-identifier hs-var hs-var hs-var hs-var">getRandom</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall g (m :: * -&gt; *) a. StateT g m a -&gt; RandT g m a
+</span><a href="Control.Monad.Trans.Random.Lazy.html#RandT"><span class="hs-identifier hs-var">RandT</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall s (m :: * -&gt; *) a. MonadState s m =&gt; (s -&gt; (a, s)) -&gt; m a
+</span><span class="hs-identifier hs-var">state</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall a g. (Random a, RandomGen g) =&gt; g -&gt; (a, g)
+</span><span class="hs-identifier hs-var">random</span></span><span>
+</span><span id="line-217"></span><span>  </span><span id="local-6989586621679062682"><span class="annot"><span class="annottext">getRandomRs :: forall a. Random a =&gt; (a, a) -&gt; RandT g m [a]
+</span><a href="Control.Monad.Random.Class.html#getRandomRs"><span class="hs-identifier hs-var hs-var hs-var hs-var">getRandomRs</span></a></span></span><span> </span><span id="local-6989586621679062680"><span class="annot"><span class="annottext">(a, a)
+</span><a href="#local-6989586621679062680"><span class="hs-identifier hs-var">lohi</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall g (m :: * -&gt; *) a. StateT g m a -&gt; RandT g m a
+</span><a href="Control.Monad.Trans.Random.Lazy.html#RandT"><span class="hs-identifier hs-var">RandT</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall s (m :: * -&gt; *) a. MonadState s m =&gt; (s -&gt; (a, s)) -&gt; m a
+</span><span class="hs-identifier hs-var">state</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (a :: * -&gt; * -&gt; *) b c d.
+Arrow a =&gt;
+a b c -&gt; a (b, d) (c, d)
+</span><span class="hs-identifier hs-var">first</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a g. (Random a, RandomGen g) =&gt; (a, a) -&gt; g -&gt; [a]
+</span><span class="hs-identifier hs-var">randomRs</span></span><span> </span><span class="annot"><span class="annottext">(a, a)
+</span><a href="#local-6989586621679062680"><span class="hs-identifier hs-var">lohi</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall g. RandomGen g =&gt; g -&gt; (g, g)
+</span><span class="hs-identifier hs-var">split</span></span><span>
+</span><span id="line-218"></span><span>  </span><span id="local-6989586621679062671"><span class="annot"><span class="annottext">getRandoms :: forall a. Random a =&gt; RandT g m [a]
+</span><a href="Control.Monad.Random.Class.html#getRandoms"><span class="hs-identifier hs-var hs-var hs-var hs-var">getRandoms</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall g (m :: * -&gt; *) a. StateT g m a -&gt; RandT g m a
+</span><a href="Control.Monad.Trans.Random.Lazy.html#RandT"><span class="hs-identifier hs-var">RandT</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall s (m :: * -&gt; *) a. MonadState s m =&gt; (s -&gt; (a, s)) -&gt; m a
+</span><span class="hs-identifier hs-var">state</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (a :: * -&gt; * -&gt; *) b c d.
+Arrow a =&gt;
+a b c -&gt; a (b, d) (c, d)
+</span><span class="hs-identifier hs-var">first</span></span><span> </span><span class="annot"><span class="annottext">forall a g. (Random a, RandomGen g) =&gt; g -&gt; [a]
+</span><span class="hs-identifier hs-var">randoms</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall g. RandomGen g =&gt; g -&gt; (g, g)
+</span><span class="hs-identifier hs-var">split</span></span><span>
+</span><span id="line-219"></span><span>
+</span><span id="line-220"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679063120"><span id="local-6989586621679063121"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">RandomGen</span></span><span> </span><span class="annot"><a href="#local-6989586621679063121"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679063120"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Random.Class.html#MonadSplit"><span class="hs-identifier hs-type">MonadSplit</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063121"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#RandT"><span class="hs-identifier hs-type">RandT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063121"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063120"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-221"></span><span>  </span><span id="local-6989586621679062659"><span class="annot"><span class="annottext">getSplit :: RandT g m g
+</span><a href="Control.Monad.Random.Class.html#getSplit"><span class="hs-identifier hs-var hs-var hs-var hs-var">getSplit</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall g (m :: * -&gt; *) a. StateT g m a -&gt; RandT g m a
+</span><a href="Control.Monad.Trans.Random.Lazy.html#RandT"><span class="hs-identifier hs-var">RandT</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall s (m :: * -&gt; *) a. MonadState s m =&gt; (s -&gt; (a, s)) -&gt; m a
+</span><span class="hs-identifier hs-var">state</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall g. RandomGen g =&gt; g -&gt; (g, g)
+</span><span class="hs-identifier hs-var">split</span></span><span>
+</span><span id="line-222"></span><span>
+</span><span id="line-223"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679063113"><span id="local-6989586621679063114"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679063114"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">RandomGen</span></span><span> </span><span class="annot"><a href="#local-6989586621679063113"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Random.Class.html#MonadInterleave"><span class="hs-identifier hs-type">MonadInterleave</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#RandT"><span class="hs-identifier hs-type">RandT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063113"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063114"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-224"></span><span>  </span><span id="local-6989586621679062648"><span class="annot"><span class="annottext">interleave :: forall a. RandT g m a -&gt; RandT g m a
+</span><a href="Control.Monad.Random.Class.html#interleave"><span class="hs-identifier hs-var hs-var hs-var hs-var">interleave</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#RandT"><span class="hs-identifier hs-type">RandT</span></a></span><span> </span><span id="local-6989586621679062646"><span class="annot"><span class="annottext">StateT g m a
+</span><a href="#local-6989586621679062646"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall g (m :: * -&gt; *) a. (g -&gt; m (a, g)) -&gt; RandT g m a
+</span><a href="Control.Monad.Trans.Random.Lazy.html#liftRandT"><span class="hs-identifier hs-var">liftRandT</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679062645"><span class="annot"><span class="annottext">g
+</span><a href="#local-6989586621679062645"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">forall g. RandomGen g =&gt; g -&gt; (g, g)
+</span><span class="hs-identifier hs-var">split</span></span><span> </span><span class="annot"><span class="annottext">g
+</span><a href="#local-6989586621679062645"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-225"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621679062644"><span class="annot"><span class="annottext">g
+</span><a href="#local-6989586621679062644"><span class="hs-identifier hs-var">gl</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679062643"><span class="annot"><span class="annottext">g
+</span><a href="#local-6989586621679062643"><span class="hs-identifier hs-var">gr</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a1 r. Monad m =&gt; (a1 -&gt; r) -&gt; m a1 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679062642"><span class="annot"><span class="annottext">(a, g)
+</span><a href="#local-6989586621679062642"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. (a, b) -&gt; a
+</span><span class="hs-identifier hs-var">fst</span></span><span> </span><span class="annot"><span class="annottext">(a, g)
+</span><a href="#local-6989586621679062642"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">g
+</span><a href="#local-6989586621679062643"><span class="hs-identifier hs-var">gr</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall s (m :: * -&gt; *) a. StateT s m a -&gt; s -&gt; m (a, s)
+</span><span class="hs-identifier hs-var">LazyState.runStateT</span></span><span> </span><span class="annot"><span class="annottext">StateT g m a
+</span><a href="#local-6989586621679062646"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">g
+</span><a href="#local-6989586621679062644"><span class="hs-identifier hs-var">gl</span></a></span><span>
+</span><span id="line-226"></span><span>
+</span><span id="line-227"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679062636"><span id="local-6989586621679063162"><span id="local-6989586621679063163"><span id="local-6989586621679063164"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MonadState</span></span><span> </span><span class="annot"><a href="#local-6989586621679063164"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063163"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadState</span></span><span> </span><span class="annot"><a href="#local-6989586621679063164"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#RandT"><span class="hs-identifier hs-type">RandT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063162"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063163"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-228"></span><span>  </span><span id="local-6989586621679062631"><span class="annot"><span class="annottext">get :: RandT g m s
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">get</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTrans t, Monad m) =&gt;
+m a -&gt; t m a
+</span><span class="hs-identifier hs-var">lift</span></span><span> </span><span class="annot"><span class="annottext">forall s (m :: * -&gt; *). MonadState s m =&gt; m s
+</span><span class="hs-identifier hs-var">get</span></span><span>
+</span><span id="line-229"></span><span>  </span><span id="local-6989586621679062626"><span class="annot"><span class="annottext">put :: s -&gt; RandT g m ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">put</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTrans t, Monad m) =&gt;
+m a -&gt; t m a
+</span><span class="hs-identifier hs-var">lift</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall s (m :: * -&gt; *). MonadState s m =&gt; s -&gt; m ()
+</span><span class="hs-identifier hs-var">put</span></span><span>
+</span><span id="line-230"></span><span>
+</span><span id="line-231"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679063102"><span id="local-6989586621679063103"><span class="annot"><span class="hs-identifier hs-type">PrimMonad</span></span><span> </span><span class="annot"><a href="#local-6989586621679063103"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">PrimMonad</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#RandT"><span class="hs-identifier hs-type">RandT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063102"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063103"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-232"></span><span>  </span><span class="hs-keyword">type</span><span> </span><span id="PrimState"><span class="annot"><span class="hs-identifier hs-var">PrimState</span></span></span><span> </span><span id="local-6989586621679063102"><span id="local-6989586621679063103"><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#RandT"><span class="hs-identifier hs-type">RandT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063102"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063103"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">PrimState</span></span><span> </span><span class="annot"><a href="#local-6989586621679063103"><span class="hs-identifier hs-type">m</span></a></span><span>
+</span><span id="line-233"></span><span>  </span><span id="local-6989586621679062613"><span class="annot"><span class="annottext">primitive :: forall a.
+(State# (PrimState (RandT s m))
+ -&gt; (# State# (PrimState (RandT s m)), a #))
+-&gt; RandT s m a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">primitive</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTrans t, Monad m) =&gt;
+m a -&gt; t m a
+</span><span class="hs-identifier hs-var">lift</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a.
+PrimMonad m =&gt;
+(State# (PrimState m) -&gt; (# State# (PrimState m), a #)) -&gt; m a
+</span><span class="hs-identifier hs-var">primitive</span></span><span>
+</span><span id="line-234"></span><span>
+</span><span id="line-235"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679063095"><span id="local-6989586621679063096"><span class="annot"><span class="hs-identifier hs-type">Fail.MonadFail</span></span><span> </span><span class="annot"><a href="#local-6989586621679063096"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Fail.MonadFail</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#RandT"><span class="hs-identifier hs-type">RandT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063095"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063096"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-236"></span><span>  </span><span id="local-6989586621679062600"><span class="annot"><span class="annottext">fail :: forall a. String -&gt; RandT g m a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">fail</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTrans t, Monad m) =&gt;
+m a -&gt; t m a
+</span><span class="hs-identifier hs-var">lift</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. MonadFail m =&gt; String -&gt; m a
+</span><span class="hs-identifier hs-var">Fail.fail</span></span><span>
+</span><span id="line-237"></span><span>
+</span><span id="line-238"></span><span class="hs-comment">-- | Uniform lifting of a @callCC@ operation to the new monad.</span><span>
+</span><span id="line-239"></span><span class="hs-comment">-- This version rolls back to the original state on entering the</span><span>
+</span><span id="line-240"></span><span class="hs-comment">-- continuation.</span><span>
+</span><span id="line-241"></span><span id="local-6989586621679062596"><span id="local-6989586621679062597"><span id="local-6989586621679062598"><span id="local-6989586621679062599"><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#liftCallCC"><span class="hs-identifier hs-type">liftCallCC</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CallCC</span></span><span> </span><span class="annot"><a href="#local-6989586621679062599"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679062598"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679062597"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679062596"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679062597"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CallCC</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#RandT"><span class="hs-identifier hs-type">RandT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679062597"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679062599"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679062598"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679062596"><span class="hs-identifier hs-type">b</span></a></span></span></span></span></span><span>
+</span><span id="line-242"></span><span id="liftCallCC"><span class="annot"><span class="annottext">liftCallCC :: forall (m :: * -&gt; *) a g b.
+CallCC m (a, g) (b, g) -&gt; CallCC (RandT g m) a b
+</span><a href="Control.Monad.Trans.Random.Lazy.html#liftCallCC"><span class="hs-identifier hs-var hs-var">liftCallCC</span></a></span></span><span> </span><span id="local-6989586621679062595"><span class="annot"><span class="annottext">CallCC m (a, g) (b, g)
+</span><a href="#local-6989586621679062595"><span class="hs-identifier hs-var">callCC_</span></a></span></span><span> </span><span id="local-6989586621679062594"><span class="annot"><span class="annottext">(a -&gt; RandT g m b) -&gt; RandT g m a
+</span><a href="#local-6989586621679062594"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall g (m :: * -&gt; *) a. StateT g m a -&gt; RandT g m a
+</span><a href="Control.Monad.Trans.Random.Lazy.html#RandT"><span class="hs-identifier hs-var">RandT</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a s b.
+CallCC m (a, s) (b, s) -&gt; CallCC (StateT s m) a b
+</span><span class="hs-identifier hs-var">LazyState.liftCallCC</span></span><span> </span><span class="annot"><span class="annottext">CallCC m (a, g) (b, g)
+</span><a href="#local-6989586621679062595"><span class="hs-identifier hs-var">callCC_</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679062592"><span class="annot"><span class="annottext">a -&gt; StateT g m b
+</span><a href="#local-6989586621679062592"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall g (m :: * -&gt; *) a. RandT g m a -&gt; StateT g m a
+</span><a href="Control.Monad.Trans.Random.Lazy.html#unRandT"><span class="hs-identifier hs-var">unRandT</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; RandT g m b) -&gt; RandT g m a
+</span><a href="#local-6989586621679062594"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall g (m :: * -&gt; *) a. StateT g m a -&gt; RandT g m a
+</span><a href="Control.Monad.Trans.Random.Lazy.html#RandT"><span class="hs-identifier hs-var">RandT</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; StateT g m b
+</span><a href="#local-6989586621679062592"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-243"></span><span>
+</span><span id="line-244"></span><span class="hs-comment">-- | In-situ lifting of a @callCC@ operation to the new monad.</span><span>
+</span><span id="line-245"></span><span class="hs-comment">-- This version uses the current state on entering the continuation.</span><span>
+</span><span id="line-246"></span><span class="hs-comment">-- It does not satisfy the uniformity property (see &quot;Control.Monad.Signatures&quot;).</span><span>
+</span><span id="line-247"></span><span id="local-6989586621679063193"><span id="local-6989586621679063194"><span id="local-6989586621679063195"><span id="local-6989586621679063196"><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#liftCallCC%27"><span class="hs-identifier hs-type">liftCallCC'</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CallCC</span></span><span> </span><span class="annot"><a href="#local-6989586621679063196"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679063195"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679063194"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679063193"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679063194"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CallCC</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#RandT"><span class="hs-identifier hs-type">RandT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063194"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063196"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679063195"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063193"><span class="hs-identifier hs-type">b</span></a></span></span></span></span></span><span>
+</span><span id="line-248"></span><span id="liftCallCC%27"><span class="annot"><span class="annottext">liftCallCC' :: forall (m :: * -&gt; *) a g b.
+CallCC m (a, g) (b, g) -&gt; CallCC (RandT g m) a b
+</span><a href="Control.Monad.Trans.Random.Lazy.html#liftCallCC%27"><span class="hs-identifier hs-var hs-var">liftCallCC'</span></a></span></span><span> </span><span id="local-6989586621679062591"><span class="annot"><span class="annottext">CallCC m (a, g) (b, g)
+</span><a href="#local-6989586621679062591"><span class="hs-identifier hs-var">callCC_</span></a></span></span><span> </span><span id="local-6989586621679062590"><span class="annot"><span class="annottext">(a -&gt; RandT g m b) -&gt; RandT g m a
+</span><a href="#local-6989586621679062590"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall g (m :: * -&gt; *) a. StateT g m a -&gt; RandT g m a
+</span><a href="Control.Monad.Trans.Random.Lazy.html#RandT"><span class="hs-identifier hs-var">RandT</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a s b.
+CallCC m (a, s) (b, s) -&gt; CallCC (StateT s m) a b
+</span><span class="hs-identifier hs-var">LazyState.liftCallCC'</span></span><span> </span><span class="annot"><span class="annottext">CallCC m (a, g) (b, g)
+</span><a href="#local-6989586621679062591"><span class="hs-identifier hs-var">callCC_</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679062588"><span class="annot"><span class="annottext">a -&gt; StateT g m b
+</span><a href="#local-6989586621679062588"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall g (m :: * -&gt; *) a. RandT g m a -&gt; StateT g m a
+</span><a href="Control.Monad.Trans.Random.Lazy.html#unRandT"><span class="hs-identifier hs-var">unRandT</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; RandT g m b) -&gt; RandT g m a
+</span><a href="#local-6989586621679062590"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall g (m :: * -&gt; *) a. StateT g m a -&gt; RandT g m a
+</span><a href="Control.Monad.Trans.Random.Lazy.html#RandT"><span class="hs-identifier hs-var">RandT</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; StateT g m b
+</span><a href="#local-6989586621679062588"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-249"></span><span>
+</span><span id="line-250"></span><span class="hs-comment">-- | Lift a @catchE@ operation to the new monad.</span><span>
+</span><span id="line-251"></span><span id="local-6989586621679063176"><span id="local-6989586621679063177"><span id="local-6989586621679063178"><span id="local-6989586621679063179"><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#liftCatch"><span class="hs-identifier hs-type">liftCatch</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Catch</span></span><span> </span><span class="annot"><a href="#local-6989586621679063179"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063178"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679063177"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679063176"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Catch</span></span><span> </span><span class="annot"><a href="#local-6989586621679063179"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#RandT"><span class="hs-identifier hs-type">RandT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063176"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063178"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679063177"><span class="hs-identifier hs-type">a</span></a></span></span></span></span></span><span>
+</span><span id="line-252"></span><span id="liftCatch"><span class="annot"><span class="annottext">liftCatch :: forall e (m :: * -&gt; *) a g.
+Catch e m (a, g) -&gt; Catch e (RandT g m) a
+</span><a href="Control.Monad.Trans.Random.Lazy.html#liftCatch"><span class="hs-identifier hs-var hs-var">liftCatch</span></a></span></span><span> </span><span id="local-6989586621679062587"><span class="annot"><span class="annottext">Catch e m (a, g)
+</span><a href="#local-6989586621679062587"><span class="hs-identifier hs-var">catchE_</span></a></span></span><span> </span><span id="local-6989586621679062586"><span class="annot"><span class="annottext">RandT g m a
+</span><a href="#local-6989586621679062586"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span id="local-6989586621679062585"><span class="annot"><span class="annottext">e -&gt; RandT g m a
+</span><a href="#local-6989586621679062585"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall g (m :: * -&gt; *) a. StateT g m a -&gt; RandT g m a
+</span><a href="Control.Monad.Trans.Random.Lazy.html#RandT"><span class="hs-identifier hs-var">RandT</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall e (m :: * -&gt; *) a s.
+Catch e m (a, s) -&gt; Catch e (StateT s m) a
+</span><span class="hs-identifier hs-var">LazyState.liftCatch</span></span><span> </span><span class="annot"><span class="annottext">Catch e m (a, g)
+</span><a href="#local-6989586621679062587"><span class="hs-identifier hs-var">catchE_</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall g (m :: * -&gt; *) a. RandT g m a -&gt; StateT g m a
+</span><a href="Control.Monad.Trans.Random.Lazy.html#unRandT"><span class="hs-identifier hs-var">unRandT</span></a></span><span> </span><span class="annot"><span class="annottext">RandT g m a
+</span><a href="#local-6989586621679062586"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall g (m :: * -&gt; *) a. RandT g m a -&gt; StateT g m a
+</span><a href="Control.Monad.Trans.Random.Lazy.html#unRandT"><span class="hs-identifier hs-var">unRandT</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">e -&gt; RandT g m a
+</span><a href="#local-6989586621679062585"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-253"></span><span>
+</span><span id="line-254"></span><span class="hs-comment">-- | Lift a @listen@ operation to the new monad.</span><span>
+</span><span id="line-255"></span><span id="local-6989586621679063070"><span id="local-6989586621679063071"><span id="local-6989586621679063072"><span id="local-6989586621679063073"><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#liftListen"><span class="hs-identifier hs-type">liftListen</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679063073"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Listen</span></span><span> </span><span class="annot"><a href="#local-6989586621679063072"><span class="hs-identifier hs-type">w</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063073"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679063071"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679063070"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Listen</span></span><span> </span><span class="annot"><a href="#local-6989586621679063072"><span class="hs-identifier hs-type">w</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#RandT"><span class="hs-identifier hs-type">RandT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063070"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063073"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679063071"><span class="hs-identifier hs-type">a</span></a></span></span></span></span></span><span>
+</span><span id="line-256"></span><span id="liftListen"><span class="annot"><span class="annottext">liftListen :: forall (m :: * -&gt; *) w a g.
+Monad m =&gt;
+Listen w m (a, g) -&gt; Listen w (RandT g m) a
+</span><a href="Control.Monad.Trans.Random.Lazy.html#liftListen"><span class="hs-identifier hs-var hs-var">liftListen</span></a></span></span><span> </span><span id="local-6989586621679062581"><span class="annot"><span class="annottext">Listen w m (a, g)
+</span><a href="#local-6989586621679062581"><span class="hs-identifier hs-var">listen_</span></a></span></span><span> </span><span id="local-6989586621679062580"><span class="annot"><span class="annottext">RandT g m a
+</span><a href="#local-6989586621679062580"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall g (m :: * -&gt; *) a. StateT g m a -&gt; RandT g m a
+</span><a href="Control.Monad.Trans.Random.Lazy.html#RandT"><span class="hs-identifier hs-var">RandT</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) w a s.
+Monad m =&gt;
+Listen w m (a, s) -&gt; Listen w (StateT s m) a
+</span><span class="hs-identifier hs-var">LazyState.liftListen</span></span><span> </span><span class="annot"><span class="annottext">Listen w m (a, g)
+</span><a href="#local-6989586621679062581"><span class="hs-identifier hs-var">listen_</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall g (m :: * -&gt; *) a. RandT g m a -&gt; StateT g m a
+</span><a href="Control.Monad.Trans.Random.Lazy.html#unRandT"><span class="hs-identifier hs-var">unRandT</span></a></span><span> </span><span class="annot"><span class="annottext">RandT g m a
+</span><a href="#local-6989586621679062580"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-257"></span><span>
+</span><span id="line-258"></span><span class="hs-comment">-- | Lift a @pass@ operation to the new monad.</span><span>
+</span><span id="line-259"></span><span id="local-6989586621679063057"><span id="local-6989586621679063058"><span id="local-6989586621679063059"><span id="local-6989586621679063060"><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#liftPass"><span class="hs-identifier hs-type">liftPass</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679063060"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Pass</span></span><span> </span><span class="annot"><a href="#local-6989586621679063059"><span class="hs-identifier hs-type">w</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063060"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679063058"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679063057"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Pass</span></span><span> </span><span class="annot"><a href="#local-6989586621679063059"><span class="hs-identifier hs-type">w</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#RandT"><span class="hs-identifier hs-type">RandT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063057"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063060"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679063058"><span class="hs-identifier hs-type">a</span></a></span></span></span></span></span><span>
+</span><span id="line-260"></span><span id="liftPass"><span class="annot"><span class="annottext">liftPass :: forall (m :: * -&gt; *) w a g.
+Monad m =&gt;
+Pass w m (a, g) -&gt; Pass w (RandT g m) a
+</span><a href="Control.Monad.Trans.Random.Lazy.html#liftPass"><span class="hs-identifier hs-var hs-var">liftPass</span></a></span></span><span> </span><span id="local-6989586621679062576"><span class="annot"><span class="annottext">Pass w m (a, g)
+</span><a href="#local-6989586621679062576"><span class="hs-identifier hs-var">pass_</span></a></span></span><span> </span><span id="local-6989586621679062575"><span class="annot"><span class="annottext">RandT g m (a, w -&gt; w)
+</span><a href="#local-6989586621679062575"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall g (m :: * -&gt; *) a. StateT g m a -&gt; RandT g m a
+</span><a href="Control.Monad.Trans.Random.Lazy.html#RandT"><span class="hs-identifier hs-var">RandT</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) w a s.
+Monad m =&gt;
+Pass w m (a, s) -&gt; Pass w (StateT s m) a
+</span><span class="hs-identifier hs-var">LazyState.liftPass</span></span><span> </span><span class="annot"><span class="annottext">Pass w m (a, g)
+</span><a href="#local-6989586621679062576"><span class="hs-identifier hs-var">pass_</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall g (m :: * -&gt; *) a. RandT g m a -&gt; StateT g m a
+</span><a href="Control.Monad.Trans.Random.Lazy.html#unRandT"><span class="hs-identifier hs-var">unRandT</span></a></span><span> </span><span class="annot"><span class="annottext">RandT g m (a, w -&gt; w)
+</span><a href="#local-6989586621679062575"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-261"></span><span>
+</span><span id="line-262"></span><span class="hs-comment">-- | Evaluate a random computation in the `IO` monad, splitting the global</span><span>
+</span><span id="line-263"></span><span class="hs-comment">-- standard generator to get a new one for the computation.</span><span>
+</span><span id="line-264"></span><span id="local-6989586621679063046"><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#evalRandIO"><span class="hs-identifier hs-type">evalRandIO</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#Rand"><span class="hs-identifier hs-type">Rand</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">StdGen</span></span><span> </span><span class="annot"><a href="#local-6989586621679063046"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679063046"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-265"></span><span id="evalRandIO"><span class="annot"><span class="annottext">evalRandIO :: forall a. Rand StdGen a -&gt; IO a
+</span><a href="Control.Monad.Trans.Random.Lazy.html#evalRandIO"><span class="hs-identifier hs-var hs-var">evalRandIO</span></a></span></span><span> </span><span id="local-6989586621679062569"><span class="annot"><span class="annottext">Rand StdGen a
+</span><a href="#local-6989586621679062569"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a1 r. Monad m =&gt; (a1 -&gt; r) -&gt; m a1 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall g a. Rand g a -&gt; g -&gt; a
+</span><a href="Control.Monad.Trans.Random.Lazy.html#evalRand"><span class="hs-identifier hs-var">evalRand</span></a></span><span> </span><span class="annot"><span class="annottext">Rand StdGen a
+</span><a href="#local-6989586621679062569"><span class="hs-identifier hs-var">t</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *). MonadIO m =&gt; m StdGen
+</span><span class="hs-identifier hs-var">newStdGen</span></span><span>
+</span><span id="line-266"></span><span>
+</span><span id="line-267"></span><span class="hs-comment">-- | Evaluate a random computation that is embedded in the `IO` monad,</span><span>
+</span><span id="line-268"></span><span class="hs-comment">-- splitting the global standard generator to get a new one for the</span><span>
+</span><span id="line-269"></span><span class="hs-comment">-- computation.</span><span>
+</span><span id="line-270"></span><span id="local-6989586621679063042"><span id="local-6989586621679063043"><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#evalRandTIO"><span class="hs-identifier hs-type">evalRandTIO</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MonadIO</span></span><span> </span><span class="annot"><a href="#local-6989586621679063043"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#RandT"><span class="hs-identifier hs-type">RandT</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">StdGen</span></span><span> </span><span class="annot"><a href="#local-6989586621679063043"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063042"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679063043"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063042"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-271"></span><span id="evalRandTIO"><span class="annot"><span class="annottext">evalRandTIO :: forall (m :: * -&gt; *) a. MonadIO m =&gt; RandT StdGen m a -&gt; m a
+</span><a href="Control.Monad.Trans.Random.Lazy.html#evalRandTIO"><span class="hs-identifier hs-var hs-var">evalRandTIO</span></a></span></span><span> </span><span id="local-6989586621679062561"><span class="annot"><span class="annottext">RandT StdGen m a
+</span><a href="#local-6989586621679062561"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><span class="hs-identifier hs-var">liftIO</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *). MonadIO m =&gt; m StdGen
+</span><span class="hs-identifier hs-var">newStdGen</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) g a. Monad m =&gt; RandT g m a -&gt; g -&gt; m a
+</span><a href="Control.Monad.Trans.Random.Lazy.html#evalRandT"><span class="hs-identifier hs-var">evalRandT</span></a></span><span> </span><span class="annot"><span class="annottext">RandT StdGen m a
+</span><a href="#local-6989586621679062561"><span class="hs-identifier hs-var">t</span></a></span><span class="hs-cpp">
+
+#if MIN_VERSION_random(1,2,0)
+</span><span class="hs-comment">-- |</span><span>
+</span><span id="line-275"></span><span class="hs-comment">--</span><span>
+</span><span id="line-276"></span><span class="hs-comment">-- @since 0.5.3</span><span>
+</span><span id="line-277"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679063031"><span id="local-6989586621679063032"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679063032"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">RandomGen</span></span><span> </span><span class="annot"><a href="#local-6989586621679063031"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">StatefulGen</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Random.Strict.html#RandGen"><span class="hs-identifier hs-type">RandGen</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063031"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#RandT"><span class="hs-identifier hs-type">RandT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063031"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063032"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-278"></span><span>  </span><span id="local-6989586621679062543"><span class="annot"><span class="annottext">uniformWord32R :: Word32 -&gt; RandGen g -&gt; RandT g m Word32
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">uniformWord32R</span></span></span><span> </span><span id="local-6989586621679062541"><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679062541"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) g a.
+Applicative m =&gt;
+(g -&gt; (a, g)) -&gt; RandGen g -&gt; RandT g m a
+</span><a href="Control.Monad.Trans.Random.Lazy.html#applyRandT"><span class="hs-identifier hs-var">applyRandT</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall g. RandomGen g =&gt; Word32 -&gt; g -&gt; (Word32, g)
+</span><span class="hs-identifier hs-var">genWord32R</span></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679062541"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-279"></span><span>  </span><span id="local-6989586621679062536"><span class="annot"><span class="annottext">uniformWord64R :: Word64 -&gt; RandGen g -&gt; RandT g m Word64
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">uniformWord64R</span></span></span><span> </span><span id="local-6989586621679062534"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679062534"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) g a.
+Applicative m =&gt;
+(g -&gt; (a, g)) -&gt; RandGen g -&gt; RandT g m a
+</span><a href="Control.Monad.Trans.Random.Lazy.html#applyRandT"><span class="hs-identifier hs-var">applyRandT</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall g. RandomGen g =&gt; Word64 -&gt; g -&gt; (Word64, g)
+</span><span class="hs-identifier hs-var">genWord64R</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679062534"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-280"></span><span>  </span><span id="local-6989586621679062530"><span class="annot"><span class="annottext">uniformWord8 :: RandGen g -&gt; RandT g m Word8
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">uniformWord8</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) g a.
+Applicative m =&gt;
+(g -&gt; (a, g)) -&gt; RandGen g -&gt; RandT g m a
+</span><a href="Control.Monad.Trans.Random.Lazy.html#applyRandT"><span class="hs-identifier hs-var">applyRandT</span></a></span><span> </span><span class="annot"><span class="annottext">forall g. RandomGen g =&gt; g -&gt; (Word8, g)
+</span><span class="hs-identifier hs-var">genWord8</span></span><span>
+</span><span id="line-281"></span><span>  </span><span id="local-6989586621679062525"><span class="annot"><span class="annottext">uniformWord16 :: RandGen g -&gt; RandT g m Word16
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">uniformWord16</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) g a.
+Applicative m =&gt;
+(g -&gt; (a, g)) -&gt; RandGen g -&gt; RandT g m a
+</span><a href="Control.Monad.Trans.Random.Lazy.html#applyRandT"><span class="hs-identifier hs-var">applyRandT</span></a></span><span> </span><span class="annot"><span class="annottext">forall g. RandomGen g =&gt; g -&gt; (Word16, g)
+</span><span class="hs-identifier hs-var">genWord16</span></span><span>
+</span><span id="line-282"></span><span>  </span><span id="local-6989586621679062520"><span class="annot"><span class="annottext">uniformWord32 :: RandGen g -&gt; RandT g m Word32
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">uniformWord32</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) g a.
+Applicative m =&gt;
+(g -&gt; (a, g)) -&gt; RandGen g -&gt; RandT g m a
+</span><a href="Control.Monad.Trans.Random.Lazy.html#applyRandT"><span class="hs-identifier hs-var">applyRandT</span></a></span><span> </span><span class="annot"><span class="annottext">forall g. RandomGen g =&gt; g -&gt; (Word32, g)
+</span><span class="hs-identifier hs-var">genWord32</span></span><span>
+</span><span id="line-283"></span><span>  </span><span id="local-6989586621679062515"><span class="annot"><span class="annottext">uniformWord64 :: RandGen g -&gt; RandT g m Word64
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">uniformWord64</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) g a.
+Applicative m =&gt;
+(g -&gt; (a, g)) -&gt; RandGen g -&gt; RandT g m a
+</span><a href="Control.Monad.Trans.Random.Lazy.html#applyRandT"><span class="hs-identifier hs-var">applyRandT</span></a></span><span> </span><span class="annot"><span class="annottext">forall g. RandomGen g =&gt; g -&gt; (Word64, g)
+</span><span class="hs-identifier hs-var">genWord64</span></span><span>
+</span><span id="line-284"></span><span>  </span><span id="local-6989586621679062510"><span class="annot"><span class="annottext">uniformShortByteString :: Int -&gt; RandGen g -&gt; RandT g m ShortByteString
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">uniformShortByteString</span></span></span><span> </span><span id="local-6989586621679062508"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679062508"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) g a.
+Applicative m =&gt;
+(g -&gt; (a, g)) -&gt; RandGen g -&gt; RandT g m a
+</span><a href="Control.Monad.Trans.Random.Lazy.html#applyRandT"><span class="hs-identifier hs-var">applyRandT</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall g. RandomGen g =&gt; Int -&gt; g -&gt; (ShortByteString, g)
+</span><span class="hs-identifier hs-var">genShortByteString</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679062508"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-285"></span><span>
+</span><span id="line-286"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-287"></span><span class="hs-comment">--</span><span>
+</span><span id="line-288"></span><span class="hs-comment">-- @since 0.5.3</span><span>
+</span><span id="line-289"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679063019"><span id="local-6989586621679063020"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679063020"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">RandomGen</span></span><span> </span><span class="annot"><a href="#local-6989586621679063019"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">RandomGenM</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Random.Strict.html#RandGen"><span class="hs-identifier hs-type">RandGen</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063019"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679063019"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#RandT"><span class="hs-identifier hs-type">RandT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063019"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063020"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-290"></span><span>  </span><span id="local-6989586621679062495"><span class="annot"><span class="annottext">applyRandomGenM :: forall a. (g -&gt; (a, g)) -&gt; RandGen g -&gt; RandT g m a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">applyRandomGenM</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) g a.
+Applicative m =&gt;
+(g -&gt; (a, g)) -&gt; RandGen g -&gt; RandT g m a
+</span><a href="Control.Monad.Trans.Random.Lazy.html#applyRandT"><span class="hs-identifier hs-var">applyRandT</span></a></span><span>
+</span><span id="line-291"></span><span>
+</span><span id="line-292"></span><span id="local-6989586621679063028"><span id="local-6989586621679063029"><span id="local-6989586621679063030"><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#applyRandT"><span class="hs-identifier hs-type">applyRandT</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Applicative</span></span><span> </span><span class="annot"><a href="#local-6989586621679063030"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679063029"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679063028"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679063029"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Random.Strict.html#RandGen"><span class="hs-identifier hs-type">RandGen</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063029"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#RandT"><span class="hs-identifier hs-type">RandT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063029"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063030"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063028"><span class="hs-identifier hs-type">a</span></a></span></span></span></span><span>
+</span><span id="line-293"></span><span id="applyRandT"><span class="annot"><span class="annottext">applyRandT :: forall (m :: * -&gt; *) g a.
+Applicative m =&gt;
+(g -&gt; (a, g)) -&gt; RandGen g -&gt; RandT g m a
+</span><a href="Control.Monad.Trans.Random.Lazy.html#applyRandT"><span class="hs-identifier hs-var hs-var">applyRandT</span></a></span></span><span> </span><span id="local-6989586621679062491"><span class="annot"><span class="annottext">g -&gt; (a, g)
+</span><a href="#local-6989586621679062491"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="annot"><span class="annottext">RandGen g
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall g (m :: * -&gt; *) a. (g -&gt; m (a, g)) -&gt; RandT g m a
+</span><a href="Control.Monad.Trans.Random.Lazy.html#liftRandT"><span class="hs-identifier hs-var">liftRandT</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">g -&gt; (a, g)
+</span><a href="#local-6989586621679062491"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-296"></span><span class="hs-comment">-- | A `RandT` runner that allows using it with `StatefulGen` restricted actions. Returns</span><span>
+</span><span id="line-297"></span><span class="hs-comment">-- the outcome of random computation and the new pseudo-random-number generator</span><span>
+</span><span id="line-298"></span><span class="hs-comment">--</span><span>
+</span><span id="line-299"></span><span class="hs-comment">-- &gt;&gt;&gt; withRandGen (mkStdGen 2021) uniformM :: IO (Int, StdGen)</span><span>
+</span><span id="line-300"></span><span class="hs-comment">-- (6070831465987696718,StdGen {unStdGen = SMGen 4687568268719557181 4805600293067301895})</span><span>
+</span><span id="line-301"></span><span class="hs-comment">--</span><span>
+</span><span id="line-302"></span><span class="hs-comment">-- @since 0.5.3</span><span>
+</span><span id="line-303"></span><span id="local-6989586621679063013"><span id="local-6989586621679063014"><span id="local-6989586621679063015"><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#withRandGen"><span class="hs-identifier hs-type">withRandGen</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-304"></span><span>     </span><span class="annot"><a href="#local-6989586621679063015"><span class="hs-identifier hs-type">g</span></a></span><span>
+</span><span id="line-305"></span><span>  </span><span class="hs-comment">-- ^ initial generator</span><span>
+</span><span id="line-306"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Random.Strict.html#RandGen"><span class="hs-identifier hs-type">RandGen</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063015"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#RandT"><span class="hs-identifier hs-type">RandT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063015"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063014"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063013"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-307"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679063014"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679063013"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679063015"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-308"></span><span>  </span><span class="hs-comment">-- ^ return value and final generator</span><span>
+</span><span id="line-309"></span><span id="withRandGen"><span class="annot"><span class="annottext">withRandGen :: forall g (m :: * -&gt; *) a.
+g -&gt; (RandGen g -&gt; RandT g m a) -&gt; m (a, g)
+</span><a href="Control.Monad.Trans.Random.Lazy.html#withRandGen"><span class="hs-identifier hs-var hs-var">withRandGen</span></a></span></span><span> </span><span id="local-6989586621679062490"><span class="annot"><span class="annottext">g
+</span><a href="#local-6989586621679062490"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span id="local-6989586621679062489"><span class="annot"><span class="annottext">RandGen g -&gt; RandT g m a
+</span><a href="#local-6989586621679062489"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall g (m :: * -&gt; *) a. RandT g m a -&gt; g -&gt; m (a, g)
+</span><a href="Control.Monad.Trans.Random.Lazy.html#runRandT"><span class="hs-identifier hs-var">runRandT</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">RandGen g -&gt; RandT g m a
+</span><a href="#local-6989586621679062489"><span class="hs-identifier hs-var">action</span></a></span><span> </span><span class="annot"><span class="annottext">forall g. RandGen g
+</span><a href="Control.Monad.Trans.Random.Strict.html#RandGen"><span class="hs-identifier hs-var">RandGen</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">g
+</span><a href="#local-6989586621679062490"><span class="hs-identifier hs-var">g</span></a></span><span>
+</span><span id="line-310"></span><span>
+</span><span id="line-311"></span><span class="hs-comment">-- | Same as `withRandGen`, but discards the resulting generator.</span><span>
+</span><span id="line-312"></span><span class="hs-comment">--</span><span>
+</span><span id="line-313"></span><span class="hs-comment">-- &gt;&gt;&gt; withRandGen_ (mkStdGen 2021) uniformM :: IO Int</span><span>
+</span><span id="line-314"></span><span class="hs-comment">-- 6070831465987696718</span><span>
+</span><span id="line-315"></span><span class="hs-comment">--</span><span>
+</span><span id="line-316"></span><span class="hs-comment">-- @since 0.5.3</span><span>
+</span><span id="line-317"></span><span id="local-6989586621679063006"><span id="local-6989586621679063007"><span id="local-6989586621679063008"><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#withRandGen_"><span class="hs-identifier hs-type">withRandGen_</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-318"></span><span>     </span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679063008"><span class="hs-identifier hs-type">m</span></a></span><span>
+</span><span id="line-319"></span><span>  </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679063007"><span class="hs-identifier hs-type">g</span></a></span><span>
+</span><span id="line-320"></span><span>  </span><span class="hs-comment">-- ^ initial generator</span><span>
+</span><span id="line-321"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Random.Strict.html#RandGen"><span class="hs-identifier hs-type">RandGen</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063007"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Random.Lazy.html#RandT"><span class="hs-identifier hs-type">RandT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063007"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063008"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063006"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-322"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679063008"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063006"><span class="hs-identifier hs-type">a</span></a></span></span></span></span><span>
+</span><span id="line-323"></span><span>  </span><span class="hs-comment">-- ^ return value and final generator</span><span>
+</span><span id="line-324"></span><span id="withRandGen_"><span class="annot"><span class="annottext">withRandGen_ :: forall (m :: * -&gt; *) g a.
+Monad m =&gt;
+g -&gt; (RandGen g -&gt; RandT g m a) -&gt; m a
+</span><a href="Control.Monad.Trans.Random.Lazy.html#withRandGen_"><span class="hs-identifier hs-var hs-var">withRandGen_</span></a></span></span><span> </span><span id="local-6989586621679062485"><span class="annot"><span class="annottext">g
+</span><a href="#local-6989586621679062485"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span id="local-6989586621679062484"><span class="annot"><span class="annottext">RandGen g -&gt; RandT g m a
+</span><a href="#local-6989586621679062484"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) g a. Monad m =&gt; RandT g m a -&gt; g -&gt; m a
+</span><a href="Control.Monad.Trans.Random.Lazy.html#evalRandT"><span class="hs-identifier hs-var">evalRandT</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">RandGen g -&gt; RandT g m a
+</span><a href="#local-6989586621679062484"><span class="hs-identifier hs-var">action</span></a></span><span> </span><span class="annot"><span class="annottext">forall g. RandGen g
+</span><a href="Control.Monad.Trans.Random.Strict.html#RandGen"><span class="hs-identifier hs-var">RandGen</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">g
+</span><a href="#local-6989586621679062485"><span class="hs-identifier hs-var">g</span></a></span><span>
+</span><span id="line-325"></span><span>
+</span><span id="line-326"></span><span>
+</span><span id="line-327"></span><span class="hs-comment">{- $examples
+
+The @die@ function simulates the roll of a die, picking a number between 1
+and 6, inclusive, and returning it in the 'Rand' monad transformer.  Notice
+that this code will work with any random number generator @g@.
+
+&gt; die :: (RandomGen g) =&gt; Rand g Int
+&gt; die = getRandomR (1, 6)
+
+The @dice@ function uses @replicate@ and @sequence@ to simulate the roll of
+@n@ dice.
+
+&gt; dice :: (RandomGen g) =&gt; Int -&gt; Rand g [Int]
+&gt; dice n = sequence (replicate n die)
+
+To extract a value from the 'Rand' monad transformer, we can use 'evalRandIO'.
+
+&gt; main = do
+&gt;   values &lt;- evalRandIO (dice 2)
+&gt;   putStrLn (show values)
+
+-}</span><span>
+</span><span id="line-349"></span></pre></body></html>

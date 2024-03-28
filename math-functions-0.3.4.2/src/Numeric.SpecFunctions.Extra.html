@@ -1,0 +1,442 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- |</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- Module    : Numeric.SpecFunctions.Extra</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- Copyright : (c) 2009, 2011 Bryan O'Sullivan</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- License   : BSD3</span><span>
+</span><span id="line-5"></span><span class="hs-comment">--</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- Maintainer  : bos@serpentine.com</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Stability   : experimental</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- Portability : portable</span><span>
+</span><span id="line-9"></span><span class="hs-comment">--</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- Less common mathematical functions.</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Numeric.SpecFunctions.Extra</span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-12"></span><span>    </span><span class="annot"><a href="Numeric.SpecFunctions.Extra.html#bd0"><span class="hs-identifier">bd0</span></a></span><span>
+</span><span id="line-13"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Numeric.SpecFunctions.Internal.html#chooseExact"><span class="hs-identifier">chooseExact</span></a></span><span>
+</span><span id="line-14"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Numeric.SpecFunctions.Internal.html#logChooseFast"><span class="hs-identifier">logChooseFast</span></a></span><span>
+</span><span id="line-15"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Numeric.SpecFunctions.Extra.html#logGammaAS245"><span class="hs-identifier">logGammaAS245</span></a></span><span>
+</span><span id="line-16"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Numeric.SpecFunctions.Internal.html#logGammaCorrection"><span class="hs-identifier">logGammaCorrection</span></a></span><span>
+</span><span id="line-17"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Numeric.MathFunctions.Constants.html"><span class="hs-identifier">Numeric.MathFunctions.Constants</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Numeric.MathFunctions.Constants.html#m_NaN"><span class="hs-identifier">m_NaN</span></a></span><span class="hs-special">,</span><span class="annot"><a href="Numeric.MathFunctions.Constants.html#m_pos_inf"><span class="hs-identifier">m_pos_inf</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Numeric.SpecFunctions.Internal.html"><span class="hs-identifier">Numeric.SpecFunctions.Internal</span></a></span><span>  </span><span class="hs-special">(</span><span class="annot"><a href="Numeric.SpecFunctions.Internal.html#chooseExact"><span class="hs-identifier">chooseExact</span></a></span><span class="hs-special">,</span><span class="annot"><a href="Numeric.SpecFunctions.Internal.html#logChooseFast"><span class="hs-identifier">logChooseFast</span></a></span><span class="hs-special">,</span><span class="annot"><a href="Numeric.SpecFunctions.Internal.html#logGammaCorrection"><span class="hs-identifier">logGammaCorrection</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- | Evaluate the deviance term @x log(x/np) + np - x@.</span><span>
+</span><span id="line-23"></span><span class="annot"><a href="Numeric.SpecFunctions.Extra.html#bd0"><span class="hs-identifier hs-type">bd0</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span>                   </span><span class="hs-comment">-- ^ @x@</span><span>
+</span><span id="line-24"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span>                   </span><span class="hs-comment">-- ^ @np@</span><span>
+</span><span id="line-25"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span> </span><span>
+</span><span id="line-26"></span><span id="bd0"><span class="annot"><span class="annottext">bd0 :: Double -&gt; Double -&gt; Double
+</span><a href="Numeric.SpecFunctions.Extra.html#bd0"><span class="hs-identifier hs-var hs-var">bd0</span></a></span></span><span> </span><span id="local-6989586621679071280"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071280"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679071279"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071279"><span class="hs-identifier hs-var">np</span></a></span></span><span> </span><span>
+</span><span id="line-27"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">forall a. RealFloat a =&gt; a -&gt; Bool
+</span><span class="hs-identifier hs-var">isInfinite</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071280"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">forall a. RealFloat a =&gt; a -&gt; Bool
+</span><span class="hs-identifier hs-var">isInfinite</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071279"><span class="hs-identifier hs-var">np</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071279"><span class="hs-identifier hs-var">np</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="Numeric.MathFunctions.Constants.html#m_NaN"><span class="hs-identifier hs-var">m_NaN</span></a></span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">abs</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071275"><span class="hs-identifier hs-var">x_np</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">0.1</span></span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071280"><span class="hs-identifier hs-var">x</span></a></span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071279"><span class="hs-identifier hs-var">np</span></a></span><span class="hs-special">)</span><span>                   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071280"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">forall a. Floating a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">log</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071280"><span class="hs-identifier hs-var">x</span></a></span><span class="annot"><span class="annottext">forall a. Fractional a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">/</span></span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071279"><span class="hs-identifier hs-var">np</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071275"><span class="hs-identifier hs-var">x_np</span></a></span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>                                </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double -&gt; Double
+</span><a href="#local-6989586621679071270"><span class="hs-identifier hs-var">loop</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071269"><span class="hs-identifier hs-var">ej0</span></a></span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071268"><span class="hs-identifier hs-var">vv</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071267"><span class="hs-identifier hs-var">s0</span></a></span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-keyword">where</span><span> </span><span>
+</span><span id="line-31"></span><span>    </span><span id="local-6989586621679071275"><span class="annot"><span class="annottext">x_np :: Double
+</span><a href="#local-6989586621679071275"><span class="hs-identifier hs-var hs-var">x_np</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071280"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071279"><span class="hs-identifier hs-var">np</span></a></span><span>
+</span><span id="line-32"></span><span>    </span><span id="local-6989586621679071263"><span class="annot"><span class="annottext">v :: Double
+</span><a href="#local-6989586621679071263"><span class="hs-identifier hs-var hs-var">v</span></a></span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071275"><span class="hs-identifier hs-var">x_np</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Fractional a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">/</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071280"><span class="hs-identifier hs-var">x</span></a></span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071279"><span class="hs-identifier hs-var">np</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span>    </span><span id="local-6989586621679071267"><span class="annot"><span class="annottext">s0 :: Double
+</span><a href="#local-6989586621679071267"><span class="hs-identifier hs-var hs-var">s0</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071275"><span class="hs-identifier hs-var">x_np</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071263"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-34"></span><span>    </span><span id="local-6989586621679071269"><span class="annot"><span class="annottext">ej0 :: Double
+</span><a href="#local-6989586621679071269"><span class="hs-identifier hs-var hs-var">ej0</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">2</span></span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071280"><span class="hs-identifier hs-var">x</span></a></span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071263"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-35"></span><span>    </span><span id="local-6989586621679071268"><span class="annot"><span class="annottext">vv :: Double
+</span><a href="#local-6989586621679071268"><span class="hs-identifier hs-var hs-var">vv</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071263"><span class="hs-identifier hs-var">v</span></a></span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071263"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-36"></span><span>    </span><span id="local-6989586621679071270"><span class="annot"><span class="annottext">loop :: Double -&gt; Double -&gt; Double -&gt; Double
+</span><a href="#local-6989586621679071270"><span class="hs-identifier hs-var hs-var">loop</span></a></span></span><span> </span><span id="local-6989586621679071247"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071247"><span class="hs-identifier hs-var">j</span></a></span></span><span> </span><span id="local-6989586621679071246"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071246"><span class="hs-identifier hs-var">ej</span></a></span></span><span> </span><span id="local-6989586621679071245"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071245"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071245"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071246"><span class="hs-identifier hs-var">ej</span></a></span><span class="annot"><span class="annottext">forall a. Fractional a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">/</span></span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">2</span></span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071247"><span class="hs-identifier hs-var">j</span></a></span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-37"></span><span>                    </span><span id="local-6989586621679071244"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071244"><span class="hs-identifier hs-var">s'</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071244"><span class="hs-identifier hs-var">s'</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071245"><span class="hs-identifier hs-var">s</span></a></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071244"><span class="hs-identifier hs-var">s'</span></a></span><span>  </span><span class="hs-comment">-- FIXME: Comparing Doubles for equality!</span><span>
+</span><span id="line-38"></span><span>                       </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double -&gt; Double
+</span><a href="#local-6989586621679071270"><span class="hs-identifier hs-var">loop</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071247"><span class="hs-identifier hs-var">j</span></a></span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071246"><span class="hs-identifier hs-var">ej</span></a></span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071268"><span class="hs-identifier hs-var">vv</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071244"><span class="hs-identifier hs-var">s'</span></a></span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span class="hs-comment">-- | Compute the logarithm of the gamma function &#915;(/x/).  Uses</span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- Algorithm AS 245 by Macleod.</span><span>
+</span><span id="line-44"></span><span class="hs-comment">--</span><span>
+</span><span id="line-45"></span><span class="hs-comment">-- Gives an accuracy of 10-12 significant decimal digits, except</span><span>
+</span><span id="line-46"></span><span class="hs-comment">-- for small regions around /x/ = 1 and /x/ = 2, where the function</span><span>
+</span><span id="line-47"></span><span class="hs-comment">-- goes to zero.  For greater accuracy, use 'logGammaL'.</span><span>
+</span><span id="line-48"></span><span class="hs-comment">--</span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- Returns &#8734; if the input is outside of the range (0 &lt; /x/ &#8804; 1e305).</span><span>
+</span><span id="line-50"></span><span class="annot"><a href="Numeric.SpecFunctions.Extra.html#logGammaAS245"><span class="hs-identifier hs-type">logGammaAS245</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span>
+</span><span id="line-51"></span><span class="hs-comment">-- Adapted from http://people.sc.fsu.edu/~burkardt/f_src/asa245/asa245.html</span><span>
+</span><span id="line-52"></span><span id="logGammaAS245"><span class="annot"><span class="annottext">logGammaAS245 :: Double -&gt; Double
+</span><a href="Numeric.SpecFunctions.Extra.html#logGammaAS245"><span class="hs-identifier hs-var hs-var">logGammaAS245</span></a></span></span><span> </span><span id="local-6989586621679071243"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071243"><span class="hs-identifier hs-var">x</span></a></span></span><span>
+</span><span id="line-53"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071243"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">0</span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="Numeric.MathFunctions.Constants.html#m_pos_inf"><span class="hs-identifier hs-var">m_pos_inf</span></a></span><span>
+</span><span id="line-54"></span><span>    </span><span class="hs-comment">-- Handle positive infinity. logGamma overflows before 1e308 so</span><span>
+</span><span id="line-55"></span><span>    </span><span class="hs-comment">-- it's safe</span><span>
+</span><span id="line-56"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071243"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">1e308</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="Numeric.MathFunctions.Constants.html#m_pos_inf"><span class="hs-identifier hs-var">m_pos_inf</span></a></span><span>
+</span><span id="line-57"></span><span>    </span><span class="hs-comment">-- Normal cases</span><span>
+</span><span id="line-58"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071243"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">1.5</span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071239"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071238"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span>
+</span><span id="line-59"></span><span>                  </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071237"><span class="hs-identifier hs-var">r1_4</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071236"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071235"><span class="hs-identifier hs-var">r1_3</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071236"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071234"><span class="hs-identifier hs-var">r1_2</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071236"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071233"><span class="hs-identifier hs-var">r1_1</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071236"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071232"><span class="hs-identifier hs-var">r1_0</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Fractional a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">/</span></span><span>
+</span><span id="line-60"></span><span>                  </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071236"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071231"><span class="hs-identifier hs-var">r1_8</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071236"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071230"><span class="hs-identifier hs-var">r1_7</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071236"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071229"><span class="hs-identifier hs-var">r1_6</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071236"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071228"><span class="hs-identifier hs-var">r1_5</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-61"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071243"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">4</span></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071243"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">2</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span>
+</span><span id="line-62"></span><span>                  </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071227"><span class="hs-identifier hs-var">r2_4</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071243"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071226"><span class="hs-identifier hs-var">r2_3</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071243"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071225"><span class="hs-identifier hs-var">r2_2</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071243"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071224"><span class="hs-identifier hs-var">r2_1</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071243"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071223"><span class="hs-identifier hs-var">r2_0</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Fractional a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">/</span></span><span>
+</span><span id="line-63"></span><span>                  </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071243"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071222"><span class="hs-identifier hs-var">r2_8</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071243"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071221"><span class="hs-identifier hs-var">r2_7</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071243"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071220"><span class="hs-identifier hs-var">r2_6</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071243"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071219"><span class="hs-identifier hs-var">r2_5</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-64"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071243"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">12</span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071218"><span class="hs-identifier hs-var">r3_4</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071243"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071217"><span class="hs-identifier hs-var">r3_3</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071243"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071216"><span class="hs-identifier hs-var">r3_2</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071243"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071215"><span class="hs-identifier hs-var">r3_1</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071243"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071214"><span class="hs-identifier hs-var">r3_0</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Fractional a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">/</span></span><span>
+</span><span id="line-65"></span><span>                  </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071243"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071213"><span class="hs-identifier hs-var">r3_8</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071243"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071212"><span class="hs-identifier hs-var">r3_7</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071243"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071211"><span class="hs-identifier hs-var">r3_6</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071243"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071210"><span class="hs-identifier hs-var">r3_5</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-66"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071243"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">3e6</span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071209"><span class="hs-identifier hs-var">k</span></a></span><span>
+</span><span id="line-67"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071209"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071208"><span class="hs-identifier hs-var">x1</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span>
+</span><span id="line-68"></span><span>                  </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071207"><span class="hs-identifier hs-var">r4_2</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071206"><span class="hs-identifier hs-var">x2</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071205"><span class="hs-identifier hs-var">r4_1</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071206"><span class="hs-identifier hs-var">x2</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071204"><span class="hs-identifier hs-var">r4_0</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Fractional a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">/</span></span><span>
+</span><span id="line-69"></span><span>                  </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071206"><span class="hs-identifier hs-var">x2</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071203"><span class="hs-identifier hs-var">r4_4</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071206"><span class="hs-identifier hs-var">x2</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071202"><span class="hs-identifier hs-var">r4_3</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-70"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-71"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621679071239"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071239"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-special">,</span><span> </span><span id="local-6989586621679071236"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071236"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-special">,</span><span> </span><span id="local-6989586621679071238"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071238"><span class="hs-identifier hs-var">c</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-72"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071243"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">0.5</span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">-</span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071193"><span class="hs-identifier hs-var">y</span></a></span><span> </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071243"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071243"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-73"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">0</span></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071243"><span class="hs-identifier hs-var">x</span></a></span><span>     </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071243"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span>
+</span><span id="line-74"></span><span>
+</span><span id="line-75"></span><span>    </span><span id="local-6989586621679071193"><span class="annot"><span class="annottext">y :: Double
+</span><a href="#local-6989586621679071193"><span class="hs-identifier hs-var hs-var">y</span></a></span></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Floating a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">log</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071243"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-76"></span><span>    </span><span id="local-6989586621679071209"><span class="annot"><span class="annottext">k :: Double
+</span><a href="#local-6989586621679071209"><span class="hs-identifier hs-var hs-var">k</span></a></span></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071243"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071193"><span class="hs-identifier hs-var">y</span></a></span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">0.5</span></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071193"><span class="hs-identifier hs-var">y</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071184"><span class="hs-identifier hs-var">alr2pi</span></a></span><span>
+</span><span id="line-77"></span><span>    </span><span id="local-6989586621679071184"><span class="annot"><span class="annottext">alr2pi :: Double
+</span><a href="#local-6989586621679071184"><span class="hs-identifier hs-var hs-var">alr2pi</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">0.918938533204673</span></span><span>
+</span><span id="line-78"></span><span>
+</span><span id="line-79"></span><span>    </span><span id="local-6989586621679071208"><span class="annot"><span class="annottext">x1 :: Double
+</span><a href="#local-6989586621679071208"><span class="hs-identifier hs-var hs-var">x1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="annottext">forall a. Fractional a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">/</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071243"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-80"></span><span>    </span><span id="local-6989586621679071206"><span class="annot"><span class="annottext">x2 :: Double
+</span><a href="#local-6989586621679071206"><span class="hs-identifier hs-var hs-var">x2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071208"><span class="hs-identifier hs-var">x1</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071208"><span class="hs-identifier hs-var">x1</span></a></span><span>
+</span><span id="line-81"></span><span>
+</span><span id="line-82"></span><span>    </span><span id="local-6989586621679071232"><span class="annot"><span class="annottext">r1_0 :: Double
+</span><a href="#local-6989586621679071232"><span class="hs-identifier hs-var hs-var">r1_0</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>  </span><span class="hs-glyph">-</span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">2.66685511495</span></span><span class="hs-special">;</span><span>   </span><span id="local-6989586621679071233"><span class="annot"><span class="annottext">r1_1 :: Double
+</span><a href="#local-6989586621679071233"><span class="hs-identifier hs-var hs-var">r1_1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>  </span><span class="hs-glyph">-</span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">24.4387534237</span></span><span class="hs-special">;</span><span>    </span><span id="local-6989586621679071234"><span class="annot"><span class="annottext">r1_2 :: Double
+</span><a href="#local-6989586621679071234"><span class="hs-identifier hs-var hs-var">r1_2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">-</span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">21.9698958928</span></span><span>
+</span><span id="line-83"></span><span>    </span><span id="local-6989586621679071235"><span class="annot"><span class="annottext">r1_3 :: Double
+</span><a href="#local-6989586621679071235"><span class="hs-identifier hs-var hs-var">r1_3</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>  </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">11.1667541262</span></span><span class="hs-special">;</span><span>    </span><span id="local-6989586621679071237"><span class="annot"><span class="annottext">r1_4 :: Double
+</span><a href="#local-6989586621679071237"><span class="hs-identifier hs-var hs-var">r1_4</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>    </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">3.13060547623</span></span><span class="hs-special">;</span><span>   </span><span id="local-6989586621679071228"><span class="annot"><span class="annottext">r1_5 :: Double
+</span><a href="#local-6989586621679071228"><span class="hs-identifier hs-var hs-var">r1_5</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>   </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">0.607771387771</span></span><span>
+</span><span id="line-84"></span><span>    </span><span id="local-6989586621679071229"><span class="annot"><span class="annottext">r1_6 :: Double
+</span><a href="#local-6989586621679071229"><span class="hs-identifier hs-var hs-var">r1_6</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>  </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">11.9400905721</span></span><span class="hs-special">;</span><span>    </span><span id="local-6989586621679071230"><span class="annot"><span class="annottext">r1_7 :: Double
+</span><a href="#local-6989586621679071230"><span class="hs-identifier hs-var hs-var">r1_7</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>   </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">31.4690115749</span></span><span class="hs-special">;</span><span>    </span><span id="local-6989586621679071231"><span class="annot"><span class="annottext">r1_8 :: Double
+</span><a href="#local-6989586621679071231"><span class="hs-identifier hs-var hs-var">r1_8</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>  </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">15.2346874070</span></span><span>
+</span><span id="line-85"></span><span>
+</span><span id="line-86"></span><span>    </span><span id="local-6989586621679071223"><span class="annot"><span class="annottext">r2_0 :: Double
+</span><a href="#local-6989586621679071223"><span class="hs-identifier hs-var hs-var">r2_0</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">-</span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">78.3359299449</span></span><span class="hs-special">;</span><span>    </span><span id="local-6989586621679071224"><span class="annot"><span class="annottext">r2_1 :: Double
+</span><a href="#local-6989586621679071224"><span class="hs-identifier hs-var hs-var">r2_1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">-</span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">142.046296688</span></span><span class="hs-special">;</span><span>     </span><span id="local-6989586621679071225"><span class="annot"><span class="annottext">r2_2 :: Double
+</span><a href="#local-6989586621679071225"><span class="hs-identifier hs-var hs-var">r2_2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">137.519416416</span></span><span>
+</span><span id="line-87"></span><span>    </span><span id="local-6989586621679071226"><span class="annot"><span class="annottext">r2_3 :: Double
+</span><a href="#local-6989586621679071226"><span class="hs-identifier hs-var hs-var">r2_3</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>  </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">78.6994924154</span></span><span class="hs-special">;</span><span>    </span><span id="local-6989586621679071227"><span class="annot"><span class="annottext">r2_4 :: Double
+</span><a href="#local-6989586621679071227"><span class="hs-identifier hs-var hs-var">r2_4</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>    </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">4.16438922228</span></span><span class="hs-special">;</span><span>   </span><span id="local-6989586621679071219"><span class="annot"><span class="annottext">r2_5 :: Double
+</span><a href="#local-6989586621679071219"><span class="hs-identifier hs-var hs-var">r2_5</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>  </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">47.0668766060</span></span><span>
+</span><span id="line-88"></span><span>    </span><span id="local-6989586621679071220"><span class="annot"><span class="annottext">r2_6 :: Double
+</span><a href="#local-6989586621679071220"><span class="hs-identifier hs-var hs-var">r2_6</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">313.399215894</span></span><span class="hs-special">;</span><span>     </span><span id="local-6989586621679071221"><span class="annot"><span class="annottext">r2_7 :: Double
+</span><a href="#local-6989586621679071221"><span class="hs-identifier hs-var hs-var">r2_7</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>  </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">263.505074721</span></span><span class="hs-special">;</span><span>     </span><span id="local-6989586621679071222"><span class="annot"><span class="annottext">r2_8 :: Double
+</span><a href="#local-6989586621679071222"><span class="hs-identifier hs-var hs-var">r2_8</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>  </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">43.3400022514</span></span><span>
+</span><span id="line-89"></span><span>
+</span><span id="line-90"></span><span>    </span><span id="local-6989586621679071214"><span class="annot"><span class="annottext">r3_0 :: Double
+</span><a href="#local-6989586621679071214"><span class="hs-identifier hs-var hs-var">r3_0</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>  </span><span class="hs-glyph">-</span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">2.12159572323e5</span></span><span class="hs-special">;</span><span> </span><span id="local-6989586621679071215"><span class="annot"><span class="annottext">r3_1 :: Double
+</span><a href="#local-6989586621679071215"><span class="hs-identifier hs-var hs-var">r3_1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>    </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">2.30661510616e5</span></span><span class="hs-special">;</span><span> </span><span id="local-6989586621679071216"><span class="annot"><span class="annottext">r3_2 :: Double
+</span><a href="#local-6989586621679071216"><span class="hs-identifier hs-var hs-var">r3_2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>   </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">2.74647644705e4</span></span><span>
+</span><span id="line-91"></span><span>    </span><span id="local-6989586621679071217"><span class="annot"><span class="annottext">r3_3 :: Double
+</span><a href="#local-6989586621679071217"><span class="hs-identifier hs-var hs-var">r3_3</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>  </span><span class="hs-glyph">-</span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">4.02621119975e4</span></span><span class="hs-special">;</span><span> </span><span id="local-6989586621679071218"><span class="annot"><span class="annottext">r3_4 :: Double
+</span><a href="#local-6989586621679071218"><span class="hs-identifier hs-var hs-var">r3_4</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>   </span><span class="hs-glyph">-</span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">2.29660729780e3</span></span><span class="hs-special">;</span><span> </span><span id="local-6989586621679071210"><span class="annot"><span class="annottext">r3_5 :: Double
+</span><a href="#local-6989586621679071210"><span class="hs-identifier hs-var hs-var">r3_5</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>  </span><span class="hs-glyph">-</span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">1.16328495004e5</span></span><span>
+</span><span id="line-92"></span><span>    </span><span id="local-6989586621679071211"><span class="annot"><span class="annottext">r3_6 :: Double
+</span><a href="#local-6989586621679071211"><span class="hs-identifier hs-var hs-var">r3_6</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>  </span><span class="hs-glyph">-</span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">1.46025937511e5</span></span><span class="hs-special">;</span><span> </span><span id="local-6989586621679071212"><span class="annot"><span class="annottext">r3_7 :: Double
+</span><a href="#local-6989586621679071212"><span class="hs-identifier hs-var hs-var">r3_7</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>   </span><span class="hs-glyph">-</span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">2.42357409629e4</span></span><span class="hs-special">;</span><span> </span><span id="local-6989586621679071213"><span class="annot"><span class="annottext">r3_8 :: Double
+</span><a href="#local-6989586621679071213"><span class="hs-identifier hs-var hs-var">r3_8</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>  </span><span class="hs-glyph">-</span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">5.70691009324e2</span></span><span>
+</span><span id="line-93"></span><span>
+</span><span id="line-94"></span><span>    </span><span id="local-6989586621679071204"><span class="annot"><span class="annottext">r4_0 :: Double
+</span><a href="#local-6989586621679071204"><span class="hs-identifier hs-var hs-var">r4_0</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">0.279195317918525</span></span><span class="hs-special">;</span><span>  </span><span id="local-6989586621679071205"><span class="annot"><span class="annottext">r4_1 :: Double
+</span><a href="#local-6989586621679071205"><span class="hs-identifier hs-var hs-var">r4_1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">0.4917317610505968</span></span><span class="hs-special">;</span><span>
+</span><span id="line-95"></span><span>    </span><span id="local-6989586621679071207"><span class="annot"><span class="annottext">r4_2 :: Double
+</span><a href="#local-6989586621679071207"><span class="hs-identifier hs-var hs-var">r4_2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">0.0692910599291889</span></span><span class="hs-special">;</span><span> </span><span id="local-6989586621679071202"><span class="annot"><span class="annottext">r4_3 :: Double
+</span><a href="#local-6989586621679071202"><span class="hs-identifier hs-var hs-var">r4_3</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">3.350343815022304</span></span><span>
+</span><span id="line-96"></span><span>    </span><span id="local-6989586621679071203"><span class="annot"><span class="annottext">r4_4 :: Double
+</span><a href="#local-6989586621679071203"><span class="hs-identifier hs-var hs-var">r4_4</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">6.012459259764103</span></span><span>
+</span><span id="line-97"></span></pre></body></html>

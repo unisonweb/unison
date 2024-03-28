@@ -1,0 +1,267 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span id="local-6989586621679048863"><span id="local-6989586621679048864"><span id="local-6989586621679048865"></span></span></span><span class="hs-pragma">{-# LANGUAGE DeriveDataTypeable #-}</span><span>
+</span><span id="line-2"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Network.HTTP.Types.Method</span><span>
+</span><span id="line-3"></span><span class="hs-special">(</span><span>
+</span><span id="line-4"></span><span>  </span><span class="annot"><a href="Network.HTTP.Types.Method.html#Method"><span class="hs-identifier">Method</span></a></span><span>
+</span><span id="line-5"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Types.Method.html#methodGet"><span class="hs-identifier">methodGet</span></a></span><span>
+</span><span id="line-6"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Types.Method.html#methodPost"><span class="hs-identifier">methodPost</span></a></span><span>
+</span><span id="line-7"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Types.Method.html#methodHead"><span class="hs-identifier">methodHead</span></a></span><span>
+</span><span id="line-8"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Types.Method.html#methodPut"><span class="hs-identifier">methodPut</span></a></span><span>
+</span><span id="line-9"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Types.Method.html#methodDelete"><span class="hs-identifier">methodDelete</span></a></span><span>
+</span><span id="line-10"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Types.Method.html#methodTrace"><span class="hs-identifier">methodTrace</span></a></span><span>
+</span><span id="line-11"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Types.Method.html#methodConnect"><span class="hs-identifier">methodConnect</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Types.Method.html#methodOptions"><span class="hs-identifier">methodOptions</span></a></span><span>
+</span><span id="line-13"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Types.Method.html#methodPatch"><span class="hs-identifier">methodPatch</span></a></span><span>
+</span><span id="line-14"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Types.Method.html#StdMethod"><span class="hs-identifier">StdMethod</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Types.Method.html#parseMethod"><span class="hs-identifier">parseMethod</span></a></span><span>
+</span><span id="line-16"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Types.Method.html#renderMethod"><span class="hs-identifier">renderMethod</span></a></span><span>
+</span><span id="line-17"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Types.Method.html#renderStdMethod"><span class="hs-identifier">renderStdMethod</span></a></span><span>
+</span><span id="line-18"></span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Arrow</span></span><span>         </span><span class="hs-special">(</span><span class="annot"><span class="hs-operator">(|||)</span></span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Array</span></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString</span></span><span>       </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">B</span></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString.Char8</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">B8</span></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Typeable</span></span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="hs-comment">-- | HTTP method (flat string type).</span><span>
+</span><span id="line-28"></span><span class="hs-keyword">type</span><span> </span><span id="Method"><span class="annot"><a href="Network.HTTP.Types.Method.html#Method"><span class="hs-identifier hs-var">Method</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- | HTTP Method constants.</span><span>
+</span><span id="line-31"></span><span class="annot"><a href="Network.HTTP.Types.Method.html#methodGet"><span class="hs-identifier hs-type">methodGet</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Types.Method.html#methodPost"><span class="hs-identifier hs-type">methodPost</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Types.Method.html#methodHead"><span class="hs-identifier hs-type">methodHead</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Types.Method.html#methodPut"><span class="hs-identifier hs-type">methodPut</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Types.Method.html#methodDelete"><span class="hs-identifier hs-type">methodDelete</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Types.Method.html#methodTrace"><span class="hs-identifier hs-type">methodTrace</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Types.Method.html#methodConnect"><span class="hs-identifier hs-type">methodConnect</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Types.Method.html#methodOptions"><span class="hs-identifier hs-type">methodOptions</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Types.Method.html#methodPatch"><span class="hs-identifier hs-type">methodPatch</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP.Types.Method.html#Method"><span class="hs-identifier hs-type">Method</span></a></span><span>
+</span><span id="line-32"></span><span id="methodGet"><span class="annot"><span class="annottext">methodGet :: Method
+</span><a href="Network.HTTP.Types.Method.html#methodGet"><span class="hs-identifier hs-var hs-var">methodGet</span></a></span></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">StdMethod -&gt; Method
+</span><a href="Network.HTTP.Types.Method.html#renderStdMethod"><span class="hs-identifier hs-var">renderStdMethod</span></a></span><span> </span><span class="annot"><span class="annottext">StdMethod
+</span><a href="Network.HTTP.Types.Method.html#GET"><span class="hs-identifier hs-var">GET</span></a></span><span>
+</span><span id="line-33"></span><span id="methodPost"><span class="annot"><span class="annottext">methodPost :: Method
+</span><a href="Network.HTTP.Types.Method.html#methodPost"><span class="hs-identifier hs-var hs-var">methodPost</span></a></span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">StdMethod -&gt; Method
+</span><a href="Network.HTTP.Types.Method.html#renderStdMethod"><span class="hs-identifier hs-var">renderStdMethod</span></a></span><span> </span><span class="annot"><span class="annottext">StdMethod
+</span><a href="Network.HTTP.Types.Method.html#POST"><span class="hs-identifier hs-var">POST</span></a></span><span>
+</span><span id="line-34"></span><span id="methodHead"><span class="annot"><span class="annottext">methodHead :: Method
+</span><a href="Network.HTTP.Types.Method.html#methodHead"><span class="hs-identifier hs-var hs-var">methodHead</span></a></span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">StdMethod -&gt; Method
+</span><a href="Network.HTTP.Types.Method.html#renderStdMethod"><span class="hs-identifier hs-var">renderStdMethod</span></a></span><span> </span><span class="annot"><span class="annottext">StdMethod
+</span><a href="Network.HTTP.Types.Method.html#HEAD"><span class="hs-identifier hs-var">HEAD</span></a></span><span>
+</span><span id="line-35"></span><span id="methodPut"><span class="annot"><span class="annottext">methodPut :: Method
+</span><a href="Network.HTTP.Types.Method.html#methodPut"><span class="hs-identifier hs-var hs-var">methodPut</span></a></span></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">StdMethod -&gt; Method
+</span><a href="Network.HTTP.Types.Method.html#renderStdMethod"><span class="hs-identifier hs-var">renderStdMethod</span></a></span><span> </span><span class="annot"><span class="annottext">StdMethod
+</span><a href="Network.HTTP.Types.Method.html#PUT"><span class="hs-identifier hs-var">PUT</span></a></span><span>
+</span><span id="line-36"></span><span id="methodDelete"><span class="annot"><span class="annottext">methodDelete :: Method
+</span><a href="Network.HTTP.Types.Method.html#methodDelete"><span class="hs-identifier hs-var hs-var">methodDelete</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">StdMethod -&gt; Method
+</span><a href="Network.HTTP.Types.Method.html#renderStdMethod"><span class="hs-identifier hs-var">renderStdMethod</span></a></span><span> </span><span class="annot"><span class="annottext">StdMethod
+</span><a href="Network.HTTP.Types.Method.html#DELETE"><span class="hs-identifier hs-var">DELETE</span></a></span><span>
+</span><span id="line-37"></span><span id="methodTrace"><span class="annot"><span class="annottext">methodTrace :: Method
+</span><a href="Network.HTTP.Types.Method.html#methodTrace"><span class="hs-identifier hs-var hs-var">methodTrace</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">StdMethod -&gt; Method
+</span><a href="Network.HTTP.Types.Method.html#renderStdMethod"><span class="hs-identifier hs-var">renderStdMethod</span></a></span><span> </span><span class="annot"><span class="annottext">StdMethod
+</span><a href="Network.HTTP.Types.Method.html#TRACE"><span class="hs-identifier hs-var">TRACE</span></a></span><span>
+</span><span id="line-38"></span><span id="methodConnect"><span class="annot"><span class="annottext">methodConnect :: Method
+</span><a href="Network.HTTP.Types.Method.html#methodConnect"><span class="hs-identifier hs-var hs-var">methodConnect</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">StdMethod -&gt; Method
+</span><a href="Network.HTTP.Types.Method.html#renderStdMethod"><span class="hs-identifier hs-var">renderStdMethod</span></a></span><span> </span><span class="annot"><span class="annottext">StdMethod
+</span><a href="Network.HTTP.Types.Method.html#CONNECT"><span class="hs-identifier hs-var">CONNECT</span></a></span><span>
+</span><span id="line-39"></span><span id="methodOptions"><span class="annot"><span class="annottext">methodOptions :: Method
+</span><a href="Network.HTTP.Types.Method.html#methodOptions"><span class="hs-identifier hs-var hs-var">methodOptions</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">StdMethod -&gt; Method
+</span><a href="Network.HTTP.Types.Method.html#renderStdMethod"><span class="hs-identifier hs-var">renderStdMethod</span></a></span><span> </span><span class="annot"><span class="annottext">StdMethod
+</span><a href="Network.HTTP.Types.Method.html#OPTIONS"><span class="hs-identifier hs-var">OPTIONS</span></a></span><span>
+</span><span id="line-40"></span><span id="methodPatch"><span class="annot"><span class="annottext">methodPatch :: Method
+</span><a href="Network.HTTP.Types.Method.html#methodPatch"><span class="hs-identifier hs-var hs-var">methodPatch</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">StdMethod -&gt; Method
+</span><a href="Network.HTTP.Types.Method.html#renderStdMethod"><span class="hs-identifier hs-var">renderStdMethod</span></a></span><span> </span><span class="annot"><span class="annottext">StdMethod
+</span><a href="Network.HTTP.Types.Method.html#PATCH"><span class="hs-identifier hs-var">PATCH</span></a></span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span class="hs-comment">-- | HTTP standard method (as defined by RFC 2616, and PATCH which is defined</span><span>
+</span><span id="line-43"></span><span class="hs-comment">--   by RFC 5789).</span><span>
+</span><span id="line-44"></span><span class="hs-keyword">data</span><span> </span><span id="StdMethod"><span class="annot"><a href="Network.HTTP.Types.Method.html#StdMethod"><span class="hs-identifier hs-var">StdMethod</span></a></span></span><span>
+</span><span id="line-45"></span><span>    </span><span class="hs-glyph">=</span><span> </span><span id="GET"><span class="annot"><a href="Network.HTTP.Types.Method.html#GET"><span class="hs-identifier hs-var">GET</span></a></span></span><span>
+</span><span id="line-46"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="POST"><span class="annot"><a href="Network.HTTP.Types.Method.html#POST"><span class="hs-identifier hs-var">POST</span></a></span></span><span>
+</span><span id="line-47"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="HEAD"><span class="annot"><a href="Network.HTTP.Types.Method.html#HEAD"><span class="hs-identifier hs-var">HEAD</span></a></span></span><span>
+</span><span id="line-48"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="PUT"><span class="annot"><a href="Network.HTTP.Types.Method.html#PUT"><span class="hs-identifier hs-var">PUT</span></a></span></span><span>
+</span><span id="line-49"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="DELETE"><span class="annot"><a href="Network.HTTP.Types.Method.html#DELETE"><span class="hs-identifier hs-var">DELETE</span></a></span></span><span>
+</span><span id="line-50"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="TRACE"><span class="annot"><a href="Network.HTTP.Types.Method.html#TRACE"><span class="hs-identifier hs-var">TRACE</span></a></span></span><span>
+</span><span id="line-51"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="CONNECT"><span class="annot"><a href="Network.HTTP.Types.Method.html#CONNECT"><span class="hs-identifier hs-var">CONNECT</span></a></span></span><span>
+</span><span id="line-52"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="OPTIONS"><span class="annot"><a href="Network.HTTP.Types.Method.html#OPTIONS"><span class="hs-identifier hs-var">OPTIONS</span></a></span></span><span>
+</span><span id="line-53"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="PATCH"><span class="annot"><a href="Network.HTTP.Types.Method.html#PATCH"><span class="hs-identifier hs-var">PATCH</span></a></span></span><span>
+</span><span id="line-54"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679048808"><span id="local-6989586621679048820"><span id="local-6989586621679048823"><span id="local-6989586621679048825"><span class="annot"><span class="annottext">ReadPrec [StdMethod]
+ReadPrec StdMethod
+Int -&gt; ReadS StdMethod
+ReadS [StdMethod]
+forall a.
+(Int -&gt; ReadS a)
+-&gt; ReadS [a] -&gt; ReadPrec a -&gt; ReadPrec [a] -&gt; Read a
+readListPrec :: ReadPrec [StdMethod]
+$creadListPrec :: ReadPrec [StdMethod]
+readPrec :: ReadPrec StdMethod
+$creadPrec :: ReadPrec StdMethod
+readList :: ReadS [StdMethod]
+$creadList :: ReadS [StdMethod]
+readsPrec :: Int -&gt; ReadS StdMethod
+$creadsPrec :: Int -&gt; ReadS StdMethod
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Read</span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679048800"><span id="local-6989586621679048802"><span id="local-6989586621679048804"><span class="annot"><span class="annottext">Int -&gt; StdMethod -&gt; ShowS
+[StdMethod] -&gt; ShowS
+StdMethod -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [StdMethod] -&gt; ShowS
+$cshowList :: [StdMethod] -&gt; ShowS
+show :: StdMethod -&gt; String
+$cshow :: StdMethod -&gt; String
+showsPrec :: Int -&gt; StdMethod -&gt; ShowS
+$cshowsPrec :: Int -&gt; StdMethod -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679048795"><span id="local-6989586621679048797"><span class="annot"><span class="annottext">StdMethod -&gt; StdMethod -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: StdMethod -&gt; StdMethod -&gt; Bool
+$c/= :: StdMethod -&gt; StdMethod -&gt; Bool
+== :: StdMethod -&gt; StdMethod -&gt; Bool
+$c== :: StdMethod -&gt; StdMethod -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679048775"><span id="local-6989586621679048777"><span id="local-6989586621679048780"><span id="local-6989586621679048783"><span id="local-6989586621679048786"><span id="local-6989586621679048788"><span id="local-6989586621679048790"><span class="annot"><span class="annottext">Eq StdMethod
+StdMethod -&gt; StdMethod -&gt; Bool
+StdMethod -&gt; StdMethod -&gt; Ordering
+StdMethod -&gt; StdMethod -&gt; StdMethod
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: StdMethod -&gt; StdMethod -&gt; StdMethod
+$cmin :: StdMethod -&gt; StdMethod -&gt; StdMethod
+max :: StdMethod -&gt; StdMethod -&gt; StdMethod
+$cmax :: StdMethod -&gt; StdMethod -&gt; StdMethod
+&gt;= :: StdMethod -&gt; StdMethod -&gt; Bool
+$c&gt;= :: StdMethod -&gt; StdMethod -&gt; Bool
+&gt; :: StdMethod -&gt; StdMethod -&gt; Bool
+$c&gt; :: StdMethod -&gt; StdMethod -&gt; Bool
+&lt;= :: StdMethod -&gt; StdMethod -&gt; Bool
+$c&lt;= :: StdMethod -&gt; StdMethod -&gt; Bool
+&lt; :: StdMethod -&gt; StdMethod -&gt; Bool
+$c&lt; :: StdMethod -&gt; StdMethod -&gt; Bool
+compare :: StdMethod -&gt; StdMethod -&gt; Ordering
+$ccompare :: StdMethod -&gt; StdMethod -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679048736"><span id="local-6989586621679048738"><span id="local-6989586621679048742"><span id="local-6989586621679048746"><span id="local-6989586621679048748"><span id="local-6989586621679048758"><span id="local-6989586621679048764"><span id="local-6989586621679048772"><span class="annot"><span class="annottext">Int -&gt; StdMethod
+StdMethod -&gt; Int
+StdMethod -&gt; [StdMethod]
+StdMethod -&gt; StdMethod
+StdMethod -&gt; StdMethod -&gt; [StdMethod]
+StdMethod -&gt; StdMethod -&gt; StdMethod -&gt; [StdMethod]
+forall a.
+(a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (Int -&gt; a)
+-&gt; (a -&gt; Int)
+-&gt; (a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; a -&gt; [a])
+-&gt; Enum a
+enumFromThenTo :: StdMethod -&gt; StdMethod -&gt; StdMethod -&gt; [StdMethod]
+$cenumFromThenTo :: StdMethod -&gt; StdMethod -&gt; StdMethod -&gt; [StdMethod]
+enumFromTo :: StdMethod -&gt; StdMethod -&gt; [StdMethod]
+$cenumFromTo :: StdMethod -&gt; StdMethod -&gt; [StdMethod]
+enumFromThen :: StdMethod -&gt; StdMethod -&gt; [StdMethod]
+$cenumFromThen :: StdMethod -&gt; StdMethod -&gt; [StdMethod]
+enumFrom :: StdMethod -&gt; [StdMethod]
+$cenumFrom :: StdMethod -&gt; [StdMethod]
+fromEnum :: StdMethod -&gt; Int
+$cfromEnum :: StdMethod -&gt; Int
+toEnum :: Int -&gt; StdMethod
+$ctoEnum :: Int -&gt; StdMethod
+pred :: StdMethod -&gt; StdMethod
+$cpred :: StdMethod -&gt; StdMethod
+succ :: StdMethod -&gt; StdMethod
+$csucc :: StdMethod -&gt; StdMethod
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Enum</span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679048731"><span id="local-6989586621679048733"><span class="annot"><span class="annottext">StdMethod
+forall a. a -&gt; a -&gt; Bounded a
+maxBound :: StdMethod
+$cmaxBound :: StdMethod
+minBound :: StdMethod
+$cminBound :: StdMethod
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Bounded</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679048715"><span id="local-6989586621679048717"><span id="local-6989586621679048719"><span id="local-6989586621679048721"><span id="local-6989586621679048723"><span id="local-6989586621679048726"><span class="annot"><span class="annottext">Ord StdMethod
+(StdMethod, StdMethod) -&gt; Int
+(StdMethod, StdMethod) -&gt; [StdMethod]
+(StdMethod, StdMethod) -&gt; StdMethod -&gt; Bool
+(StdMethod, StdMethod) -&gt; StdMethod -&gt; Int
+forall a.
+Ord a
+-&gt; ((a, a) -&gt; [a])
+-&gt; ((a, a) -&gt; a -&gt; Int)
+-&gt; ((a, a) -&gt; a -&gt; Int)
+-&gt; ((a, a) -&gt; a -&gt; Bool)
+-&gt; ((a, a) -&gt; Int)
+-&gt; ((a, a) -&gt; Int)
+-&gt; Ix a
+unsafeRangeSize :: (StdMethod, StdMethod) -&gt; Int
+$cunsafeRangeSize :: (StdMethod, StdMethod) -&gt; Int
+rangeSize :: (StdMethod, StdMethod) -&gt; Int
+$crangeSize :: (StdMethod, StdMethod) -&gt; Int
+inRange :: (StdMethod, StdMethod) -&gt; StdMethod -&gt; Bool
+$cinRange :: (StdMethod, StdMethod) -&gt; StdMethod -&gt; Bool
+unsafeIndex :: (StdMethod, StdMethod) -&gt; StdMethod -&gt; Int
+$cunsafeIndex :: (StdMethod, StdMethod) -&gt; StdMethod -&gt; Int
+index :: (StdMethod, StdMethod) -&gt; StdMethod -&gt; Int
+$cindex :: (StdMethod, StdMethod) -&gt; StdMethod -&gt; Int
+range :: (StdMethod, StdMethod) -&gt; [StdMethod]
+$crange :: (StdMethod, StdMethod) -&gt; [StdMethod]
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ix</span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Typeable</span></span><span class="hs-special">)</span><span>
+</span><span id="line-55"></span><span class="hs-comment">-- These are ordered by suspected frequency. More popular methods should go first.</span><span>
+</span><span id="line-56"></span><span class="hs-comment">-- The reason is that methodList is used with lookup.</span><span>
+</span><span id="line-57"></span><span class="hs-comment">-- lookup is probably faster for these few cases than setting up an elaborate data structure.</span><span>
+</span><span id="line-58"></span><span>
+</span><span id="line-59"></span><span class="annot"><a href="Network.HTTP.Types.Method.html#methodArray"><span class="hs-identifier hs-type">methodArray</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Array</span></span><span> </span><span class="annot"><a href="Network.HTTP.Types.Method.html#StdMethod"><span class="hs-identifier hs-type">StdMethod</span></a></span><span> </span><span class="annot"><a href="Network.HTTP.Types.Method.html#Method"><span class="hs-identifier hs-type">Method</span></a></span><span>
+</span><span id="line-60"></span><span id="methodArray"><span class="annot"><span class="annottext">methodArray :: Array StdMethod Method
+</span><a href="Network.HTTP.Types.Method.html#methodArray"><span class="hs-identifier hs-var hs-var">methodArray</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall i e. Ix i =&gt; (i, i) -&gt; [e] -&gt; Array i e
+</span><span class="hs-identifier hs-var">listArray</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Bounded a =&gt; a
+</span><span class="hs-identifier hs-var">minBound</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall a. Bounded a =&gt; a
+</span><span class="hs-identifier hs-var">maxBound</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; Method
+</span><span class="hs-identifier hs-var">B8.pack</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">forall a. Bounded a =&gt; a
+</span><span class="hs-identifier hs-var">minBound</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP.Types.Method.html#StdMethod"><span class="hs-identifier hs-type">StdMethod</span></a></span><span> </span><span class="hs-glyph">..</span><span> </span><span class="annot"><span class="annottext">forall a. Bounded a =&gt; a
+</span><span class="hs-identifier hs-var">maxBound</span></span><span class="hs-special">]</span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span><span class="annot"><a href="Network.HTTP.Types.Method.html#methodList"><span class="hs-identifier hs-type">methodList</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><a href="Network.HTTP.Types.Method.html#Method"><span class="hs-identifier hs-type">Method</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Types.Method.html#StdMethod"><span class="hs-identifier hs-type">StdMethod</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-63"></span><span id="methodList"><span class="annot"><span class="annottext">methodList :: [(Method, StdMethod)]
+</span><a href="Network.HTTP.Types.Method.html#methodList"><span class="hs-identifier hs-var hs-var">methodList</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span id="local-6989586621679048705"><span class="annot"><span class="annottext">StdMethod
+</span><a href="#local-6989586621679048705"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679048704"><span class="annot"><span class="annottext">Method
+</span><a href="#local-6989586621679048704"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Method
+</span><a href="#local-6989586621679048704"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">StdMethod
+</span><a href="#local-6989586621679048705"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall i e. Ix i =&gt; Array i e -&gt; [(i, e)]
+</span><span class="hs-identifier hs-var">assocs</span></span><span> </span><span class="annot"><span class="annottext">Array StdMethod Method
+</span><a href="Network.HTTP.Types.Method.html#methodArray"><span class="hs-identifier hs-var">methodArray</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-64"></span><span>
+</span><span id="line-65"></span><span class="hs-comment">-- | Convert a method 'ByteString' to a 'StdMethod' if possible.</span><span>
+</span><span id="line-66"></span><span class="annot"><a href="Network.HTTP.Types.Method.html#parseMethod"><span class="hs-identifier hs-type">parseMethod</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP.Types.Method.html#Method"><span class="hs-identifier hs-type">Method</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span> </span><span class="annot"><a href="Network.HTTP.Types.Method.html#StdMethod"><span class="hs-identifier hs-type">StdMethod</span></a></span><span>
+</span><span id="line-67"></span><span id="parseMethod"><span class="annot"><span class="annottext">parseMethod :: Method -&gt; Either Method StdMethod
+</span><a href="Network.HTTP.Types.Method.html#parseMethod"><span class="hs-identifier hs-var hs-var">parseMethod</span></a></span></span><span> </span><span id="local-6989586621679048702"><span class="annot"><span class="annottext">Method
+</span><a href="#local-6989586621679048702"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><span class="hs-identifier hs-var">maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">Method
+</span><a href="#local-6989586621679048702"><span class="hs-identifier hs-var">bs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall a b. Eq a =&gt; a -&gt; [(a, b)] -&gt; Maybe b
+</span><span class="hs-identifier hs-var">lookup</span></span><span> </span><span class="annot"><span class="annottext">Method
+</span><a href="#local-6989586621679048702"><span class="hs-identifier hs-var">bs</span></a></span><span> </span><span class="annot"><span class="annottext">[(Method, StdMethod)]
+</span><a href="Network.HTTP.Types.Method.html#methodList"><span class="hs-identifier hs-var">methodList</span></a></span><span>
+</span><span id="line-68"></span><span>
+</span><span id="line-69"></span><span class="hs-comment">-- | Convert an algebraic method to a 'ByteString'.</span><span>
+</span><span id="line-70"></span><span class="annot"><a href="Network.HTTP.Types.Method.html#renderMethod"><span class="hs-identifier hs-type">renderMethod</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span> </span><span class="annot"><a href="Network.HTTP.Types.Method.html#StdMethod"><span class="hs-identifier hs-type">StdMethod</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP.Types.Method.html#Method"><span class="hs-identifier hs-type">Method</span></a></span><span>
+</span><span id="line-71"></span><span id="renderMethod"><span class="annot"><span class="annottext">renderMethod :: Either Method StdMethod -&gt; Method
+</span><a href="Network.HTTP.Types.Method.html#renderMethod"><span class="hs-identifier hs-var hs-var">renderMethod</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span> </span><span class="annot"><span class="annottext">forall (a :: * -&gt; * -&gt; *) b d c.
+ArrowChoice a =&gt;
+a b d -&gt; a c d -&gt; a (Either b c) d
+</span><span class="hs-operator hs-var">|||</span></span><span> </span><span class="annot"><span class="annottext">StdMethod -&gt; Method
+</span><a href="Network.HTTP.Types.Method.html#renderStdMethod"><span class="hs-identifier hs-var">renderStdMethod</span></a></span><span>
+</span><span id="line-72"></span><span>
+</span><span id="line-73"></span><span class="hs-comment">-- | Convert a 'StdMethod' to a 'ByteString'.</span><span>
+</span><span id="line-74"></span><span class="annot"><a href="Network.HTTP.Types.Method.html#renderStdMethod"><span class="hs-identifier hs-type">renderStdMethod</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP.Types.Method.html#StdMethod"><span class="hs-identifier hs-type">StdMethod</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP.Types.Method.html#Method"><span class="hs-identifier hs-type">Method</span></a></span><span>
+</span><span id="line-75"></span><span id="renderStdMethod"><span class="annot"><span class="annottext">renderStdMethod :: StdMethod -&gt; Method
+</span><a href="Network.HTTP.Types.Method.html#renderStdMethod"><span class="hs-identifier hs-var hs-var">renderStdMethod</span></a></span></span><span> </span><span id="local-6989586621679048698"><span class="annot"><span class="annottext">StdMethod
+</span><a href="#local-6989586621679048698"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Array StdMethod Method
+</span><a href="Network.HTTP.Types.Method.html#methodArray"><span class="hs-identifier hs-var">methodArray</span></a></span><span> </span><span class="annot"><span class="annottext">forall i e. Ix i =&gt; Array i e -&gt; i -&gt; e
+</span><span class="hs-operator hs-var">!</span></span><span> </span><span class="annot"><span class="annottext">StdMethod
+</span><a href="#local-6989586621679048698"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-76"></span></pre></body></html>

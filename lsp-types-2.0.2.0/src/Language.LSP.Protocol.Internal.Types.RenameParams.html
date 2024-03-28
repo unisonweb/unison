@@ -1,0 +1,177 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- THIS IS A GENERATED FILE, DO NOT EDIT</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-imports #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-matches #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-deprecations #-}</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.RenameParams</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Hashable</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html"><span class="hs-identifier">Language.LSP.Protocol.Utils.Misc</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prettyprinter</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Aeson.html"><span class="hs-identifier">Data.Row.Aeson</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Hashable.html"><span class="hs-identifier">Data.Row.Hashable</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Hashable</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.Position.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.Position</span></a></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ProgressToken.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.ProgressToken</span></a></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.TextDocumentIdentifier.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.TextDocumentIdentifier</span></a></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html"><span class="hs-identifier">Language.LSP.Protocol.Types.Common</span></a></span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="hs-comment">{-|
+The parameters of a `RenameRequest`.
+-}</span><span>
+</span><span id="line-25"></span><span id="local-6989586621682152117"><span id="local-6989586621682152118"></span></span><span class="hs-keyword">data</span><span> </span><span id="RenameParams"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.RenameParams.html#RenameParams"><span class="hs-identifier hs-var">RenameParams</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="RenameParams"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.RenameParams.html#RenameParams"><span class="hs-identifier hs-var">RenameParams</span></a></span></span><span> </span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-special">{</span><span> </span><span class="hs-comment">{-|
+  An optional token that a server can use to report work done progress.
+  -}</span><span>
+</span><span id="line-29"></span><span>  </span><span id="%24sel%3A_workDoneToken%3ARenameParams"><span class="annot"><span class="annottext">RenameParams -&gt; Maybe ProgressToken
+</span><a href="Language.LSP.Protocol.Internal.Types.RenameParams.html#%24sel%3A_workDoneToken%3ARenameParams"><span class="hs-identifier hs-var hs-var">_workDoneToken</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ProgressToken.html#ProgressToken"><span class="hs-identifier hs-type">Language.LSP.Protocol.Internal.Types.ProgressToken.ProgressToken</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-comment">{-|
+  The document to rename.
+  -}</span><span>
+</span><span id="line-33"></span><span>  </span><span id="%24sel%3A_textDocument%3ARenameParams"><span class="annot"><span class="annottext">RenameParams -&gt; TextDocumentIdentifier
+</span><a href="Language.LSP.Protocol.Internal.Types.RenameParams.html#%24sel%3A_textDocument%3ARenameParams"><span class="hs-identifier hs-var hs-var">_textDocument</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.TextDocumentIdentifier.html#TextDocumentIdentifier"><span class="hs-identifier hs-type">Language.LSP.Protocol.Internal.Types.TextDocumentIdentifier.TextDocumentIdentifier</span></a></span><span>
+</span><span id="line-34"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-comment">{-|
+  The position at which this request was sent.
+  -}</span><span>
+</span><span id="line-37"></span><span>  </span><span id="%24sel%3A_position%3ARenameParams"><span class="annot"><span class="annottext">RenameParams -&gt; Position
+</span><a href="Language.LSP.Protocol.Internal.Types.RenameParams.html#%24sel%3A_position%3ARenameParams"><span class="hs-identifier hs-var hs-var">_position</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.Position.html#Position"><span class="hs-identifier hs-type">Language.LSP.Protocol.Internal.Types.Position.Position</span></a></span><span>
+</span><span id="line-38"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-comment">{-|
+  The new name of the symbol. If the given name is not valid the
+  request must return a `ResponseError` with an
+  appropriate message set.
+  -}</span><span>
+</span><span id="line-43"></span><span>  </span><span id="%24sel%3A_newName%3ARenameParams"><span class="annot"><span class="annottext">RenameParams -&gt; Text
+</span><a href="Language.LSP.Protocol.Internal.Types.RenameParams.html#%24sel%3A_newName%3ARenameParams"><span class="hs-identifier hs-var hs-var">_newName</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Data.Text.Text</span></span><span>
+</span><span id="line-44"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-45"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682152095"><span id="local-6989586621682152097"><span id="local-6989586621682152110"><span class="annot"><span class="annottext">Int -&gt; RenameParams -&gt; ShowS
+[RenameParams] -&gt; ShowS
+RenameParams -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [RenameParams] -&gt; ShowS
+$cshowList :: [RenameParams] -&gt; ShowS
+show :: RenameParams -&gt; String
+$cshow :: RenameParams -&gt; String
+showsPrec :: Int -&gt; RenameParams -&gt; ShowS
+$cshowsPrec :: Int -&gt; RenameParams -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682152080"><span id="local-6989586621682152091"><span class="annot"><span class="annottext">RenameParams -&gt; RenameParams -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: RenameParams -&gt; RenameParams -&gt; Bool
+$c/= :: RenameParams -&gt; RenameParams -&gt; Bool
+== :: RenameParams -&gt; RenameParams -&gt; Bool
+$c== :: RenameParams -&gt; RenameParams -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682152045"><span id="local-6989586621682152047"><span id="local-6989586621682152050"><span id="local-6989586621682152053"><span id="local-6989586621682152056"><span id="local-6989586621682152063"><span id="local-6989586621682152074"><span class="annot"><span class="annottext">Eq RenameParams
+RenameParams -&gt; RenameParams -&gt; Bool
+RenameParams -&gt; RenameParams -&gt; Ordering
+RenameParams -&gt; RenameParams -&gt; RenameParams
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: RenameParams -&gt; RenameParams -&gt; RenameParams
+$cmin :: RenameParams -&gt; RenameParams -&gt; RenameParams
+max :: RenameParams -&gt; RenameParams -&gt; RenameParams
+$cmax :: RenameParams -&gt; RenameParams -&gt; RenameParams
+&gt;= :: RenameParams -&gt; RenameParams -&gt; Bool
+$c&gt;= :: RenameParams -&gt; RenameParams -&gt; Bool
+&gt; :: RenameParams -&gt; RenameParams -&gt; Bool
+$c&gt; :: RenameParams -&gt; RenameParams -&gt; Bool
+&lt;= :: RenameParams -&gt; RenameParams -&gt; Bool
+$c&lt;= :: RenameParams -&gt; RenameParams -&gt; Bool
+&lt; :: RenameParams -&gt; RenameParams -&gt; Bool
+$c&lt; :: RenameParams -&gt; RenameParams -&gt; Bool
+compare :: RenameParams -&gt; RenameParams -&gt; Ordering
+$ccompare :: RenameParams -&gt; RenameParams -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall x. Rep RenameParams x -&gt; RenameParams
+forall x. RenameParams -&gt; Rep RenameParams x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cto :: forall x. Rep RenameParams x -&gt; RenameParams
+$cfrom :: forall x. RenameParams -&gt; Rep RenameParams x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-46"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">anyclass</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682152038"><span class="annot"><span class="annottext">RenameParams -&gt; ()
+forall a. (a -&gt; ()) -&gt; NFData a
+rnf :: RenameParams -&gt; ()
+$crnf :: RenameParams -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682152031"><span id="local-6989586621682152033"><span class="annot"><span class="annottext">Eq RenameParams
+Int -&gt; RenameParams -&gt; Int
+RenameParams -&gt; Int
+forall a. Eq a -&gt; (Int -&gt; a -&gt; Int) -&gt; (a -&gt; Int) -&gt; Hashable a
+hash :: RenameParams -&gt; Int
+$chash :: RenameParams -&gt; Int
+hashWithSalt :: Int -&gt; RenameParams -&gt; Int
+$chashWithSalt :: Int -&gt; RenameParams -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Hashable</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-47"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621682152022"><span id="local-6989586621682152028"><span class="annot"><span class="annottext">forall ann. [RenameParams] -&gt; Doc ann
+forall ann. RenameParams -&gt; Doc ann
+forall a.
+(forall ann. a -&gt; Doc ann)
+-&gt; (forall ann. [a] -&gt; Doc ann) -&gt; Pretty a
+prettyList :: forall ann. [RenameParams] -&gt; Doc ann
+$cprettyList :: forall ann. [RenameParams] -&gt; Doc ann
+pretty :: forall ann. RenameParams -&gt; Doc ann
+$cpretty :: forall ann. RenameParams -&gt; Doc ann
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Pretty</span></span></span></span><span> </span><span class="hs-keyword">via</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html#ViaJSON"><span class="hs-identifier hs-type">ViaJSON</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.RenameParams.html#RenameParams"><span class="hs-identifier hs-type">RenameParams</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682152010"><span id="local-6989586621682152012"><span id="local-6989586621682152014"><span class="annot"><span class="hs-identifier hs-type">Aeson.ToJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.RenameParams.html#RenameParams"><span class="hs-identifier hs-type">RenameParams</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-50"></span><span>  </span><span id="local-6989586621682151989"><span class="annot"><span class="annottext">toJSON :: RenameParams -&gt; Value
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">toJSON</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.RenameParams.html#RenameParams"><span class="hs-identifier hs-type">RenameParams</span></a></span><span> </span><span id="local-6989586621682151987"><span class="annot"><span class="annottext">Maybe ProgressToken
+</span><a href="#local-6989586621682151987"><span class="hs-identifier hs-var">arg0</span></a></span></span><span> </span><span id="local-6989586621682151986"><span class="annot"><span class="annottext">TextDocumentIdentifier
+</span><a href="#local-6989586621682151986"><span class="hs-identifier hs-var">arg1</span></a></span></span><span> </span><span id="local-6989586621682151985"><span class="annot"><span class="annottext">Position
+</span><a href="#local-6989586621682151985"><span class="hs-identifier hs-var">arg2</span></a></span></span><span> </span><span id="local-6989586621682151984"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621682151984"><span class="hs-identifier hs-var">arg3</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">Aeson.object</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">concat</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>  </span><span class="hs-special">[</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;workDoneToken&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe ProgressToken
+</span><a href="#local-6989586621682151987"><span class="hs-identifier hs-var">arg0</span></a></span><span>
+</span><span id="line-51"></span><span>    </span><span class="hs-special">,</span><span class="hs-special">[</span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;textDocument&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">Aeson..=</span></span><span> </span><span class="annot"><span class="annottext">TextDocumentIdentifier
+</span><a href="#local-6989586621682151986"><span class="hs-identifier hs-var">arg1</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-52"></span><span>    </span><span class="hs-special">,</span><span class="hs-special">[</span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;position&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">Aeson..=</span></span><span> </span><span class="annot"><span class="annottext">Position
+</span><a href="#local-6989586621682151985"><span class="hs-identifier hs-var">arg2</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-53"></span><span>    </span><span class="hs-special">,</span><span class="hs-special">[</span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;newName&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">Aeson..=</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621682151984"><span class="hs-identifier hs-var">arg3</span></a></span><span class="hs-special">]</span><span class="hs-special">]</span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682151977"><span class="annot"><span class="hs-identifier hs-type">Aeson.FromJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.RenameParams.html#RenameParams"><span class="hs-identifier hs-type">RenameParams</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-56"></span><span>  </span><span id="local-6989586621682151957"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser RenameParams
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">Aeson.withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;RenameParams&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621682151954"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682151954"><span class="hs-identifier hs-var">arg</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe ProgressToken
+-&gt; TextDocumentIdentifier -&gt; Position -&gt; Text -&gt; RenameParams
+</span><a href="Language.LSP.Protocol.Internal.Types.RenameParams.html#RenameParams"><span class="hs-identifier hs-var">RenameParams</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682151954"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">Aeson..:!</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;workDoneToken&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682151954"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">Aeson..:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;textDocument&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682151954"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">Aeson..:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;position&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682151954"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">Aeson..:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;newName&quot;</span></span><span>
+</span><span id="line-57"></span></pre></body></html>

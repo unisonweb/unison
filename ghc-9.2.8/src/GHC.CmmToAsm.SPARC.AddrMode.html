@@ -1,0 +1,94 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span>
+</span><span id="line-2"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">GHC.CmmToAsm.SPARC.AddrMode</span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-3"></span><span>        </span><span class="annot"><a href="GHC.CmmToAsm.SPARC.AddrMode.html#AddrMode"><span class="hs-identifier">AddrMode</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-4"></span><span>        </span><span class="annot"><a href="GHC.CmmToAsm.SPARC.AddrMode.html#addrOffset"><span class="hs-identifier">addrOffset</span></a></span><span>
+</span><span id="line-5"></span><span class="hs-special">)</span><span>
+</span><span id="line-6"></span><span>
+</span><span id="line-7"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Prelude.html"><span class="hs-identifier">GHC.Prelude</span></a></span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.CmmToAsm.SPARC.Imm.html"><span class="hs-identifier">GHC.CmmToAsm.SPARC.Imm</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.CmmToAsm.SPARC.Base.html"><span class="hs-identifier">GHC.CmmToAsm.SPARC.Base</span></a></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Platform.Reg.html"><span class="hs-identifier">GHC.Platform.Reg</span></a></span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- addressing modes ------------------------------------------------------------</span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- | Represents a memory address in an instruction.</span><span>
+</span><span id="line-18"></span><span class="hs-comment">--      Being a RISC machine, the SPARC addressing modes are very regular.</span><span>
+</span><span id="line-19"></span><span class="hs-comment">--</span><span>
+</span><span id="line-20"></span><span class="hs-keyword">data</span><span> </span><span id="AddrMode"><span class="annot"><a href="GHC.CmmToAsm.SPARC.AddrMode.html#AddrMode"><span class="hs-identifier hs-var">AddrMode</span></a></span></span><span>
+</span><span id="line-21"></span><span>        </span><span class="hs-glyph">=</span><span> </span><span id="AddrRegReg"><span class="annot"><a href="GHC.CmmToAsm.SPARC.AddrMode.html#AddrRegReg"><span class="hs-identifier hs-var">AddrRegReg</span></a></span></span><span>    </span><span class="annot"><a href="GHC.Platform.Reg.html#Reg"><span class="hs-identifier hs-type">Reg</span></a></span><span> </span><span class="annot"><a href="GHC.Platform.Reg.html#Reg"><span class="hs-identifier hs-type">Reg</span></a></span><span>         </span><span class="hs-comment">-- addr = r1 + r2</span><span>
+</span><span id="line-22"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span id="AddrRegImm"><span class="annot"><a href="GHC.CmmToAsm.SPARC.AddrMode.html#AddrRegImm"><span class="hs-identifier hs-var">AddrRegImm</span></a></span></span><span>    </span><span class="annot"><a href="GHC.Platform.Reg.html#Reg"><span class="hs-identifier hs-type">Reg</span></a></span><span> </span><span class="annot"><a href="GHC.CmmToAsm.SPARC.Imm.html#Imm"><span class="hs-identifier hs-type">Imm</span></a></span><span>         </span><span class="hs-comment">-- addr = r1 + imm</span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span class="hs-comment">-- | Add an integer offset to the address in an AddrMode.</span><span>
+</span><span id="line-26"></span><span class="hs-comment">--</span><span>
+</span><span id="line-27"></span><span class="annot"><a href="GHC.CmmToAsm.SPARC.AddrMode.html#addrOffset"><span class="hs-identifier hs-type">addrOffset</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.CmmToAsm.SPARC.AddrMode.html#AddrMode"><span class="hs-identifier hs-type">AddrMode</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Maybe"><span class="hs-identifier hs-type">Maybe</span></a></span><span> </span><span class="annot"><a href="GHC.CmmToAsm.SPARC.AddrMode.html#AddrMode"><span class="hs-identifier hs-type">AddrMode</span></a></span><span>
+</span><span id="line-28"></span><span id="addrOffset"><span class="annot"><span class="annottext">addrOffset :: AddrMode -&gt; Int -&gt; Maybe AddrMode
+</span><a href="GHC.CmmToAsm.SPARC.AddrMode.html#addrOffset"><span class="hs-identifier hs-var hs-var">addrOffset</span></a></span></span><span> </span><span id="local-6989586621681213815"><span class="annot"><span class="annottext">AddrMode
+</span><a href="#local-6989586621681213815"><span class="hs-identifier hs-var">addr</span></a></span></span><span> </span><span id="local-6989586621681213814"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681213814"><span class="hs-identifier hs-var">off</span></a></span></span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">AddrMode
+</span><a href="#local-6989586621681213815"><span class="hs-identifier hs-var">addr</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-30"></span><span>      </span><span class="annot"><a href="GHC.CmmToAsm.SPARC.AddrMode.html#AddrRegImm"><span class="hs-identifier hs-type">AddrRegImm</span></a></span><span> </span><span id="local-6989586621681213813"><span class="annot"><span class="annottext">Reg
+</span><a href="#local-6989586621681213813"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.CmmToAsm.SPARC.Imm.html#ImmInt"><span class="hs-identifier hs-type">ImmInt</span></a></span><span> </span><span id="local-6989586621681213811"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681213811"><span class="hs-identifier hs-var">n</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span>       </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">forall a. Integral a =&gt; a -&gt; Bool
+</span><a href="GHC.CmmToAsm.SPARC.Base.html#fits13Bits"><span class="hs-identifier hs-var">fits13Bits</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681213809"><span class="hs-identifier hs-var">n2</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Just"><span class="hs-identifier hs-var">Just</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Reg -&gt; Imm -&gt; AddrMode
+</span><a href="GHC.CmmToAsm.SPARC.AddrMode.html#AddrRegImm"><span class="hs-identifier hs-var">AddrRegImm</span></a></span><span> </span><span class="annot"><span class="annottext">Reg
+</span><a href="#local-6989586621681213813"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Imm
+</span><a href="GHC.CmmToAsm.SPARC.Imm.html#ImmInt"><span class="hs-identifier hs-var">ImmInt</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681213809"><span class="hs-identifier hs-var">n2</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span>       </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#otherwise"><span class="hs-identifier hs-var">otherwise</span></a></span><span>     </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Nothing"><span class="hs-identifier hs-var">Nothing</span></a></span><span>
+</span><span id="line-33"></span><span>       </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621681213809"><span class="annot"><span class="annottext">n2 :: Int
+</span><a href="#local-6989586621681213809"><span class="hs-identifier hs-var hs-var">n2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681213811"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681213814"><span class="hs-identifier hs-var">off</span></a></span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span>      </span><span class="annot"><a href="GHC.CmmToAsm.SPARC.AddrMode.html#AddrRegImm"><span class="hs-identifier hs-type">AddrRegImm</span></a></span><span> </span><span id="local-6989586621681213807"><span class="annot"><span class="annottext">Reg
+</span><a href="#local-6989586621681213807"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.CmmToAsm.SPARC.Imm.html#ImmInteger"><span class="hs-identifier hs-type">ImmInteger</span></a></span><span> </span><span id="local-6989586621681213805"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621681213805"><span class="hs-identifier hs-var">n</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span>       </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">forall a. Integral a =&gt; a -&gt; Bool
+</span><a href="GHC.CmmToAsm.SPARC.Base.html#fits13Bits"><span class="hs-identifier hs-var">fits13Bits</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621681213804"><span class="hs-identifier hs-var">n2</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Just"><span class="hs-identifier hs-var">Just</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Reg -&gt; Imm -&gt; AddrMode
+</span><a href="GHC.CmmToAsm.SPARC.AddrMode.html#AddrRegImm"><span class="hs-identifier hs-var">AddrRegImm</span></a></span><span> </span><span class="annot"><span class="annottext">Reg
+</span><a href="#local-6989586621681213807"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Imm
+</span><a href="GHC.CmmToAsm.SPARC.Imm.html#ImmInt"><span class="hs-identifier hs-var">ImmInt</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Num a =&gt; Integer -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#fromInteger"><span class="hs-identifier hs-var">fromInteger</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621681213804"><span class="hs-identifier hs-var">n2</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-37"></span><span>       </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#otherwise"><span class="hs-identifier hs-var">otherwise</span></a></span><span>     </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Nothing"><span class="hs-identifier hs-var">Nothing</span></a></span><span>
+</span><span id="line-38"></span><span>       </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621681213804"><span class="annot"><span class="annottext">n2 :: Integer
+</span><a href="#local-6989586621681213804"><span class="hs-identifier hs-var hs-var">n2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621681213805"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Integral a =&gt; a -&gt; Integer
+</span><a href="../../base-4.16.4.0/src/GHC-Real.html#toInteger"><span class="hs-identifier hs-var">toInteger</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681213814"><span class="hs-identifier hs-var">off</span></a></span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span>      </span><span class="annot"><a href="GHC.CmmToAsm.SPARC.AddrMode.html#AddrRegReg"><span class="hs-identifier hs-type">AddrRegReg</span></a></span><span> </span><span id="local-6989586621681213803"><span class="annot"><span class="annottext">Reg
+</span><a href="#local-6989586621681213803"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Platform.Reg.html#RegReal"><span class="hs-identifier hs-type">RegReal</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Platform.Reg.html#RealRegSingle"><span class="hs-identifier hs-type">RealRegSingle</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-41"></span><span>       </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">forall a. Integral a =&gt; a -&gt; Bool
+</span><a href="GHC.CmmToAsm.SPARC.Base.html#fits13Bits"><span class="hs-identifier hs-var">fits13Bits</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681213814"><span class="hs-identifier hs-var">off</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Just"><span class="hs-identifier hs-var">Just</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Reg -&gt; Imm -&gt; AddrMode
+</span><a href="GHC.CmmToAsm.SPARC.AddrMode.html#AddrRegImm"><span class="hs-identifier hs-var">AddrRegImm</span></a></span><span> </span><span class="annot"><span class="annottext">Reg
+</span><a href="#local-6989586621681213803"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Imm
+</span><a href="GHC.CmmToAsm.SPARC.Imm.html#ImmInt"><span class="hs-identifier hs-var">ImmInt</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681213814"><span class="hs-identifier hs-var">off</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span>       </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#otherwise"><span class="hs-identifier hs-var">otherwise</span></a></span><span>     </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Nothing"><span class="hs-identifier hs-var">Nothing</span></a></span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span>      </span><span class="annot"><span class="annottext">AddrMode
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Nothing"><span class="hs-identifier hs-var">Nothing</span></a></span><span>
+</span><span id="line-45"></span></pre></body></html>

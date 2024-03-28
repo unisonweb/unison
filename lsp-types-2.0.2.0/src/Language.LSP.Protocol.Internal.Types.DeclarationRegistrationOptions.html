@@ -1,0 +1,193 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- THIS IS A GENERATED FILE, DO NOT EDIT</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-imports #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-matches #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-deprecations #-}</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.DeclarationRegistrationOptions</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Hashable</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html"><span class="hs-identifier">Language.LSP.Protocol.Utils.Misc</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prettyprinter</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Aeson.html"><span class="hs-identifier">Data.Row.Aeson</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Hashable.html"><span class="hs-identifier">Data.Row.Hashable</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Hashable</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.DocumentSelector.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.DocumentSelector</span></a></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html"><span class="hs-identifier">Language.LSP.Protocol.Types.Common</span></a></span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="hs-comment">{-|
+
+-}</span><span>
+</span><span id="line-23"></span><span id="local-6989586621682210588"><span id="local-6989586621682210589"></span></span><span class="hs-keyword">data</span><span> </span><span id="DeclarationRegistrationOptions"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.DeclarationRegistrationOptions.html#DeclarationRegistrationOptions"><span class="hs-identifier hs-var">DeclarationRegistrationOptions</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="DeclarationRegistrationOptions"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.DeclarationRegistrationOptions.html#DeclarationRegistrationOptions"><span class="hs-identifier hs-var">DeclarationRegistrationOptions</span></a></span></span><span> </span><span>
+</span><span id="line-24"></span><span>  </span><span class="hs-special">{</span><span> </span><span class="hs-comment">{-|
+
+  -}</span><span>
+</span><span id="line-27"></span><span>  </span><span id="%24sel%3A_workDoneProgress%3ADeclarationRegistrationOptions"><span class="annot"><span class="annottext">DeclarationRegistrationOptions -&gt; Maybe Bool
+</span><a href="Language.LSP.Protocol.Internal.Types.DeclarationRegistrationOptions.html#%24sel%3A_workDoneProgress%3ADeclarationRegistrationOptions"><span class="hs-identifier hs-var hs-var">_workDoneProgress</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-comment">{-|
+  A document selector to identify the scope of the registration. If set to null
+  the document selector provided on the client side will be used.
+  -}</span><span>
+</span><span id="line-32"></span><span>  </span><span id="%24sel%3A_documentSelector%3ADeclarationRegistrationOptions"><span class="annot"><span class="annottext">DeclarationRegistrationOptions -&gt; DocumentSelector |? Null
+</span><a href="Language.LSP.Protocol.Internal.Types.DeclarationRegistrationOptions.html#%24sel%3A_documentSelector%3ADeclarationRegistrationOptions"><span class="hs-identifier hs-var hs-var">_documentSelector</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.DocumentSelector.html#DocumentSelector"><span class="hs-identifier hs-type">Language.LSP.Protocol.Internal.Types.DocumentSelector.DocumentSelector</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#%7C%3F"><span class="hs-operator hs-type">Language.LSP.Protocol.Types.Common.|?</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#Null"><span class="hs-identifier hs-type">Language.LSP.Protocol.Types.Common.Null</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-comment">{-|
+  The id used to register the request. The id can be used to deregister
+  the request again. See also Registration#id.
+  -}</span><span>
+</span><span id="line-37"></span><span>  </span><span id="%24sel%3A_id%3ADeclarationRegistrationOptions"><span class="annot"><span class="annottext">DeclarationRegistrationOptions -&gt; Maybe Text
+</span><a href="Language.LSP.Protocol.Internal.Types.DeclarationRegistrationOptions.html#%24sel%3A_id%3ADeclarationRegistrationOptions"><span class="hs-identifier hs-var hs-var">_id</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Data.Text.Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-38"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-39"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682210567"><span id="local-6989586621682210569"><span id="local-6989586621682210582"><span class="annot"><span class="annottext">Int -&gt; DeclarationRegistrationOptions -&gt; ShowS
+[DeclarationRegistrationOptions] -&gt; ShowS
+DeclarationRegistrationOptions -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [DeclarationRegistrationOptions] -&gt; ShowS
+$cshowList :: [DeclarationRegistrationOptions] -&gt; ShowS
+show :: DeclarationRegistrationOptions -&gt; String
+$cshow :: DeclarationRegistrationOptions -&gt; String
+showsPrec :: Int -&gt; DeclarationRegistrationOptions -&gt; ShowS
+$cshowsPrec :: Int -&gt; DeclarationRegistrationOptions -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682210549"><span id="local-6989586621682210560"><span class="annot"><span class="annottext">DeclarationRegistrationOptions
+-&gt; DeclarationRegistrationOptions -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: DeclarationRegistrationOptions
+-&gt; DeclarationRegistrationOptions -&gt; Bool
+$c/= :: DeclarationRegistrationOptions
+-&gt; DeclarationRegistrationOptions -&gt; Bool
+== :: DeclarationRegistrationOptions
+-&gt; DeclarationRegistrationOptions -&gt; Bool
+$c== :: DeclarationRegistrationOptions
+-&gt; DeclarationRegistrationOptions -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682210509"><span id="local-6989586621682210511"><span id="local-6989586621682210514"><span id="local-6989586621682210517"><span id="local-6989586621682210520"><span id="local-6989586621682210529"><span id="local-6989586621682210540"><span class="annot"><span class="annottext">Eq DeclarationRegistrationOptions
+DeclarationRegistrationOptions
+-&gt; DeclarationRegistrationOptions -&gt; Bool
+DeclarationRegistrationOptions
+-&gt; DeclarationRegistrationOptions -&gt; Ordering
+DeclarationRegistrationOptions
+-&gt; DeclarationRegistrationOptions -&gt; DeclarationRegistrationOptions
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: DeclarationRegistrationOptions
+-&gt; DeclarationRegistrationOptions -&gt; DeclarationRegistrationOptions
+$cmin :: DeclarationRegistrationOptions
+-&gt; DeclarationRegistrationOptions -&gt; DeclarationRegistrationOptions
+max :: DeclarationRegistrationOptions
+-&gt; DeclarationRegistrationOptions -&gt; DeclarationRegistrationOptions
+$cmax :: DeclarationRegistrationOptions
+-&gt; DeclarationRegistrationOptions -&gt; DeclarationRegistrationOptions
+&gt;= :: DeclarationRegistrationOptions
+-&gt; DeclarationRegistrationOptions -&gt; Bool
+$c&gt;= :: DeclarationRegistrationOptions
+-&gt; DeclarationRegistrationOptions -&gt; Bool
+&gt; :: DeclarationRegistrationOptions
+-&gt; DeclarationRegistrationOptions -&gt; Bool
+$c&gt; :: DeclarationRegistrationOptions
+-&gt; DeclarationRegistrationOptions -&gt; Bool
+&lt;= :: DeclarationRegistrationOptions
+-&gt; DeclarationRegistrationOptions -&gt; Bool
+$c&lt;= :: DeclarationRegistrationOptions
+-&gt; DeclarationRegistrationOptions -&gt; Bool
+&lt; :: DeclarationRegistrationOptions
+-&gt; DeclarationRegistrationOptions -&gt; Bool
+$c&lt; :: DeclarationRegistrationOptions
+-&gt; DeclarationRegistrationOptions -&gt; Bool
+compare :: DeclarationRegistrationOptions
+-&gt; DeclarationRegistrationOptions -&gt; Ordering
+$ccompare :: DeclarationRegistrationOptions
+-&gt; DeclarationRegistrationOptions -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall x.
+Rep DeclarationRegistrationOptions x
+-&gt; DeclarationRegistrationOptions
+forall x.
+DeclarationRegistrationOptions
+-&gt; Rep DeclarationRegistrationOptions x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cto :: forall x.
+Rep DeclarationRegistrationOptions x
+-&gt; DeclarationRegistrationOptions
+$cfrom :: forall x.
+DeclarationRegistrationOptions
+-&gt; Rep DeclarationRegistrationOptions x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-40"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">anyclass</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682210499"><span class="annot"><span class="annottext">DeclarationRegistrationOptions -&gt; ()
+forall a. (a -&gt; ()) -&gt; NFData a
+rnf :: DeclarationRegistrationOptions -&gt; ()
+$crnf :: DeclarationRegistrationOptions -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682210492"><span id="local-6989586621682210494"><span class="annot"><span class="annottext">Eq DeclarationRegistrationOptions
+Int -&gt; DeclarationRegistrationOptions -&gt; Int
+DeclarationRegistrationOptions -&gt; Int
+forall a. Eq a -&gt; (Int -&gt; a -&gt; Int) -&gt; (a -&gt; Int) -&gt; Hashable a
+hash :: DeclarationRegistrationOptions -&gt; Int
+$chash :: DeclarationRegistrationOptions -&gt; Int
+hashWithSalt :: Int -&gt; DeclarationRegistrationOptions -&gt; Int
+$chashWithSalt :: Int -&gt; DeclarationRegistrationOptions -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Hashable</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-41"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621682210483"><span id="local-6989586621682210489"><span class="annot"><span class="annottext">forall ann. [DeclarationRegistrationOptions] -&gt; Doc ann
+forall ann. DeclarationRegistrationOptions -&gt; Doc ann
+forall a.
+(forall ann. a -&gt; Doc ann)
+-&gt; (forall ann. [a] -&gt; Doc ann) -&gt; Pretty a
+prettyList :: forall ann. [DeclarationRegistrationOptions] -&gt; Doc ann
+$cprettyList :: forall ann. [DeclarationRegistrationOptions] -&gt; Doc ann
+pretty :: forall ann. DeclarationRegistrationOptions -&gt; Doc ann
+$cpretty :: forall ann. DeclarationRegistrationOptions -&gt; Doc ann
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Pretty</span></span></span></span><span> </span><span class="hs-keyword">via</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html#ViaJSON"><span class="hs-identifier hs-type">ViaJSON</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.DeclarationRegistrationOptions.html#DeclarationRegistrationOptions"><span class="hs-identifier hs-type">DeclarationRegistrationOptions</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682210471"><span id="local-6989586621682210473"><span id="local-6989586621682210475"><span class="annot"><span class="hs-identifier hs-type">Aeson.ToJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.DeclarationRegistrationOptions.html#DeclarationRegistrationOptions"><span class="hs-identifier hs-type">DeclarationRegistrationOptions</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-44"></span><span>  </span><span id="local-6989586621682210451"><span class="annot"><span class="annottext">toJSON :: DeclarationRegistrationOptions -&gt; Value
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">toJSON</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.DeclarationRegistrationOptions.html#DeclarationRegistrationOptions"><span class="hs-identifier hs-type">DeclarationRegistrationOptions</span></a></span><span> </span><span id="local-6989586621682210449"><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682210449"><span class="hs-identifier hs-var">arg0</span></a></span></span><span> </span><span id="local-6989586621682210448"><span class="annot"><span class="annottext">DocumentSelector |? Null
+</span><a href="#local-6989586621682210448"><span class="hs-identifier hs-var">arg1</span></a></span></span><span> </span><span id="local-6989586621682210447"><span class="annot"><span class="annottext">Maybe Text
+</span><a href="#local-6989586621682210447"><span class="hs-identifier hs-var">arg2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">Aeson.object</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">concat</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>  </span><span class="hs-special">[</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;workDoneProgress&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682210449"><span class="hs-identifier hs-var">arg0</span></a></span><span>
+</span><span id="line-45"></span><span>    </span><span class="hs-special">,</span><span class="hs-special">[</span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;documentSelector&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">Aeson..=</span></span><span> </span><span class="annot"><span class="annottext">DocumentSelector |? Null
+</span><a href="#local-6989586621682210448"><span class="hs-identifier hs-var">arg1</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-46"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;id&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Text
+</span><a href="#local-6989586621682210447"><span class="hs-identifier hs-var">arg2</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-47"></span><span>
+</span><span id="line-48"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682210440"><span class="annot"><span class="hs-identifier hs-type">Aeson.FromJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.DeclarationRegistrationOptions.html#DeclarationRegistrationOptions"><span class="hs-identifier hs-type">DeclarationRegistrationOptions</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-49"></span><span>  </span><span id="local-6989586621682210418"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser DeclarationRegistrationOptions
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">Aeson.withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;DeclarationRegistrationOptions&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621682210415"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682210415"><span class="hs-identifier hs-var">arg</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Bool
+-&gt; (DocumentSelector |? Null)
+-&gt; Maybe Text
+-&gt; DeclarationRegistrationOptions
+</span><a href="Language.LSP.Protocol.Internal.Types.DeclarationRegistrationOptions.html#DeclarationRegistrationOptions"><span class="hs-identifier hs-var">DeclarationRegistrationOptions</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682210415"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">Aeson..:!</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;workDoneProgress&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682210415"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">Aeson..:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;documentSelector&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682210415"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">Aeson..:!</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;id&quot;</span></span><span>
+</span><span id="line-50"></span></pre></body></html>

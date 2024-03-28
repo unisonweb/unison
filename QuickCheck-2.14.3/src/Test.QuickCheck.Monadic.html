@@ -1,0 +1,517 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span class="hs-cpp">
+#ifndef NO_SAFE_HASKELL
+</span><span class="hs-cpp">#if !defined(NO_ST_MONAD) &amp;&amp; !(MIN_VERSION_base(4,8,0))
+</span><span class="hs-pragma">{-# LANGUAGE Trustworthy #-}</span><span class="hs-cpp">
+#else
+</span><span class="hs-pragma">{-# LANGUAGE Safe #-}</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">#endif
+</span><span class="hs-cpp">#ifndef NO_ST_MONAD
+</span><span class="hs-pragma">{-# LANGUAGE Rank2Types #-}</span><span class="hs-cpp">
+#endif
+</span><span class="hs-comment">{-|
+Module   : Test.QuickCheck.Monadic
+
+Allows testing of monadic values. Will generally follow this form:
+
+@
+prop_monadic a b = 'monadicIO' $ do
+  a\' \&lt;- 'run' (f a)
+  b\' \&lt;- 'run' (f b)
+  -- ...
+  'assert' someBoolean
+@
+
+Example using the @FACTOR(1)@ command-line utility:
+
+@
+import System.Process
+import Test.QuickCheck
+import Test.QuickCheck.Monadic
+
+-- $ factor 16
+-- 16: 2 2 2 2
+factor :: Integer -&gt; IO [Integer]
+factor n = parse \`fmap\` 'System.Process.readProcess' \&quot;factor\&quot; [show n] \&quot;\&quot; where
+
+  parse :: String -&gt; [Integer]
+  parse = map read . tail . words
+
+prop_factor :: Positive Integer -&gt; Property
+prop_factor ('Test.QuickCheck.Modifiers.Positive' n) = 'monadicIO' $ do
+  factors \&lt;- 'run' (factor n)
+
+  'assert' (product factors == n)
+@
+
+&gt;&gt;&gt; quickCheck prop_factor
++++ OK, passed 100 tests.
+
+See the paper \&quot;&lt;http://www.cse.chalmers.se/~rjmh/Papers/QuickCheckST.ps Testing Monadic Code with QuickCheck&gt;\&quot;.
+-}</span><span>
+</span><span id="line-52"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Test.QuickCheck.Monadic</span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-53"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Property monad</span></span><span>
+</span><span id="line-54"></span><span>    </span><span class="annot"><a href="Test.QuickCheck.Monadic.html#PropertyM"><span class="hs-identifier">PropertyM</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Monadic specification combinators</span></span><span>
+</span><span id="line-57"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.QuickCheck.Monadic.html#run"><span class="hs-identifier">run</span></a></span><span>
+</span><span id="line-58"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.QuickCheck.Monadic.html#assert"><span class="hs-identifier">assert</span></a></span><span>
+</span><span id="line-59"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.QuickCheck.Monadic.html#assertWith"><span class="hs-identifier">assertWith</span></a></span><span>
+</span><span id="line-60"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.QuickCheck.Monadic.html#pre"><span class="hs-identifier">pre</span></a></span><span>
+</span><span id="line-61"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.QuickCheck.Monadic.html#wp"><span class="hs-identifier">wp</span></a></span><span>
+</span><span id="line-62"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.QuickCheck.Monadic.html#pick"><span class="hs-identifier">pick</span></a></span><span>
+</span><span id="line-63"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.QuickCheck.Monadic.html#forAllM"><span class="hs-identifier">forAllM</span></a></span><span>
+</span><span id="line-64"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.QuickCheck.Monadic.html#monitor"><span class="hs-identifier">monitor</span></a></span><span>
+</span><span id="line-65"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.QuickCheck.Monadic.html#stop"><span class="hs-identifier">stop</span></a></span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Run functions</span></span><span>
+</span><span id="line-68"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.QuickCheck.Monadic.html#monadic"><span class="hs-identifier">monadic</span></a></span><span>
+</span><span id="line-69"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.QuickCheck.Monadic.html#monadic%27"><span class="hs-identifier">monadic'</span></a></span><span>
+</span><span id="line-70"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.QuickCheck.Monadic.html#monadicIO"><span class="hs-identifier">monadicIO</span></a></span><span class="hs-cpp">
+#ifndef NO_ST_MONAD
+</span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.QuickCheck.Monadic.html#monadicST"><span class="hs-identifier">monadicST</span></a></span><span>
+</span><span id="line-73"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.QuickCheck.Monadic.html#runSTGen"><span class="hs-identifier">runSTGen</span></a></span><span class="hs-cpp">
+#endif
+</span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-76"></span><span>
+</span><span id="line-77"></span><span class="hs-comment">--------------------------------------------------------------------------</span><span>
+</span><span id="line-78"></span><span class="hs-comment">-- imports</span><span>
+</span><span id="line-79"></span><span>
+</span><span id="line-80"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Test.QuickCheck.Gen.html"><span class="hs-identifier">Test.QuickCheck.Gen</span></a></span><span>
+</span><span id="line-81"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Test.QuickCheck.Gen.Unsafe.html"><span class="hs-identifier">Test.QuickCheck.Gen.Unsafe</span></a></span><span>
+</span><span id="line-82"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Test.QuickCheck.Property.html"><span class="hs-identifier">Test.QuickCheck.Property</span></a></span><span>
+</span><span id="line-83"></span><span>
+</span><span id="line-84"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">liftM</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">liftM2</span></span><span class="hs-special">)</span><span>
+</span><span id="line-85"></span><span>
+</span><span id="line-86"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.ST</span></span><span>
+</span><span id="line-87"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Applicative</span></span><span class="hs-cpp">
+
+#ifndef NO_TRANSFORMERS
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.IO.Class</span></span><span>
+</span><span id="line-91"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Trans.Class</span></span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#ifndef NO_MONADFAIL
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Fail</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Fail</span></span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-98"></span><span class="hs-comment">--------------------------------------------------------------------------</span><span>
+</span><span id="line-99"></span><span class="hs-comment">-- type PropertyM</span><span>
+</span><span id="line-100"></span><span>
+</span><span id="line-101"></span><span class="hs-comment">-- | The property monad is really a monad transformer that can contain</span><span>
+</span><span id="line-102"></span><span class="hs-comment">-- monadic computations in the monad @m@ it is parameterized by:</span><span>
+</span><span id="line-103"></span><span class="hs-comment">--</span><span>
+</span><span id="line-104"></span><span class="hs-comment">--   * @m@ - the @m@-computations that may be performed within @PropertyM@</span><span>
+</span><span id="line-105"></span><span class="hs-comment">--</span><span>
+</span><span id="line-106"></span><span class="hs-comment">-- Elements of @PropertyM m a@ may mix property operations and @m@-computations.</span><span>
+</span><span id="line-107"></span><span class="hs-keyword">newtype</span><span> </span><span id="PropertyM"><span class="annot"><a href="Test.QuickCheck.Monadic.html#PropertyM"><span class="hs-identifier hs-var">PropertyM</span></a></span></span><span> </span><span id="local-6989586621679114615"><span class="annot"><a href="#local-6989586621679114615"><span class="hs-identifier hs-type">m</span></a></span></span><span> </span><span id="local-6989586621679114614"><span class="annot"><a href="#local-6989586621679114614"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-108"></span><span>  </span><span id="MkPropertyM"><span class="annot"><a href="Test.QuickCheck.Monadic.html#MkPropertyM"><span class="hs-identifier hs-var">MkPropertyM</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="unPropertyM"><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a.
+PropertyM m a -&gt; (a -&gt; Gen (m Property)) -&gt; Gen (m Property)
+</span><a href="Test.QuickCheck.Monadic.html#unPropertyM"><span class="hs-identifier hs-var hs-var">unPropertyM</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679114614"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.QuickCheck.Gen.html#Gen"><span class="hs-identifier hs-type">Gen</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679114615"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="Test.QuickCheck.Property.html#Property"><span class="hs-identifier hs-type">Property</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.QuickCheck.Gen.html#Gen"><span class="hs-identifier hs-type">Gen</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679114615"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="Test.QuickCheck.Property.html#Property"><span class="hs-identifier hs-type">Property</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-109"></span><span>
+</span><span id="line-110"></span><span id="local-6989586621679114607"><span id="local-6989586621679114608"><span id="local-6989586621679114609"><span class="annot"><a href="Test.QuickCheck.Monadic.html#bind"><span class="hs-identifier hs-type">bind</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.QuickCheck.Monadic.html#PropertyM"><span class="hs-identifier hs-type">PropertyM</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114609"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114608"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679114608"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.QuickCheck.Monadic.html#PropertyM"><span class="hs-identifier hs-type">PropertyM</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114609"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114607"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.QuickCheck.Monadic.html#PropertyM"><span class="hs-identifier hs-type">PropertyM</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114609"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114607"><span class="hs-identifier hs-type">b</span></a></span></span></span></span><span>
+</span><span id="line-111"></span><span class="annot"><a href="Test.QuickCheck.Monadic.html#MkPropertyM"><span class="hs-identifier hs-type">MkPropertyM</span></a></span><span> </span><span id="local-6989586621679114450"><span class="annot"><span class="annottext">(a -&gt; Gen (m Property)) -&gt; Gen (m Property)
+</span><a href="#local-6989586621679114450"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span id="bind"><span class="annot"><span class="annottext">bind :: forall (m :: * -&gt; *) a b.
+PropertyM m a -&gt; (a -&gt; PropertyM m b) -&gt; PropertyM m b
+</span><a href="Test.QuickCheck.Monadic.html#bind"><span class="hs-operator hs-var hs-var">`bind`</span></a></span></span><span> </span><span id="local-6989586621679114449"><span class="annot"><span class="annottext">a -&gt; PropertyM m b
+</span><a href="#local-6989586621679114449"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a.
+((a -&gt; Gen (m Property)) -&gt; Gen (m Property)) -&gt; PropertyM m a
+</span><a href="Test.QuickCheck.Monadic.html#MkPropertyM"><span class="hs-identifier hs-var">MkPropertyM</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679114448"><span class="annot"><span class="annottext">b -&gt; Gen (m Property)
+</span><a href="#local-6989586621679114448"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(a -&gt; Gen (m Property)) -&gt; Gen (m Property)
+</span><a href="#local-6989586621679114450"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679114447"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679114447"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a.
+PropertyM m a -&gt; (a -&gt; Gen (m Property)) -&gt; Gen (m Property)
+</span><a href="Test.QuickCheck.Monadic.html#unPropertyM"><span class="hs-identifier hs-var">unPropertyM</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; PropertyM m b
+</span><a href="#local-6989586621679114449"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679114447"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">b -&gt; Gen (m Property)
+</span><a href="#local-6989586621679114448"><span class="hs-identifier hs-var">k</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-112"></span><span>
+</span><span id="line-113"></span><span id="local-6989586621679114602"><span id="local-6989586621679114603"><span class="annot"><a href="Test.QuickCheck.Monadic.html#fail_"><span class="hs-identifier hs-type">fail_</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679114603"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.QuickCheck.Monadic.html#PropertyM"><span class="hs-identifier hs-type">PropertyM</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114603"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114602"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-114"></span><span id="fail_"><span class="annot"><span class="annottext">fail_ :: forall (m :: * -&gt; *) a. Monad m =&gt; String -&gt; PropertyM m a
+</span><a href="Test.QuickCheck.Monadic.html#fail_"><span class="hs-identifier hs-var hs-var">fail_</span></a></span></span><span> </span><span id="local-6989586621679114441"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679114441"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall prop (m :: * -&gt; *) a.
+(Testable prop, Monad m) =&gt;
+prop -&gt; PropertyM m a
+</span><a href="Test.QuickCheck.Monadic.html#stop"><span class="hs-identifier hs-var">stop</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Result
+</span><a href="Test.QuickCheck.Property.html#failed"><span class="hs-identifier hs-var">failed</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">reason :: String
+</span><a href="Test.QuickCheck.Property.html#reason"><span class="hs-identifier hs-var">reason</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679114441"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="hs-special">}</span><span class="hs-special">)</span><span>
+</span><span id="line-115"></span><span>
+</span><span id="line-116"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679114436"><span id="local-6989586621679114590"><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.QuickCheck.Monadic.html#PropertyM"><span class="hs-identifier hs-type">PropertyM</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114590"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-117"></span><span>  </span><span id="local-6989586621679114434"><span class="annot"><span class="annottext">fmap :: forall a b. (a -&gt; b) -&gt; PropertyM m a -&gt; PropertyM m b
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">fmap</span></span></span><span> </span><span id="local-6989586621679114433"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679114433"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.QuickCheck.Monadic.html#MkPropertyM"><span class="hs-identifier hs-type">MkPropertyM</span></a></span><span> </span><span id="local-6989586621679114432"><span class="annot"><span class="annottext">(a -&gt; Gen (m Property)) -&gt; Gen (m Property)
+</span><a href="#local-6989586621679114432"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a.
+((a -&gt; Gen (m Property)) -&gt; Gen (m Property)) -&gt; PropertyM m a
+</span><a href="Test.QuickCheck.Monadic.html#MkPropertyM"><span class="hs-identifier hs-var">MkPropertyM</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679114431"><span class="annot"><span class="annottext">b -&gt; Gen (m Property)
+</span><a href="#local-6989586621679114431"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(a -&gt; Gen (m Property)) -&gt; Gen (m Property)
+</span><a href="#local-6989586621679114432"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">b -&gt; Gen (m Property)
+</span><a href="#local-6989586621679114431"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679114433"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-118"></span><span>
+</span><span id="line-119"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679114420"><span id="local-6989586621679114422"><span id="local-6989586621679114424"><span id="local-6989586621679114573"><span class="annot"><span class="hs-identifier hs-type">Applicative</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.QuickCheck.Monadic.html#PropertyM"><span class="hs-identifier hs-type">PropertyM</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114573"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-120"></span><span>  </span><span id="local-6989586621679114418"><span class="annot"><span class="annottext">pure :: forall a. a -&gt; PropertyM m a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">pure</span></span></span><span> </span><span id="local-6989586621679114417"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679114417"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a.
+((a -&gt; Gen (m Property)) -&gt; Gen (m Property)) -&gt; PropertyM m a
+</span><a href="Test.QuickCheck.Monadic.html#MkPropertyM"><span class="hs-identifier hs-var">MkPropertyM</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679114416"><span class="annot"><span class="annottext">a -&gt; Gen (m Property)
+</span><a href="#local-6989586621679114416"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">a -&gt; Gen (m Property)
+</span><a href="#local-6989586621679114416"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679114417"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-121"></span><span>  </span><span id="local-6989586621679114414"><span class="annot"><span class="annottext">PropertyM m (a -&gt; b)
+</span><a href="#local-6989586621679114414"><span class="hs-identifier hs-var">mf</span></a></span></span><span> </span><span id="local-6989586621679114413"><span class="annot"><span class="annottext">&lt;*&gt; :: forall a b. PropertyM m (a -&gt; b) -&gt; PropertyM m a -&gt; PropertyM m b
+</span><span class="hs-operator hs-var hs-var hs-var hs-var">&lt;*&gt;</span></span></span><span> </span><span id="local-6989586621679114412"><span class="annot"><span class="annottext">PropertyM m a
+</span><a href="#local-6989586621679114412"><span class="hs-identifier hs-var">mx</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-122"></span><span>    </span><span class="annot"><span class="annottext">PropertyM m (a -&gt; b)
+</span><a href="#local-6989586621679114414"><span class="hs-identifier hs-var">mf</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b.
+PropertyM m a -&gt; (a -&gt; PropertyM m b) -&gt; PropertyM m b
+</span><a href="Test.QuickCheck.Monadic.html#bind"><span class="hs-operator hs-var">`bind`</span></a></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679114411"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679114411"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">PropertyM m a
+</span><a href="#local-6989586621679114412"><span class="hs-identifier hs-var">mx</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b.
+PropertyM m a -&gt; (a -&gt; PropertyM m b) -&gt; PropertyM m b
+</span><a href="Test.QuickCheck.Monadic.html#bind"><span class="hs-operator hs-var">`bind`</span></a></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679114410"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679114410"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679114411"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679114410"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-123"></span><span>
+</span><span id="line-124"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679114405"><span id="local-6989586621679114563"><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679114563"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.QuickCheck.Monadic.html#PropertyM"><span class="hs-identifier hs-type">PropertyM</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114563"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-125"></span><span>  </span><span id="local-6989586621679114401"><span class="annot"><span class="annottext">return :: forall a. a -&gt; PropertyM m a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">return</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span>
+</span><span id="line-126"></span><span>  </span><span id="local-6989586621679114400"><span class="annot"><span class="annottext">&gt;&gt;= :: forall a b. PropertyM m a -&gt; (a -&gt; PropertyM m b) -&gt; PropertyM m b
+</span><span class="hs-operator hs-var hs-var hs-var hs-var">(&gt;&gt;=)</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b.
+PropertyM m a -&gt; (a -&gt; PropertyM m b) -&gt; PropertyM m b
+</span><a href="Test.QuickCheck.Monadic.html#bind"><span class="hs-identifier hs-var">bind</span></a></span><span class="hs-cpp">
+#if !MIN_VERSION_base(4,13,0)
+</span><span>  </span><span class="hs-identifier">fail</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">fail_</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#ifndef NO_MONADFAIL
+</span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679114559"><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679114559"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Fail.MonadFail</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.QuickCheck.Monadic.html#PropertyM"><span class="hs-identifier hs-type">PropertyM</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114559"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-133"></span><span>  </span><span id="local-6989586621679114392"><span class="annot"><span class="annottext">fail :: forall a. String -&gt; PropertyM m a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">fail</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; String -&gt; PropertyM m a
+</span><a href="Test.QuickCheck.Monadic.html#fail_"><span class="hs-identifier hs-var">fail_</span></a></span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#ifndef NO_TRANSFORMERS
+</span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadTrans</span></span><span> </span><span class="annot"><a href="Test.QuickCheck.Monadic.html#PropertyM"><span class="hs-identifier hs-type">PropertyM</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-138"></span><span>  </span><span id="local-6989586621679114386"><span class="annot"><span class="annottext">lift :: forall (m :: * -&gt; *) a. Monad m =&gt; m a -&gt; PropertyM m a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">lift</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; m a -&gt; PropertyM m a
+</span><a href="Test.QuickCheck.Monadic.html#run"><span class="hs-identifier hs-var">run</span></a></span><span>
+</span><span id="line-139"></span><span>
+</span><span id="line-140"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679114549"><span class="annot"><span class="hs-identifier hs-type">MonadIO</span></span><span> </span><span class="annot"><a href="#local-6989586621679114549"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadIO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.QuickCheck.Monadic.html#PropertyM"><span class="hs-identifier hs-type">PropertyM</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114549"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-141"></span><span>  </span><span id="local-6989586621679114374"><span class="annot"><span class="annottext">liftIO :: forall a. IO a -&gt; PropertyM m a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">liftIO</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; m a -&gt; PropertyM m a
+</span><a href="Test.QuickCheck.Monadic.html#run"><span class="hs-identifier hs-var">run</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><span class="hs-identifier hs-var">liftIO</span></span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-144"></span><span id="local-6989586621679114596"><span id="local-6989586621679114597"><span id="local-6989586621679114598"><span class="annot"><a href="Test.QuickCheck.Monadic.html#stop"><span class="hs-identifier hs-type">stop</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.QuickCheck.Property.html#Testable"><span class="hs-identifier hs-type">Testable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114598"><span class="hs-identifier hs-type">prop</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679114597"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679114598"><span class="hs-identifier hs-type">prop</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.QuickCheck.Monadic.html#PropertyM"><span class="hs-identifier hs-type">PropertyM</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114597"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114596"><span class="hs-identifier hs-type">a</span></a></span></span></span></span><span>
+</span><span id="line-145"></span><span id="stop"><span class="annot"><span class="annottext">stop :: forall prop (m :: * -&gt; *) a.
+(Testable prop, Monad m) =&gt;
+prop -&gt; PropertyM m a
+</span><a href="Test.QuickCheck.Monadic.html#stop"><span class="hs-identifier hs-var hs-var">stop</span></a></span></span><span> </span><span id="local-6989586621679114366"><span class="annot"><span class="annottext">prop
+</span><a href="#local-6989586621679114366"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a.
+((a -&gt; Gen (m Property)) -&gt; Gen (m Property)) -&gt; PropertyM m a
+</span><a href="Test.QuickCheck.Monadic.html#MkPropertyM"><span class="hs-identifier hs-var">MkPropertyM</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679114365"><span class="annot"><span class="annottext">a -&gt; Gen (m Property)
+</span><a href="#local-6989586621679114365"><span class="hs-identifier hs-var">_k</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall prop. Testable prop =&gt; prop -&gt; Property
+</span><a href="Test.QuickCheck.Property.html#property"><span class="hs-identifier hs-var">property</span></a></span><span> </span><span class="annot"><span class="annottext">prop
+</span><a href="#local-6989586621679114366"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-146"></span><span>
+</span><span id="line-147"></span><span class="hs-comment">-- should think about strictness/exceptions here</span><span>
+</span><span id="line-148"></span><span class="hs-comment">-- assert :: Testable prop =&gt; prop -&gt; PropertyM m ()</span><span>
+</span><span id="line-149"></span><span class="hs-comment">-- | Allows embedding non-monadic properties into monadic ones.</span><span>
+</span><span id="line-150"></span><span id="local-6989586621679114543"><span class="annot"><a href="Test.QuickCheck.Monadic.html#assert"><span class="hs-identifier hs-type">assert</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679114543"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.QuickCheck.Monadic.html#PropertyM"><span class="hs-identifier hs-type">PropertyM</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114543"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-151"></span><span id="assert"><span class="annot"><span class="annottext">assert :: forall (m :: * -&gt; *). Monad m =&gt; Bool -&gt; PropertyM m ()
+</span><a href="Test.QuickCheck.Monadic.html#assert"><span class="hs-identifier hs-var hs-var">assert</span></a></span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-152"></span><span class="annot"><a href="Test.QuickCheck.Monadic.html#assert"><span class="hs-identifier hs-var">assert</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. MonadFail m =&gt; String -&gt; m a
+</span><span class="hs-identifier hs-var">fail</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Assertion failed&quot;</span></span><span>
+</span><span id="line-153"></span><span>
+</span><span id="line-154"></span><span class="hs-comment">-- | Like 'assert' but allows caller to specify an explicit message to show on failure.</span><span>
+</span><span id="line-155"></span><span class="hs-comment">--</span><span>
+</span><span id="line-156"></span><span class="hs-comment">-- __Example:__</span><span>
+</span><span id="line-157"></span><span class="hs-comment">--</span><span>
+</span><span id="line-158"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-159"></span><span class="hs-comment">-- do</span><span>
+</span><span id="line-160"></span><span class="hs-comment">--   assertWith True  &quot;My first predicate.&quot;</span><span>
+</span><span id="line-161"></span><span class="hs-comment">--   assertWith False &quot;My other predicate.&quot;</span><span>
+</span><span id="line-162"></span><span class="hs-comment">--   ...</span><span>
+</span><span id="line-163"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-164"></span><span class="hs-comment">--</span><span>
+</span><span id="line-165"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-166"></span><span class="hs-comment">-- Assertion failed (after 2 tests):</span><span>
+</span><span id="line-167"></span><span class="hs-comment">--     Passed: My first predicate</span><span>
+</span><span id="line-168"></span><span class="hs-comment">--     Failed: My other predicate</span><span>
+</span><span id="line-169"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-170"></span><span id="local-6989586621679114541"><span class="annot"><a href="Test.QuickCheck.Monadic.html#assertWith"><span class="hs-identifier hs-type">assertWith</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679114541"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.QuickCheck.Monadic.html#PropertyM"><span class="hs-identifier hs-type">PropertyM</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114541"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-171"></span><span id="assertWith"><span class="annot"><span class="annottext">assertWith :: forall (m :: * -&gt; *). Monad m =&gt; Bool -&gt; String -&gt; PropertyM m ()
+</span><a href="Test.QuickCheck.Monadic.html#assertWith"><span class="hs-identifier hs-var hs-var">assertWith</span></a></span></span><span> </span><span id="local-6989586621679114354"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679114354"><span class="hs-identifier hs-var">condition</span></a></span></span><span> </span><span id="local-6989586621679114353"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679114353"><span class="hs-identifier hs-var">msg</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-172"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679114352"><span class="annot"><span class="annottext">prefix :: String
+</span><a href="#local-6989586621679114352"><span class="hs-identifier hs-var hs-var">prefix</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679114354"><span class="hs-identifier hs-var">condition</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Passed: &quot;</span></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Failed: &quot;</span></span><span>
+</span><span id="line-173"></span><span>    </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *).
+Monad m =&gt;
+(Property -&gt; Property) -&gt; PropertyM m ()
+</span><a href="Test.QuickCheck.Monadic.html#monitor"><span class="hs-identifier hs-var">monitor</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall prop. Testable prop =&gt; String -&gt; prop -&gt; Property
+</span><a href="Test.QuickCheck.Property.html#counterexample"><span class="hs-identifier hs-var">counterexample</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679114352"><span class="hs-identifier hs-var">prefix</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679114353"><span class="hs-identifier hs-var">msg</span></a></span><span>
+</span><span id="line-174"></span><span>    </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *). Monad m =&gt; Bool -&gt; PropertyM m ()
+</span><a href="Test.QuickCheck.Monadic.html#assert"><span class="hs-identifier hs-var">assert</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679114354"><span class="hs-identifier hs-var">condition</span></a></span><span>
+</span><span id="line-175"></span><span>
+</span><span id="line-176"></span><span class="hs-comment">-- should think about strictness/exceptions here</span><span>
+</span><span id="line-177"></span><span class="hs-comment">-- | Tests preconditions. Unlike 'assert' this does not cause the</span><span>
+</span><span id="line-178"></span><span class="hs-comment">-- property to fail, rather it discards them just like using the</span><span>
+</span><span id="line-179"></span><span class="hs-comment">-- implication combinator 'Test.QuickCheck.Property.==&gt;'.</span><span>
+</span><span id="line-180"></span><span class="hs-comment">--</span><span>
+</span><span id="line-181"></span><span class="hs-comment">-- This allows representing the &lt;https://en.wikipedia.org/wiki/Hoare_logic Hoare triple&gt;</span><span>
+</span><span id="line-182"></span><span class="hs-comment">--</span><span>
+</span><span id="line-183"></span><span class="hs-comment">-- &gt; {p} x &#8592; e{q}</span><span>
+</span><span id="line-184"></span><span class="hs-comment">--</span><span>
+</span><span id="line-185"></span><span class="hs-comment">-- as</span><span>
+</span><span id="line-186"></span><span class="hs-comment">--</span><span>
+</span><span id="line-187"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-188"></span><span class="hs-comment">-- pre p</span><span>
+</span><span id="line-189"></span><span class="hs-comment">-- x \&lt;- run e</span><span>
+</span><span id="line-190"></span><span class="hs-comment">-- assert q</span><span>
+</span><span id="line-191"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-192"></span><span class="hs-comment">--</span><span>
+</span><span id="line-193"></span><span id="local-6989586621679114350"><span class="annot"><a href="Test.QuickCheck.Monadic.html#pre"><span class="hs-identifier hs-type">pre</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679114350"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.QuickCheck.Monadic.html#PropertyM"><span class="hs-identifier hs-type">PropertyM</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114350"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-194"></span><span id="pre"><span class="annot"><span class="annottext">pre :: forall (m :: * -&gt; *). Monad m =&gt; Bool -&gt; PropertyM m ()
+</span><a href="Test.QuickCheck.Monadic.html#pre"><span class="hs-identifier hs-var hs-var">pre</span></a></span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-195"></span><span class="annot"><a href="Test.QuickCheck.Monadic.html#pre"><span class="hs-identifier hs-var">pre</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall prop (m :: * -&gt; *) a.
+(Testable prop, Monad m) =&gt;
+prop -&gt; PropertyM m a
+</span><a href="Test.QuickCheck.Monadic.html#stop"><span class="hs-identifier hs-var">stop</span></a></span><span> </span><span class="annot"><span class="annottext">Result
+</span><a href="Test.QuickCheck.Property.html#rejected"><span class="hs-identifier hs-var">rejected</span></a></span><span>
+</span><span id="line-196"></span><span>
+</span><span id="line-197"></span><span class="hs-comment">-- should be called lift?</span><span>
+</span><span id="line-198"></span><span class="hs-comment">-- | The lifting operation of the property monad. Allows embedding</span><span>
+</span><span id="line-199"></span><span class="hs-comment">-- monadic\/'IO'-actions in properties:</span><span>
+</span><span id="line-200"></span><span class="hs-comment">--</span><span>
+</span><span id="line-201"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-202"></span><span class="hs-comment">-- log :: Int -&gt; IO ()</span><span>
+</span><span id="line-203"></span><span class="hs-comment">--</span><span>
+</span><span id="line-204"></span><span class="hs-comment">-- prop_foo n = monadicIO $ do</span><span>
+</span><span id="line-205"></span><span class="hs-comment">--   run (log n)</span><span>
+</span><span id="line-206"></span><span class="hs-comment">--   -- ...</span><span>
+</span><span id="line-207"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-208"></span><span id="local-6989586621679114343"><span id="local-6989586621679114344"><span class="annot"><a href="Test.QuickCheck.Monadic.html#run"><span class="hs-identifier hs-type">run</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679114344"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679114344"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114343"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.QuickCheck.Monadic.html#PropertyM"><span class="hs-identifier hs-type">PropertyM</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114344"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114343"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-209"></span><span id="run"><span class="annot"><span class="annottext">run :: forall (m :: * -&gt; *) a. Monad m =&gt; m a -&gt; PropertyM m a
+</span><a href="Test.QuickCheck.Monadic.html#run"><span class="hs-identifier hs-var hs-var">run</span></a></span></span><span> </span><span id="local-6989586621679114337"><span class="annot"><span class="annottext">m a
+</span><a href="#local-6989586621679114337"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a.
+((a -&gt; Gen (m Property)) -&gt; Gen (m Property)) -&gt; PropertyM m a
+</span><a href="Test.QuickCheck.Monadic.html#MkPropertyM"><span class="hs-identifier hs-var">MkPropertyM</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a1 r. Monad m =&gt; (a1 -&gt; r) -&gt; m a1 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">m a
+</span><a href="#local-6989586621679114337"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; m (Gen a) -&gt; Gen (m a)
+</span><a href="Test.QuickCheck.Gen.Unsafe.html#promote"><span class="hs-identifier hs-var">promote</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-210"></span><span>
+</span><span id="line-211"></span><span class="hs-comment">-- | Quantification in a monadic property, fits better with</span><span>
+</span><span id="line-212"></span><span class="hs-comment">-- /do-notation/ than 'forAllM'.</span><span>
+</span><span id="line-213"></span><span class="hs-comment">-- __Note__: values generated by 'pick' do not shrink.</span><span>
+</span><span id="line-214"></span><span id="local-6989586621679114523"><span id="local-6989586621679114524"><span class="annot"><a href="Test.QuickCheck.Monadic.html#pick"><span class="hs-identifier hs-type">pick</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679114524"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="#local-6989586621679114523"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Test.QuickCheck.Gen.html#Gen"><span class="hs-identifier hs-type">Gen</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114523"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.QuickCheck.Monadic.html#PropertyM"><span class="hs-identifier hs-type">PropertyM</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114524"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114523"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-215"></span><span id="pick"><span class="annot"><span class="annottext">pick :: forall (m :: * -&gt; *) a. (Monad m, Show a) =&gt; Gen a -&gt; PropertyM m a
+</span><a href="Test.QuickCheck.Monadic.html#pick"><span class="hs-identifier hs-var hs-var">pick</span></a></span></span><span> </span><span id="local-6989586621679114325"><span class="annot"><span class="annottext">Gen a
+</span><a href="#local-6989586621679114325"><span class="hs-identifier hs-var">gen</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a.
+((a -&gt; Gen (m Property)) -&gt; Gen (m Property)) -&gt; PropertyM m a
+</span><a href="Test.QuickCheck.Monadic.html#MkPropertyM"><span class="hs-identifier hs-var">MkPropertyM</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679114324"><span class="annot"><span class="annottext">a -&gt; Gen (m Property)
+</span><a href="#local-6989586621679114324"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-216"></span><span>  </span><span class="hs-keyword">do</span><span> </span><span id="local-6989586621679114323"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679114323"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Gen a
+</span><a href="#local-6989586621679114325"><span class="hs-identifier hs-var">gen</span></a></span><span>
+</span><span id="line-217"></span><span>     </span><span id="local-6989586621679114322"><span class="annot"><span class="annottext">m Property
+</span><a href="#local-6989586621679114322"><span class="hs-identifier hs-var">mp</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">a -&gt; Gen (m Property)
+</span><a href="#local-6989586621679114324"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679114323"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-218"></span><span>     </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-keyword">do</span><span> </span><span id="local-6989586621679114321"><span class="annot"><span class="annottext">Property
+</span><a href="#local-6989586621679114321"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">m Property
+</span><a href="#local-6989586621679114322"><span class="hs-identifier hs-var">mp</span></a></span><span>
+</span><span id="line-219"></span><span>                </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a prop.
+(Show a, Testable prop) =&gt;
+Gen a -&gt; (a -&gt; prop) -&gt; Property
+</span><a href="Test.QuickCheck.Property.html#forAll"><span class="hs-identifier hs-var">forAll</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679114323"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="annot"><span class="annottext">Property
+</span><a href="#local-6989586621679114321"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-220"></span><span>
+</span><span id="line-221"></span><span class="hs-comment">-- | The &lt;https://en.wikipedia.org/wiki/Predicate_transformer_semantics#Weakest_preconditions weakest precondition&gt;</span><span>
+</span><span id="line-222"></span><span class="hs-comment">--</span><span>
+</span><span id="line-223"></span><span class="hs-comment">-- &gt; wp(x &#8592; e, p)</span><span>
+</span><span id="line-224"></span><span class="hs-comment">--</span><span>
+</span><span id="line-225"></span><span class="hs-comment">-- can be expressed as in code as @wp e (\\x -&gt; p)@.</span><span>
+</span><span id="line-226"></span><span id="local-6989586621679114514"><span id="local-6989586621679114515"><span id="local-6989586621679114516"><span class="annot"><a href="Test.QuickCheck.Monadic.html#wp"><span class="hs-identifier hs-type">wp</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679114516"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679114516"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114515"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679114515"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.QuickCheck.Monadic.html#PropertyM"><span class="hs-identifier hs-type">PropertyM</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114516"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114514"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.QuickCheck.Monadic.html#PropertyM"><span class="hs-identifier hs-type">PropertyM</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114516"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114514"><span class="hs-identifier hs-type">b</span></a></span></span></span></span><span>
+</span><span id="line-227"></span><span id="wp"><span class="annot"><span class="annottext">wp :: forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+m a -&gt; (a -&gt; PropertyM m b) -&gt; PropertyM m b
+</span><a href="Test.QuickCheck.Monadic.html#wp"><span class="hs-identifier hs-var hs-var">wp</span></a></span></span><span> </span><span id="local-6989586621679114315"><span class="annot"><span class="annottext">m a
+</span><a href="#local-6989586621679114315"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span id="local-6989586621679114314"><span class="annot"><span class="annottext">a -&gt; PropertyM m b
+</span><a href="#local-6989586621679114314"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; m a -&gt; PropertyM m a
+</span><a href="Test.QuickCheck.Monadic.html#run"><span class="hs-identifier hs-var">run</span></a></span><span> </span><span class="annot"><span class="annottext">m a
+</span><a href="#local-6989586621679114315"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; PropertyM m b
+</span><a href="#local-6989586621679114314"><span class="hs-identifier hs-var">k</span></a></span><span>
+</span><span id="line-228"></span><span>
+</span><span id="line-229"></span><span class="hs-comment">-- | Quantification in monadic properties to 'pick', with a notation similar to</span><span>
+</span><span id="line-230"></span><span class="hs-comment">-- 'forAll'. __Note__: values generated by 'forAllM' do not shrink.</span><span>
+</span><span id="line-231"></span><span>
+</span><span id="line-232"></span><span id="local-6989586621679114508"><span id="local-6989586621679114509"><span id="local-6989586621679114510"><span class="annot"><a href="Test.QuickCheck.Monadic.html#forAllM"><span class="hs-identifier hs-type">forAllM</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679114510"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="#local-6989586621679114509"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Test.QuickCheck.Gen.html#Gen"><span class="hs-identifier hs-type">Gen</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114509"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679114509"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.QuickCheck.Monadic.html#PropertyM"><span class="hs-identifier hs-type">PropertyM</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114510"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114508"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.QuickCheck.Monadic.html#PropertyM"><span class="hs-identifier hs-type">PropertyM</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114510"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114508"><span class="hs-identifier hs-type">b</span></a></span></span></span></span><span>
+</span><span id="line-233"></span><span id="forAllM"><span class="annot"><span class="annottext">forAllM :: forall (m :: * -&gt; *) a b.
+(Monad m, Show a) =&gt;
+Gen a -&gt; (a -&gt; PropertyM m b) -&gt; PropertyM m b
+</span><a href="Test.QuickCheck.Monadic.html#forAllM"><span class="hs-identifier hs-var hs-var">forAllM</span></a></span></span><span> </span><span id="local-6989586621679114308"><span class="annot"><span class="annottext">Gen a
+</span><a href="#local-6989586621679114308"><span class="hs-identifier hs-var">gen</span></a></span></span><span> </span><span id="local-6989586621679114307"><span class="annot"><span class="annottext">a -&gt; PropertyM m b
+</span><a href="#local-6989586621679114307"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. (Monad m, Show a) =&gt; Gen a -&gt; PropertyM m a
+</span><a href="Test.QuickCheck.Monadic.html#pick"><span class="hs-identifier hs-var">pick</span></a></span><span> </span><span class="annot"><span class="annottext">Gen a
+</span><a href="#local-6989586621679114308"><span class="hs-identifier hs-var">gen</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; PropertyM m b
+</span><a href="#local-6989586621679114307"><span class="hs-identifier hs-var">k</span></a></span><span>
+</span><span id="line-234"></span><span>
+</span><span id="line-235"></span><span class="hs-comment">-- | Allows making observations about the test data:</span><span>
+</span><span id="line-236"></span><span class="hs-comment">--</span><span>
+</span><span id="line-237"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-238"></span><span class="hs-comment">-- monitor ('collect' e)</span><span>
+</span><span id="line-239"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-240"></span><span class="hs-comment">--</span><span>
+</span><span id="line-241"></span><span class="hs-comment">-- collects the distribution of value of @e@.</span><span>
+</span><span id="line-242"></span><span class="hs-comment">--</span><span>
+</span><span id="line-243"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-244"></span><span class="hs-comment">-- monitor ('counterexample' &quot;Failure!&quot;)</span><span>
+</span><span id="line-245"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-246"></span><span class="hs-comment">--</span><span>
+</span><span id="line-247"></span><span class="hs-comment">-- Adds @&quot;Failure!&quot;@ to the counterexamples.</span><span>
+</span><span id="line-248"></span><span id="local-6989586621679114539"><span class="annot"><a href="Test.QuickCheck.Monadic.html#monitor"><span class="hs-identifier hs-type">monitor</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679114539"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.QuickCheck.Property.html#Property"><span class="hs-identifier hs-type">Property</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.QuickCheck.Property.html#Property"><span class="hs-identifier hs-type">Property</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.QuickCheck.Monadic.html#PropertyM"><span class="hs-identifier hs-type">PropertyM</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114539"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-249"></span><span id="monitor"><span class="annot"><span class="annottext">monitor :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(Property -&gt; Property) -&gt; PropertyM m ()
+</span><a href="Test.QuickCheck.Monadic.html#monitor"><span class="hs-identifier hs-var hs-var">monitor</span></a></span></span><span> </span><span id="local-6989586621679114302"><span class="annot"><span class="annottext">Property -&gt; Property
+</span><a href="#local-6989586621679114302"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a.
+((a -&gt; Gen (m Property)) -&gt; Gen (m Property)) -&gt; PropertyM m a
+</span><a href="Test.QuickCheck.Monadic.html#MkPropertyM"><span class="hs-identifier hs-var">MkPropertyM</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679114301"><span class="annot"><span class="annottext">() -&gt; Gen (m Property)
+</span><a href="#local-6989586621679114301"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Property -&gt; Property
+</span><a href="#local-6989586621679114302"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a1 r. Monad m =&gt; (a1 -&gt; r) -&gt; m a1 -&gt; m r
+</span><span class="hs-operator hs-var">`liftM`</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">`fmap`</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">() -&gt; Gen (m Property)
+</span><a href="#local-6989586621679114301"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-250"></span><span>
+</span><span id="line-251"></span><span class="hs-comment">-- run functions</span><span>
+</span><span id="line-252"></span><span>
+</span><span id="line-253"></span><span id="local-6989586621679114502"><span id="local-6989586621679114503"><span class="annot"><a href="Test.QuickCheck.Monadic.html#monadic"><span class="hs-identifier hs-type">monadic</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.QuickCheck.Property.html#Testable"><span class="hs-identifier hs-type">Testable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114503"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679114502"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679114502"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="Test.QuickCheck.Property.html#Property"><span class="hs-identifier hs-type">Property</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.QuickCheck.Property.html#Property"><span class="hs-identifier hs-type">Property</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.QuickCheck.Monadic.html#PropertyM"><span class="hs-identifier hs-type">PropertyM</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114502"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114503"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.QuickCheck.Property.html#Property"><span class="hs-identifier hs-type">Property</span></a></span></span></span><span>
+</span><span id="line-254"></span><span id="monadic"><span class="annot"><span class="annottext">monadic :: forall a (m :: * -&gt; *).
+(Testable a, Monad m) =&gt;
+(m Property -&gt; Property) -&gt; PropertyM m a -&gt; Property
+</span><a href="Test.QuickCheck.Monadic.html#monadic"><span class="hs-identifier hs-var hs-var">monadic</span></a></span></span><span> </span><span id="local-6989586621679114292"><span class="annot"><span class="annottext">m Property -&gt; Property
+</span><a href="#local-6989586621679114292"><span class="hs-identifier hs-var">runner</span></a></span></span><span> </span><span id="local-6989586621679114291"><span class="annot"><span class="annottext">PropertyM m a
+</span><a href="#local-6989586621679114291"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall prop. Testable prop =&gt; prop -&gt; Property
+</span><a href="Test.QuickCheck.Property.html#property"><span class="hs-identifier hs-var">property</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">m Property -&gt; Property
+</span><a href="#local-6989586621679114292"><span class="hs-identifier hs-var">runner</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a (m :: * -&gt; *).
+(Testable a, Monad m) =&gt;
+PropertyM m a -&gt; Gen (m Property)
+</span><a href="Test.QuickCheck.Monadic.html#monadic%27"><span class="hs-identifier hs-var">monadic'</span></a></span><span> </span><span class="annot"><span class="annottext">PropertyM m a
+</span><a href="#local-6989586621679114291"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-255"></span><span>
+</span><span id="line-256"></span><span id="local-6989586621679114497"><span id="local-6989586621679114498"><span class="annot"><a href="Test.QuickCheck.Monadic.html#monadic%27"><span class="hs-identifier hs-type">monadic'</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.QuickCheck.Property.html#Testable"><span class="hs-identifier hs-type">Testable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114498"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679114497"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Test.QuickCheck.Monadic.html#PropertyM"><span class="hs-identifier hs-type">PropertyM</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114497"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114498"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.QuickCheck.Gen.html#Gen"><span class="hs-identifier hs-type">Gen</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679114497"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="Test.QuickCheck.Property.html#Property"><span class="hs-identifier hs-type">Property</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-257"></span><span id="monadic%27"><span class="annot"><span class="annottext">monadic' :: forall a (m :: * -&gt; *).
+(Testable a, Monad m) =&gt;
+PropertyM m a -&gt; Gen (m Property)
+</span><a href="Test.QuickCheck.Monadic.html#monadic%27"><span class="hs-identifier hs-var hs-var">monadic'</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.QuickCheck.Monadic.html#MkPropertyM"><span class="hs-identifier hs-type">MkPropertyM</span></a></span><span> </span><span id="local-6989586621679114285"><span class="annot"><span class="annottext">(a -&gt; Gen (m Property)) -&gt; Gen (m Property)
+</span><a href="#local-6989586621679114285"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; Gen (m Property)) -&gt; Gen (m Property)
+</span><a href="#local-6989586621679114285"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679114284"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679114284"><span class="hs-identifier hs-var">prop</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall prop. Testable prop =&gt; prop -&gt; Property
+</span><a href="Test.QuickCheck.Property.html#property"><span class="hs-identifier hs-var">property</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679114284"><span class="hs-identifier hs-var">prop</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-258"></span><span>
+</span><span id="line-259"></span><span class="hs-comment">-- | Runs the property monad for 'IO'-computations.</span><span>
+</span><span id="line-260"></span><span class="hs-comment">--</span><span>
+</span><span id="line-261"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-262"></span><span class="hs-comment">-- prop_cat msg = monadicIO $ do</span><span>
+</span><span id="line-263"></span><span class="hs-comment">--   (exitCode, stdout, _) \&lt;- run ('System.Process.readProcessWithExitCode' &quot;cat&quot; [] msg)</span><span>
+</span><span id="line-264"></span><span class="hs-comment">--</span><span>
+</span><span id="line-265"></span><span class="hs-comment">--   pre ('System.Exit.ExitSuccess' == exitCode)</span><span>
+</span><span id="line-266"></span><span class="hs-comment">--</span><span>
+</span><span id="line-267"></span><span class="hs-comment">--   assert (stdout == msg)</span><span>
+</span><span id="line-268"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-269"></span><span class="hs-comment">--</span><span>
+</span><span id="line-270"></span><span class="hs-comment">-- &gt;&gt;&gt; quickCheck prop_cat</span><span>
+</span><span id="line-271"></span><span class="hs-comment">-- +++ OK, passed 100 tests.</span><span>
+</span><span id="line-272"></span><span class="hs-comment">--</span><span>
+</span><span id="line-273"></span><span id="local-6989586621679114494"><span class="annot"><a href="Test.QuickCheck.Monadic.html#monadicIO"><span class="hs-identifier hs-type">monadicIO</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.QuickCheck.Property.html#Testable"><span class="hs-identifier hs-type">Testable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114494"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Test.QuickCheck.Monadic.html#PropertyM"><span class="hs-identifier hs-type">PropertyM</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679114494"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.QuickCheck.Property.html#Property"><span class="hs-identifier hs-type">Property</span></a></span></span><span>
+</span><span id="line-274"></span><span id="monadicIO"><span class="annot"><span class="annottext">monadicIO :: forall a. Testable a =&gt; PropertyM IO a -&gt; Property
+</span><a href="Test.QuickCheck.Monadic.html#monadicIO"><span class="hs-identifier hs-var hs-var">monadicIO</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a (m :: * -&gt; *).
+(Testable a, Monad m) =&gt;
+(m Property -&gt; Property) -&gt; PropertyM m a -&gt; Property
+</span><a href="Test.QuickCheck.Monadic.html#monadic"><span class="hs-identifier hs-var">monadic</span></a></span><span> </span><span class="annot"><span class="annottext">forall prop. Testable prop =&gt; IO prop -&gt; Property
+</span><a href="Test.QuickCheck.Property.html#ioProperty"><span class="hs-identifier hs-var">ioProperty</span></a></span><span class="hs-cpp">
+
+#ifndef NO_ST_MONAD
+</span><span class="hs-comment">-- | Runs the property monad for 'ST'-computations.</span><span>
+</span><span id="line-278"></span><span class="hs-comment">--</span><span>
+</span><span id="line-279"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-280"></span><span class="hs-comment">-- -- Your mutable sorting algorithm here</span><span>
+</span><span id="line-281"></span><span class="hs-comment">-- sortST :: Ord a =&gt; [a] -&gt; 'Control.Monad.ST.ST' s (MVector s a)</span><span>
+</span><span id="line-282"></span><span class="hs-comment">-- sortST = 'Data.Vector.thaw' . 'Data.Vector.fromList' . 'Data.List.sort'</span><span>
+</span><span id="line-283"></span><span class="hs-comment">--</span><span>
+</span><span id="line-284"></span><span class="hs-comment">-- prop_sortST xs = monadicST $ do</span><span>
+</span><span id="line-285"></span><span class="hs-comment">--   sorted  \&lt;- run ('Data.Vector.freeze' =&lt;&lt; sortST xs)</span><span>
+</span><span id="line-286"></span><span class="hs-comment">--   assert ('Data.Vector.toList' sorted == sort xs)</span><span>
+</span><span id="line-287"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-288"></span><span class="hs-comment">--</span><span>
+</span><span id="line-289"></span><span class="hs-comment">-- &gt;&gt;&gt; quickCheck prop_sortST</span><span>
+</span><span id="line-290"></span><span class="hs-comment">-- +++ OK, passed 100 tests.</span><span>
+</span><span id="line-291"></span><span class="hs-comment">--</span><span>
+</span><span id="line-292"></span><span id="local-6989586621679114491"><span class="annot"><a href="Test.QuickCheck.Monadic.html#monadicST"><span class="hs-identifier hs-type">monadicST</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.QuickCheck.Property.html#Testable"><span class="hs-identifier hs-type">Testable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114491"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679114490"><span class="annot"><a href="#local-6989586621679114490"><span class="hs-identifier hs-type">s</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="Test.QuickCheck.Monadic.html#PropertyM"><span class="hs-identifier hs-type">PropertyM</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ST</span></span><span> </span><span class="annot"><a href="#local-6989586621679114490"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679114491"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.QuickCheck.Property.html#Property"><span class="hs-identifier hs-type">Property</span></a></span></span><span>
+</span><span id="line-293"></span><span id="monadicST"><span class="annot"><span class="annottext">monadicST :: forall a. Testable a =&gt; (forall s. PropertyM (ST s) a) -&gt; Property
+</span><a href="Test.QuickCheck.Monadic.html#monadicST"><span class="hs-identifier hs-var hs-var">monadicST</span></a></span></span><span> </span><span id="local-6989586621679114274"><span class="annot"><span class="annottext">forall s. PropertyM (ST s) a
+</span><a href="#local-6989586621679114274"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall prop. Testable prop =&gt; prop -&gt; Property
+</span><a href="Test.QuickCheck.Property.html#property"><span class="hs-identifier hs-var">property</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. (forall s. Gen (ST s a)) -&gt; Gen a
+</span><a href="Test.QuickCheck.Monadic.html#runSTGen"><span class="hs-identifier hs-var">runSTGen</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a (m :: * -&gt; *).
+(Testable a, Monad m) =&gt;
+PropertyM m a -&gt; Gen (m Property)
+</span><a href="Test.QuickCheck.Monadic.html#monadic%27"><span class="hs-identifier hs-var">monadic'</span></a></span><span> </span><span class="annot"><span class="annottext">forall s. PropertyM (ST s) a
+</span><a href="#local-6989586621679114274"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-294"></span><span>
+</span><span id="line-295"></span><span id="local-6989586621679114486"><span class="annot"><a href="Test.QuickCheck.Monadic.html#runSTGen"><span class="hs-identifier hs-type">runSTGen</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679114487"><span class="annot"><a href="#local-6989586621679114487"><span class="hs-identifier hs-type">s</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="Test.QuickCheck.Gen.html#Gen"><span class="hs-identifier hs-type">Gen</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ST</span></span><span> </span><span class="annot"><a href="#local-6989586621679114487"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114486"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.QuickCheck.Gen.html#Gen"><span class="hs-identifier hs-type">Gen</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114486"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-296"></span><span id="runSTGen"><span class="annot"><span class="annottext">runSTGen :: forall a. (forall s. Gen (ST s a)) -&gt; Gen a
+</span><a href="Test.QuickCheck.Monadic.html#runSTGen"><span class="hs-identifier hs-var hs-var">runSTGen</span></a></span></span><span> </span><span id="local-6989586621679114268"><span class="annot"><span class="annottext">forall s. Gen (ST s a)
+</span><a href="#local-6989586621679114268"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-297"></span><span>  </span><span class="annot"><a href="Test.QuickCheck.Gen.Unsafe.html#Capture"><span class="hs-identifier hs-type">Capture</span></a></span><span> </span><span id="local-6989586621679114266"><span class="annot"><span class="annottext">forall a. Gen a -&gt; a
+</span><a href="#local-6989586621679114266"><span class="hs-identifier hs-var">eval</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Gen Capture
+</span><a href="Test.QuickCheck.Gen.Unsafe.html#capture"><span class="hs-identifier hs-var">capture</span></a></span><span>
+</span><span id="line-298"></span><span>  </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. (forall s. ST s a) -&gt; a
+</span><span class="hs-identifier hs-var">runST</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Gen a -&gt; a
+</span><a href="#local-6989586621679114266"><span class="hs-identifier hs-var">eval</span></a></span><span> </span><span class="annot"><span class="annottext">forall s. Gen (ST s a)
+</span><a href="#local-6989586621679114268"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-301"></span><span class="hs-comment">--------------------------------------------------------------------------</span><span>
+</span><span id="line-302"></span><span class="hs-comment">-- the end.</span><span>
+</span><span id="line-303"></span></pre></body></html>

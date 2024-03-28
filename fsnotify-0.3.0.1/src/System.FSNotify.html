@@ -1,0 +1,475 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">--</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- Copyright (c) 2012 Mark Dittmer - http://www.markdittmer.org</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- Developed for a Google Summer of Code project - http://gsoc2012.markdittmer.org</span><span>
+</span><span id="line-4"></span><span class="hs-comment">--</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LANGUAGE CPP, ScopedTypeVariables, ExistentialQuantification, RankNTypes #-}</span><span>
+</span><span id="line-6"></span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- | NOTE: This library does not currently report changes made to directories,</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- only files within watched directories.</span><span>
+</span><span id="line-9"></span><span class="hs-comment">--</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- Minimal example:</span><span>
+</span><span id="line-11"></span><span class="hs-comment">--</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- &gt;{-# LANGUAGE OverloadedStrings #-} -- for FilePath literals</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- &gt;</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- &gt;import System.FSNotify</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- &gt;import Control.Concurrent (threadDelay)</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- &gt;import Control.Monad (forever)</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- &gt;</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- &gt;main =</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- &gt;  withManager $ \mgr -&gt; do</span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- &gt;    -- start a watching job (in the background)</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- &gt;    watchDir</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- &gt;      mgr          -- manager</span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- &gt;      &quot;.&quot;          -- directory to watch</span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- &gt;      (const True) -- predicate</span><span>
+</span><span id="line-25"></span><span class="hs-comment">-- &gt;      print        -- action</span><span>
+</span><span id="line-26"></span><span class="hs-comment">-- &gt;</span><span>
+</span><span id="line-27"></span><span class="hs-comment">-- &gt;    -- sleep forever (until interrupted)</span><span>
+</span><span id="line-28"></span><span class="hs-comment">-- &gt;    forever $ threadDelay 1000000</span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">System.FSNotify</span><span>
+</span><span id="line-31"></span><span>       </span><span class="hs-special">(</span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span>       </span><span class="annot"><span class="hs-comment">-- * Events</span></span><span>
+</span><span id="line-34"></span><span>         </span><span class="annot"><a href="System.FSNotify.Types.html#Event"><span class="hs-identifier">Event</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span>       </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FSNotify.Types.html#EventChannel"><span class="hs-identifier">EventChannel</span></a></span><span>
+</span><span id="line-36"></span><span>       </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FSNotify.Types.html#eventIsDirectory"><span class="hs-identifier">eventIsDirectory</span></a></span><span>
+</span><span id="line-37"></span><span>       </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FSNotify.Types.html#eventTime"><span class="hs-identifier">eventTime</span></a></span><span>
+</span><span id="line-38"></span><span>       </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FSNotify.Types.html#eventPath"><span class="hs-identifier">eventPath</span></a></span><span>
+</span><span id="line-39"></span><span>       </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FSNotify.Types.html#Action"><span class="hs-identifier">Action</span></a></span><span>
+</span><span id="line-40"></span><span>       </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FSNotify.Types.html#ActionPredicate"><span class="hs-identifier">ActionPredicate</span></a></span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span>       </span><span class="annot"><span class="hs-comment">-- * Starting/Stopping</span></span><span>
+</span><span id="line-43"></span><span>       </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FSNotify.html#WatchManager"><span class="hs-identifier">WatchManager</span></a></span><span>
+</span><span id="line-44"></span><span>       </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FSNotify.html#withManager"><span class="hs-identifier">withManager</span></a></span><span>
+</span><span id="line-45"></span><span>       </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FSNotify.html#startManager"><span class="hs-identifier">startManager</span></a></span><span>
+</span><span id="line-46"></span><span>       </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FSNotify.html#stopManager"><span class="hs-identifier">stopManager</span></a></span><span>
+</span><span id="line-47"></span><span>       </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FSNotify.html#defaultConfig"><span class="hs-identifier">defaultConfig</span></a></span><span>
+</span><span id="line-48"></span><span>       </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FSNotify.Types.html#WatchConfig"><span class="hs-identifier">WatchConfig</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-49"></span><span>       </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FSNotify.Types.html#Debounce"><span class="hs-identifier">Debounce</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-50"></span><span>       </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FSNotify.html#withManagerConf"><span class="hs-identifier">withManagerConf</span></a></span><span>
+</span><span id="line-51"></span><span>       </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FSNotify.html#startManagerConf"><span class="hs-identifier">startManagerConf</span></a></span><span>
+</span><span id="line-52"></span><span>       </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FSNotify.Listener.html#StopListening"><span class="hs-identifier">StopListening</span></a></span><span>
+</span><span id="line-53"></span><span>       </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FSNotify.html#isPollingManager"><span class="hs-identifier">isPollingManager</span></a></span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span>       </span><span class="annot"><span class="hs-comment">-- * Watching</span></span><span>
+</span><span id="line-56"></span><span>       </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FSNotify.html#watchDir"><span class="hs-identifier">watchDir</span></a></span><span>
+</span><span id="line-57"></span><span>       </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FSNotify.html#watchDirChan"><span class="hs-identifier">watchDirChan</span></a></span><span>
+</span><span id="line-58"></span><span>       </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FSNotify.html#watchTree"><span class="hs-identifier">watchTree</span></a></span><span>
+</span><span id="line-59"></span><span>       </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FSNotify.html#watchTreeChan"><span class="hs-identifier">watchTreeChan</span></a></span><span>
+</span><span id="line-60"></span><span>       </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">FilePath</span></span><span class="hs-special">)</span><span>
+</span><span id="line-63"></span><span>
+</span><span id="line-64"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Concurrent</span></span><span>
+</span><span id="line-65"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Concurrent.Async</span></span><span>
+</span><span id="line-66"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Exception</span></span><span>
+</span><span id="line-67"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span>
+</span><span id="line-68"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Maybe</span></span><span>
+</span><span id="line-69"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="System.FSNotify.Polling.html"><span class="hs-identifier">System.FSNotify.Polling</span></a></span><span>
+</span><span id="line-70"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="System.FSNotify.Types.html"><span class="hs-identifier">System.FSNotify.Types</span></a></span><span>
+</span><span id="line-71"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.FilePath</span></span><span>
+</span><span id="line-72"></span><span>
+</span><span id="line-73"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="System.FSNotify.Listener.html"><span class="hs-identifier">System.FSNotify.Listener</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.FSNotify.Listener.html#StopListening"><span class="hs-identifier">StopListening</span></a></span><span class="hs-special">)</span><span class="hs-cpp">
+
+#ifdef OS_Linux
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="System.FSNotify.Linux.html"><span class="hs-identifier">System.FSNotify.Linux</span></a></span><span class="hs-cpp">
+#else
+</span><span class="hs-cpp">#  ifdef OS_Win32
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">System.FSNotify.Win32</span><span class="hs-cpp">
+#  else
+</span><span class="hs-cpp">#    ifdef OS_Mac
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">System.FSNotify.OSX</span><span class="hs-cpp">
+#    else
+</span><span class="hs-keyword">type</span><span> </span><span class="hs-identifier">NativeManager</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">PollManager</span><span class="hs-cpp">
+#    endif
+</span><span class="hs-cpp">#  endif
+</span><span class="hs-cpp">#endif
+</span><span>
+</span><span id="line-89"></span><span class="hs-comment">-- | Watch manager. You need one in order to create watching jobs.</span><span>
+</span><span id="line-90"></span><span class="hs-keyword">data</span><span> </span><span id="WatchManager"><span class="annot"><a href="System.FSNotify.html#WatchManager"><span class="hs-identifier hs-var">WatchManager</span></a></span></span><span>
+</span><span id="line-91"></span><span>  </span><span class="hs-glyph">=</span><span>  </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679054818"><span class="annot"><a href="#local-6989586621679054818"><span class="hs-identifier hs-type">manager</span></a></span></span><span> </span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="System.FSNotify.Listener.html#FileListener"><span class="hs-identifier hs-type">FileListener</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679054818"><span class="hs-identifier hs-type">manager</span></a></span><span>
+</span><span id="line-92"></span><span>  </span><span class="hs-glyph">=&gt;</span><span> </span><span id="WatchManager"><span class="annot"><a href="System.FSNotify.html#WatchManager"><span class="hs-identifier hs-var">WatchManager</span></a></span></span><span>
+</span><span id="line-93"></span><span>       </span><span class="annot"><a href="System.FSNotify.Types.html#WatchConfig"><span class="hs-identifier hs-type">WatchConfig</span></a></span><span>
+</span><span id="line-94"></span><span>       </span><span class="annot"><a href="#local-6989586621679054818"><span class="hs-identifier hs-type">manager</span></a></span><span>
+</span><span id="line-95"></span><span>       </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MVar</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-comment">-- cleanup action, or Nothing if the manager is stopped</span><span>
+</span><span id="line-96"></span><span>
+</span><span id="line-97"></span><span class="hs-comment">-- | Default configuration</span><span>
+</span><span id="line-98"></span><span class="hs-comment">--</span><span>
+</span><span id="line-99"></span><span class="hs-comment">-- * Debouncing is enabled with a time interval of 1 millisecond</span><span>
+</span><span id="line-100"></span><span class="hs-comment">--</span><span>
+</span><span id="line-101"></span><span class="hs-comment">-- * Polling is disabled</span><span>
+</span><span id="line-102"></span><span class="hs-comment">--</span><span>
+</span><span id="line-103"></span><span class="hs-comment">-- * The polling interval defaults to 1 second</span><span>
+</span><span id="line-104"></span><span class="annot"><a href="System.FSNotify.html#defaultConfig"><span class="hs-identifier hs-type">defaultConfig</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.FSNotify.Types.html#WatchConfig"><span class="hs-identifier hs-type">WatchConfig</span></a></span><span>
+</span><span id="line-105"></span><span id="defaultConfig"><span class="annot"><span class="annottext">defaultConfig :: WatchConfig
+</span><a href="System.FSNotify.html#defaultConfig"><span class="hs-identifier hs-var hs-var">defaultConfig</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-106"></span><span>  </span><span class="annot"><a href="System.FSNotify.Types.html#WatchConfig"><span class="hs-identifier hs-type">WatchConfig</span></a></span><span>
+</span><span id="line-107"></span><span>    </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">confDebounce :: Debounce
+</span><a href="System.FSNotify.Types.html#confDebounce"><span class="hs-identifier hs-var">confDebounce</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Debounce
+</span><a href="System.FSNotify.Types.html#DebounceDefault"><span class="hs-identifier hs-var">DebounceDefault</span></a></span><span>
+</span><span id="line-108"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">confPollInterval :: Int
+</span><a href="System.FSNotify.Types.html#confPollInterval"><span class="hs-identifier hs-var">confPollInterval</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">10</span></span><span class="annot"><span class="annottext">forall a b. (Num a, Integral b) =&gt; a -&gt; b -&gt; a
+</span><span class="hs-operator hs-var">^</span></span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">6</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span> </span><span class="hs-comment">-- 1 second</span><span>
+</span><span id="line-109"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">confUsePolling :: Bool
+</span><a href="System.FSNotify.Types.html#confUsePolling"><span class="hs-identifier hs-var">confUsePolling</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-110"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-111"></span><span>
+</span><span id="line-112"></span><span class="hs-comment">-- | Perform an IO action with a WatchManager in place.</span><span>
+</span><span id="line-113"></span><span class="hs-comment">-- Tear down the WatchManager after the action is complete.</span><span>
+</span><span id="line-114"></span><span id="local-6989586621679054911"><span class="annot"><a href="System.FSNotify.html#withManager"><span class="hs-identifier hs-type">withManager</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.FSNotify.html#WatchManager"><span class="hs-identifier hs-type">WatchManager</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679054911"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679054911"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-115"></span><span id="withManager"><span class="annot"><span class="annottext">withManager :: forall a. (WatchManager -&gt; IO a) -&gt; IO a
+</span><a href="System.FSNotify.html#withManager"><span class="hs-identifier hs-var hs-var">withManager</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. WatchConfig -&gt; (WatchManager -&gt; IO a) -&gt; IO a
+</span><a href="System.FSNotify.html#withManagerConf"><span class="hs-identifier hs-var">withManagerConf</span></a></span><span> </span><span class="annot"><span class="annottext">WatchConfig
+</span><a href="System.FSNotify.html#defaultConfig"><span class="hs-identifier hs-var">defaultConfig</span></a></span><span>
+</span><span id="line-116"></span><span>
+</span><span id="line-117"></span><span class="hs-comment">-- | Start a file watch manager.</span><span>
+</span><span id="line-118"></span><span class="hs-comment">-- Directories can only be watched when they are managed by a started watch</span><span>
+</span><span id="line-119"></span><span class="hs-comment">-- watch manager.</span><span>
+</span><span id="line-120"></span><span class="hs-comment">-- When finished watching. you must release resources via 'stopManager'.</span><span>
+</span><span id="line-121"></span><span class="hs-comment">-- It is preferrable if possible to use 'withManager' to handle this</span><span>
+</span><span id="line-122"></span><span class="hs-comment">-- automatically.</span><span>
+</span><span id="line-123"></span><span class="annot"><a href="System.FSNotify.html#startManager"><span class="hs-identifier hs-type">startManager</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="System.FSNotify.html#WatchManager"><span class="hs-identifier hs-type">WatchManager</span></a></span><span>
+</span><span id="line-124"></span><span id="startManager"><span class="annot"><span class="annottext">startManager :: IO WatchManager
+</span><a href="System.FSNotify.html#startManager"><span class="hs-identifier hs-var hs-var">startManager</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">WatchConfig -&gt; IO WatchManager
+</span><a href="System.FSNotify.html#startManagerConf"><span class="hs-identifier hs-var">startManagerConf</span></a></span><span> </span><span class="annot"><span class="annottext">WatchConfig
+</span><a href="System.FSNotify.html#defaultConfig"><span class="hs-identifier hs-var">defaultConfig</span></a></span><span>
+</span><span id="line-125"></span><span>
+</span><span id="line-126"></span><span class="hs-comment">-- | Stop a file watch manager.</span><span>
+</span><span id="line-127"></span><span class="hs-comment">-- Stopping a watch manager will immediately stop</span><span>
+</span><span id="line-128"></span><span class="hs-comment">-- watching for files and free resources.</span><span>
+</span><span id="line-129"></span><span class="annot"><a href="System.FSNotify.html#stopManager"><span class="hs-identifier hs-type">stopManager</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.FSNotify.html#WatchManager"><span class="hs-identifier hs-type">WatchManager</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-130"></span><span id="stopManager"><span class="annot"><span class="annottext">stopManager :: WatchManager -&gt; IO ()
+</span><a href="System.FSNotify.html#stopManager"><span class="hs-identifier hs-var hs-var">stopManager</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.FSNotify.html#WatchManager"><span class="hs-identifier hs-type">WatchManager</span></a></span><span> </span><span class="annot"><span class="annottext">WatchConfig
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679054805"><span class="annot"><span class="annottext">manager
+</span><a href="#local-6989586621679054805"><span class="hs-identifier hs-var">wm</span></a></span></span><span> </span><span id="local-6989586621679054804"><span class="annot"><span class="annottext">MVar (Maybe (IO ()))
+</span><a href="#local-6989586621679054804"><span class="hs-identifier hs-var">cleanupVar</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-131"></span><span>  </span><span id="local-6989586621679054803"><span class="annot"><span class="annottext">Maybe (IO ())
+</span><a href="#local-6989586621679054803"><span class="hs-identifier hs-var">mbCleanup</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a. MVar a -&gt; a -&gt; IO a
+</span><span class="hs-identifier hs-var">swapMVar</span></span><span> </span><span class="annot"><span class="annottext">MVar (Maybe (IO ()))
+</span><a href="#local-6989586621679054804"><span class="hs-identifier hs-var">cleanupVar</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-132"></span><span>  </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a -&gt; a
+</span><span class="hs-identifier hs-var">fromMaybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe (IO ())
+</span><a href="#local-6989586621679054803"><span class="hs-identifier hs-var">mbCleanup</span></a></span><span>
+</span><span id="line-133"></span><span>  </span><span class="annot"><span class="annottext">forall sessionType.
+FileListener sessionType =&gt;
+sessionType -&gt; IO ()
+</span><a href="System.FSNotify.Listener.html#killSession"><span class="hs-identifier hs-var">killSession</span></a></span><span> </span><span class="annot"><span class="annottext">manager
+</span><a href="#local-6989586621679054805"><span class="hs-identifier hs-var">wm</span></a></span><span>
+</span><span id="line-134"></span><span>
+</span><span id="line-135"></span><span class="hs-comment">-- | Like 'withManager', but configurable</span><span>
+</span><span id="line-136"></span><span id="local-6989586621679054910"><span class="annot"><a href="System.FSNotify.html#withManagerConf"><span class="hs-identifier hs-type">withManagerConf</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.FSNotify.Types.html#WatchConfig"><span class="hs-identifier hs-type">WatchConfig</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.FSNotify.html#WatchManager"><span class="hs-identifier hs-type">WatchManager</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679054910"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679054910"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-137"></span><span id="withManagerConf"><span class="annot"><span class="annottext">withManagerConf :: forall a. WatchConfig -&gt; (WatchManager -&gt; IO a) -&gt; IO a
+</span><a href="System.FSNotify.html#withManagerConf"><span class="hs-identifier hs-var hs-var">withManagerConf</span></a></span></span><span> </span><span id="local-6989586621679054799"><span class="annot"><span class="annottext">WatchConfig
+</span><a href="#local-6989586621679054799"><span class="hs-identifier hs-var">conf</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b c. IO a -&gt; (a -&gt; IO b) -&gt; (a -&gt; IO c) -&gt; IO c
+</span><span class="hs-identifier hs-var">bracket</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">WatchConfig -&gt; IO WatchManager
+</span><a href="System.FSNotify.html#startManagerConf"><span class="hs-identifier hs-var">startManagerConf</span></a></span><span> </span><span class="annot"><span class="annottext">WatchConfig
+</span><a href="#local-6989586621679054799"><span class="hs-identifier hs-var">conf</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">WatchManager -&gt; IO ()
+</span><a href="System.FSNotify.html#stopManager"><span class="hs-identifier hs-var">stopManager</span></a></span><span>
+</span><span id="line-138"></span><span>
+</span><span id="line-139"></span><span class="hs-comment">-- | Like 'startManager', but configurable</span><span>
+</span><span id="line-140"></span><span class="annot"><a href="System.FSNotify.html#startManagerConf"><span class="hs-identifier hs-type">startManagerConf</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.FSNotify.Types.html#WatchConfig"><span class="hs-identifier hs-type">WatchConfig</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="System.FSNotify.html#WatchManager"><span class="hs-identifier hs-type">WatchManager</span></a></span><span>
+</span><span id="line-141"></span><span id="startManagerConf"><span class="annot"><span class="annottext">startManagerConf :: WatchConfig -&gt; IO WatchManager
+</span><a href="System.FSNotify.html#startManagerConf"><span class="hs-identifier hs-var hs-var">startManagerConf</span></a></span></span><span> </span><span id="local-6989586621679054797"><span class="annot"><span class="annottext">WatchConfig
+</span><a href="#local-6989586621679054797"><span class="hs-identifier hs-var">conf</span></a></span></span><span>
+</span><span id="line-142"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">WatchConfig -&gt; Bool
+</span><a href="System.FSNotify.Types.html#confUsePolling"><span class="hs-identifier hs-var">confUsePolling</span></a></span><span> </span><span class="annot"><span class="annottext">WatchConfig
+</span><a href="#local-6989586621679054797"><span class="hs-identifier hs-var">conf</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO WatchManager
+</span><a href="#local-6989586621679054796"><span class="hs-identifier hs-var">pollingManager</span></a></span><span>
+</span><span id="line-143"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall sessionType.
+FileListener sessionType =&gt;
+IO (Maybe sessionType)
+</span><a href="System.FSNotify.Listener.html#initSession"><span class="hs-identifier hs-var">initSession</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Maybe NativeManager -&gt; IO WatchManager
+</span><a href="#local-6989586621679054794"><span class="hs-identifier hs-var">createManager</span></a></span><span>
+</span><span id="line-144"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-145"></span><span>    </span><span class="annot"><a href="#local-6989586621679054794"><span class="hs-identifier hs-type">createManager</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="System.FSNotify.Linux.html#NativeManager"><span class="hs-identifier hs-type">NativeManager</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="System.FSNotify.html#WatchManager"><span class="hs-identifier hs-type">WatchManager</span></a></span><span>
+</span><span id="line-146"></span><span>    </span><span id="local-6989586621679054794"><span class="annot"><span class="annottext">createManager :: Maybe NativeManager -&gt; IO WatchManager
+</span><a href="#local-6989586621679054794"><span class="hs-identifier hs-var hs-var">createManager</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679054793"><span class="annot"><span class="annottext">NativeManager
+</span><a href="#local-6989586621679054793"><span class="hs-identifier hs-var">nativeManager</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-147"></span><span>      </span><span class="annot"><span class="annottext">forall manager.
+FileListener manager =&gt;
+WatchConfig -&gt; manager -&gt; MVar (Maybe (IO ())) -&gt; WatchManager
+</span><a href="System.FSNotify.html#WatchManager"><span class="hs-identifier hs-var">WatchManager</span></a></span><span> </span><span class="annot"><span class="annottext">WatchConfig
+</span><a href="#local-6989586621679054797"><span class="hs-identifier hs-var">conf</span></a></span><span> </span><span class="annot"><span class="annottext">NativeManager
+</span><a href="#local-6989586621679054793"><span class="hs-identifier hs-var">nativeManager</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">IO (MVar (Maybe (IO ())))
+</span><a href="#local-6989586621679054791"><span class="hs-identifier hs-var">cleanupVar</span></a></span><span>
+</span><span id="line-148"></span><span>    </span><span class="annot"><a href="#local-6989586621679054794"><span class="hs-identifier hs-var">createManager</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe NativeManager
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO WatchManager
+</span><a href="#local-6989586621679054796"><span class="hs-identifier hs-var">pollingManager</span></a></span><span>
+</span><span id="line-149"></span><span>
+</span><span id="line-150"></span><span>    </span><span id="local-6989586621679054796"><span class="annot"><span class="annottext">pollingManager :: IO WatchManager
+</span><a href="#local-6989586621679054796"><span class="hs-identifier hs-var hs-var">pollingManager</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-151"></span><span>      </span><span class="annot"><span class="annottext">forall manager.
+FileListener manager =&gt;
+WatchConfig -&gt; manager -&gt; MVar (Maybe (IO ())) -&gt; WatchManager
+</span><a href="System.FSNotify.html#WatchManager"><span class="hs-identifier hs-var">WatchManager</span></a></span><span> </span><span class="annot"><span class="annottext">WatchConfig
+</span><a href="#local-6989586621679054797"><span class="hs-identifier hs-var">conf</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">IO PollManager
+</span><a href="System.FSNotify.Polling.html#createPollManager"><span class="hs-identifier hs-var">createPollManager</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">IO (MVar (Maybe (IO ())))
+</span><a href="#local-6989586621679054791"><span class="hs-identifier hs-var">cleanupVar</span></a></span><span>
+</span><span id="line-152"></span><span>
+</span><span id="line-153"></span><span>    </span><span id="local-6989586621679054791"><span class="annot"><span class="annottext">cleanupVar :: IO (MVar (Maybe (IO ())))
+</span><a href="#local-6989586621679054791"><span class="hs-identifier hs-var hs-var">cleanupVar</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; IO (MVar a)
+</span><span class="hs-identifier hs-var">newMVar</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-154"></span><span>
+</span><span id="line-155"></span><span class="hs-comment">-- | Does this manager use polling?</span><span>
+</span><span id="line-156"></span><span class="annot"><a href="System.FSNotify.html#isPollingManager"><span class="hs-identifier hs-type">isPollingManager</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.FSNotify.html#WatchManager"><span class="hs-identifier hs-type">WatchManager</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-157"></span><span id="isPollingManager"><span class="annot"><span class="annottext">isPollingManager :: WatchManager -&gt; Bool
+</span><a href="System.FSNotify.html#isPollingManager"><span class="hs-identifier hs-var hs-var">isPollingManager</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.FSNotify.html#WatchManager"><span class="hs-identifier hs-type">WatchManager</span></a></span><span> </span><span class="annot"><span class="annottext">WatchConfig
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679054781"><span class="annot"><span class="annottext">manager
+</span><a href="#local-6989586621679054781"><span class="hs-identifier hs-var">wm</span></a></span></span><span> </span><span class="annot"><span class="annottext">MVar (Maybe (IO ()))
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall sessionType. FileListener sessionType =&gt; sessionType -&gt; Bool
+</span><a href="System.FSNotify.Listener.html#usesPolling"><span class="hs-identifier hs-var">usesPolling</span></a></span><span> </span><span class="annot"><span class="annottext">manager
+</span><a href="#local-6989586621679054781"><span class="hs-identifier hs-var">wm</span></a></span><span>
+</span><span id="line-158"></span><span>
+</span><span id="line-159"></span><span class="hs-comment">-- | Watch the immediate contents of a directory by streaming events to a Chan.</span><span>
+</span><span id="line-160"></span><span class="hs-comment">-- Watching the immediate contents of a directory will only report events</span><span>
+</span><span id="line-161"></span><span class="hs-comment">-- associated with files within the specified directory, and not files</span><span>
+</span><span id="line-162"></span><span class="hs-comment">-- within its subdirectories.</span><span>
+</span><span id="line-163"></span><span class="annot"><a href="System.FSNotify.html#watchDirChan"><span class="hs-identifier hs-type">watchDirChan</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.FSNotify.html#WatchManager"><span class="hs-identifier hs-type">WatchManager</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="System.FSNotify.Types.html#ActionPredicate"><span class="hs-identifier hs-type">ActionPredicate</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="System.FSNotify.Types.html#EventChannel"><span class="hs-identifier hs-type">EventChannel</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="System.FSNotify.Listener.html#StopListening"><span class="hs-identifier hs-type">StopListening</span></a></span><span>
+</span><span id="line-164"></span><span id="watchDirChan"><span class="annot"><span class="annottext">watchDirChan :: WatchManager
+-&gt; FilePath -&gt; ActionPredicate -&gt; EventChannel -&gt; IO (IO ())
+</span><a href="System.FSNotify.html#watchDirChan"><span class="hs-identifier hs-var hs-var">watchDirChan</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.FSNotify.html#WatchManager"><span class="hs-identifier hs-type">WatchManager</span></a></span><span> </span><span id="local-6989586621679054777"><span class="annot"><span class="annottext">WatchConfig
+</span><a href="#local-6989586621679054777"><span class="hs-identifier hs-var">db</span></a></span></span><span> </span><span id="local-6989586621679054776"><span class="annot"><span class="annottext">manager
+</span><a href="#local-6989586621679054776"><span class="hs-identifier hs-var">wm</span></a></span></span><span> </span><span class="annot"><span class="annottext">MVar (Maybe (IO ()))
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall sessionType.
+FileListener sessionType =&gt;
+WatchConfig
+-&gt; sessionType
+-&gt; FilePath
+-&gt; ActionPredicate
+-&gt; EventChannel
+-&gt; IO (IO ())
+</span><a href="System.FSNotify.Listener.html#listen"><span class="hs-identifier hs-var">listen</span></a></span><span> </span><span class="annot"><span class="annottext">WatchConfig
+</span><a href="#local-6989586621679054777"><span class="hs-identifier hs-var">db</span></a></span><span> </span><span class="annot"><span class="annottext">manager
+</span><a href="#local-6989586621679054776"><span class="hs-identifier hs-var">wm</span></a></span><span>
+</span><span id="line-165"></span><span>
+</span><span id="line-166"></span><span class="hs-comment">-- | Watch all the contents of a directory by streaming events to a Chan.</span><span>
+</span><span id="line-167"></span><span class="hs-comment">-- Watching all the contents of a directory will report events associated with</span><span>
+</span><span id="line-168"></span><span class="hs-comment">-- files within the specified directory and its subdirectories.</span><span>
+</span><span id="line-169"></span><span class="annot"><a href="System.FSNotify.html#watchTreeChan"><span class="hs-identifier hs-type">watchTreeChan</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.FSNotify.html#WatchManager"><span class="hs-identifier hs-type">WatchManager</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="System.FSNotify.Types.html#ActionPredicate"><span class="hs-identifier hs-type">ActionPredicate</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="System.FSNotify.Types.html#EventChannel"><span class="hs-identifier hs-type">EventChannel</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="System.FSNotify.Listener.html#StopListening"><span class="hs-identifier hs-type">StopListening</span></a></span><span>
+</span><span id="line-170"></span><span id="watchTreeChan"><span class="annot"><span class="annottext">watchTreeChan :: WatchManager
+-&gt; FilePath -&gt; ActionPredicate -&gt; EventChannel -&gt; IO (IO ())
+</span><a href="System.FSNotify.html#watchTreeChan"><span class="hs-identifier hs-var hs-var">watchTreeChan</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.FSNotify.html#WatchManager"><span class="hs-identifier hs-type">WatchManager</span></a></span><span> </span><span id="local-6989586621679054772"><span class="annot"><span class="annottext">WatchConfig
+</span><a href="#local-6989586621679054772"><span class="hs-identifier hs-var">db</span></a></span></span><span> </span><span id="local-6989586621679054771"><span class="annot"><span class="annottext">manager
+</span><a href="#local-6989586621679054771"><span class="hs-identifier hs-var">wm</span></a></span></span><span> </span><span class="annot"><span class="annottext">MVar (Maybe (IO ()))
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall sessionType.
+FileListener sessionType =&gt;
+WatchConfig
+-&gt; sessionType
+-&gt; FilePath
+-&gt; ActionPredicate
+-&gt; EventChannel
+-&gt; IO (IO ())
+</span><a href="System.FSNotify.Listener.html#listenRecursive"><span class="hs-identifier hs-var">listenRecursive</span></a></span><span> </span><span class="annot"><span class="annottext">WatchConfig
+</span><a href="#local-6989586621679054772"><span class="hs-identifier hs-var">db</span></a></span><span> </span><span class="annot"><span class="annottext">manager
+</span><a href="#local-6989586621679054771"><span class="hs-identifier hs-var">wm</span></a></span><span>
+</span><span id="line-171"></span><span>
+</span><span id="line-172"></span><span class="hs-comment">-- | Watch the immediate contents of a directory by committing an Action for each event.</span><span>
+</span><span id="line-173"></span><span class="hs-comment">-- Watching the immediate contents of a directory will only report events</span><span>
+</span><span id="line-174"></span><span class="hs-comment">-- associated with files within the specified directory, and not files</span><span>
+</span><span id="line-175"></span><span class="hs-comment">-- within its subdirectories.</span><span>
+</span><span id="line-176"></span><span class="annot"><a href="System.FSNotify.html#watchDir"><span class="hs-identifier hs-type">watchDir</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.FSNotify.html#WatchManager"><span class="hs-identifier hs-type">WatchManager</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="System.FSNotify.Types.html#ActionPredicate"><span class="hs-identifier hs-type">ActionPredicate</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="System.FSNotify.Types.html#Action"><span class="hs-identifier hs-type">Action</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="System.FSNotify.Listener.html#StopListening"><span class="hs-identifier hs-type">StopListening</span></a></span><span>
+</span><span id="line-177"></span><span id="watchDir"><span class="annot"><span class="annottext">watchDir :: WatchManager -&gt; FilePath -&gt; ActionPredicate -&gt; Action -&gt; IO (IO ())
+</span><a href="System.FSNotify.html#watchDir"><span class="hs-identifier hs-var hs-var">watchDir</span></a></span></span><span> </span><span id="local-6989586621679054769"><span class="annot"><span class="annottext">WatchManager
+</span><a href="#local-6989586621679054769"><span class="hs-identifier hs-var">wm</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(forall sessionType.
+ FileListener sessionType =&gt;
+ WatchConfig
+ -&gt; sessionType
+ -&gt; FilePath
+ -&gt; ActionPredicate
+ -&gt; EventChannel
+ -&gt; IO (IO ()))
+-&gt; WatchManager
+-&gt; FilePath
+-&gt; ActionPredicate
+-&gt; Action
+-&gt; IO (IO ())
+</span><a href="System.FSNotify.html#threadChan"><span class="hs-identifier hs-var">threadChan</span></a></span><span> </span><span class="annot"><span class="annottext">forall sessionType.
+FileListener sessionType =&gt;
+WatchConfig
+-&gt; sessionType
+-&gt; FilePath
+-&gt; ActionPredicate
+-&gt; EventChannel
+-&gt; IO (IO ())
+</span><a href="System.FSNotify.Listener.html#listen"><span class="hs-identifier hs-var">listen</span></a></span><span> </span><span class="annot"><span class="annottext">WatchManager
+</span><a href="#local-6989586621679054769"><span class="hs-identifier hs-var">wm</span></a></span><span>
+</span><span id="line-178"></span><span>
+</span><span id="line-179"></span><span class="hs-comment">-- | Watch all the contents of a directory by committing an Action for each event.</span><span>
+</span><span id="line-180"></span><span class="hs-comment">-- Watching all the contents of a directory will report events associated with</span><span>
+</span><span id="line-181"></span><span class="hs-comment">-- files within the specified directory and its subdirectories.</span><span>
+</span><span id="line-182"></span><span class="annot"><a href="System.FSNotify.html#watchTree"><span class="hs-identifier hs-type">watchTree</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.FSNotify.html#WatchManager"><span class="hs-identifier hs-type">WatchManager</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="System.FSNotify.Types.html#ActionPredicate"><span class="hs-identifier hs-type">ActionPredicate</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="System.FSNotify.Types.html#Action"><span class="hs-identifier hs-type">Action</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="System.FSNotify.Listener.html#StopListening"><span class="hs-identifier hs-type">StopListening</span></a></span><span>
+</span><span id="line-183"></span><span id="watchTree"><span class="annot"><span class="annottext">watchTree :: WatchManager -&gt; FilePath -&gt; ActionPredicate -&gt; Action -&gt; IO (IO ())
+</span><a href="System.FSNotify.html#watchTree"><span class="hs-identifier hs-var hs-var">watchTree</span></a></span></span><span> </span><span id="local-6989586621679054765"><span class="annot"><span class="annottext">WatchManager
+</span><a href="#local-6989586621679054765"><span class="hs-identifier hs-var">wm</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(forall sessionType.
+ FileListener sessionType =&gt;
+ WatchConfig
+ -&gt; sessionType
+ -&gt; FilePath
+ -&gt; ActionPredicate
+ -&gt; EventChannel
+ -&gt; IO (IO ()))
+-&gt; WatchManager
+-&gt; FilePath
+-&gt; ActionPredicate
+-&gt; Action
+-&gt; IO (IO ())
+</span><a href="System.FSNotify.html#threadChan"><span class="hs-identifier hs-var">threadChan</span></a></span><span> </span><span class="annot"><span class="annottext">forall sessionType.
+FileListener sessionType =&gt;
+WatchConfig
+-&gt; sessionType
+-&gt; FilePath
+-&gt; ActionPredicate
+-&gt; EventChannel
+-&gt; IO (IO ())
+</span><a href="System.FSNotify.Listener.html#listenRecursive"><span class="hs-identifier hs-var">listenRecursive</span></a></span><span> </span><span class="annot"><span class="annottext">WatchManager
+</span><a href="#local-6989586621679054765"><span class="hs-identifier hs-var">wm</span></a></span><span>
+</span><span id="line-184"></span><span>
+</span><span id="line-185"></span><span class="annot"><a href="System.FSNotify.html#threadChan"><span class="hs-identifier hs-type">threadChan</span></a></span><span>
+</span><span id="line-186"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679054762"><span class="annot"><a href="#local-6989586621679054762"><span class="hs-identifier hs-type">sessionType</span></a></span></span><span> </span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="System.FSNotify.Listener.html#FileListener"><span class="hs-identifier hs-type">FileListener</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679054762"><span class="hs-identifier hs-type">sessionType</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-187"></span><span>      </span><span class="annot"><a href="System.FSNotify.Types.html#WatchConfig"><span class="hs-identifier hs-type">WatchConfig</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679054762"><span class="hs-identifier hs-type">sessionType</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="System.FSNotify.Types.html#ActionPredicate"><span class="hs-identifier hs-type">ActionPredicate</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="System.FSNotify.Types.html#EventChannel"><span class="hs-identifier hs-type">EventChannel</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="System.FSNotify.Listener.html#StopListening"><span class="hs-identifier hs-type">StopListening</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-188"></span><span>      </span><span class="hs-comment">-- (^ this is the type of listen and listenRecursive)</span><span>
+</span><span id="line-189"></span><span>  </span><span class="hs-glyph">-&gt;</span><span>  </span><span class="annot"><a href="System.FSNotify.html#WatchManager"><span class="hs-identifier hs-type">WatchManager</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="System.FSNotify.Types.html#ActionPredicate"><span class="hs-identifier hs-type">ActionPredicate</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="System.FSNotify.Types.html#Action"><span class="hs-identifier hs-type">Action</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="System.FSNotify.Listener.html#StopListening"><span class="hs-identifier hs-type">StopListening</span></a></span><span>
+</span><span id="line-190"></span><span id="threadChan"><span class="annot"><span class="annottext">threadChan :: (forall sessionType.
+ FileListener sessionType =&gt;
+ WatchConfig
+ -&gt; sessionType
+ -&gt; FilePath
+ -&gt; ActionPredicate
+ -&gt; EventChannel
+ -&gt; IO (IO ()))
+-&gt; WatchManager
+-&gt; FilePath
+-&gt; ActionPredicate
+-&gt; Action
+-&gt; IO (IO ())
+</span><a href="System.FSNotify.html#threadChan"><span class="hs-identifier hs-var hs-var">threadChan</span></a></span></span><span> </span><span id="local-6989586621679054761"><span class="annot"><span class="annottext">forall sessionType.
+FileListener sessionType =&gt;
+WatchConfig
+-&gt; sessionType
+-&gt; FilePath
+-&gt; ActionPredicate
+-&gt; EventChannel
+-&gt; IO (IO ())
+</span><a href="#local-6989586621679054761"><span class="hs-identifier hs-var">listenFn</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.FSNotify.html#WatchManager"><span class="hs-identifier hs-type">WatchManager</span></a></span><span> </span><span id="local-6989586621679054750"><span class="annot"><span class="annottext">WatchConfig
+</span><a href="#local-6989586621679054750"><span class="hs-identifier hs-var">db</span></a></span></span><span> </span><span id="local-6989586621679054749"><span class="annot"><span class="annottext">manager
+</span><a href="#local-6989586621679054749"><span class="hs-identifier hs-var">listener</span></a></span></span><span> </span><span id="local-6989586621679054748"><span class="annot"><span class="annottext">MVar (Maybe (IO ()))
+</span><a href="#local-6989586621679054748"><span class="hs-identifier hs-var">cleanupVar</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679054747"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679054747"><span class="hs-identifier hs-var">path</span></a></span></span><span> </span><span id="local-6989586621679054746"><span class="annot"><span class="annottext">ActionPredicate
+</span><a href="#local-6989586621679054746"><span class="hs-identifier hs-var">actPred</span></a></span></span><span> </span><span id="local-6989586621679054745"><span class="annot"><span class="annottext">Action
+</span><a href="#local-6989586621679054745"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-191"></span><span>  </span><span class="annot"><span class="annottext">forall a b. MVar a -&gt; (a -&gt; IO (a, b)) -&gt; IO b
+</span><span class="hs-identifier hs-var">modifyMVar</span></span><span> </span><span class="annot"><span class="annottext">MVar (Maybe (IO ()))
+</span><a href="#local-6989586621679054748"><span class="hs-identifier hs-var">cleanupVar</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679054743"><span class="annot"><span class="annottext">Maybe (IO ())
+</span><a href="#local-6989586621679054743"><span class="hs-identifier hs-var">mbCleanup</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Maybe (IO ())
+</span><a href="#local-6989586621679054743"><span class="hs-identifier hs-var">mbCleanup</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-192"></span><span>    </span><span class="hs-comment">-- check if we've been stopped</span><span>
+</span><span id="line-193"></span><span>    </span><span class="annot"><span class="annottext">Maybe (IO ())
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-comment">-- or throw an exception?</span><span>
+</span><span id="line-194"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679054742"><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621679054742"><span class="hs-identifier hs-var">cleanup</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-195"></span><span>      </span><span id="local-6989586621679054741"><span class="annot"><span class="annottext">EventChannel
+</span><a href="#local-6989586621679054741"><span class="hs-identifier hs-var">chan</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a. IO (Chan a)
+</span><span class="hs-identifier hs-var">newChan</span></span><span>
+</span><span id="line-196"></span><span>      </span><span id="local-6989586621679054739"><span class="annot"><span class="annottext">Async ()
+</span><a href="#local-6989586621679054739"><span class="hs-identifier hs-var">asy</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a. IO a -&gt; IO (Async a)
+</span><span class="hs-identifier hs-var">async</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">EventChannel -&gt; Action -&gt; IO ()
+</span><a href="System.FSNotify.html#readEvents"><span class="hs-identifier hs-var">readEvents</span></a></span><span> </span><span class="annot"><span class="annottext">EventChannel
+</span><a href="#local-6989586621679054741"><span class="hs-identifier hs-var">chan</span></a></span><span> </span><span class="annot"><span class="annottext">Action
+</span><a href="#local-6989586621679054745"><span class="hs-identifier hs-var">action</span></a></span><span>
+</span><span id="line-197"></span><span>      </span><span class="hs-comment">-- Ideally, the the asy thread should be linked to the current one</span><span>
+</span><span id="line-198"></span><span>      </span><span class="hs-comment">-- (@link asy@), so that it doesn't die quietly.</span><span>
+</span><span id="line-199"></span><span>      </span><span class="hs-comment">-- However, if we do that, then cancelling asy will also kill</span><span>
+</span><span id="line-200"></span><span>      </span><span class="hs-comment">-- ourselves. I haven't figured out how to do this (probably we</span><span>
+</span><span id="line-201"></span><span>      </span><span class="hs-comment">-- should just abandon async and use lower-level primitives). For now</span><span>
+</span><span id="line-202"></span><span>      </span><span class="hs-comment">-- we don't link the thread.</span><span>
+</span><span id="line-203"></span><span>      </span><span id="local-6989586621679054736"><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621679054736"><span class="hs-identifier hs-var">stopListener</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall sessionType.
+FileListener sessionType =&gt;
+WatchConfig
+-&gt; sessionType
+-&gt; FilePath
+-&gt; ActionPredicate
+-&gt; EventChannel
+-&gt; IO (IO ())
+</span><a href="#local-6989586621679054761"><span class="hs-identifier hs-var">listenFn</span></a></span><span> </span><span class="annot"><span class="annottext">WatchConfig
+</span><a href="#local-6989586621679054750"><span class="hs-identifier hs-var">db</span></a></span><span> </span><span class="annot"><span class="annottext">manager
+</span><a href="#local-6989586621679054749"><span class="hs-identifier hs-var">listener</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679054747"><span class="hs-identifier hs-var">path</span></a></span><span> </span><span class="annot"><span class="annottext">ActionPredicate
+</span><a href="#local-6989586621679054746"><span class="hs-identifier hs-var">actPred</span></a></span><span> </span><span class="annot"><span class="annottext">EventChannel
+</span><a href="#local-6989586621679054741"><span class="hs-identifier hs-var">chan</span></a></span><span>
+</span><span id="line-204"></span><span>      </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679054735"><span class="annot"><span class="annottext">cleanThisUp :: IO ()
+</span><a href="#local-6989586621679054735"><span class="hs-identifier hs-var hs-var">cleanThisUp</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Async a -&gt; IO ()
+</span><span class="hs-identifier hs-var">cancel</span></span><span> </span><span class="annot"><span class="annottext">Async ()
+</span><a href="#local-6989586621679054739"><span class="hs-identifier hs-var">asy</span></a></span><span>
+</span><span id="line-205"></span><span>      </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span>
+</span><span id="line-206"></span><span>        </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621679054742"><span class="hs-identifier hs-var">cleanup</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621679054735"><span class="hs-identifier hs-var">cleanThisUp</span></a></span><span>
+</span><span id="line-207"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621679054736"><span class="hs-identifier hs-var">stopListener</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621679054735"><span class="hs-identifier hs-var">cleanThisUp</span></a></span><span>
+</span><span id="line-208"></span><span>        </span><span class="hs-special">)</span><span>
+</span><span id="line-209"></span><span>
+</span><span id="line-210"></span><span class="annot"><a href="System.FSNotify.html#readEvents"><span class="hs-identifier hs-type">readEvents</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.FSNotify.Types.html#EventChannel"><span class="hs-identifier hs-type">EventChannel</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="System.FSNotify.Types.html#Action"><span class="hs-identifier hs-type">Action</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-211"></span><span id="readEvents"><span class="annot"><span class="annottext">readEvents :: EventChannel -&gt; Action -&gt; IO ()
+</span><a href="System.FSNotify.html#readEvents"><span class="hs-identifier hs-var hs-var">readEvents</span></a></span></span><span> </span><span id="local-6989586621679054733"><span class="annot"><span class="annottext">EventChannel
+</span><a href="#local-6989586621679054733"><span class="hs-identifier hs-var">chan</span></a></span></span><span> </span><span id="local-6989586621679054732"><span class="annot"><span class="annottext">Action
+</span><a href="#local-6989586621679054732"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">forever</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-212"></span><span>  </span><span id="local-6989586621679054730"><span class="annot"><span class="annottext">Event
+</span><a href="#local-6989586621679054730"><span class="hs-identifier hs-var">event</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a. Chan a -&gt; IO a
+</span><span class="hs-identifier hs-var">readChan</span></span><span> </span><span class="annot"><span class="annottext">EventChannel
+</span><a href="#local-6989586621679054733"><span class="hs-identifier hs-var">chan</span></a></span><span>
+</span><span id="line-213"></span><span>  </span><span id="local-6989586621679054728"><span class="annot"><span class="annottext">ThreadId
+</span><a href="#local-6989586621679054728"><span class="hs-identifier hs-var">us</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO ThreadId
+</span><span class="hs-identifier hs-var">myThreadId</span></span><span>
+</span><span id="line-214"></span><span>  </span><span class="hs-comment">-- Execute the event handler in a separate thread, but throw any</span><span>
+</span><span id="line-215"></span><span>  </span><span class="hs-comment">-- exceptions back to us.</span><span>
+</span><span id="line-216"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-217"></span><span>  </span><span class="hs-comment">-- Note that there's a possibility that we may miss some exceptions, if</span><span>
+</span><span id="line-218"></span><span>  </span><span class="hs-comment">-- an event handler finishes after the listen is cancelled (and so this</span><span>
+</span><span id="line-219"></span><span>  </span><span class="hs-comment">-- thread is dead). How bad is that? The alternative is to kill the</span><span>
+</span><span id="line-220"></span><span>  </span><span class="hs-comment">-- handler anyway when we're cancelling.</span><span>
+</span><span id="line-221"></span><span>  </span><span class="annot"><span class="annottext">forall a. IO a -&gt; (Either SomeException a -&gt; IO ()) -&gt; IO ThreadId
+</span><span class="hs-identifier hs-var">forkFinally</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Action
+</span><a href="#local-6989586621679054732"><span class="hs-identifier hs-var">action</span></a></span><span> </span><span class="annot"><span class="annottext">Event
+</span><a href="#local-6989586621679054730"><span class="hs-identifier hs-var">event</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall a c b. (a -&gt; c) -&gt; (b -&gt; c) -&gt; Either a b -&gt; c
+</span><span class="hs-identifier hs-var">either</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall e. Exception e =&gt; ThreadId -&gt; e -&gt; IO ()
+</span><span class="hs-identifier hs-var">throwTo</span></span><span> </span><span class="annot"><span class="annottext">ThreadId
+</span><a href="#local-6989586621679054728"><span class="hs-identifier hs-var">us</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-cpp">
+
+#if !MIN_VERSION_base(4,6,0)
+</span><span class="hs-identifier">forkFinally</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Either</span><span> </span><span class="hs-identifier">SomeException</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">ThreadId</span><span>
+</span><span id="line-225"></span><span class="hs-identifier">forkFinally</span><span> </span><span class="hs-identifier">action</span><span> </span><span class="hs-identifier">and_then</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-226"></span><span>  </span><span class="hs-identifier">mask</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-glyph">\</span><span class="hs-identifier">restore</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-227"></span><span>    </span><span class="hs-identifier">forkIO</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-identifier">try</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">restore</span><span> </span><span class="hs-identifier">action</span><span class="hs-special">)</span><span> </span><span class="hs-operator">&gt;&gt;=</span><span> </span><span class="hs-identifier">and_then</span><span class="hs-cpp">
+#endif
+</span></pre></body></html>

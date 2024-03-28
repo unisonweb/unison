@@ -1,0 +1,182 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- THIS IS A GENERATED FILE, DO NOT EDIT</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-imports #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-matches #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-deprecations #-}</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.DidChangeWatchedFilesClientCapabilities</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Hashable</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html"><span class="hs-identifier">Language.LSP.Protocol.Utils.Misc</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prettyprinter</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Aeson.html"><span class="hs-identifier">Data.Row.Aeson</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Hashable.html"><span class="hs-identifier">Data.Row.Hashable</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Hashable</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html"><span class="hs-identifier">Language.LSP.Protocol.Types.Common</span></a></span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="hs-comment">{-|
+
+-}</span><span>
+</span><span id="line-21"></span><span id="local-6989586621682204831"><span id="local-6989586621682204832"></span></span><span class="hs-keyword">data</span><span> </span><span id="DidChangeWatchedFilesClientCapabilities"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.DidChangeWatchedFilesClientCapabilities.html#DidChangeWatchedFilesClientCapabilities"><span class="hs-identifier hs-var">DidChangeWatchedFilesClientCapabilities</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="DidChangeWatchedFilesClientCapabilities"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.DidChangeWatchedFilesClientCapabilities.html#DidChangeWatchedFilesClientCapabilities"><span class="hs-identifier hs-var">DidChangeWatchedFilesClientCapabilities</span></a></span></span><span> </span><span>
+</span><span id="line-22"></span><span>  </span><span class="hs-special">{</span><span> </span><span class="hs-comment">{-|
+  Did change watched files notification supports dynamic registration. Please note
+  that the current protocol doesn't support static configuration for file changes
+  from the server side.
+  -}</span><span>
+</span><span id="line-27"></span><span>  </span><span id="%24sel%3A_dynamicRegistration%3ADidChangeWatchedFilesClientCapabilities"><span class="annot"><span class="annottext">DidChangeWatchedFilesClientCapabilities -&gt; Maybe Bool
+</span><a href="Language.LSP.Protocol.Internal.Types.DidChangeWatchedFilesClientCapabilities.html#%24sel%3A_dynamicRegistration%3ADidChangeWatchedFilesClientCapabilities"><span class="hs-identifier hs-var hs-var">_dynamicRegistration</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-comment">{-|
+  Whether the client has support for `RelativePattern`
+  or not.
+
+  @since 3.17.0
+  -}</span><span>
+</span><span id="line-34"></span><span>  </span><span id="%24sel%3A_relativePatternSupport%3ADidChangeWatchedFilesClientCapabilities"><span class="annot"><span class="annottext">DidChangeWatchedFilesClientCapabilities -&gt; Maybe Bool
+</span><a href="Language.LSP.Protocol.Internal.Types.DidChangeWatchedFilesClientCapabilities.html#%24sel%3A_relativePatternSupport%3ADidChangeWatchedFilesClientCapabilities"><span class="hs-identifier hs-var hs-var">_relativePatternSupport</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682204816"><span id="local-6989586621682204818"><span id="local-6989586621682204826"><span class="annot"><span class="annottext">Int -&gt; DidChangeWatchedFilesClientCapabilities -&gt; ShowS
+[DidChangeWatchedFilesClientCapabilities] -&gt; ShowS
+DidChangeWatchedFilesClientCapabilities -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [DidChangeWatchedFilesClientCapabilities] -&gt; ShowS
+$cshowList :: [DidChangeWatchedFilesClientCapabilities] -&gt; ShowS
+show :: DidChangeWatchedFilesClientCapabilities -&gt; String
+$cshow :: DidChangeWatchedFilesClientCapabilities -&gt; String
+showsPrec :: Int -&gt; DidChangeWatchedFilesClientCapabilities -&gt; ShowS
+$cshowsPrec :: Int -&gt; DidChangeWatchedFilesClientCapabilities -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682204806"><span id="local-6989586621682204812"><span class="annot"><span class="annottext">DidChangeWatchedFilesClientCapabilities
+-&gt; DidChangeWatchedFilesClientCapabilities -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: DidChangeWatchedFilesClientCapabilities
+-&gt; DidChangeWatchedFilesClientCapabilities -&gt; Bool
+$c/= :: DidChangeWatchedFilesClientCapabilities
+-&gt; DidChangeWatchedFilesClientCapabilities -&gt; Bool
+== :: DidChangeWatchedFilesClientCapabilities
+-&gt; DidChangeWatchedFilesClientCapabilities -&gt; Bool
+$c== :: DidChangeWatchedFilesClientCapabilities
+-&gt; DidChangeWatchedFilesClientCapabilities -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682204778"><span id="local-6989586621682204780"><span id="local-6989586621682204783"><span id="local-6989586621682204786"><span id="local-6989586621682204789"><span id="local-6989586621682204794"><span id="local-6989586621682204800"><span class="annot"><span class="annottext">Eq DidChangeWatchedFilesClientCapabilities
+DidChangeWatchedFilesClientCapabilities
+-&gt; DidChangeWatchedFilesClientCapabilities -&gt; Bool
+DidChangeWatchedFilesClientCapabilities
+-&gt; DidChangeWatchedFilesClientCapabilities -&gt; Ordering
+DidChangeWatchedFilesClientCapabilities
+-&gt; DidChangeWatchedFilesClientCapabilities
+-&gt; DidChangeWatchedFilesClientCapabilities
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: DidChangeWatchedFilesClientCapabilities
+-&gt; DidChangeWatchedFilesClientCapabilities
+-&gt; DidChangeWatchedFilesClientCapabilities
+$cmin :: DidChangeWatchedFilesClientCapabilities
+-&gt; DidChangeWatchedFilesClientCapabilities
+-&gt; DidChangeWatchedFilesClientCapabilities
+max :: DidChangeWatchedFilesClientCapabilities
+-&gt; DidChangeWatchedFilesClientCapabilities
+-&gt; DidChangeWatchedFilesClientCapabilities
+$cmax :: DidChangeWatchedFilesClientCapabilities
+-&gt; DidChangeWatchedFilesClientCapabilities
+-&gt; DidChangeWatchedFilesClientCapabilities
+&gt;= :: DidChangeWatchedFilesClientCapabilities
+-&gt; DidChangeWatchedFilesClientCapabilities -&gt; Bool
+$c&gt;= :: DidChangeWatchedFilesClientCapabilities
+-&gt; DidChangeWatchedFilesClientCapabilities -&gt; Bool
+&gt; :: DidChangeWatchedFilesClientCapabilities
+-&gt; DidChangeWatchedFilesClientCapabilities -&gt; Bool
+$c&gt; :: DidChangeWatchedFilesClientCapabilities
+-&gt; DidChangeWatchedFilesClientCapabilities -&gt; Bool
+&lt;= :: DidChangeWatchedFilesClientCapabilities
+-&gt; DidChangeWatchedFilesClientCapabilities -&gt; Bool
+$c&lt;= :: DidChangeWatchedFilesClientCapabilities
+-&gt; DidChangeWatchedFilesClientCapabilities -&gt; Bool
+&lt; :: DidChangeWatchedFilesClientCapabilities
+-&gt; DidChangeWatchedFilesClientCapabilities -&gt; Bool
+$c&lt; :: DidChangeWatchedFilesClientCapabilities
+-&gt; DidChangeWatchedFilesClientCapabilities -&gt; Bool
+compare :: DidChangeWatchedFilesClientCapabilities
+-&gt; DidChangeWatchedFilesClientCapabilities -&gt; Ordering
+$ccompare :: DidChangeWatchedFilesClientCapabilities
+-&gt; DidChangeWatchedFilesClientCapabilities -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall x.
+Rep DidChangeWatchedFilesClientCapabilities x
+-&gt; DidChangeWatchedFilesClientCapabilities
+forall x.
+DidChangeWatchedFilesClientCapabilities
+-&gt; Rep DidChangeWatchedFilesClientCapabilities x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cto :: forall x.
+Rep DidChangeWatchedFilesClientCapabilities x
+-&gt; DidChangeWatchedFilesClientCapabilities
+$cfrom :: forall x.
+DidChangeWatchedFilesClientCapabilities
+-&gt; Rep DidChangeWatchedFilesClientCapabilities x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-37"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">anyclass</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682204771"><span class="annot"><span class="annottext">DidChangeWatchedFilesClientCapabilities -&gt; ()
+forall a. (a -&gt; ()) -&gt; NFData a
+rnf :: DidChangeWatchedFilesClientCapabilities -&gt; ()
+$crnf :: DidChangeWatchedFilesClientCapabilities -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682204764"><span id="local-6989586621682204766"><span class="annot"><span class="annottext">Eq DidChangeWatchedFilesClientCapabilities
+Int -&gt; DidChangeWatchedFilesClientCapabilities -&gt; Int
+DidChangeWatchedFilesClientCapabilities -&gt; Int
+forall a. Eq a -&gt; (Int -&gt; a -&gt; Int) -&gt; (a -&gt; Int) -&gt; Hashable a
+hash :: DidChangeWatchedFilesClientCapabilities -&gt; Int
+$chash :: DidChangeWatchedFilesClientCapabilities -&gt; Int
+hashWithSalt :: Int -&gt; DidChangeWatchedFilesClientCapabilities -&gt; Int
+$chashWithSalt :: Int -&gt; DidChangeWatchedFilesClientCapabilities -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Hashable</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-38"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621682204755"><span id="local-6989586621682204761"><span class="annot"><span class="annottext">forall ann. [DidChangeWatchedFilesClientCapabilities] -&gt; Doc ann
+forall ann. DidChangeWatchedFilesClientCapabilities -&gt; Doc ann
+forall a.
+(forall ann. a -&gt; Doc ann)
+-&gt; (forall ann. [a] -&gt; Doc ann) -&gt; Pretty a
+prettyList :: forall ann. [DidChangeWatchedFilesClientCapabilities] -&gt; Doc ann
+$cprettyList :: forall ann. [DidChangeWatchedFilesClientCapabilities] -&gt; Doc ann
+pretty :: forall ann. DidChangeWatchedFilesClientCapabilities -&gt; Doc ann
+$cpretty :: forall ann. DidChangeWatchedFilesClientCapabilities -&gt; Doc ann
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Pretty</span></span></span></span><span> </span><span class="hs-keyword">via</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html#ViaJSON"><span class="hs-identifier hs-type">ViaJSON</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.DidChangeWatchedFilesClientCapabilities.html#DidChangeWatchedFilesClientCapabilities"><span class="hs-identifier hs-type">DidChangeWatchedFilesClientCapabilities</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682204743"><span id="local-6989586621682204745"><span id="local-6989586621682204747"><span class="annot"><span class="hs-identifier hs-type">Aeson.ToJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.DidChangeWatchedFilesClientCapabilities.html#DidChangeWatchedFilesClientCapabilities"><span class="hs-identifier hs-type">DidChangeWatchedFilesClientCapabilities</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-41"></span><span>  </span><span id="local-6989586621682204733"><span class="annot"><span class="annottext">toJSON :: DidChangeWatchedFilesClientCapabilities -&gt; Value
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">toJSON</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.DidChangeWatchedFilesClientCapabilities.html#DidChangeWatchedFilesClientCapabilities"><span class="hs-identifier hs-type">DidChangeWatchedFilesClientCapabilities</span></a></span><span> </span><span id="local-6989586621682204731"><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682204731"><span class="hs-identifier hs-var">arg0</span></a></span></span><span> </span><span id="local-6989586621682204730"><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682204730"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">Aeson.object</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">concat</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>  </span><span class="hs-special">[</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;dynamicRegistration&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682204731"><span class="hs-identifier hs-var">arg0</span></a></span><span>
+</span><span id="line-42"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;relativePatternSupport&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682204730"><span class="hs-identifier hs-var">arg1</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682204724"><span class="annot"><span class="hs-identifier hs-type">Aeson.FromJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.DidChangeWatchedFilesClientCapabilities.html#DidChangeWatchedFilesClientCapabilities"><span class="hs-identifier hs-type">DidChangeWatchedFilesClientCapabilities</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-45"></span><span>  </span><span id="local-6989586621682204712"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser DidChangeWatchedFilesClientCapabilities
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">Aeson.withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;DidChangeWatchedFilesClientCapabilities&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621682204709"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682204709"><span class="hs-identifier hs-var">arg</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Bool -&gt; Maybe Bool -&gt; DidChangeWatchedFilesClientCapabilities
+</span><a href="Language.LSP.Protocol.Internal.Types.DidChangeWatchedFilesClientCapabilities.html#DidChangeWatchedFilesClientCapabilities"><span class="hs-identifier hs-var">DidChangeWatchedFilesClientCapabilities</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682204709"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">Aeson..:!</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;dynamicRegistration&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682204709"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">Aeson..:!</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;relativePatternSupport&quot;</span></span><span>
+</span><span id="line-46"></span></pre></body></html>

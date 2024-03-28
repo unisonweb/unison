@@ -1,0 +1,282 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ &gt;= 703
+</span><span class="hs-pragma">{-# LANGUAGE Safe #-}</span><span class="hs-cpp">
+#endif
+</span><span class="hs-comment">-- |</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- Maintainer  : judah.jacobson@gmail.com</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Stability   : experimental</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- Portability : portable (FFI)</span><span>
+</span><span id="line-9"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">System.Console.Terminfo.Color</span><span class="hs-special">(</span><span>
+</span><span id="line-10"></span><span>                    </span><span class="annot"><a href="System.Console.Terminfo.Color.html#termColors"><span class="hs-identifier">termColors</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-11"></span><span>                    </span><span class="annot"><a href="System.Console.Terminfo.Color.html#Color"><span class="hs-identifier">Color</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-12"></span><span>                    </span><span class="hs-comment">-- ColorPair,</span><span>
+</span><span id="line-13"></span><span>                    </span><span class="annot"><a href="System.Console.Terminfo.Color.html#withForegroundColor"><span class="hs-identifier">withForegroundColor</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-14"></span><span>                    </span><span class="annot"><a href="System.Console.Terminfo.Color.html#withBackgroundColor"><span class="hs-identifier">withBackgroundColor</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-15"></span><span>                    </span><span class="hs-comment">-- withColorPair,</span><span>
+</span><span id="line-16"></span><span>                    </span><span class="annot"><a href="System.Console.Terminfo.Color.html#setForegroundColor"><span class="hs-identifier">setForegroundColor</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-17"></span><span>                    </span><span class="annot"><a href="System.Console.Terminfo.Color.html#setBackgroundColor"><span class="hs-identifier">setBackgroundColor</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-18"></span><span>                    </span><span class="hs-comment">-- setColorPair,</span><span>
+</span><span id="line-19"></span><span>                    </span><span class="annot"><a href="System.Console.Terminfo.Color.html#restoreDefaultColors"><span class="hs-identifier">restoreDefaultColors</span></a></span><span>
+</span><span id="line-20"></span><span>                    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="System.Console.Terminfo.Base.html"><span class="hs-identifier">System.Console.Terminfo.Base</span></a></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Control-Monad.html#"><span class="hs-identifier">Control.Monad</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Base.html#mplus"><span class="hs-identifier">mplus</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span class="hs-comment">-- TODOs:</span><span>
+</span><span id="line-26"></span><span class="hs-comment">-- examples</span><span>
+</span><span id="line-27"></span><span class="hs-comment">-- try with xterm-256-colors (?)</span><span>
+</span><span id="line-28"></span><span class="hs-comment">-- Color pairs, and HP terminals.</span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- TODO: this &quot;white&quot; looks more like a grey.  (What does ncurses do?)</span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- NB: for all the terminals in ncurses' terminfo.src, colors&gt;=8 when it's</span><span>
+</span><span id="line-32"></span><span class="hs-comment">-- set.  So we don't need to perform that check.</span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="hs-comment">-- | The maximum number of of colors on the screen.</span><span>
+</span><span id="line-35"></span><span class="annot"><a href="System.Console.Terminfo.Color.html#termColors"><span class="hs-identifier hs-type">termColors</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.Console.Terminfo.Base.html#Capability"><span class="hs-identifier hs-type">Capability</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-36"></span><span id="termColors"><span class="annot"><span class="annottext">termColors :: Capability Int
+</span><a href="System.Console.Terminfo.Color.html#termColors"><span class="hs-identifier hs-var hs-var">termColors</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Capability Int
+</span><a href="System.Console.Terminfo.Base.html#tiGetNum"><span class="hs-identifier hs-var">tiGetNum</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;colors&quot;</span></span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span class="hs-keyword">data</span><span> </span><span id="Color"><span class="annot"><a href="System.Console.Terminfo.Color.html#Color"><span class="hs-identifier hs-var">Color</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Black"><span class="annot"><a href="System.Console.Terminfo.Color.html#Black"><span class="hs-identifier hs-var">Black</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="Red"><span class="annot"><a href="System.Console.Terminfo.Color.html#Red"><span class="hs-identifier hs-var">Red</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="Green"><span class="annot"><a href="System.Console.Terminfo.Color.html#Green"><span class="hs-identifier hs-var">Green</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="Yellow"><span class="annot"><a href="System.Console.Terminfo.Color.html#Yellow"><span class="hs-identifier hs-var">Yellow</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="Blue"><span class="annot"><a href="System.Console.Terminfo.Color.html#Blue"><span class="hs-identifier hs-var">Blue</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="Magenta"><span class="annot"><a href="System.Console.Terminfo.Color.html#Magenta"><span class="hs-identifier hs-var">Magenta</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="Cyan"><span class="annot"><a href="System.Console.Terminfo.Color.html#Cyan"><span class="hs-identifier hs-var">Cyan</span></a></span></span><span>
+</span><span id="line-39"></span><span>            </span><span class="hs-glyph">|</span><span> </span><span id="White"><span class="annot"><a href="System.Console.Terminfo.Color.html#White"><span class="hs-identifier hs-var">White</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="ColorNumber"><span class="annot"><a href="System.Console.Terminfo.Color.html#ColorNumber"><span class="hs-identifier hs-var">ColorNumber</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-40"></span><span>        </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679037236"><span id="local-6989586621679037238"><span id="local-6989586621679037244"><span class="annot"><span class="annottext">Int -&gt; Color -&gt; ShowS
+[Color] -&gt; ShowS
+Color -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [Color] -&gt; ShowS
+$cshowList :: [Color] -&gt; ShowS
+show :: Color -&gt; String
+$cshow :: Color -&gt; String
+showsPrec :: Int -&gt; Color -&gt; ShowS
+$cshowsPrec :: Int -&gt; Color -&gt; ShowS
+</span><a href="../../base-4.16.4.0/src/GHC-Show.html#Show"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></a></span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679037229"><span id="local-6989586621679037233"><span class="annot"><span class="annottext">Color -&gt; Color -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: Color -&gt; Color -&gt; Bool
+$c/= :: Color -&gt; Color -&gt; Bool
+== :: Color -&gt; Color -&gt; Bool
+$c== :: Color -&gt; Color -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679037211"><span id="local-6989586621679037213"><span id="local-6989586621679037215"><span id="local-6989586621679037217"><span id="local-6989586621679037219"><span id="local-6989586621679037221"><span id="local-6989586621679037224"><span class="annot"><span class="annottext">Eq Color
+Color -&gt; Color -&gt; Bool
+Color -&gt; Color -&gt; Ordering
+Color -&gt; Color -&gt; Color
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: Color -&gt; Color -&gt; Color
+$cmin :: Color -&gt; Color -&gt; Color
+max :: Color -&gt; Color -&gt; Color
+$cmax :: Color -&gt; Color -&gt; Color
+&gt;= :: Color -&gt; Color -&gt; Bool
+$c&gt;= :: Color -&gt; Color -&gt; Bool
+&gt; :: Color -&gt; Color -&gt; Bool
+$c&gt; :: Color -&gt; Color -&gt; Bool
+&lt;= :: Color -&gt; Color -&gt; Bool
+$c&lt;= :: Color -&gt; Color -&gt; Bool
+&lt; :: Color -&gt; Color -&gt; Bool
+$c&lt; :: Color -&gt; Color -&gt; Bool
+compare :: Color -&gt; Color -&gt; Ordering
+$ccompare :: Color -&gt; Color -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span class="annot"><a href="System.Console.Terminfo.Color.html#colorIntA"><span class="hs-identifier hs-type">colorIntA</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Console.Terminfo.Color.html#colorInt"><span class="hs-identifier hs-type">colorInt</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.Console.Terminfo.Color.html#Color"><span class="hs-identifier hs-type">Color</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-45"></span><span id="colorIntA"><span class="annot"><span class="annottext">colorIntA :: Color -&gt; Int
+</span><a href="System.Console.Terminfo.Color.html#colorIntA"><span class="hs-identifier hs-var hs-var">colorIntA</span></a></span></span><span> </span><span id="local-6989586621679037207"><span class="annot"><span class="annottext">Color
+</span><a href="#local-6989586621679037207"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Color
+</span><a href="#local-6989586621679037207"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-46"></span><span>    </span><span class="annot"><span class="annottext">Color
+</span><a href="System.Console.Terminfo.Color.html#Black"><span class="hs-identifier hs-var">Black</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-47"></span><span>    </span><span class="annot"><span class="annottext">Color
+</span><a href="System.Console.Terminfo.Color.html#Red"><span class="hs-identifier hs-var">Red</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-48"></span><span>    </span><span class="annot"><span class="annottext">Color
+</span><a href="System.Console.Terminfo.Color.html#Green"><span class="hs-identifier hs-var">Green</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span>
+</span><span id="line-49"></span><span>    </span><span class="annot"><span class="annottext">Color
+</span><a href="System.Console.Terminfo.Color.html#Yellow"><span class="hs-identifier hs-var">Yellow</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span>
+</span><span id="line-50"></span><span>    </span><span class="annot"><span class="annottext">Color
+</span><a href="System.Console.Terminfo.Color.html#Blue"><span class="hs-identifier hs-var">Blue</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span>
+</span><span id="line-51"></span><span>    </span><span class="annot"><span class="annottext">Color
+</span><a href="System.Console.Terminfo.Color.html#Magenta"><span class="hs-identifier hs-var">Magenta</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">5</span></span><span>
+</span><span id="line-52"></span><span>    </span><span class="annot"><span class="annottext">Color
+</span><a href="System.Console.Terminfo.Color.html#Cyan"><span class="hs-identifier hs-var">Cyan</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">6</span></span><span>
+</span><span id="line-53"></span><span>    </span><span class="annot"><span class="annottext">Color
+</span><a href="System.Console.Terminfo.Color.html#White"><span class="hs-identifier hs-var">White</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">7</span></span><span>
+</span><span id="line-54"></span><span>    </span><span class="annot"><a href="System.Console.Terminfo.Color.html#ColorNumber"><span class="hs-identifier hs-type">ColorNumber</span></a></span><span> </span><span id="local-6989586621679037206"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679037206"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679037206"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-55"></span><span id="colorInt"><span class="annot"><span class="annottext">colorInt :: Color -&gt; Int
+</span><a href="System.Console.Terminfo.Color.html#colorInt"><span class="hs-identifier hs-var hs-var">colorInt</span></a></span></span><span> </span><span id="local-6989586621679037205"><span class="annot"><span class="annottext">Color
+</span><a href="#local-6989586621679037205"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Color
+</span><a href="#local-6989586621679037205"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-56"></span><span>    </span><span class="annot"><span class="annottext">Color
+</span><a href="System.Console.Terminfo.Color.html#Black"><span class="hs-identifier hs-var">Black</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-57"></span><span>    </span><span class="annot"><span class="annottext">Color
+</span><a href="System.Console.Terminfo.Color.html#Blue"><span class="hs-identifier hs-var">Blue</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-58"></span><span>    </span><span class="annot"><span class="annottext">Color
+</span><a href="System.Console.Terminfo.Color.html#Green"><span class="hs-identifier hs-var">Green</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span>
+</span><span id="line-59"></span><span>    </span><span class="annot"><span class="annottext">Color
+</span><a href="System.Console.Terminfo.Color.html#Cyan"><span class="hs-identifier hs-var">Cyan</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span>
+</span><span id="line-60"></span><span>    </span><span class="annot"><span class="annottext">Color
+</span><a href="System.Console.Terminfo.Color.html#Red"><span class="hs-identifier hs-var">Red</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span>
+</span><span id="line-61"></span><span>    </span><span class="annot"><span class="annottext">Color
+</span><a href="System.Console.Terminfo.Color.html#Magenta"><span class="hs-identifier hs-var">Magenta</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">5</span></span><span>
+</span><span id="line-62"></span><span>    </span><span class="annot"><span class="annottext">Color
+</span><a href="System.Console.Terminfo.Color.html#Yellow"><span class="hs-identifier hs-var">Yellow</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">6</span></span><span>
+</span><span id="line-63"></span><span>    </span><span class="annot"><span class="annottext">Color
+</span><a href="System.Console.Terminfo.Color.html#White"><span class="hs-identifier hs-var">White</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">7</span></span><span>
+</span><span id="line-64"></span><span>    </span><span class="annot"><a href="System.Console.Terminfo.Color.html#ColorNumber"><span class="hs-identifier hs-type">ColorNumber</span></a></span><span> </span><span id="local-6989586621679037204"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679037204"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679037204"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-65"></span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span class="hs-comment">-- NB these aren't available on HP systems.</span><span>
+</span><span id="line-68"></span><span class="hs-comment">-- also do we want to handle case when they're not available?</span><span>
+</span><span id="line-69"></span><span>
+</span><span id="line-70"></span><span class="hs-comment">-- | This capability temporarily sets the</span><span>
+</span><span id="line-71"></span><span class="hs-comment">-- terminal's foreground color while outputting the given text, and</span><span>
+</span><span id="line-72"></span><span class="hs-comment">-- then restores the terminal to its default foreground and background</span><span>
+</span><span id="line-73"></span><span class="hs-comment">-- colors.</span><span>
+</span><span id="line-74"></span><span id="local-6989586621679037307"><span class="annot"><a href="System.Console.Terminfo.Color.html#withForegroundColor"><span class="hs-identifier hs-type">withForegroundColor</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.Console.Terminfo.Base.html#TermStr"><span class="hs-identifier hs-type">TermStr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679037307"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="System.Console.Terminfo.Base.html#Capability"><span class="hs-identifier hs-type">Capability</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.Console.Terminfo.Color.html#Color"><span class="hs-identifier hs-type">Color</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679037307"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679037307"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-75"></span><span id="withForegroundColor"><span class="annot"><span class="annottext">withForegroundColor :: forall s. TermStr s =&gt; Capability (Color -&gt; s -&gt; s)
+</span><a href="System.Console.Terminfo.Color.html#withForegroundColor"><span class="hs-identifier hs-var hs-var">withForegroundColor</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall s a.
+TermStr s =&gt;
+Capability (a -&gt; s) -&gt; Capability (a -&gt; s -&gt; s)
+</span><a href="System.Console.Terminfo.Color.html#withColorCmd"><span class="hs-identifier hs-var">withColorCmd</span></a></span><span> </span><span class="annot"><span class="annottext">forall s. TermStr s =&gt; Capability (Color -&gt; s)
+</span><a href="System.Console.Terminfo.Color.html#setForegroundColor"><span class="hs-identifier hs-var">setForegroundColor</span></a></span><span>
+</span><span id="line-76"></span><span>
+</span><span id="line-77"></span><span class="hs-comment">-- | This capability temporarily sets the</span><span>
+</span><span id="line-78"></span><span class="hs-comment">-- terminal's background color while outputting the given text, and</span><span>
+</span><span id="line-79"></span><span class="hs-comment">-- then restores the terminal to its default foreground and background</span><span>
+</span><span id="line-80"></span><span class="hs-comment">-- colors.</span><span>
+</span><span id="line-81"></span><span id="local-6989586621679037199"><span class="annot"><a href="System.Console.Terminfo.Color.html#withBackgroundColor"><span class="hs-identifier hs-type">withBackgroundColor</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.Console.Terminfo.Base.html#TermStr"><span class="hs-identifier hs-type">TermStr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679037199"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="System.Console.Terminfo.Base.html#Capability"><span class="hs-identifier hs-type">Capability</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.Console.Terminfo.Color.html#Color"><span class="hs-identifier hs-type">Color</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679037199"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679037199"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-82"></span><span id="withBackgroundColor"><span class="annot"><span class="annottext">withBackgroundColor :: forall s. TermStr s =&gt; Capability (Color -&gt; s -&gt; s)
+</span><a href="System.Console.Terminfo.Color.html#withBackgroundColor"><span class="hs-identifier hs-var hs-var">withBackgroundColor</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall s a.
+TermStr s =&gt;
+Capability (a -&gt; s) -&gt; Capability (a -&gt; s -&gt; s)
+</span><a href="System.Console.Terminfo.Color.html#withColorCmd"><span class="hs-identifier hs-var">withColorCmd</span></a></span><span> </span><span class="annot"><span class="annottext">forall s. TermStr s =&gt; Capability (Color -&gt; s)
+</span><a href="System.Console.Terminfo.Color.html#setBackgroundColor"><span class="hs-identifier hs-var">setBackgroundColor</span></a></span><span>
+</span><span id="line-83"></span><span>
+</span><span id="line-84"></span><span id="local-6989586621679037303"><span id="local-6989586621679037304"><span class="annot"><a href="System.Console.Terminfo.Color.html#withColorCmd"><span class="hs-identifier hs-type">withColorCmd</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.Console.Terminfo.Base.html#TermStr"><span class="hs-identifier hs-type">TermStr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679037304"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="System.Console.Terminfo.Base.html#Capability"><span class="hs-identifier hs-type">Capability</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679037303"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679037304"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-85"></span><span>            </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="System.Console.Terminfo.Base.html#Capability"><span class="hs-identifier hs-type">Capability</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679037303"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679037304"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679037304"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-86"></span><span id="withColorCmd"><span class="annot"><span class="annottext">withColorCmd :: forall s a.
+TermStr s =&gt;
+Capability (a -&gt; s) -&gt; Capability (a -&gt; s -&gt; s)
+</span><a href="System.Console.Terminfo.Color.html#withColorCmd"><span class="hs-identifier hs-var hs-var">withColorCmd</span></a></span></span><span> </span><span id="local-6989586621679037185"><span class="annot"><span class="annottext">Capability (a -&gt; s)
+</span><a href="#local-6989586621679037185"><span class="hs-identifier hs-var">getSet</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-87"></span><span>    </span><span id="local-6989586621679037184"><span class="annot"><span class="annottext">a -&gt; s
+</span><a href="#local-6989586621679037184"><span class="hs-identifier hs-var">set</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Capability (a -&gt; s)
+</span><a href="#local-6989586621679037185"><span class="hs-identifier hs-var">getSet</span></a></span><span>
+</span><span id="line-88"></span><span>    </span><span id="local-6989586621679037183"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679037183"><span class="hs-identifier hs-var">restore</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall s. TermStr s =&gt; Capability s
+</span><a href="System.Console.Terminfo.Color.html#restoreDefaultColors"><span class="hs-identifier hs-var">restoreDefaultColors</span></a></span><span>
+</span><span id="line-89"></span><span>    </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#return"><span class="hs-identifier hs-var">return</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679037182"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679037182"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span id="local-6989586621679037181"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679037181"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">a -&gt; s
+</span><a href="#local-6989586621679037184"><span class="hs-identifier hs-var">set</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679037182"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">forall m. Monoid m =&gt; m -&gt; m -&gt; m
+</span><a href="System.Console.Terminfo.Base.html#%3C%23%3E"><span class="hs-operator hs-var">&lt;#&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679037181"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="annot"><span class="annottext">forall m. Monoid m =&gt; m -&gt; m -&gt; m
+</span><a href="System.Console.Terminfo.Base.html#%3C%23%3E"><span class="hs-operator hs-var">&lt;#&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679037183"><span class="hs-identifier hs-var">restore</span></a></span><span>
+</span><span id="line-90"></span><span>
+</span><span id="line-91"></span><span class="hs-comment">-- | Sets the foreground color of all further text output, using</span><span>
+</span><span id="line-92"></span><span class="hs-comment">-- either the @setaf@ or @setf@ capability.</span><span>
+</span><span id="line-93"></span><span id="local-6989586621679037302"><span class="annot"><a href="System.Console.Terminfo.Color.html#setForegroundColor"><span class="hs-identifier hs-type">setForegroundColor</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.Console.Terminfo.Base.html#TermStr"><span class="hs-identifier hs-type">TermStr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679037302"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="System.Console.Terminfo.Base.html#Capability"><span class="hs-identifier hs-type">Capability</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.Console.Terminfo.Color.html#Color"><span class="hs-identifier hs-type">Color</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679037302"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-94"></span><span id="setForegroundColor"><span class="annot"><span class="annottext">setForegroundColor :: forall s. TermStr s =&gt; Capability (Color -&gt; s)
+</span><a href="System.Console.Terminfo.Color.html#setForegroundColor"><span class="hs-identifier hs-var hs-var">setForegroundColor</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Capability (Color -&gt; s)
+</span><a href="#local-6989586621679037174"><span class="hs-identifier hs-var">setaf</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. MonadPlus m =&gt; m a -&gt; m a -&gt; m a
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#mplus"><span class="hs-operator hs-var">`mplus`</span></a></span><span> </span><span class="annot"><span class="annottext">Capability (Color -&gt; s)
+</span><a href="#local-6989586621679037173"><span class="hs-identifier hs-var">setf</span></a></span><span>
+</span><span id="line-95"></span><span>    </span><span class="hs-keyword">where</span><span>
+</span><span id="line-96"></span><span>        </span><span id="local-6989586621679037174"><span class="annot"><span class="annottext">setaf :: Capability (Color -&gt; s)
+</span><a href="#local-6989586621679037174"><span class="hs-identifier hs-var hs-var">setaf</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#fmap"><span class="hs-identifier hs-var">fmap</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#."><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">Color -&gt; Int
+</span><a href="System.Console.Terminfo.Color.html#colorIntA"><span class="hs-identifier hs-var">colorIntA</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">forall f. OutputCap f =&gt; String -&gt; Capability f
+</span><a href="System.Console.Terminfo.Base.html#tiGetOutput1"><span class="hs-identifier hs-var">tiGetOutput1</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;setaf&quot;</span></span><span>
+</span><span id="line-97"></span><span>        </span><span id="local-6989586621679037173"><span class="annot"><span class="annottext">setf :: Capability (Color -&gt; s)
+</span><a href="#local-6989586621679037173"><span class="hs-identifier hs-var hs-var">setf</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#fmap"><span class="hs-identifier hs-var">fmap</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#."><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">Color -&gt; Int
+</span><a href="System.Console.Terminfo.Color.html#colorInt"><span class="hs-identifier hs-var">colorInt</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">forall f. OutputCap f =&gt; String -&gt; Capability f
+</span><a href="System.Console.Terminfo.Base.html#tiGetOutput1"><span class="hs-identifier hs-var">tiGetOutput1</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;setf&quot;</span></span><span>
+</span><span id="line-98"></span><span>
+</span><span id="line-99"></span><span class="hs-comment">-- | Sets the background color of all further text output, using</span><span>
+</span><span id="line-100"></span><span class="hs-comment">-- either the @setab@ or @setb@ capability.</span><span>
+</span><span id="line-101"></span><span id="local-6989586621679037159"><span class="annot"><a href="System.Console.Terminfo.Color.html#setBackgroundColor"><span class="hs-identifier hs-type">setBackgroundColor</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.Console.Terminfo.Base.html#TermStr"><span class="hs-identifier hs-type">TermStr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679037159"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="System.Console.Terminfo.Base.html#Capability"><span class="hs-identifier hs-type">Capability</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.Console.Terminfo.Color.html#Color"><span class="hs-identifier hs-type">Color</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679037159"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-102"></span><span id="setBackgroundColor"><span class="annot"><span class="annottext">setBackgroundColor :: forall s. TermStr s =&gt; Capability (Color -&gt; s)
+</span><a href="System.Console.Terminfo.Color.html#setBackgroundColor"><span class="hs-identifier hs-var hs-var">setBackgroundColor</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Capability (Color -&gt; s)
+</span><a href="#local-6989586621679037155"><span class="hs-identifier hs-var">setab</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. MonadPlus m =&gt; m a -&gt; m a -&gt; m a
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#mplus"><span class="hs-operator hs-var">`mplus`</span></a></span><span> </span><span class="annot"><span class="annottext">Capability (Color -&gt; s)
+</span><a href="#local-6989586621679037154"><span class="hs-identifier hs-var">setb</span></a></span><span>
+</span><span id="line-103"></span><span>    </span><span class="hs-keyword">where</span><span>
+</span><span id="line-104"></span><span>        </span><span id="local-6989586621679037155"><span class="annot"><span class="annottext">setab :: Capability (Color -&gt; s)
+</span><a href="#local-6989586621679037155"><span class="hs-identifier hs-var hs-var">setab</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#fmap"><span class="hs-identifier hs-var">fmap</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#."><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">Color -&gt; Int
+</span><a href="System.Console.Terminfo.Color.html#colorIntA"><span class="hs-identifier hs-var">colorIntA</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">forall f. OutputCap f =&gt; String -&gt; Capability f
+</span><a href="System.Console.Terminfo.Base.html#tiGetOutput1"><span class="hs-identifier hs-var">tiGetOutput1</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;setab&quot;</span></span><span>
+</span><span id="line-105"></span><span>        </span><span id="local-6989586621679037154"><span class="annot"><span class="annottext">setb :: Capability (Color -&gt; s)
+</span><a href="#local-6989586621679037154"><span class="hs-identifier hs-var hs-var">setb</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#fmap"><span class="hs-identifier hs-var">fmap</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#."><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">Color -&gt; Int
+</span><a href="System.Console.Terminfo.Color.html#colorInt"><span class="hs-identifier hs-var">colorInt</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">forall f. OutputCap f =&gt; String -&gt; Capability f
+</span><a href="System.Console.Terminfo.Base.html#tiGetOutput1"><span class="hs-identifier hs-var">tiGetOutput1</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;setb&quot;</span></span><span>
+</span><span id="line-106"></span><span>
+</span><span id="line-107"></span><span class="hs-comment">{-
+withColorPair :: TermStr s =&gt; Capability (ColorPair -&gt; s -&gt; s)
+withColorPair = withColorCmd setColorPair
+
+setColorPair :: TermStr s =&gt; Capability (ColorPair -&gt; s)
+setColorPair = do
+    setf &lt;- setForegroundColor
+    setb &lt;- setBackgroundColor
+    return (\(f,b) -&gt; setf f &lt;#&gt; setb b)
+
+type ColorPair = (Color,Color)
+-}</span><span>  </span><span>
+</span><span id="line-119"></span><span>
+</span><span id="line-120"></span><span>
+</span><span id="line-121"></span><span class="hs-comment">-- | Restores foreground/background colors to their original</span><span>
+</span><span id="line-122"></span><span class="hs-comment">-- settings.</span><span>
+</span><span id="line-123"></span><span id="local-6989586621679037297"><span class="annot"><a href="System.Console.Terminfo.Color.html#restoreDefaultColors"><span class="hs-identifier hs-type">restoreDefaultColors</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.Console.Terminfo.Base.html#TermStr"><span class="hs-identifier hs-type">TermStr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679037297"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="System.Console.Terminfo.Base.html#Capability"><span class="hs-identifier hs-type">Capability</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679037297"><span class="hs-identifier hs-type">s</span></a></span></span><span> </span><span>
+</span><span id="line-124"></span><span id="restoreDefaultColors"><span class="annot"><span class="annottext">restoreDefaultColors :: forall s. TermStr s =&gt; Capability s
+</span><a href="System.Console.Terminfo.Color.html#restoreDefaultColors"><span class="hs-identifier hs-var hs-var">restoreDefaultColors</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall f. OutputCap f =&gt; String -&gt; Capability f
+</span><a href="System.Console.Terminfo.Base.html#tiGetOutput1"><span class="hs-identifier hs-var">tiGetOutput1</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;op&quot;</span></span><span>
+</span><span id="line-125"></span></pre></body></html>

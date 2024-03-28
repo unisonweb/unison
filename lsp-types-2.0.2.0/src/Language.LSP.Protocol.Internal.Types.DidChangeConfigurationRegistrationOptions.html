@@ -1,0 +1,164 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- THIS IS A GENERATED FILE, DO NOT EDIT</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-imports #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-matches #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-deprecations #-}</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.DidChangeConfigurationRegistrationOptions</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Hashable</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html"><span class="hs-identifier">Language.LSP.Protocol.Utils.Misc</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prettyprinter</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Aeson.html"><span class="hs-identifier">Data.Row.Aeson</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Hashable.html"><span class="hs-identifier">Data.Row.Hashable</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Hashable</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html"><span class="hs-identifier">Language.LSP.Protocol.Types.Common</span></a></span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-comment">{-|
+
+-}</span><span>
+</span><span id="line-22"></span><span id="local-6989586621682205555"><span id="local-6989586621682205556"></span></span><span class="hs-keyword">data</span><span> </span><span id="DidChangeConfigurationRegistrationOptions"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.DidChangeConfigurationRegistrationOptions.html#DidChangeConfigurationRegistrationOptions"><span class="hs-identifier hs-var">DidChangeConfigurationRegistrationOptions</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="DidChangeConfigurationRegistrationOptions"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.DidChangeConfigurationRegistrationOptions.html#DidChangeConfigurationRegistrationOptions"><span class="hs-identifier hs-var">DidChangeConfigurationRegistrationOptions</span></a></span></span><span> </span><span>
+</span><span id="line-23"></span><span>  </span><span class="hs-special">{</span><span> </span><span class="hs-comment">{-|
+
+  -}</span><span>
+</span><span id="line-26"></span><span>  </span><span id="%24sel%3A_section%3ADidChangeConfigurationRegistrationOptions"><span class="annot"><span class="annottext">DidChangeConfigurationRegistrationOptions -&gt; Maybe (Text |? [Text])
+</span><a href="Language.LSP.Protocol.Internal.Types.DidChangeConfigurationRegistrationOptions.html#%24sel%3A_section%3ADidChangeConfigurationRegistrationOptions"><span class="hs-identifier hs-var hs-var">_section</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Data.Text.Text</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#%7C%3F"><span class="hs-operator hs-type">Language.LSP.Protocol.Types.Common.|?</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Data.Text.Text</span></span><span class="hs-special">]</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682205542"><span id="local-6989586621682205544"><span id="local-6989586621682205551"><span class="annot"><span class="annottext">Int -&gt; DidChangeConfigurationRegistrationOptions -&gt; ShowS
+[DidChangeConfigurationRegistrationOptions] -&gt; ShowS
+DidChangeConfigurationRegistrationOptions -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [DidChangeConfigurationRegistrationOptions] -&gt; ShowS
+$cshowList :: [DidChangeConfigurationRegistrationOptions] -&gt; ShowS
+show :: DidChangeConfigurationRegistrationOptions -&gt; String
+$cshow :: DidChangeConfigurationRegistrationOptions -&gt; String
+showsPrec :: Int -&gt; DidChangeConfigurationRegistrationOptions -&gt; ShowS
+$cshowsPrec :: Int -&gt; DidChangeConfigurationRegistrationOptions -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682205529"><span id="local-6989586621682205534"><span class="annot"><span class="annottext">DidChangeConfigurationRegistrationOptions
+-&gt; DidChangeConfigurationRegistrationOptions -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: DidChangeConfigurationRegistrationOptions
+-&gt; DidChangeConfigurationRegistrationOptions -&gt; Bool
+$c/= :: DidChangeConfigurationRegistrationOptions
+-&gt; DidChangeConfigurationRegistrationOptions -&gt; Bool
+== :: DidChangeConfigurationRegistrationOptions
+-&gt; DidChangeConfigurationRegistrationOptions -&gt; Bool
+$c== :: DidChangeConfigurationRegistrationOptions
+-&gt; DidChangeConfigurationRegistrationOptions -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682205499"><span id="local-6989586621682205501"><span id="local-6989586621682205504"><span id="local-6989586621682205507"><span id="local-6989586621682205510"><span id="local-6989586621682205514"><span id="local-6989586621682205519"><span class="annot"><span class="annottext">Eq DidChangeConfigurationRegistrationOptions
+DidChangeConfigurationRegistrationOptions
+-&gt; DidChangeConfigurationRegistrationOptions -&gt; Bool
+DidChangeConfigurationRegistrationOptions
+-&gt; DidChangeConfigurationRegistrationOptions -&gt; Ordering
+DidChangeConfigurationRegistrationOptions
+-&gt; DidChangeConfigurationRegistrationOptions
+-&gt; DidChangeConfigurationRegistrationOptions
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: DidChangeConfigurationRegistrationOptions
+-&gt; DidChangeConfigurationRegistrationOptions
+-&gt; DidChangeConfigurationRegistrationOptions
+$cmin :: DidChangeConfigurationRegistrationOptions
+-&gt; DidChangeConfigurationRegistrationOptions
+-&gt; DidChangeConfigurationRegistrationOptions
+max :: DidChangeConfigurationRegistrationOptions
+-&gt; DidChangeConfigurationRegistrationOptions
+-&gt; DidChangeConfigurationRegistrationOptions
+$cmax :: DidChangeConfigurationRegistrationOptions
+-&gt; DidChangeConfigurationRegistrationOptions
+-&gt; DidChangeConfigurationRegistrationOptions
+&gt;= :: DidChangeConfigurationRegistrationOptions
+-&gt; DidChangeConfigurationRegistrationOptions -&gt; Bool
+$c&gt;= :: DidChangeConfigurationRegistrationOptions
+-&gt; DidChangeConfigurationRegistrationOptions -&gt; Bool
+&gt; :: DidChangeConfigurationRegistrationOptions
+-&gt; DidChangeConfigurationRegistrationOptions -&gt; Bool
+$c&gt; :: DidChangeConfigurationRegistrationOptions
+-&gt; DidChangeConfigurationRegistrationOptions -&gt; Bool
+&lt;= :: DidChangeConfigurationRegistrationOptions
+-&gt; DidChangeConfigurationRegistrationOptions -&gt; Bool
+$c&lt;= :: DidChangeConfigurationRegistrationOptions
+-&gt; DidChangeConfigurationRegistrationOptions -&gt; Bool
+&lt; :: DidChangeConfigurationRegistrationOptions
+-&gt; DidChangeConfigurationRegistrationOptions -&gt; Bool
+$c&lt; :: DidChangeConfigurationRegistrationOptions
+-&gt; DidChangeConfigurationRegistrationOptions -&gt; Bool
+compare :: DidChangeConfigurationRegistrationOptions
+-&gt; DidChangeConfigurationRegistrationOptions -&gt; Ordering
+$ccompare :: DidChangeConfigurationRegistrationOptions
+-&gt; DidChangeConfigurationRegistrationOptions -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall x.
+Rep DidChangeConfigurationRegistrationOptions x
+-&gt; DidChangeConfigurationRegistrationOptions
+forall x.
+DidChangeConfigurationRegistrationOptions
+-&gt; Rep DidChangeConfigurationRegistrationOptions x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cto :: forall x.
+Rep DidChangeConfigurationRegistrationOptions x
+-&gt; DidChangeConfigurationRegistrationOptions
+$cfrom :: forall x.
+DidChangeConfigurationRegistrationOptions
+-&gt; Rep DidChangeConfigurationRegistrationOptions x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">anyclass</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682205486"><span class="annot"><span class="annottext">DidChangeConfigurationRegistrationOptions -&gt; ()
+forall a. (a -&gt; ()) -&gt; NFData a
+rnf :: DidChangeConfigurationRegistrationOptions -&gt; ()
+$crnf :: DidChangeConfigurationRegistrationOptions -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682205479"><span id="local-6989586621682205481"><span class="annot"><span class="annottext">Eq DidChangeConfigurationRegistrationOptions
+Int -&gt; DidChangeConfigurationRegistrationOptions -&gt; Int
+DidChangeConfigurationRegistrationOptions -&gt; Int
+forall a. Eq a -&gt; (Int -&gt; a -&gt; Int) -&gt; (a -&gt; Int) -&gt; Hashable a
+hash :: DidChangeConfigurationRegistrationOptions -&gt; Int
+$chash :: DidChangeConfigurationRegistrationOptions -&gt; Int
+hashWithSalt :: Int -&gt; DidChangeConfigurationRegistrationOptions -&gt; Int
+$chashWithSalt :: Int -&gt; DidChangeConfigurationRegistrationOptions -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Hashable</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621682205470"><span id="local-6989586621682205476"><span class="annot"><span class="annottext">forall ann. [DidChangeConfigurationRegistrationOptions] -&gt; Doc ann
+forall ann. DidChangeConfigurationRegistrationOptions -&gt; Doc ann
+forall a.
+(forall ann. a -&gt; Doc ann)
+-&gt; (forall ann. [a] -&gt; Doc ann) -&gt; Pretty a
+prettyList :: forall ann. [DidChangeConfigurationRegistrationOptions] -&gt; Doc ann
+$cprettyList :: forall ann. [DidChangeConfigurationRegistrationOptions] -&gt; Doc ann
+pretty :: forall ann. DidChangeConfigurationRegistrationOptions -&gt; Doc ann
+$cpretty :: forall ann. DidChangeConfigurationRegistrationOptions -&gt; Doc ann
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Pretty</span></span></span></span><span> </span><span class="hs-keyword">via</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html#ViaJSON"><span class="hs-identifier hs-type">ViaJSON</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.DidChangeConfigurationRegistrationOptions.html#DidChangeConfigurationRegistrationOptions"><span class="hs-identifier hs-type">DidChangeConfigurationRegistrationOptions</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682205458"><span id="local-6989586621682205460"><span id="local-6989586621682205462"><span class="annot"><span class="hs-identifier hs-type">Aeson.ToJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.DidChangeConfigurationRegistrationOptions.html#DidChangeConfigurationRegistrationOptions"><span class="hs-identifier hs-type">DidChangeConfigurationRegistrationOptions</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-33"></span><span>  </span><span id="local-6989586621682205446"><span class="annot"><span class="annottext">toJSON :: DidChangeConfigurationRegistrationOptions -&gt; Value
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">toJSON</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.DidChangeConfigurationRegistrationOptions.html#DidChangeConfigurationRegistrationOptions"><span class="hs-identifier hs-type">DidChangeConfigurationRegistrationOptions</span></a></span><span> </span><span id="local-6989586621682205444"><span class="annot"><span class="annottext">Maybe (Text |? [Text])
+</span><a href="#local-6989586621682205444"><span class="hs-identifier hs-var">arg0</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">Aeson.object</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">concat</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>  </span><span class="hs-special">[</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;section&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe (Text |? [Text])
+</span><a href="#local-6989586621682205444"><span class="hs-identifier hs-var">arg0</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682205438"><span class="annot"><span class="hs-identifier hs-type">Aeson.FromJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.DidChangeConfigurationRegistrationOptions.html#DidChangeConfigurationRegistrationOptions"><span class="hs-identifier hs-type">DidChangeConfigurationRegistrationOptions</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-36"></span><span>  </span><span id="local-6989586621682205424"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser DidChangeConfigurationRegistrationOptions
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">Aeson.withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;DidChangeConfigurationRegistrationOptions&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621682205421"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682205421"><span class="hs-identifier hs-var">arg</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe (Text |? [Text]) -&gt; DidChangeConfigurationRegistrationOptions
+</span><a href="Language.LSP.Protocol.Internal.Types.DidChangeConfigurationRegistrationOptions.html#DidChangeConfigurationRegistrationOptions"><span class="hs-identifier hs-var">DidChangeConfigurationRegistrationOptions</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682205421"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">Aeson..:!</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;section&quot;</span></span><span>
+</span><span id="line-37"></span></pre></body></html>

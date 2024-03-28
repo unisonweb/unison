@@ -1,0 +1,171 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- THIS IS A GENERATED FILE, DO NOT EDIT</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-imports #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-matches #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-deprecations #-}</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.InlineValueWorkspaceClientCapabilities</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Hashable</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html"><span class="hs-identifier">Language.LSP.Protocol.Utils.Misc</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prettyprinter</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Aeson.html"><span class="hs-identifier">Data.Row.Aeson</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Hashable.html"><span class="hs-identifier">Data.Row.Hashable</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Hashable</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html"><span class="hs-identifier">Language.LSP.Protocol.Types.Common</span></a></span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="hs-comment">{-|
+Client workspace capabilities specific to inline values.
+
+@since 3.17.0
+-}</span><span>
+</span><span id="line-23"></span><span id="local-6989586621682171339"><span id="local-6989586621682171340"></span></span><span class="hs-keyword">data</span><span> </span><span id="InlineValueWorkspaceClientCapabilities"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.InlineValueWorkspaceClientCapabilities.html#InlineValueWorkspaceClientCapabilities"><span class="hs-identifier hs-var">InlineValueWorkspaceClientCapabilities</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="InlineValueWorkspaceClientCapabilities"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.InlineValueWorkspaceClientCapabilities.html#InlineValueWorkspaceClientCapabilities"><span class="hs-identifier hs-var">InlineValueWorkspaceClientCapabilities</span></a></span></span><span> </span><span>
+</span><span id="line-24"></span><span>  </span><span class="hs-special">{</span><span> </span><span class="hs-comment">{-|
+  Whether the client implementation supports a refresh request sent from the
+  server to the client.
+
+  Note that this event is global and will force the client to refresh all
+  inline values currently shown. It should be used with absolute care and is
+  useful for situation where a server for example detects a project wide
+  change that requires such a calculation.
+  -}</span><span>
+</span><span id="line-33"></span><span>  </span><span id="%24sel%3A_refreshSupport%3AInlineValueWorkspaceClientCapabilities"><span class="annot"><span class="annottext">InlineValueWorkspaceClientCapabilities -&gt; Maybe Bool
+</span><a href="Language.LSP.Protocol.Internal.Types.InlineValueWorkspaceClientCapabilities.html#%24sel%3A_refreshSupport%3AInlineValueWorkspaceClientCapabilities"><span class="hs-identifier hs-var hs-var">_refreshSupport</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span>
+</span><span id="line-34"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-35"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682171326"><span id="local-6989586621682171328"><span id="local-6989586621682171335"><span class="annot"><span class="annottext">Int -&gt; InlineValueWorkspaceClientCapabilities -&gt; ShowS
+[InlineValueWorkspaceClientCapabilities] -&gt; ShowS
+InlineValueWorkspaceClientCapabilities -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [InlineValueWorkspaceClientCapabilities] -&gt; ShowS
+$cshowList :: [InlineValueWorkspaceClientCapabilities] -&gt; ShowS
+show :: InlineValueWorkspaceClientCapabilities -&gt; String
+$cshow :: InlineValueWorkspaceClientCapabilities -&gt; String
+showsPrec :: Int -&gt; InlineValueWorkspaceClientCapabilities -&gt; ShowS
+$cshowsPrec :: Int -&gt; InlineValueWorkspaceClientCapabilities -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682171317"><span id="local-6989586621682171322"><span class="annot"><span class="annottext">InlineValueWorkspaceClientCapabilities
+-&gt; InlineValueWorkspaceClientCapabilities -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: InlineValueWorkspaceClientCapabilities
+-&gt; InlineValueWorkspaceClientCapabilities -&gt; Bool
+$c/= :: InlineValueWorkspaceClientCapabilities
+-&gt; InlineValueWorkspaceClientCapabilities -&gt; Bool
+== :: InlineValueWorkspaceClientCapabilities
+-&gt; InlineValueWorkspaceClientCapabilities -&gt; Bool
+$c== :: InlineValueWorkspaceClientCapabilities
+-&gt; InlineValueWorkspaceClientCapabilities -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682171291"><span id="local-6989586621682171293"><span id="local-6989586621682171296"><span id="local-6989586621682171299"><span id="local-6989586621682171302"><span id="local-6989586621682171306"><span id="local-6989586621682171311"><span class="annot"><span class="annottext">Eq InlineValueWorkspaceClientCapabilities
+InlineValueWorkspaceClientCapabilities
+-&gt; InlineValueWorkspaceClientCapabilities -&gt; Bool
+InlineValueWorkspaceClientCapabilities
+-&gt; InlineValueWorkspaceClientCapabilities -&gt; Ordering
+InlineValueWorkspaceClientCapabilities
+-&gt; InlineValueWorkspaceClientCapabilities
+-&gt; InlineValueWorkspaceClientCapabilities
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: InlineValueWorkspaceClientCapabilities
+-&gt; InlineValueWorkspaceClientCapabilities
+-&gt; InlineValueWorkspaceClientCapabilities
+$cmin :: InlineValueWorkspaceClientCapabilities
+-&gt; InlineValueWorkspaceClientCapabilities
+-&gt; InlineValueWorkspaceClientCapabilities
+max :: InlineValueWorkspaceClientCapabilities
+-&gt; InlineValueWorkspaceClientCapabilities
+-&gt; InlineValueWorkspaceClientCapabilities
+$cmax :: InlineValueWorkspaceClientCapabilities
+-&gt; InlineValueWorkspaceClientCapabilities
+-&gt; InlineValueWorkspaceClientCapabilities
+&gt;= :: InlineValueWorkspaceClientCapabilities
+-&gt; InlineValueWorkspaceClientCapabilities -&gt; Bool
+$c&gt;= :: InlineValueWorkspaceClientCapabilities
+-&gt; InlineValueWorkspaceClientCapabilities -&gt; Bool
+&gt; :: InlineValueWorkspaceClientCapabilities
+-&gt; InlineValueWorkspaceClientCapabilities -&gt; Bool
+$c&gt; :: InlineValueWorkspaceClientCapabilities
+-&gt; InlineValueWorkspaceClientCapabilities -&gt; Bool
+&lt;= :: InlineValueWorkspaceClientCapabilities
+-&gt; InlineValueWorkspaceClientCapabilities -&gt; Bool
+$c&lt;= :: InlineValueWorkspaceClientCapabilities
+-&gt; InlineValueWorkspaceClientCapabilities -&gt; Bool
+&lt; :: InlineValueWorkspaceClientCapabilities
+-&gt; InlineValueWorkspaceClientCapabilities -&gt; Bool
+$c&lt; :: InlineValueWorkspaceClientCapabilities
+-&gt; InlineValueWorkspaceClientCapabilities -&gt; Bool
+compare :: InlineValueWorkspaceClientCapabilities
+-&gt; InlineValueWorkspaceClientCapabilities -&gt; Ordering
+$ccompare :: InlineValueWorkspaceClientCapabilities
+-&gt; InlineValueWorkspaceClientCapabilities -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall x.
+Rep InlineValueWorkspaceClientCapabilities x
+-&gt; InlineValueWorkspaceClientCapabilities
+forall x.
+InlineValueWorkspaceClientCapabilities
+-&gt; Rep InlineValueWorkspaceClientCapabilities x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cto :: forall x.
+Rep InlineValueWorkspaceClientCapabilities x
+-&gt; InlineValueWorkspaceClientCapabilities
+$cfrom :: forall x.
+InlineValueWorkspaceClientCapabilities
+-&gt; Rep InlineValueWorkspaceClientCapabilities x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">anyclass</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682171284"><span class="annot"><span class="annottext">InlineValueWorkspaceClientCapabilities -&gt; ()
+forall a. (a -&gt; ()) -&gt; NFData a
+rnf :: InlineValueWorkspaceClientCapabilities -&gt; ()
+$crnf :: InlineValueWorkspaceClientCapabilities -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682171277"><span id="local-6989586621682171279"><span class="annot"><span class="annottext">Eq InlineValueWorkspaceClientCapabilities
+Int -&gt; InlineValueWorkspaceClientCapabilities -&gt; Int
+InlineValueWorkspaceClientCapabilities -&gt; Int
+forall a. Eq a -&gt; (Int -&gt; a -&gt; Int) -&gt; (a -&gt; Int) -&gt; Hashable a
+hash :: InlineValueWorkspaceClientCapabilities -&gt; Int
+$chash :: InlineValueWorkspaceClientCapabilities -&gt; Int
+hashWithSalt :: Int -&gt; InlineValueWorkspaceClientCapabilities -&gt; Int
+$chashWithSalt :: Int -&gt; InlineValueWorkspaceClientCapabilities -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Hashable</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-37"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621682171268"><span id="local-6989586621682171274"><span class="annot"><span class="annottext">forall ann. [InlineValueWorkspaceClientCapabilities] -&gt; Doc ann
+forall ann. InlineValueWorkspaceClientCapabilities -&gt; Doc ann
+forall a.
+(forall ann. a -&gt; Doc ann)
+-&gt; (forall ann. [a] -&gt; Doc ann) -&gt; Pretty a
+prettyList :: forall ann. [InlineValueWorkspaceClientCapabilities] -&gt; Doc ann
+$cprettyList :: forall ann. [InlineValueWorkspaceClientCapabilities] -&gt; Doc ann
+pretty :: forall ann. InlineValueWorkspaceClientCapabilities -&gt; Doc ann
+$cpretty :: forall ann. InlineValueWorkspaceClientCapabilities -&gt; Doc ann
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Pretty</span></span></span></span><span> </span><span class="hs-keyword">via</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html#ViaJSON"><span class="hs-identifier hs-type">ViaJSON</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.InlineValueWorkspaceClientCapabilities.html#InlineValueWorkspaceClientCapabilities"><span class="hs-identifier hs-type">InlineValueWorkspaceClientCapabilities</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682171256"><span id="local-6989586621682171258"><span id="local-6989586621682171260"><span class="annot"><span class="hs-identifier hs-type">Aeson.ToJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.InlineValueWorkspaceClientCapabilities.html#InlineValueWorkspaceClientCapabilities"><span class="hs-identifier hs-type">InlineValueWorkspaceClientCapabilities</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-40"></span><span>  </span><span id="local-6989586621682171248"><span class="annot"><span class="annottext">toJSON :: InlineValueWorkspaceClientCapabilities -&gt; Value
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">toJSON</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.InlineValueWorkspaceClientCapabilities.html#InlineValueWorkspaceClientCapabilities"><span class="hs-identifier hs-type">InlineValueWorkspaceClientCapabilities</span></a></span><span> </span><span id="local-6989586621682171246"><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682171246"><span class="hs-identifier hs-var">arg0</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">Aeson.object</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">concat</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>  </span><span class="hs-special">[</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;refreshSupport&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682171246"><span class="hs-identifier hs-var">arg0</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682171240"><span class="annot"><span class="hs-identifier hs-type">Aeson.FromJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.InlineValueWorkspaceClientCapabilities.html#InlineValueWorkspaceClientCapabilities"><span class="hs-identifier hs-type">InlineValueWorkspaceClientCapabilities</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-43"></span><span>  </span><span id="local-6989586621682171232"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser InlineValueWorkspaceClientCapabilities
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">Aeson.withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;InlineValueWorkspaceClientCapabilities&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621682171229"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682171229"><span class="hs-identifier hs-var">arg</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Bool -&gt; InlineValueWorkspaceClientCapabilities
+</span><a href="Language.LSP.Protocol.Internal.Types.InlineValueWorkspaceClientCapabilities.html#InlineValueWorkspaceClientCapabilities"><span class="hs-identifier hs-var">InlineValueWorkspaceClientCapabilities</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682171229"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">Aeson..:!</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;refreshSupport&quot;</span></span><span>
+</span><span id="line-44"></span></pre></body></html>

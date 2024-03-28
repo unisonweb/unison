@@ -1,0 +1,125 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- THIS IS A GENERATED FILE, DO NOT EDIT</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-imports #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-matches #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-deprecations #-}</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.ProgressToken</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Hashable</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html"><span class="hs-identifier">Language.LSP.Protocol.Utils.Misc</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prettyprinter</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Aeson.html"><span class="hs-identifier">Data.Row.Aeson</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Hashable.html"><span class="hs-identifier">Data.Row.Hashable</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Hashable</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html"><span class="hs-identifier">Language.LSP.Protocol.Types.Common</span></a></span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-comment">{-|
+
+-}</span><span>
+</span><span id="line-22"></span><span id="local-6989586621682147560"><span id="local-6989586621682147561"></span></span><span class="hs-keyword">newtype</span><span> </span><span id="ProgressToken"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ProgressToken.html#ProgressToken"><span class="hs-identifier hs-var">ProgressToken</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="ProgressToken"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ProgressToken.html#ProgressToken"><span class="hs-identifier hs-var">ProgressToken</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Language.LSP.Protocol.Types.Common.Int32</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#%7C%3F"><span class="hs-operator hs-type">Language.LSP.Protocol.Types.Common.|?</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Data.Text.Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">newtype</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682147538"><span id="local-6989586621682147544"><span id="local-6989586621682147550"><span id="local-6989586621682147557"><span class="annot"><span class="annottext">[ProgressToken] -&gt; Encoding
+[ProgressToken] -&gt; Value
+ProgressToken -&gt; Encoding
+ProgressToken -&gt; Value
+forall a.
+(a -&gt; Value)
+-&gt; (a -&gt; Encoding)
+-&gt; ([a] -&gt; Value)
+-&gt; ([a] -&gt; Encoding)
+-&gt; ToJSON a
+toEncodingList :: [ProgressToken] -&gt; Encoding
+$ctoEncodingList :: [ProgressToken] -&gt; Encoding
+toJSONList :: [ProgressToken] -&gt; Value
+$ctoJSONList :: [ProgressToken] -&gt; Value
+toEncoding :: ProgressToken -&gt; Encoding
+$ctoEncoding :: ProgressToken -&gt; Encoding
+toJSON :: ProgressToken -&gt; Value
+$ctoJSON :: ProgressToken -&gt; Value
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Aeson.ToJSON</span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682147519"><span id="local-6989586621682147528"><span class="annot"><span class="annottext">Value -&gt; Parser [ProgressToken]
+Value -&gt; Parser ProgressToken
+forall a.
+(Value -&gt; Parser a) -&gt; (Value -&gt; Parser [a]) -&gt; FromJSON a
+parseJSONList :: Value -&gt; Parser [ProgressToken]
+$cparseJSONList :: Value -&gt; Parser [ProgressToken]
+parseJSON :: Value -&gt; Parser ProgressToken
+$cparseJSON :: Value -&gt; Parser ProgressToken
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Aeson.FromJSON</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-24"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682147497"><span id="local-6989586621682147499"><span id="local-6989586621682147507"><span class="annot"><span class="annottext">Int -&gt; ProgressToken -&gt; ShowS
+[ProgressToken] -&gt; ShowS
+ProgressToken -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [ProgressToken] -&gt; ShowS
+$cshowList :: [ProgressToken] -&gt; ShowS
+show :: ProgressToken -&gt; String
+$cshow :: ProgressToken -&gt; String
+showsPrec :: Int -&gt; ProgressToken -&gt; ShowS
+$cshowsPrec :: Int -&gt; ProgressToken -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682147486"><span id="local-6989586621682147492"><span class="annot"><span class="annottext">ProgressToken -&gt; ProgressToken -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: ProgressToken -&gt; ProgressToken -&gt; Bool
+$c/= :: ProgressToken -&gt; ProgressToken -&gt; Bool
+== :: ProgressToken -&gt; ProgressToken -&gt; Bool
+$c== :: ProgressToken -&gt; ProgressToken -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682147457"><span id="local-6989586621682147459"><span id="local-6989586621682147462"><span id="local-6989586621682147465"><span id="local-6989586621682147468"><span id="local-6989586621682147473"><span id="local-6989586621682147479"><span class="annot"><span class="annottext">Eq ProgressToken
+ProgressToken -&gt; ProgressToken -&gt; Bool
+ProgressToken -&gt; ProgressToken -&gt; Ordering
+ProgressToken -&gt; ProgressToken -&gt; ProgressToken
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: ProgressToken -&gt; ProgressToken -&gt; ProgressToken
+$cmin :: ProgressToken -&gt; ProgressToken -&gt; ProgressToken
+max :: ProgressToken -&gt; ProgressToken -&gt; ProgressToken
+$cmax :: ProgressToken -&gt; ProgressToken -&gt; ProgressToken
+&gt;= :: ProgressToken -&gt; ProgressToken -&gt; Bool
+$c&gt;= :: ProgressToken -&gt; ProgressToken -&gt; Bool
+&gt; :: ProgressToken -&gt; ProgressToken -&gt; Bool
+$c&gt; :: ProgressToken -&gt; ProgressToken -&gt; Bool
+&lt;= :: ProgressToken -&gt; ProgressToken -&gt; Bool
+$c&lt;= :: ProgressToken -&gt; ProgressToken -&gt; Bool
+&lt; :: ProgressToken -&gt; ProgressToken -&gt; Bool
+$c&lt; :: ProgressToken -&gt; ProgressToken -&gt; Bool
+compare :: ProgressToken -&gt; ProgressToken -&gt; Ordering
+$ccompare :: ProgressToken -&gt; ProgressToken -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall x. Rep ProgressToken x -&gt; ProgressToken
+forall x. ProgressToken -&gt; Rep ProgressToken x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cto :: forall x. Rep ProgressToken x -&gt; ProgressToken
+$cfrom :: forall x. ProgressToken -&gt; Rep ProgressToken x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">anyclass</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682147449"><span class="annot"><span class="annottext">ProgressToken -&gt; ()
+forall a. (a -&gt; ()) -&gt; NFData a
+rnf :: ProgressToken -&gt; ()
+$crnf :: ProgressToken -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682147442"><span id="local-6989586621682147444"><span class="annot"><span class="annottext">Eq ProgressToken
+Int -&gt; ProgressToken -&gt; Int
+ProgressToken -&gt; Int
+forall a. Eq a -&gt; (Int -&gt; a -&gt; Int) -&gt; (a -&gt; Int) -&gt; Hashable a
+hash :: ProgressToken -&gt; Int
+$chash :: ProgressToken -&gt; Int
+hashWithSalt :: Int -&gt; ProgressToken -&gt; Int
+$chashWithSalt :: Int -&gt; ProgressToken -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Hashable</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621682147433"><span id="local-6989586621682147439"><span class="annot"><span class="annottext">forall ann. [ProgressToken] -&gt; Doc ann
+forall ann. ProgressToken -&gt; Doc ann
+forall a.
+(forall ann. a -&gt; Doc ann)
+-&gt; (forall ann. [a] -&gt; Doc ann) -&gt; Pretty a
+prettyList :: forall ann. [ProgressToken] -&gt; Doc ann
+$cprettyList :: forall ann. [ProgressToken] -&gt; Doc ann
+pretty :: forall ann. ProgressToken -&gt; Doc ann
+$cpretty :: forall ann. ProgressToken -&gt; Doc ann
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Pretty</span></span></span></span><span> </span><span class="hs-keyword">via</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html#ViaJSON"><span class="hs-identifier hs-type">ViaJSON</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ProgressToken.html#ProgressToken"><span class="hs-identifier hs-type">ProgressToken</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span></pre></body></html>

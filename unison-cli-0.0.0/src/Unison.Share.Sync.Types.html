@@ -1,0 +1,168 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- | Types used by the UCM client during sync.</span><span>
+</span><span id="line-2"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Unison.Share.Sync.Types</span><span>
+</span><span id="line-3"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.Share.Sync.Types.html#CheckAndSetPushError"><span class="hs-identifier">CheckAndSetPushError</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-4"></span><span>    </span><span class="annot"><a href="Unison.Share.Sync.Types.html#CodeserverTransportError"><span class="hs-identifier">CodeserverTransportError</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-5"></span><span>    </span><span class="annot"><a href="Unison.Share.Sync.Types.html#FastForwardPushError"><span class="hs-identifier">FastForwardPushError</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-6"></span><span>    </span><span class="annot"><a href="Unison.Share.Sync.Types.html#GetCausalHashByPathError"><span class="hs-identifier">GetCausalHashByPathError</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><a href="Unison.Share.Sync.Types.html#PullError"><span class="hs-identifier">PullError</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>    </span><span class="annot"><a href="Unison.Share.Sync.Types.html#SyncError"><span class="hs-identifier">SyncError</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-9"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-11"></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Servant.Client</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Servant</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Prelude</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Sync.Types</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Share</span></span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- | Error used by the client when pushing code to Unison Share.</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">data</span><span> </span><span id="CheckAndSetPushError"><span class="annot"><a href="Unison.Share.Sync.Types.html#CheckAndSetPushError"><span class="hs-identifier hs-var">CheckAndSetPushError</span></a></span></span><span>
+</span><span id="line-18"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="CheckAndSetPushError%27UpdatePath"><span class="annot"><a href="Unison.Share.Sync.Types.html#CheckAndSetPushError%27UpdatePath"><span class="hs-identifier hs-var">CheckAndSetPushError'UpdatePath</span></a></span></span><span>
+</span><span id="line-19"></span><span>      </span><span class="hs-comment">-- The repo we are pushing to. This is only necessary because an UpdatePathError does not have enough context to</span><span>
+</span><span id="line-20"></span><span>      </span><span class="hs-comment">-- print the entire error message we want to print, but it really should, at which point maybe this can go away.</span><span>
+</span><span id="line-21"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Share.RepoInfo</span></span><span>
+</span><span id="line-22"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Share.UpdatePathError</span></span><span>
+</span><span id="line-23"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="CheckAndSetPushError%27UploadEntities"><span class="annot"><a href="Unison.Share.Sync.Types.html#CheckAndSetPushError%27UploadEntities"><span class="hs-identifier hs-var">CheckAndSetPushError'UploadEntities</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Share.UploadEntitiesError</span></span><span>
+</span><span id="line-24"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679599988"><span id="local-6989586621679599990"><span id="local-6989586621679600001"><span class="annot"><span class="annottext">Int -&gt; CheckAndSetPushError -&gt; ShowS
+[CheckAndSetPushError] -&gt; ShowS
+CheckAndSetPushError -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [CheckAndSetPushError] -&gt; ShowS
+$cshowList :: [CheckAndSetPushError] -&gt; ShowS
+show :: CheckAndSetPushError -&gt; String
+$cshow :: CheckAndSetPushError -&gt; String
+showsPrec :: Int -&gt; CheckAndSetPushError -&gt; ShowS
+$cshowsPrec :: Int -&gt; CheckAndSetPushError -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span class="hs-comment">-- | An error occurred while fast-forward pushing code to Unison Share.</span><span>
+</span><span id="line-27"></span><span class="hs-keyword">data</span><span> </span><span id="FastForwardPushError"><span class="annot"><a href="Unison.Share.Sync.Types.html#FastForwardPushError"><span class="hs-identifier hs-var">FastForwardPushError</span></a></span></span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="FastForwardPushError%27FastForwardPath"><span class="annot"><a href="Unison.Share.Sync.Types.html#FastForwardPushError%27FastForwardPath"><span class="hs-identifier hs-var">FastForwardPushError'FastForwardPath</span></a></span></span><span>
+</span><span id="line-29"></span><span>      </span><span class="hs-comment">-- The path we are fast forwarding. This is only necessary because a FastForwardPathError does not have enough</span><span>
+</span><span id="line-30"></span><span>      </span><span class="hs-comment">-- context to print the entire error message we want to print, but it really should, at which point maybe this can</span><span>
+</span><span id="line-31"></span><span>      </span><span class="hs-comment">-- go away.</span><span>
+</span><span id="line-32"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Share.Path</span></span><span>
+</span><span id="line-33"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Share.FastForwardPathError</span></span><span>
+</span><span id="line-34"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="FastForwardPushError%27GetCausalHash"><span class="annot"><a href="Unison.Share.Sync.Types.html#FastForwardPushError%27GetCausalHash"><span class="hs-identifier hs-var">FastForwardPushError'GetCausalHash</span></a></span></span><span> </span><span class="annot"><a href="Unison.Share.Sync.Types.html#GetCausalHashByPathError"><span class="hs-identifier hs-type">GetCausalHashByPathError</span></a></span><span>
+</span><span id="line-35"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="FastForwardPushError%27NotFastForward"><span class="annot"><a href="Unison.Share.Sync.Types.html#FastForwardPushError%27NotFastForward"><span class="hs-identifier hs-var">FastForwardPushError'NotFastForward</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Share.Path</span></span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="FastForwardPushError%27UploadEntities"><span class="annot"><a href="Unison.Share.Sync.Types.html#FastForwardPushError%27UploadEntities"><span class="hs-identifier hs-var">FastForwardPushError'UploadEntities</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Share.UploadEntitiesError</span></span><span>
+</span><span id="line-37"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679599966"><span id="local-6989586621679599968"><span id="local-6989586621679599981"><span class="annot"><span class="annottext">Int -&gt; FastForwardPushError -&gt; ShowS
+[FastForwardPushError] -&gt; ShowS
+FastForwardPushError -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [FastForwardPushError] -&gt; ShowS
+$cshowList :: [FastForwardPushError] -&gt; ShowS
+show :: FastForwardPushError -&gt; String
+$cshow :: FastForwardPushError -&gt; String
+showsPrec :: Int -&gt; FastForwardPushError -&gt; ShowS
+$cshowsPrec :: Int -&gt; FastForwardPushError -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span class="hs-comment">-- | An error occurred while pulling code from Unison Share.</span><span>
+</span><span id="line-40"></span><span class="hs-keyword">data</span><span> </span><span id="PullError"><span class="annot"><a href="Unison.Share.Sync.Types.html#PullError"><span class="hs-identifier hs-var">PullError</span></a></span></span><span>
+</span><span id="line-41"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="PullError%27DownloadEntities"><span class="annot"><a href="Unison.Share.Sync.Types.html#PullError%27DownloadEntities"><span class="hs-identifier hs-var">PullError'DownloadEntities</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Share.DownloadEntitiesError</span></span><span>
+</span><span id="line-42"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="PullError%27GetCausalHash"><span class="annot"><a href="Unison.Share.Sync.Types.html#PullError%27GetCausalHash"><span class="hs-identifier hs-var">PullError'GetCausalHash</span></a></span></span><span> </span><span class="annot"><a href="Unison.Share.Sync.Types.html#GetCausalHashByPathError"><span class="hs-identifier hs-type">GetCausalHashByPathError</span></a></span><span>
+</span><span id="line-43"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="PullError%27NoHistoryAtPath"><span class="annot"><a href="Unison.Share.Sync.Types.html#PullError%27NoHistoryAtPath"><span class="hs-identifier hs-var">PullError'NoHistoryAtPath</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Share.Path</span></span><span>
+</span><span id="line-44"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679599950"><span id="local-6989586621679599952"><span id="local-6989586621679599961"><span class="annot"><span class="annottext">Int -&gt; PullError -&gt; ShowS
+[PullError] -&gt; ShowS
+PullError -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [PullError] -&gt; ShowS
+$cshowList :: [PullError] -&gt; ShowS
+show :: PullError -&gt; String
+$cshow :: PullError -&gt; String
+showsPrec :: Int -&gt; PullError -&gt; ShowS
+$cshowsPrec :: Int -&gt; PullError -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span class="hs-comment">-- | An error occurred when getting causal hash by path.</span><span>
+</span><span id="line-47"></span><span class="hs-keyword">data</span><span> </span><span id="GetCausalHashByPathError"><span class="annot"><a href="Unison.Share.Sync.Types.html#GetCausalHashByPathError"><span class="hs-identifier hs-var">GetCausalHashByPathError</span></a></span></span><span>
+</span><span id="line-48"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-comment">-- | The user does not have permission to read this path.</span><span>
+</span><span id="line-49"></span><span>    </span><span id="GetCausalHashByPathErrorNoReadPermission"><span class="annot"><a href="Unison.Share.Sync.Types.html#GetCausalHashByPathErrorNoReadPermission"><span class="hs-identifier hs-var">GetCausalHashByPathErrorNoReadPermission</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Share.Path</span></span><span>
+</span><span id="line-50"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-comment">-- | The repo info was invalid. (err, repoInfo)</span><span>
+</span><span id="line-51"></span><span>    </span><span id="GetCausalHashByPathErrorInvalidRepoInfo"><span class="annot"><a href="Unison.Share.Sync.Types.html#GetCausalHashByPathErrorInvalidRepoInfo"><span class="hs-identifier hs-var">GetCausalHashByPathErrorInvalidRepoInfo</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Share.RepoInfo</span></span><span>
+</span><span id="line-52"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-comment">-- | The user was not found.</span><span>
+</span><span id="line-53"></span><span>    </span><span id="GetCausalHashByPathErrorUserNotFound"><span class="annot"><a href="Unison.Share.Sync.Types.html#GetCausalHashByPathErrorUserNotFound"><span class="hs-identifier hs-var">GetCausalHashByPathErrorUserNotFound</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Share.RepoInfo</span></span><span>
+</span><span id="line-54"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679599933"><span id="local-6989586621679599935"><span id="local-6989586621679599945"><span class="annot"><span class="annottext">Int -&gt; GetCausalHashByPathError -&gt; ShowS
+[GetCausalHashByPathError] -&gt; ShowS
+GetCausalHashByPathError -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [GetCausalHashByPathError] -&gt; ShowS
+$cshowList :: [GetCausalHashByPathError] -&gt; ShowS
+show :: GetCausalHashByPathError -&gt; String
+$cshow :: GetCausalHashByPathError -&gt; String
+showsPrec :: Int -&gt; GetCausalHashByPathError -&gt; ShowS
+$cshowsPrec :: Int -&gt; GetCausalHashByPathError -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span class="hs-comment">-- | Generic Codeserver transport errors</span><span>
+</span><span id="line-57"></span><span class="hs-keyword">data</span><span> </span><span id="CodeserverTransportError"><span class="annot"><a href="Unison.Share.Sync.Types.html#CodeserverTransportError"><span class="hs-identifier hs-var">CodeserverTransportError</span></a></span></span><span>
+</span><span id="line-58"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="DecodeFailure"><span class="annot"><a href="Unison.Share.Sync.Types.html#DecodeFailure"><span class="hs-identifier hs-var">DecodeFailure</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Servant.Response</span></span><span>
+</span><span id="line-59"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-comment">-- We try to catch permission failures in the endpoint's response type, but if any slip</span><span>
+</span><span id="line-60"></span><span>    </span><span class="hs-comment">-- through they'll be translated as a PermissionDenied.</span><span>
+</span><span id="line-61"></span><span>    </span><span id="PermissionDenied"><span class="annot"><a href="Unison.Share.Sync.Types.html#PermissionDenied"><span class="hs-identifier hs-var">PermissionDenied</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-62"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="RateLimitExceeded"><span class="annot"><a href="Unison.Share.Sync.Types.html#RateLimitExceeded"><span class="hs-identifier hs-var">RateLimitExceeded</span></a></span></span><span>
+</span><span id="line-63"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Timeout"><span class="annot"><a href="Unison.Share.Sync.Types.html#Timeout"><span class="hs-identifier hs-var">Timeout</span></a></span></span><span>
+</span><span id="line-64"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Unauthenticated"><span class="annot"><a href="Unison.Share.Sync.Types.html#Unauthenticated"><span class="hs-identifier hs-var">Unauthenticated</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Servant.BaseUrl</span></span><span>
+</span><span id="line-65"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="UnexpectedResponse"><span class="annot"><a href="Unison.Share.Sync.Types.html#UnexpectedResponse"><span class="hs-identifier hs-var">UnexpectedResponse</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Servant.Response</span></span><span>
+</span><span id="line-66"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="UnreachableCodeserver"><span class="annot"><a href="Unison.Share.Sync.Types.html#UnreachableCodeserver"><span class="hs-identifier hs-var">UnreachableCodeserver</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Servant.BaseUrl</span></span><span>
+</span><span id="line-67"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679599906"><span id="local-6989586621679599908"><span id="local-6989586621679599924"><span class="annot"><span class="annottext">Int -&gt; CodeserverTransportError -&gt; ShowS
+[CodeserverTransportError] -&gt; ShowS
+CodeserverTransportError -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [CodeserverTransportError] -&gt; ShowS
+$cshowList :: [CodeserverTransportError] -&gt; ShowS
+show :: CodeserverTransportError -&gt; String
+$cshow :: CodeserverTransportError -&gt; String
+showsPrec :: Int -&gt; CodeserverTransportError -&gt; ShowS
+$cshowsPrec :: Int -&gt; CodeserverTransportError -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-68"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">anyclass</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679599895"><span id="local-6989586621679599897"><span id="local-6989586621679599899"><span class="annot"><span class="annottext">Show CodeserverTransportError
+Typeable CodeserverTransportError
+SomeException -&gt; Maybe CodeserverTransportError
+CodeserverTransportError -&gt; String
+CodeserverTransportError -&gt; SomeException
+forall e.
+Typeable e
+-&gt; Show e
+-&gt; (e -&gt; SomeException)
+-&gt; (SomeException -&gt; Maybe e)
+-&gt; (e -&gt; String)
+-&gt; Exception e
+displayException :: CodeserverTransportError -&gt; String
+$cdisplayException :: CodeserverTransportError -&gt; String
+fromException :: SomeException -&gt; Maybe CodeserverTransportError
+$cfromException :: SomeException -&gt; Maybe CodeserverTransportError
+toException :: CodeserverTransportError -&gt; SomeException
+$ctoException :: CodeserverTransportError -&gt; SomeException
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Exception</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-69"></span><span>
+</span><span id="line-70"></span><span class="hs-keyword">data</span><span> </span><span id="SyncError"><span class="annot"><a href="Unison.Share.Sync.Types.html#SyncError"><span class="hs-identifier hs-var">SyncError</span></a></span></span><span> </span><span id="local-6989586621679600028"><span class="annot"><a href="#local-6989586621679600028"><span class="hs-identifier hs-type">e</span></a></span></span><span>
+</span><span id="line-71"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="TransportError"><span class="annot"><a href="Unison.Share.Sync.Types.html#TransportError"><span class="hs-identifier hs-var">TransportError</span></a></span></span><span> </span><span class="annot"><a href="Unison.Share.Sync.Types.html#CodeserverTransportError"><span class="hs-identifier hs-type">CodeserverTransportError</span></a></span><span>
+</span><span id="line-72"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="SyncError"><span class="annot"><a href="Unison.Share.Sync.Types.html#SyncError"><span class="hs-identifier hs-var">SyncError</span></a></span></span><span> </span><span class="annot"><a href="#local-6989586621679600028"><span class="hs-identifier hs-type">e</span></a></span><span>
+</span><span id="line-73"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679599888"><span id="local-6989586621679599890"><span class="annot"><span class="annottext">forall a b. a -&gt; SyncError b -&gt; SyncError a
+forall a b. (a -&gt; b) -&gt; SyncError a -&gt; SyncError b
+forall (f :: * -&gt; *).
+(forall a b. (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b. a -&gt; f b -&gt; f a) -&gt; Functor f
+&lt;$ :: forall a b. a -&gt; SyncError b -&gt; SyncError a
+$c&lt;$ :: forall a b. a -&gt; SyncError b -&gt; SyncError a
+fmap :: forall a b. (a -&gt; b) -&gt; SyncError a -&gt; SyncError b
+$cfmap :: forall a b. (a -&gt; b) -&gt; SyncError a -&gt; SyncError b
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Functor</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679599876"><span id="local-6989586621679599878"><span id="local-6989586621679599884"><span class="annot"><span class="annottext">Int -&gt; SyncError e -&gt; ShowS
+forall e. Show e =&gt; Int -&gt; SyncError e -&gt; ShowS
+forall e. Show e =&gt; [SyncError e] -&gt; ShowS
+forall e. Show e =&gt; SyncError e -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [SyncError e] -&gt; ShowS
+$cshowList :: forall e. Show e =&gt; [SyncError e] -&gt; ShowS
+show :: SyncError e -&gt; String
+$cshow :: forall e. Show e =&gt; SyncError e -&gt; String
+showsPrec :: Int -&gt; SyncError e -&gt; ShowS
+$cshowsPrec :: forall e. Show e =&gt; Int -&gt; SyncError e -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-74"></span></pre></body></html>

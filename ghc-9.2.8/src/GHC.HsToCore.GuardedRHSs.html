@@ -1,0 +1,436 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-comment">{-
+(c) The University of Glasgow 2006
+(c) The GRASP/AQUA Project, Glasgow University, 1992-1998
+
+
+Matching guarded right-hand-sides (GRHSs)
+-}</span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">GHC.HsToCore.GuardedRHSs</span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.HsToCore.GuardedRHSs.html#dsGuarded"><span class="hs-identifier">dsGuarded</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.HsToCore.GuardedRHSs.html#dsGRHSs"><span class="hs-identifier">dsGRHSs</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.HsToCore.Utils.html#isTrueLHsExpr"><span class="hs-identifier">isTrueLHsExpr</span></a></span><span> </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span class="hs-cpp">
+
+#include &quot;HsVersions.h&quot;
+</span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Prelude.html"><span class="hs-identifier">GHC.Prelude</span></a></span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-pragma">{-# SOURCE</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="annot"><a href="GHC.HsToCore.Expr.html"><span class="hs-identifier">GHC.HsToCore.Expr</span></a></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.HsToCore.Expr.html#dsLExpr"><span class="hs-identifier">dsLExpr</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.HsToCore.Expr.html#dsLocalBinds"><span class="hs-identifier">dsLocalBinds</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="hs-pragma">{-# SOURCE</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="annot"><a href="GHC.HsToCore.Match.html"><span class="hs-identifier">GHC.HsToCore.Match</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.HsToCore.Match.html#matchSinglePatVar"><span class="hs-identifier">matchSinglePatVar</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Hs.html"><span class="hs-identifier">GHC.Hs</span></a></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Core.Make.html"><span class="hs-identifier">GHC.Core.Make</span></a></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Core.html"><span class="hs-identifier">GHC.Core</span></a></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Core.Utils.html"><span class="hs-identifier">GHC.Core.Utils</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Core.Utils.html#bindNonRec"><span class="hs-identifier">bindNonRec</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.HsToCore.Monad.html"><span class="hs-identifier">GHC.HsToCore.Monad</span></a></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.HsToCore.Utils.html"><span class="hs-identifier">GHC.HsToCore.Utils</span></a></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.HsToCore.Pmc.Types.html"><span class="hs-identifier">GHC.HsToCore.Pmc.Types</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.HsToCore.Pmc.Solver.Types.html#Nablas"><span class="hs-identifier">Nablas</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Core.Type.html"><span class="hs-identifier">GHC.Core.Type</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Core.TyCo.Rep.html#Type"><span class="hs-identifier">Type</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Misc.html"><span class="hs-identifier">GHC.Utils.Misc</span></a></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.SrcLoc.html"><span class="hs-identifier">GHC.Types.SrcLoc</span></a></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html"><span class="hs-identifier">GHC.Utils.Outputable</span></a></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Panic.html"><span class="hs-identifier">GHC.Utils.Panic</span></a></span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Core.Multiplicity.html"><span class="hs-identifier">GHC.Core.Multiplicity</span></a></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Control-Monad.html#"><span class="hs-identifier">Control.Monad</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Control-Monad.html#zipWithM"><span class="hs-identifier">zipWithM</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Data-List-NonEmpty.html#"><span class="hs-identifier">Data.List.NonEmpty</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Base.html#NonEmpty"><span class="hs-identifier">NonEmpty</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Data-List-NonEmpty.html#toList"><span class="hs-identifier">toList</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="hs-comment">{-
+@dsGuarded@ is used for GRHSs.
+It desugars:
+\begin{verbatim}
+        | g1 -&gt; e1
+        ...
+        | gn -&gt; en
+        where binds
+\end{verbatim}
+producing an expression with a runtime error in the corner case if
+necessary.  The type argument gives the type of the @ei@.
+-}</span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span class="annot"><a href="GHC.HsToCore.GuardedRHSs.html#dsGuarded"><span class="hs-identifier hs-type">dsGuarded</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html#GRHSs"><span class="hs-identifier hs-type">GRHSs</span></a></span><span> </span><span class="annot"><a href="GHC.Hs.Extension.html#GhcTc"><span class="hs-identifier hs-type">GhcTc</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html#LHsExpr"><span class="hs-identifier hs-type">LHsExpr</span></a></span><span> </span><span class="annot"><a href="GHC.Hs.Extension.html#GhcTc"><span class="hs-identifier hs-type">GhcTc</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.TyCo.Rep.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Base.html#NonEmpty"><span class="hs-identifier hs-type">NonEmpty</span></a></span><span> </span><span class="annot"><a href="GHC.HsToCore.Pmc.Solver.Types.html#Nablas"><span class="hs-identifier hs-type">Nablas</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.HsToCore.Types.html#DsM"><span class="hs-identifier hs-type">DsM</span></a></span><span> </span><span class="annot"><a href="GHC.Core.html#CoreExpr"><span class="hs-identifier hs-type">CoreExpr</span></a></span><span>
+</span><span id="line-51"></span><span id="dsGuarded"><span class="annot"><span class="annottext">dsGuarded :: GRHSs GhcTc (LHsExpr GhcTc)
+-&gt; Type -&gt; NonEmpty Nablas -&gt; DsM CoreExpr
+</span><a href="GHC.HsToCore.GuardedRHSs.html#dsGuarded"><span class="hs-identifier hs-var hs-var">dsGuarded</span></a></span></span><span> </span><span id="local-6989586621681379357"><span class="annot"><span class="annottext">GRHSs GhcTc (LHsExpr GhcTc)
+</span><a href="#local-6989586621681379357"><span class="hs-identifier hs-var">grhss</span></a></span></span><span> </span><span id="local-6989586621681379356"><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621681379356"><span class="hs-identifier hs-var">rhs_ty</span></a></span></span><span> </span><span id="local-6989586621681379355"><span class="annot"><span class="annottext">NonEmpty Nablas
+</span><a href="#local-6989586621681379355"><span class="hs-identifier hs-var">rhss_nablas</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-52"></span><span>    </span><span id="local-6989586621681379354"><span class="annot"><span class="annottext">MatchResult CoreExpr
+</span><a href="#local-6989586621681379354"><span class="hs-identifier hs-var">match_result</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">HsMatchContext GhcRn
+-&gt; GRHSs GhcTc (LHsExpr GhcTc)
+-&gt; Type
+-&gt; NonEmpty Nablas
+-&gt; DsM (MatchResult CoreExpr)
+</span><a href="GHC.HsToCore.GuardedRHSs.html#dsGRHSs"><span class="hs-identifier hs-var">dsGRHSs</span></a></span><span> </span><span class="annot"><span class="annottext">forall p. HsMatchContext p
+</span><a href="Language.Haskell.Syntax.Expr.html#PatBindRhs"><span class="hs-identifier hs-var">PatBindRhs</span></a></span><span> </span><span class="annot"><span class="annottext">GRHSs GhcTc (LHsExpr GhcTc)
+</span><a href="#local-6989586621681379357"><span class="hs-identifier hs-var">grhss</span></a></span><span> </span><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621681379356"><span class="hs-identifier hs-var">rhs_ty</span></a></span><span> </span><span class="annot"><span class="annottext">NonEmpty Nablas
+</span><a href="#local-6989586621681379355"><span class="hs-identifier hs-var">rhss_nablas</span></a></span><span>
+</span><span id="line-53"></span><span>    </span><span id="local-6989586621681379352"><span class="annot"><span class="annottext">CoreExpr
+</span><a href="#local-6989586621681379352"><span class="hs-identifier hs-var">error_expr</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Id -&gt; Type -&gt; SDoc -&gt; DsM CoreExpr
+</span><a href="GHC.HsToCore.Utils.html#mkErrorAppDs"><span class="hs-identifier hs-var">mkErrorAppDs</span></a></span><span> </span><span class="annot"><span class="annottext">Id
+</span><a href="GHC.Core.Make.html#nON_EXHAUSTIVE_GUARDS_ERROR_ID"><span class="hs-identifier hs-var">nON_EXHAUSTIVE_GUARDS_ERROR_ID</span></a></span><span> </span><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621681379356"><span class="hs-identifier hs-var">rhs_ty</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc
+</span><a href="GHC.Utils.Outputable.html#empty"><span class="hs-identifier hs-var">empty</span></a></span><span>
+</span><span id="line-54"></span><span>    </span><span class="annot"><span class="annottext">MatchResult CoreExpr -&gt; CoreExpr -&gt; DsM CoreExpr
+</span><a href="GHC.HsToCore.Utils.html#extractMatchResult"><span class="hs-identifier hs-var">extractMatchResult</span></a></span><span> </span><span class="annot"><span class="annottext">MatchResult CoreExpr
+</span><a href="#local-6989586621681379354"><span class="hs-identifier hs-var">match_result</span></a></span><span> </span><span class="annot"><span class="annottext">CoreExpr
+</span><a href="#local-6989586621681379352"><span class="hs-identifier hs-var">error_expr</span></a></span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span class="hs-comment">-- In contrast, @dsGRHSs@ produces a @MatchResult CoreExpr@.</span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span class="annot"><a href="GHC.HsToCore.GuardedRHSs.html#dsGRHSs"><span class="hs-identifier hs-type">dsGRHSs</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html#HsMatchContext"><span class="hs-identifier hs-type">HsMatchContext</span></a></span><span> </span><span class="annot"><a href="GHC.Hs.Extension.html#GhcRn"><span class="hs-identifier hs-type">GhcRn</span></a></span><span>
+</span><span id="line-59"></span><span>        </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html#GRHSs"><span class="hs-identifier hs-type">GRHSs</span></a></span><span> </span><span class="annot"><a href="GHC.Hs.Extension.html#GhcTc"><span class="hs-identifier hs-type">GhcTc</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html#LHsExpr"><span class="hs-identifier hs-type">LHsExpr</span></a></span><span> </span><span class="annot"><a href="GHC.Hs.Extension.html#GhcTc"><span class="hs-identifier hs-type">GhcTc</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-comment">-- ^ Guarded RHSs</span><span>
+</span><span id="line-60"></span><span>        </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.TyCo.Rep.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span>                        </span><span class="hs-comment">-- ^ Type of RHS</span><span>
+</span><span id="line-61"></span><span>        </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Base.html#NonEmpty"><span class="hs-identifier hs-type">NonEmpty</span></a></span><span> </span><span class="annot"><a href="GHC.HsToCore.Pmc.Solver.Types.html#Nablas"><span class="hs-identifier hs-type">Nablas</span></a></span><span>             </span><span class="hs-comment">-- ^ Refined pattern match checking</span><span>
+</span><span id="line-62"></span><span>                                       </span><span class="hs-comment">--   models, one for the pattern part and</span><span>
+</span><span id="line-63"></span><span>                                       </span><span class="hs-comment">--   one for each GRHS.</span><span>
+</span><span id="line-64"></span><span>        </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.HsToCore.Types.html#DsM"><span class="hs-identifier hs-type">DsM</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.HsToCore.Monad.html#MatchResult"><span class="hs-identifier hs-type">MatchResult</span></a></span><span> </span><span class="annot"><a href="GHC.Core.html#CoreExpr"><span class="hs-identifier hs-type">CoreExpr</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-65"></span><span id="dsGRHSs"><span class="annot"><span class="annottext">dsGRHSs :: HsMatchContext GhcRn
+-&gt; GRHSs GhcTc (LHsExpr GhcTc)
+-&gt; Type
+-&gt; NonEmpty Nablas
+-&gt; DsM (MatchResult CoreExpr)
+</span><a href="GHC.HsToCore.GuardedRHSs.html#dsGRHSs"><span class="hs-identifier hs-var hs-var">dsGRHSs</span></a></span></span><span> </span><span id="local-6989586621681379347"><span class="annot"><span class="annottext">HsMatchContext GhcRn
+</span><a href="#local-6989586621681379347"><span class="hs-identifier hs-var">hs_ctx</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html#GRHSs"><span class="hs-identifier hs-type">GRHSs</span></a></span><span> </span><span class="annot"><span class="annottext">XCGRHSs GhcTc (LHsExpr GhcTc)
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681379345"><span class="annot"><span class="annottext">[LGRHS GhcTc (LHsExpr GhcTc)]
+</span><a href="#local-6989586621681379345"><span class="hs-identifier hs-var">grhss</span></a></span></span><span> </span><span id="local-6989586621681379344"><span class="annot"><span class="annottext">HsLocalBinds GhcTc
+</span><a href="#local-6989586621681379344"><span class="hs-identifier hs-var">binds</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621681379343"><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621681379343"><span class="hs-identifier hs-var">rhs_ty</span></a></span></span><span> </span><span id="local-6989586621681379342"><span class="annot"><span class="annottext">NonEmpty Nablas
+</span><a href="#local-6989586621681379342"><span class="hs-identifier hs-var">rhss_nablas</span></a></span></span><span>
+</span><span id="line-66"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">ASSERT</span><span class="hs-special">(</span><span> </span><span class="hs-identifier">notNull</span><span> </span><span class="hs-identifier">grhss</span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-67"></span><span>    </span><span class="hs-keyword">do</span><span> </span><span class="hs-special">{</span><span> </span><span id="local-6989586621681379336"><span class="annot"><span class="annottext">[MatchResult CoreExpr]
+</span><a href="#local-6989586621681379336"><span class="hs-identifier hs-var">match_results</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier">ASSERT</span><span class="hs-special">(</span><span> </span><span class="hs-identifier">length</span><span> </span><span class="hs-identifier">grhss</span><span> </span><span class="hs-operator">==</span><span> </span><span class="hs-identifier">length</span><span> </span><span class="hs-identifier">rhss_nablas</span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-68"></span><span>                          </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b c.
+Applicative m =&gt;
+(a -&gt; b -&gt; m c) -&gt; [a] -&gt; [b] -&gt; m [c]
+</span><a href="../../base-4.16.4.0/src/Control-Monad.html#zipWithM"><span class="hs-identifier hs-var">zipWithM</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">HsMatchContext GhcRn
+-&gt; Type
+-&gt; Nablas
+-&gt; LGRHS GhcTc (LHsExpr GhcTc)
+-&gt; DsM (MatchResult CoreExpr)
+</span><a href="GHC.HsToCore.GuardedRHSs.html#dsGRHS"><span class="hs-identifier hs-var">dsGRHS</span></a></span><span> </span><span class="annot"><span class="annottext">HsMatchContext GhcRn
+</span><a href="#local-6989586621681379347"><span class="hs-identifier hs-var">hs_ctx</span></a></span><span> </span><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621681379343"><span class="hs-identifier hs-var">rhs_ty</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. NonEmpty a -&gt; [a]
+</span><a href="../../base-4.16.4.0/src/Data-List-NonEmpty.html#toList"><span class="hs-identifier hs-var">toList</span></a></span><span> </span><span class="annot"><span class="annottext">NonEmpty Nablas
+</span><a href="#local-6989586621681379342"><span class="hs-identifier hs-var">rhss_nablas</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[LGRHS GhcTc (LHsExpr GhcTc)]
+</span><a href="#local-6989586621681379345"><span class="hs-identifier hs-var">grhss</span></a></span><span>
+</span><span id="line-69"></span><span>       </span><span class="hs-special">;</span><span> </span><span id="local-6989586621681379333"><span class="annot"><span class="annottext">Nablas
+</span><a href="#local-6989586621681379333"><span class="hs-identifier hs-var">nablas</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">DsM Nablas
+</span><a href="GHC.HsToCore.Monad.html#getPmNablas"><span class="hs-identifier hs-var">getPmNablas</span></a></span><span>
+</span><span id="line-70"></span><span>       </span><span class="hs-comment">-- We need to remember the Nablas from the particular match context we</span><span>
+</span><span id="line-71"></span><span>       </span><span class="hs-comment">-- are in, which might be different to when dsLocalBinds is actually</span><span>
+</span><span id="line-72"></span><span>       </span><span class="hs-comment">-- called.</span><span>
+</span><span id="line-73"></span><span>       </span><span class="hs-special">;</span><span> </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681379331"><span class="annot"><span class="annottext">ds_binds :: CoreExpr -&gt; DsM CoreExpr
+</span><a href="#local-6989586621681379331"><span class="hs-identifier hs-var hs-var">ds_binds</span></a></span></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Nablas -&gt; DsM a -&gt; DsM a
+</span><a href="GHC.HsToCore.Monad.html#updPmNablas"><span class="hs-identifier hs-var">updPmNablas</span></a></span><span> </span><span class="annot"><span class="annottext">Nablas
+</span><a href="#local-6989586621681379333"><span class="hs-identifier hs-var">nablas</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#."><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">HsLocalBinds GhcTc -&gt; CoreExpr -&gt; DsM CoreExpr
+</span><a href="GHC.HsToCore.Expr.html#dsLocalBinds"><span class="hs-identifier hs-var">dsLocalBinds</span></a></span><span> </span><span class="annot"><span class="annottext">HsLocalBinds GhcTc
+</span><a href="#local-6989586621681379344"><span class="hs-identifier hs-var">binds</span></a></span><span>
+</span><span id="line-74"></span><span>             </span><span id="local-6989586621681379328"><span class="annot"><span class="annottext">match_result1 :: MatchResult CoreExpr
+</span><a href="#local-6989586621681379328"><span class="hs-identifier hs-var hs-var">match_result1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; (a -&gt; a -&gt; a) -&gt; t a -&gt; a
+</span><a href="../../base-4.16.4.0/src/Data-Foldable.html#foldr1"><span class="hs-identifier hs-var">foldr1</span></a></span><span> </span><span class="annot"><span class="annottext">MatchResult CoreExpr
+-&gt; MatchResult CoreExpr -&gt; MatchResult CoreExpr
+</span><a href="GHC.HsToCore.Utils.html#combineMatchResults"><span class="hs-identifier hs-var">combineMatchResults</span></a></span><span> </span><span class="annot"><span class="annottext">[MatchResult CoreExpr]
+</span><a href="#local-6989586621681379336"><span class="hs-identifier hs-var">match_results</span></a></span><span>
+</span><span id="line-75"></span><span>             </span><span id="local-6989586621681379325"><span class="annot"><span class="annottext">match_result2 :: MatchResult CoreExpr
+</span><a href="#local-6989586621681379325"><span class="hs-identifier hs-var hs-var">match_result2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; DsM b) -&gt; MatchResult a -&gt; MatchResult b
+</span><a href="GHC.HsToCore.Utils.html#adjustMatchResultDs"><span class="hs-identifier hs-var">adjustMatchResultDs</span></a></span><span> </span><span class="annot"><span class="annottext">CoreExpr -&gt; DsM CoreExpr
+</span><a href="#local-6989586621681379331"><span class="hs-identifier hs-var">ds_binds</span></a></span><span> </span><span class="annot"><span class="annottext">MatchResult CoreExpr
+</span><a href="#local-6989586621681379328"><span class="hs-identifier hs-var">match_result1</span></a></span><span>
+</span><span id="line-76"></span><span>                             </span><span class="hs-comment">-- NB: nested dsLet inside matchResult</span><span>
+</span><span id="line-77"></span><span>       </span><span class="hs-special">;</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#return"><span class="hs-identifier hs-var">return</span></a></span><span> </span><span class="annot"><span class="annottext">MatchResult CoreExpr
+</span><a href="#local-6989586621681379325"><span class="hs-identifier hs-var">match_result2</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-78"></span><span>
+</span><span id="line-79"></span><span class="annot"><a href="GHC.HsToCore.GuardedRHSs.html#dsGRHS"><span class="hs-identifier hs-type">dsGRHS</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html#HsMatchContext"><span class="hs-identifier hs-type">HsMatchContext</span></a></span><span> </span><span class="annot"><a href="GHC.Hs.Extension.html#GhcRn"><span class="hs-identifier hs-type">GhcRn</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.TyCo.Rep.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.HsToCore.Pmc.Solver.Types.html#Nablas"><span class="hs-identifier hs-type">Nablas</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html#LGRHS"><span class="hs-identifier hs-type">LGRHS</span></a></span><span> </span><span class="annot"><a href="GHC.Hs.Extension.html#GhcTc"><span class="hs-identifier hs-type">GhcTc</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html#LHsExpr"><span class="hs-identifier hs-type">LHsExpr</span></a></span><span> </span><span class="annot"><a href="GHC.Hs.Extension.html#GhcTc"><span class="hs-identifier hs-type">GhcTc</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-80"></span><span>       </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.HsToCore.Types.html#DsM"><span class="hs-identifier hs-type">DsM</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.HsToCore.Monad.html#MatchResult"><span class="hs-identifier hs-type">MatchResult</span></a></span><span> </span><span class="annot"><a href="GHC.Core.html#CoreExpr"><span class="hs-identifier hs-type">CoreExpr</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-81"></span><span id="dsGRHS"><span class="annot"><span class="annottext">dsGRHS :: HsMatchContext GhcRn
+-&gt; Type
+-&gt; Nablas
+-&gt; LGRHS GhcTc (LHsExpr GhcTc)
+-&gt; DsM (MatchResult CoreExpr)
+</span><a href="GHC.HsToCore.GuardedRHSs.html#dsGRHS"><span class="hs-identifier hs-var hs-var">dsGRHS</span></a></span></span><span> </span><span id="local-6989586621681379323"><span class="annot"><span class="annottext">HsMatchContext GhcRn
+</span><a href="#local-6989586621681379323"><span class="hs-identifier hs-var">hs_ctx</span></a></span></span><span> </span><span id="local-6989586621681379322"><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621681379322"><span class="hs-identifier hs-var">rhs_ty</span></a></span></span><span> </span><span id="local-6989586621681379321"><span class="annot"><span class="annottext">Nablas
+</span><a href="#local-6989586621681379321"><span class="hs-identifier hs-var">rhs_nablas</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.SrcLoc.html#L"><span class="hs-identifier hs-type">L</span></a></span><span> </span><span class="annot"><span class="annottext">SrcSpan
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html#GRHS"><span class="hs-identifier hs-type">GRHS</span></a></span><span> </span><span class="annot"><span class="annottext">XCGRHS GhcTc (GenLocated SrcSpanAnnA (HsExpr GhcTc))
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681379318"><span class="annot"><span class="annottext">[GuardLStmt GhcTc]
+</span><a href="#local-6989586621681379318"><span class="hs-identifier hs-var">guards</span></a></span></span><span> </span><span id="local-6989586621681379317"><span class="annot"><span class="annottext">GenLocated SrcSpanAnnA (HsExpr GhcTc)
+</span><a href="#local-6989586621681379317"><span class="hs-identifier hs-var">rhs</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-82"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[GuardStmt GhcTc]
+-&gt; HsStmtContext GhcRn
+-&gt; Nablas
+-&gt; LHsExpr GhcTc
+-&gt; Type
+-&gt; DsM (MatchResult CoreExpr)
+</span><a href="GHC.HsToCore.GuardedRHSs.html#matchGuards"><span class="hs-identifier hs-var">matchGuards</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#map"><span class="hs-identifier hs-var">map</span></a></span><span> </span><span class="annot"><span class="annottext">forall l e. GenLocated l e -&gt; e
+</span><a href="GHC.Types.SrcLoc.html#unLoc"><span class="hs-identifier hs-var">unLoc</span></a></span><span> </span><span class="annot"><span class="annottext">[GuardLStmt GhcTc]
+</span><a href="#local-6989586621681379318"><span class="hs-identifier hs-var">guards</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall p. HsMatchContext p -&gt; HsStmtContext p
+</span><a href="Language.Haskell.Syntax.Expr.html#PatGuard"><span class="hs-identifier hs-var">PatGuard</span></a></span><span> </span><span class="annot"><span class="annottext">HsMatchContext GhcRn
+</span><a href="#local-6989586621681379323"><span class="hs-identifier hs-var">hs_ctx</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Nablas
+</span><a href="#local-6989586621681379321"><span class="hs-identifier hs-var">rhs_nablas</span></a></span><span> </span><span class="annot"><span class="annottext">GenLocated SrcSpanAnnA (HsExpr GhcTc)
+</span><a href="#local-6989586621681379317"><span class="hs-identifier hs-var">rhs</span></a></span><span> </span><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621681379322"><span class="hs-identifier hs-var">rhs_ty</span></a></span><span>
+</span><span id="line-83"></span><span>
+</span><span id="line-84"></span><span class="hs-comment">{-
+************************************************************************
+*                                                                      *
+*  matchGuard : make a MatchResult CoreExpr CoreExpr from a guarded RHS                  *
+*                                                                      *
+************************************************************************
+-}</span><span>
+</span><span id="line-91"></span><span>
+</span><span id="line-92"></span><span class="annot"><a href="GHC.HsToCore.GuardedRHSs.html#matchGuards"><span class="hs-identifier hs-type">matchGuards</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html#GuardStmt"><span class="hs-identifier hs-type">GuardStmt</span></a></span><span> </span><span class="annot"><a href="GHC.Hs.Extension.html#GhcTc"><span class="hs-identifier hs-type">GhcTc</span></a></span><span class="hs-special">]</span><span>     </span><span class="hs-comment">-- Guard</span><span>
+</span><span id="line-93"></span><span>            </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html#HsStmtContext"><span class="hs-identifier hs-type">HsStmtContext</span></a></span><span> </span><span class="annot"><a href="GHC.Hs.Extension.html#GhcRn"><span class="hs-identifier hs-type">GhcRn</span></a></span><span>   </span><span class="hs-comment">-- Context</span><span>
+</span><span id="line-94"></span><span>            </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.HsToCore.Pmc.Solver.Types.html#Nablas"><span class="hs-identifier hs-type">Nablas</span></a></span><span>                </span><span class="hs-comment">-- The RHS's covered set for PmCheck</span><span>
+</span><span id="line-95"></span><span>            </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html#LHsExpr"><span class="hs-identifier hs-type">LHsExpr</span></a></span><span> </span><span class="annot"><a href="GHC.Hs.Extension.html#GhcTc"><span class="hs-identifier hs-type">GhcTc</span></a></span><span>         </span><span class="hs-comment">-- RHS</span><span>
+</span><span id="line-96"></span><span>            </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.TyCo.Rep.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span>                  </span><span class="hs-comment">-- Type of RHS of guard</span><span>
+</span><span id="line-97"></span><span>            </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.HsToCore.Types.html#DsM"><span class="hs-identifier hs-type">DsM</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.HsToCore.Monad.html#MatchResult"><span class="hs-identifier hs-type">MatchResult</span></a></span><span> </span><span class="annot"><a href="GHC.Core.html#CoreExpr"><span class="hs-identifier hs-type">CoreExpr</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-98"></span><span>
+</span><span id="line-99"></span><span class="hs-comment">-- See comments with HsExpr.Stmt re what a BodyStmt means</span><span>
+</span><span id="line-100"></span><span class="hs-comment">-- Here we must be in a guard context (not do-expression, nor list-comp)</span><span>
+</span><span id="line-101"></span><span>
+</span><span id="line-102"></span><span id="matchGuards"><span class="annot"><span class="annottext">matchGuards :: [GuardStmt GhcTc]
+-&gt; HsStmtContext GhcRn
+-&gt; Nablas
+-&gt; LHsExpr GhcTc
+-&gt; Type
+-&gt; DsM (MatchResult CoreExpr)
+</span><a href="GHC.HsToCore.GuardedRHSs.html#matchGuards"><span class="hs-identifier hs-var hs-var">matchGuards</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">HsStmtContext GhcRn
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681379313"><span class="annot"><span class="annottext">Nablas
+</span><a href="#local-6989586621681379313"><span class="hs-identifier hs-var">nablas</span></a></span></span><span> </span><span id="local-6989586621681379312"><span class="annot"><span class="annottext">LHsExpr GhcTc
+</span><a href="#local-6989586621681379312"><span class="hs-identifier hs-var">rhs</span></a></span></span><span> </span><span class="annot"><span class="annottext">Type
+</span><span class="hs-identifier">_</span></span><span>
+</span><span id="line-103"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>  </span><span class="hs-special">{</span><span> </span><span id="local-6989586621681379311"><span class="annot"><span class="annottext">CoreExpr
+</span><a href="#local-6989586621681379311"><span class="hs-identifier hs-var">core_rhs</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a. Nablas -&gt; DsM a -&gt; DsM a
+</span><a href="GHC.HsToCore.Monad.html#updPmNablas"><span class="hs-identifier hs-var">updPmNablas</span></a></span><span> </span><span class="annot"><span class="annottext">Nablas
+</span><a href="#local-6989586621681379313"><span class="hs-identifier hs-var">nablas</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">LHsExpr GhcTc -&gt; DsM CoreExpr
+</span><a href="GHC.HsToCore.Expr.html#dsLExpr"><span class="hs-identifier hs-var">dsLExpr</span></a></span><span> </span><span class="annot"><span class="annottext">LHsExpr GhcTc
+</span><a href="#local-6989586621681379312"><span class="hs-identifier hs-var">rhs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-104"></span><span>        </span><span class="hs-special">;</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#return"><span class="hs-identifier hs-var">return</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CoreExpr -&gt; MatchResult CoreExpr
+</span><a href="GHC.HsToCore.Utils.html#cantFailMatchResult"><span class="hs-identifier hs-var">cantFailMatchResult</span></a></span><span> </span><span class="annot"><span class="annottext">CoreExpr
+</span><a href="#local-6989586621681379311"><span class="hs-identifier hs-var">core_rhs</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-105"></span><span>
+</span><span id="line-106"></span><span>        </span><span class="hs-comment">-- BodyStmts must be guards</span><span>
+</span><span id="line-107"></span><span>        </span><span class="hs-comment">-- Turn an &quot;otherwise&quot; guard is a no-op.  This ensures that</span><span>
+</span><span id="line-108"></span><span>        </span><span class="hs-comment">-- you don't get a &quot;non-exhaustive eqns&quot; message when the guards</span><span>
+</span><span id="line-109"></span><span>        </span><span class="hs-comment">-- finish in &quot;otherwise&quot;.</span><span>
+</span><span id="line-110"></span><span>        </span><span class="hs-comment">-- NB:  The success of this clause depends on the typechecker not</span><span>
+</span><span id="line-111"></span><span>        </span><span class="hs-comment">--      wrapping the 'otherwise' in empty HsTyApp or HsWrap constructors</span><span>
+</span><span id="line-112"></span><span>        </span><span class="hs-comment">--      If it does, you'll get bogus overlap warnings</span><span>
+</span><span id="line-113"></span><span class="annot"><a href="GHC.HsToCore.GuardedRHSs.html#matchGuards"><span class="hs-identifier hs-var">matchGuards</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html#BodyStmt"><span class="hs-identifier hs-type">BodyStmt</span></a></span><span> </span><span class="annot"><span class="annottext">XBodyStmt GhcTc GhcTc (LHsExpr GhcTc)
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681379308"><span class="annot"><span class="annottext">LHsExpr GhcTc
+</span><a href="#local-6989586621681379308"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="annot"><span class="annottext">SyntaxExpr GhcTc
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">SyntaxExpr GhcTc
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621681379307"><span class="annot"><span class="annottext">[GuardStmt GhcTc]
+</span><a href="#local-6989586621681379307"><span class="hs-identifier hs-var">stmts</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621681379306"><span class="annot"><span class="annottext">HsStmtContext GhcRn
+</span><a href="#local-6989586621681379306"><span class="hs-identifier hs-var">ctx</span></a></span></span><span> </span><span id="local-6989586621681379305"><span class="annot"><span class="annottext">Nablas
+</span><a href="#local-6989586621681379305"><span class="hs-identifier hs-var">nablas</span></a></span></span><span> </span><span id="local-6989586621681379304"><span class="annot"><span class="annottext">LHsExpr GhcTc
+</span><a href="#local-6989586621681379304"><span class="hs-identifier hs-var">rhs</span></a></span></span><span> </span><span id="local-6989586621681379303"><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621681379303"><span class="hs-identifier hs-var">rhs_ty</span></a></span></span><span>
+</span><span id="line-114"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Just"><span class="hs-identifier hs-type">Just</span></a></span><span> </span><span id="local-6989586621681379302"><span class="annot"><span class="annottext">CoreExpr -&gt; DsM CoreExpr
+</span><a href="#local-6989586621681379302"><span class="hs-identifier hs-var">addTicks</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">LHsExpr GhcTc -&gt; Maybe (CoreExpr -&gt; DsM CoreExpr)
+</span><a href="GHC.HsToCore.Utils.html#isTrueLHsExpr"><span class="hs-identifier hs-var">isTrueLHsExpr</span></a></span><span> </span><span class="annot"><span class="annottext">LHsExpr GhcTc
+</span><a href="#local-6989586621681379308"><span class="hs-identifier hs-var">e</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-115"></span><span>    </span><span id="local-6989586621681379301"><span class="annot"><span class="annottext">MatchResult CoreExpr
+</span><a href="#local-6989586621681379301"><span class="hs-identifier hs-var">match_result</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[GuardStmt GhcTc]
+-&gt; HsStmtContext GhcRn
+-&gt; Nablas
+-&gt; LHsExpr GhcTc
+-&gt; Type
+-&gt; DsM (MatchResult CoreExpr)
+</span><a href="GHC.HsToCore.GuardedRHSs.html#matchGuards"><span class="hs-identifier hs-var">matchGuards</span></a></span><span> </span><span class="annot"><span class="annottext">[GuardStmt GhcTc]
+</span><a href="#local-6989586621681379307"><span class="hs-identifier hs-var">stmts</span></a></span><span> </span><span class="annot"><span class="annottext">HsStmtContext GhcRn
+</span><a href="#local-6989586621681379306"><span class="hs-identifier hs-var">ctx</span></a></span><span> </span><span class="annot"><span class="annottext">Nablas
+</span><a href="#local-6989586621681379305"><span class="hs-identifier hs-var">nablas</span></a></span><span> </span><span class="annot"><span class="annottext">LHsExpr GhcTc
+</span><a href="#local-6989586621681379304"><span class="hs-identifier hs-var">rhs</span></a></span><span> </span><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621681379303"><span class="hs-identifier hs-var">rhs_ty</span></a></span><span>
+</span><span id="line-116"></span><span>    </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#return"><span class="hs-identifier hs-var">return</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. (a -&gt; DsM b) -&gt; MatchResult a -&gt; MatchResult b
+</span><a href="GHC.HsToCore.Utils.html#adjustMatchResultDs"><span class="hs-identifier hs-var">adjustMatchResultDs</span></a></span><span> </span><span class="annot"><span class="annottext">CoreExpr -&gt; DsM CoreExpr
+</span><a href="#local-6989586621681379302"><span class="hs-identifier hs-var">addTicks</span></a></span><span> </span><span class="annot"><span class="annottext">MatchResult CoreExpr
+</span><a href="#local-6989586621681379301"><span class="hs-identifier hs-var">match_result</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-117"></span><span class="annot"><a href="GHC.HsToCore.GuardedRHSs.html#matchGuards"><span class="hs-identifier hs-var">matchGuards</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html#BodyStmt"><span class="hs-identifier hs-type">BodyStmt</span></a></span><span> </span><span class="annot"><span class="annottext">XBodyStmt GhcTc GhcTc (LHsExpr GhcTc)
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681379300"><span class="annot"><span class="annottext">LHsExpr GhcTc
+</span><a href="#local-6989586621681379300"><span class="hs-identifier hs-var">expr</span></a></span></span><span> </span><span class="annot"><span class="annottext">SyntaxExpr GhcTc
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">SyntaxExpr GhcTc
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621681379299"><span class="annot"><span class="annottext">[GuardStmt GhcTc]
+</span><a href="#local-6989586621681379299"><span class="hs-identifier hs-var">stmts</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621681379298"><span class="annot"><span class="annottext">HsStmtContext GhcRn
+</span><a href="#local-6989586621681379298"><span class="hs-identifier hs-var">ctx</span></a></span></span><span> </span><span id="local-6989586621681379297"><span class="annot"><span class="annottext">Nablas
+</span><a href="#local-6989586621681379297"><span class="hs-identifier hs-var">nablas</span></a></span></span><span> </span><span id="local-6989586621681379296"><span class="annot"><span class="annottext">LHsExpr GhcTc
+</span><a href="#local-6989586621681379296"><span class="hs-identifier hs-var">rhs</span></a></span></span><span> </span><span id="local-6989586621681379295"><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621681379295"><span class="hs-identifier hs-var">rhs_ty</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-118"></span><span>    </span><span id="local-6989586621681379294"><span class="annot"><span class="annottext">MatchResult CoreExpr
+</span><a href="#local-6989586621681379294"><span class="hs-identifier hs-var">match_result</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[GuardStmt GhcTc]
+-&gt; HsStmtContext GhcRn
+-&gt; Nablas
+-&gt; LHsExpr GhcTc
+-&gt; Type
+-&gt; DsM (MatchResult CoreExpr)
+</span><a href="GHC.HsToCore.GuardedRHSs.html#matchGuards"><span class="hs-identifier hs-var">matchGuards</span></a></span><span> </span><span class="annot"><span class="annottext">[GuardStmt GhcTc]
+</span><a href="#local-6989586621681379299"><span class="hs-identifier hs-var">stmts</span></a></span><span> </span><span class="annot"><span class="annottext">HsStmtContext GhcRn
+</span><a href="#local-6989586621681379298"><span class="hs-identifier hs-var">ctx</span></a></span><span> </span><span class="annot"><span class="annottext">Nablas
+</span><a href="#local-6989586621681379297"><span class="hs-identifier hs-var">nablas</span></a></span><span> </span><span class="annot"><span class="annottext">LHsExpr GhcTc
+</span><a href="#local-6989586621681379296"><span class="hs-identifier hs-var">rhs</span></a></span><span> </span><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621681379295"><span class="hs-identifier hs-var">rhs_ty</span></a></span><span>
+</span><span id="line-119"></span><span>    </span><span id="local-6989586621681379293"><span class="annot"><span class="annottext">CoreExpr
+</span><a href="#local-6989586621681379293"><span class="hs-identifier hs-var">pred_expr</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">LHsExpr GhcTc -&gt; DsM CoreExpr
+</span><a href="GHC.HsToCore.Expr.html#dsLExpr"><span class="hs-identifier hs-var">dsLExpr</span></a></span><span> </span><span class="annot"><span class="annottext">LHsExpr GhcTc
+</span><a href="#local-6989586621681379300"><span class="hs-identifier hs-var">expr</span></a></span><span>
+</span><span id="line-120"></span><span>    </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#return"><span class="hs-identifier hs-var">return</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CoreExpr -&gt; MatchResult CoreExpr -&gt; MatchResult CoreExpr
+</span><a href="GHC.HsToCore.Utils.html#mkGuardedMatchResult"><span class="hs-identifier hs-var">mkGuardedMatchResult</span></a></span><span> </span><span class="annot"><span class="annottext">CoreExpr
+</span><a href="#local-6989586621681379293"><span class="hs-identifier hs-var">pred_expr</span></a></span><span> </span><span class="annot"><span class="annottext">MatchResult CoreExpr
+</span><a href="#local-6989586621681379294"><span class="hs-identifier hs-var">match_result</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-121"></span><span>
+</span><span id="line-122"></span><span class="annot"><a href="GHC.HsToCore.GuardedRHSs.html#matchGuards"><span class="hs-identifier hs-var">matchGuards</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html#LetStmt"><span class="hs-identifier hs-type">LetStmt</span></a></span><span> </span><span class="annot"><span class="annottext">XLetStmt GhcTc GhcTc (LHsExpr GhcTc)
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681379290"><span class="annot"><span class="annottext">HsLocalBinds GhcTc
+</span><a href="#local-6989586621681379290"><span class="hs-identifier hs-var">binds</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621681379289"><span class="annot"><span class="annottext">[GuardStmt GhcTc]
+</span><a href="#local-6989586621681379289"><span class="hs-identifier hs-var">stmts</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621681379288"><span class="annot"><span class="annottext">HsStmtContext GhcRn
+</span><a href="#local-6989586621681379288"><span class="hs-identifier hs-var">ctx</span></a></span></span><span> </span><span id="local-6989586621681379287"><span class="annot"><span class="annottext">Nablas
+</span><a href="#local-6989586621681379287"><span class="hs-identifier hs-var">nablas</span></a></span></span><span> </span><span id="local-6989586621681379286"><span class="annot"><span class="annottext">LHsExpr GhcTc
+</span><a href="#local-6989586621681379286"><span class="hs-identifier hs-var">rhs</span></a></span></span><span> </span><span id="local-6989586621681379285"><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621681379285"><span class="hs-identifier hs-var">rhs_ty</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-123"></span><span>    </span><span id="local-6989586621681379284"><span class="annot"><span class="annottext">MatchResult CoreExpr
+</span><a href="#local-6989586621681379284"><span class="hs-identifier hs-var">match_result</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[GuardStmt GhcTc]
+-&gt; HsStmtContext GhcRn
+-&gt; Nablas
+-&gt; LHsExpr GhcTc
+-&gt; Type
+-&gt; DsM (MatchResult CoreExpr)
+</span><a href="GHC.HsToCore.GuardedRHSs.html#matchGuards"><span class="hs-identifier hs-var">matchGuards</span></a></span><span> </span><span class="annot"><span class="annottext">[GuardStmt GhcTc]
+</span><a href="#local-6989586621681379289"><span class="hs-identifier hs-var">stmts</span></a></span><span> </span><span class="annot"><span class="annottext">HsStmtContext GhcRn
+</span><a href="#local-6989586621681379288"><span class="hs-identifier hs-var">ctx</span></a></span><span> </span><span class="annot"><span class="annottext">Nablas
+</span><a href="#local-6989586621681379287"><span class="hs-identifier hs-var">nablas</span></a></span><span> </span><span class="annot"><span class="annottext">LHsExpr GhcTc
+</span><a href="#local-6989586621681379286"><span class="hs-identifier hs-var">rhs</span></a></span><span> </span><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621681379285"><span class="hs-identifier hs-var">rhs_ty</span></a></span><span>
+</span><span id="line-124"></span><span>    </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#return"><span class="hs-identifier hs-var">return</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. (a -&gt; DsM b) -&gt; MatchResult a -&gt; MatchResult b
+</span><a href="GHC.HsToCore.Utils.html#adjustMatchResultDs"><span class="hs-identifier hs-var">adjustMatchResultDs</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">HsLocalBinds GhcTc -&gt; CoreExpr -&gt; DsM CoreExpr
+</span><a href="GHC.HsToCore.Expr.html#dsLocalBinds"><span class="hs-identifier hs-var">dsLocalBinds</span></a></span><span> </span><span class="annot"><span class="annottext">HsLocalBinds GhcTc
+</span><a href="#local-6989586621681379290"><span class="hs-identifier hs-var">binds</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">MatchResult CoreExpr
+</span><a href="#local-6989586621681379284"><span class="hs-identifier hs-var">match_result</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-125"></span><span>        </span><span class="hs-comment">-- NB the dsLet occurs inside the match_result</span><span>
+</span><span id="line-126"></span><span>        </span><span class="hs-comment">-- Reason: dsLet takes the body expression as its argument</span><span>
+</span><span id="line-127"></span><span>        </span><span class="hs-comment">--         so we can't desugar the bindings without the</span><span>
+</span><span id="line-128"></span><span>        </span><span class="hs-comment">--         body expression in hand</span><span>
+</span><span id="line-129"></span><span>
+</span><span id="line-130"></span><span class="annot"><a href="GHC.HsToCore.GuardedRHSs.html#matchGuards"><span class="hs-identifier hs-var">matchGuards</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html#BindStmt"><span class="hs-identifier hs-type">BindStmt</span></a></span><span> </span><span class="annot"><span class="annottext">XBindStmt GhcTc GhcTc (LHsExpr GhcTc)
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681379282"><span class="annot"><span class="annottext">LPat GhcTc
+</span><a href="#local-6989586621681379282"><span class="hs-identifier hs-var">pat</span></a></span></span><span> </span><span id="local-6989586621681379281"><span class="annot"><span class="annottext">LHsExpr GhcTc
+</span><a href="#local-6989586621681379281"><span class="hs-identifier hs-var">bind_rhs</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621681379280"><span class="annot"><span class="annottext">[GuardStmt GhcTc]
+</span><a href="#local-6989586621681379280"><span class="hs-identifier hs-var">stmts</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621681379279"><span class="annot"><span class="annottext">HsStmtContext GhcRn
+</span><a href="#local-6989586621681379279"><span class="hs-identifier hs-var">ctx</span></a></span></span><span> </span><span id="local-6989586621681379278"><span class="annot"><span class="annottext">Nablas
+</span><a href="#local-6989586621681379278"><span class="hs-identifier hs-var">nablas</span></a></span></span><span> </span><span id="local-6989586621681379277"><span class="annot"><span class="annottext">LHsExpr GhcTc
+</span><a href="#local-6989586621681379277"><span class="hs-identifier hs-var">rhs</span></a></span></span><span> </span><span id="local-6989586621681379276"><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621681379276"><span class="hs-identifier hs-var">rhs_ty</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-131"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681379275"><span class="annot"><span class="annottext">upat :: Pat GhcTc
+</span><a href="#local-6989586621681379275"><span class="hs-identifier hs-var hs-var">upat</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall l e. GenLocated l e -&gt; e
+</span><a href="GHC.Types.SrcLoc.html#unLoc"><span class="hs-identifier hs-var">unLoc</span></a></span><span> </span><span class="annot"><span class="annottext">LPat GhcTc
+</span><a href="#local-6989586621681379282"><span class="hs-identifier hs-var">pat</span></a></span><span>
+</span><span id="line-132"></span><span>    </span><span id="local-6989586621681379274"><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621681379274"><span class="hs-identifier hs-var">match_var</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Type -&gt; Pat GhcTc -&gt; DsM Id
+</span><a href="GHC.HsToCore.Utils.html#selectMatchVar"><span class="hs-identifier hs-var">selectMatchVar</span></a></span><span> </span><span class="annot"><span class="annottext">Type
+</span><a href="GHC.Core.Type.html#Many"><span class="hs-identifier hs-var">Many</span></a></span><span> </span><span class="annot"><span class="annottext">Pat GhcTc
+</span><a href="#local-6989586621681379275"><span class="hs-identifier hs-var">upat</span></a></span><span>
+</span><span id="line-133"></span><span>       </span><span class="hs-comment">-- We only allow unrestricted patterns in guard, hence the `Many`</span><span>
+</span><span id="line-134"></span><span>       </span><span class="hs-comment">-- above. It isn't clear what linear patterns would mean, maybe we will</span><span>
+</span><span id="line-135"></span><span>       </span><span class="hs-comment">-- figure it out in the future.</span><span>
+</span><span id="line-136"></span><span>
+</span><span id="line-137"></span><span>    </span><span id="local-6989586621681379271"><span class="annot"><span class="annottext">MatchResult CoreExpr
+</span><a href="#local-6989586621681379271"><span class="hs-identifier hs-var">match_result</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[GuardStmt GhcTc]
+-&gt; HsStmtContext GhcRn
+-&gt; Nablas
+-&gt; LHsExpr GhcTc
+-&gt; Type
+-&gt; DsM (MatchResult CoreExpr)
+</span><a href="GHC.HsToCore.GuardedRHSs.html#matchGuards"><span class="hs-identifier hs-var">matchGuards</span></a></span><span> </span><span class="annot"><span class="annottext">[GuardStmt GhcTc]
+</span><a href="#local-6989586621681379280"><span class="hs-identifier hs-var">stmts</span></a></span><span> </span><span class="annot"><span class="annottext">HsStmtContext GhcRn
+</span><a href="#local-6989586621681379279"><span class="hs-identifier hs-var">ctx</span></a></span><span> </span><span class="annot"><span class="annottext">Nablas
+</span><a href="#local-6989586621681379278"><span class="hs-identifier hs-var">nablas</span></a></span><span> </span><span class="annot"><span class="annottext">LHsExpr GhcTc
+</span><a href="#local-6989586621681379277"><span class="hs-identifier hs-var">rhs</span></a></span><span> </span><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621681379276"><span class="hs-identifier hs-var">rhs_ty</span></a></span><span>
+</span><span id="line-138"></span><span>    </span><span id="local-6989586621681379270"><span class="annot"><span class="annottext">CoreExpr
+</span><a href="#local-6989586621681379270"><span class="hs-identifier hs-var">core_rhs</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">LHsExpr GhcTc -&gt; DsM CoreExpr
+</span><a href="GHC.HsToCore.Expr.html#dsLExpr"><span class="hs-identifier hs-var">dsLExpr</span></a></span><span> </span><span class="annot"><span class="annottext">LHsExpr GhcTc
+</span><a href="#local-6989586621681379281"><span class="hs-identifier hs-var">bind_rhs</span></a></span><span>
+</span><span id="line-139"></span><span>    </span><span id="local-6989586621681379269"><span class="annot"><span class="annottext">MatchResult CoreExpr
+</span><a href="#local-6989586621681379269"><span class="hs-identifier hs-var">match_result'</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Id
+-&gt; Maybe CoreExpr
+-&gt; HsMatchContext GhcRn
+-&gt; LPat GhcTc
+-&gt; Type
+-&gt; MatchResult CoreExpr
+-&gt; DsM (MatchResult CoreExpr)
+</span><a href="GHC.HsToCore.Match.html#matchSinglePatVar"><span class="hs-identifier hs-var">matchSinglePatVar</span></a></span><span> </span><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621681379274"><span class="hs-identifier hs-var">match_var</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Just"><span class="hs-identifier hs-var">Just</span></a></span><span> </span><span class="annot"><span class="annottext">CoreExpr
+</span><a href="#local-6989586621681379270"><span class="hs-identifier hs-var">core_rhs</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall p. HsStmtContext p -&gt; HsMatchContext p
+</span><a href="Language.Haskell.Syntax.Expr.html#StmtCtxt"><span class="hs-identifier hs-var">StmtCtxt</span></a></span><span> </span><span class="annot"><span class="annottext">HsStmtContext GhcRn
+</span><a href="#local-6989586621681379279"><span class="hs-identifier hs-var">ctx</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-140"></span><span>                                       </span><span class="annot"><span class="annottext">LPat GhcTc
+</span><a href="#local-6989586621681379282"><span class="hs-identifier hs-var">pat</span></a></span><span> </span><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621681379276"><span class="hs-identifier hs-var">rhs_ty</span></a></span><span> </span><span class="annot"><span class="annottext">MatchResult CoreExpr
+</span><a href="#local-6989586621681379271"><span class="hs-identifier hs-var">match_result</span></a></span><span>
+</span><span id="line-141"></span><span>    </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#pure"><span class="hs-identifier hs-var">pure</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">Id -&gt; CoreExpr -&gt; CoreExpr -&gt; CoreExpr
+</span><a href="GHC.Core.Utils.html#bindNonRec"><span class="hs-identifier hs-var">bindNonRec</span></a></span><span> </span><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621681379274"><span class="hs-identifier hs-var">match_var</span></a></span><span> </span><span class="annot"><span class="annottext">CoreExpr
+</span><a href="#local-6989586621681379270"><span class="hs-identifier hs-var">core_rhs</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="../../base-4.16.4.0/src/Data-Functor.html#%3C%24%3E"><span class="hs-operator hs-var">&lt;$&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">MatchResult CoreExpr
+</span><a href="#local-6989586621681379269"><span class="hs-identifier hs-var">match_result'</span></a></span><span>
+</span><span id="line-142"></span><span>
+</span><span id="line-143"></span><span class="annot"><a href="GHC.HsToCore.GuardedRHSs.html#matchGuards"><span class="hs-identifier hs-var">matchGuards</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html#LastStmt"><span class="hs-identifier hs-type">LastStmt</span></a></span><span>  </span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span class="annot"><span class="annottext">[GuardStmt GhcTc]
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">HsStmtContext GhcRn
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Nablas
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">LHsExpr GhcTc
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Type
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. String -&gt; a
+</span><a href="GHC.Utils.Panic.Plain.html#panic"><span class="hs-identifier hs-var">panic</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;matchGuards LastStmt&quot;</span></span><span>
+</span><span id="line-144"></span><span class="annot"><a href="GHC.HsToCore.GuardedRHSs.html#matchGuards"><span class="hs-identifier hs-var">matchGuards</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html#ParStmt"><span class="hs-identifier hs-type">ParStmt</span></a></span><span>   </span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span class="annot"><span class="annottext">[GuardStmt GhcTc]
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">HsStmtContext GhcRn
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Nablas
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">LHsExpr GhcTc
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Type
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. String -&gt; a
+</span><a href="GHC.Utils.Panic.Plain.html#panic"><span class="hs-identifier hs-var">panic</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;matchGuards ParStmt&quot;</span></span><span>
+</span><span id="line-145"></span><span class="annot"><a href="GHC.HsToCore.GuardedRHSs.html#matchGuards"><span class="hs-identifier hs-var">matchGuards</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html#TransStmt"><span class="hs-identifier hs-type">TransStmt</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span class="annot"><span class="annottext">[GuardStmt GhcTc]
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">HsStmtContext GhcRn
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Nablas
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">LHsExpr GhcTc
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Type
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. String -&gt; a
+</span><a href="GHC.Utils.Panic.Plain.html#panic"><span class="hs-identifier hs-var">panic</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;matchGuards TransStmt&quot;</span></span><span>
+</span><span id="line-146"></span><span class="annot"><a href="GHC.HsToCore.GuardedRHSs.html#matchGuards"><span class="hs-identifier hs-var">matchGuards</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html#RecStmt"><span class="hs-identifier hs-type">RecStmt</span></a></span><span>   </span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span class="annot"><span class="annottext">[GuardStmt GhcTc]
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">HsStmtContext GhcRn
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Nablas
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">LHsExpr GhcTc
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Type
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. String -&gt; a
+</span><a href="GHC.Utils.Panic.Plain.html#panic"><span class="hs-identifier hs-var">panic</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;matchGuards RecStmt&quot;</span></span><span>
+</span><span id="line-147"></span><span class="annot"><a href="GHC.HsToCore.GuardedRHSs.html#matchGuards"><span class="hs-identifier hs-var">matchGuards</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html#ApplicativeStmt"><span class="hs-identifier hs-type">ApplicativeStmt</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span class="annot"><span class="annottext">[GuardStmt GhcTc]
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">HsStmtContext GhcRn
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Nablas
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">LHsExpr GhcTc
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Type
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-148"></span><span>  </span><span class="annot"><span class="annottext">forall a. String -&gt; a
+</span><a href="GHC.Utils.Panic.Plain.html#panic"><span class="hs-identifier hs-var">panic</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;matchGuards ApplicativeLastStmt&quot;</span></span><span>
+</span><span id="line-149"></span><span>
+</span><span id="line-150"></span><span class="hs-comment">{-
+Should {\em fail} if @e@ returns @D@
+\begin{verbatim}
+f x | p &lt;- e', let C y# = e, f y# = r1
+    | otherwise          = r2
+\end{verbatim}
+-}</span><span>
+</span><span id="line-157"></span></pre></body></html>

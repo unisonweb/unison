@@ -1,0 +1,202 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP                        #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE DeriveGeneric              #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE GeneralizedNewtypeDeriving #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE MultiParamTypeClasses      #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LANGUAGE TypeFamilies               #-}</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Servant.Server.Internal.Handler</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Prelude.Compat</span></span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad.Base</span></span><span>
+</span><span id="line-12"></span><span>                 </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">MonadBase</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad.Catch</span></span><span>
+</span><span id="line-14"></span><span>                 </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">MonadCatch</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">MonadMask</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">MonadThrow</span></span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad.Error.Class</span></span><span>
+</span><span id="line-16"></span><span>                 </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">MonadError</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">throwError</span></span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad.IO.Class</span></span><span>
+</span><span id="line-18"></span><span>                 </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">MonadIO</span></span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad.Trans.Control</span></span><span>
+</span><span id="line-20"></span><span>                 </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">MonadBaseControl</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad.Trans.Except</span></span><span>
+</span><span id="line-22"></span><span>                 </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ExceptT</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">runExceptT</span></span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.String</span></span><span>
+</span><span id="line-24"></span><span>                 </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">fromString</span></span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-26"></span><span>                 </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Servant.Server.Internal.ServerError.html"><span class="hs-identifier">Servant.Server.Internal.ServerError</span></a></span><span>
+</span><span id="line-28"></span><span>                 </span><span class="hs-special">(</span><span class="annot"><a href="Servant.Server.Internal.ServerError.html#ServerError"><span class="hs-identifier">ServerError</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Servant.Server.Internal.ServerError.html#errBody"><span class="hs-identifier">errBody</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Servant.Server.Internal.ServerError.html#err500"><span class="hs-identifier">err500</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span id="local-6989586621679130414"><span id="local-6989586621679130415"></span></span><span class="hs-keyword">newtype</span><span> </span><span id="Handler"><span class="annot"><a href="Servant.Server.Internal.Handler.html#Handler"><span class="hs-identifier hs-var">Handler</span></a></span></span><span> </span><span id="local-6989586621679130555"><span class="annot"><a href="#local-6989586621679130555"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Handler"><span class="annot"><a href="Servant.Server.Internal.Handler.html#Handler"><span class="hs-identifier hs-var">Handler</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="runHandler%27"><span class="annot"><span class="annottext">forall a. Handler a -&gt; ExceptT ServerError IO a
+</span><a href="Servant.Server.Internal.Handler.html#runHandler%27"><span class="hs-identifier hs-var hs-var">runHandler'</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ExceptT</span></span><span> </span><span class="annot"><a href="Servant.Server.Internal.ServerError.html#ServerError"><span class="hs-identifier hs-type">ServerError</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679130555"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-31"></span><span>  </span><span class="hs-keyword">deriving</span><span>
+</span><span id="line-32"></span><span>    </span><span class="hs-special">(</span><span> </span><span id="local-6989586621679130404"><span id="local-6989586621679130410"><span class="annot"><span class="annottext">forall a b. a -&gt; Handler b -&gt; Handler a
+forall a b. (a -&gt; b) -&gt; Handler a -&gt; Handler b
+forall (f :: * -&gt; *).
+(forall a b. (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b. a -&gt; f b -&gt; f a) -&gt; Functor f
+&lt;$ :: forall a b. a -&gt; Handler b -&gt; Handler a
+$c&lt;$ :: forall a b. a -&gt; Handler b -&gt; Handler a
+fmap :: forall a b. (a -&gt; b) -&gt; Handler a -&gt; Handler b
+$cfmap :: forall a b. (a -&gt; b) -&gt; Handler a -&gt; Handler b
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Functor</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679130369"><span id="local-6989586621679130375"><span id="local-6989586621679130381"><span id="local-6989586621679130387"><span id="local-6989586621679130394"><span class="annot"><span class="annottext">Functor Handler
+forall a. a -&gt; Handler a
+forall a b. Handler a -&gt; Handler b -&gt; Handler a
+forall a b. Handler a -&gt; Handler b -&gt; Handler b
+forall a b. Handler (a -&gt; b) -&gt; Handler a -&gt; Handler b
+forall a b c. (a -&gt; b -&gt; c) -&gt; Handler a -&gt; Handler b -&gt; Handler c
+forall (f :: * -&gt; *).
+Functor f
+-&gt; (forall a. a -&gt; f a)
+-&gt; (forall a b. f (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b c. (a -&gt; b -&gt; c) -&gt; f a -&gt; f b -&gt; f c)
+-&gt; (forall a b. f a -&gt; f b -&gt; f b)
+-&gt; (forall a b. f a -&gt; f b -&gt; f a)
+-&gt; Applicative f
+&lt;* :: forall a b. Handler a -&gt; Handler b -&gt; Handler a
+$c&lt;* :: forall a b. Handler a -&gt; Handler b -&gt; Handler a
+*&gt; :: forall a b. Handler a -&gt; Handler b -&gt; Handler b
+$c*&gt; :: forall a b. Handler a -&gt; Handler b -&gt; Handler b
+liftA2 :: forall a b c. (a -&gt; b -&gt; c) -&gt; Handler a -&gt; Handler b -&gt; Handler c
+$cliftA2 :: forall a b c. (a -&gt; b -&gt; c) -&gt; Handler a -&gt; Handler b -&gt; Handler c
+&lt;*&gt; :: forall a b. Handler (a -&gt; b) -&gt; Handler a -&gt; Handler b
+$c&lt;*&gt; :: forall a b. Handler (a -&gt; b) -&gt; Handler a -&gt; Handler b
+pure :: forall a. a -&gt; Handler a
+$cpure :: forall a. a -&gt; Handler a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Applicative</span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679130347"><span id="local-6989586621679130352"><span id="local-6989586621679130358"><span class="annot"><span class="annottext">Applicative Handler
+forall a. a -&gt; Handler a
+forall a b. Handler a -&gt; Handler b -&gt; Handler b
+forall a b. Handler a -&gt; (a -&gt; Handler b) -&gt; Handler b
+forall (m :: * -&gt; *).
+Applicative m
+-&gt; (forall a b. m a -&gt; (a -&gt; m b) -&gt; m b)
+-&gt; (forall a b. m a -&gt; m b -&gt; m b)
+-&gt; (forall a. a -&gt; m a)
+-&gt; Monad m
+return :: forall a. a -&gt; Handler a
+$creturn :: forall a. a -&gt; Handler a
+&gt;&gt; :: forall a b. Handler a -&gt; Handler b -&gt; Handler b
+$c&gt;&gt; :: forall a b. Handler a -&gt; Handler b -&gt; Handler b
+&gt;&gt;= :: forall a b. Handler a -&gt; (a -&gt; Handler b) -&gt; Handler b
+$c&gt;&gt;= :: forall a b. Handler a -&gt; (a -&gt; Handler b) -&gt; Handler b
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Monad</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679130338"><span class="annot"><span class="annottext">Monad Handler
+forall a. IO a -&gt; Handler a
+forall (m :: * -&gt; *).
+Monad m -&gt; (forall a. IO a -&gt; m a) -&gt; MonadIO m
+liftIO :: forall a. IO a -&gt; Handler a
+$cliftIO :: forall a. IO a -&gt; Handler a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var">MonadIO</span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+forall a x. Rep (Handler a) x -&gt; Handler a
+forall a x. Handler a -&gt; Rep (Handler a) x
+$cto :: forall a x. Rep (Handler a) x -&gt; Handler a
+$cfrom :: forall a x. Handler a -&gt; Rep (Handler a) x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span>
+</span><span id="line-33"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="local-6989586621679130317"><span id="local-6989586621679130323"><span class="annot"><span class="hs-identifier hs-type">MonadError</span></span><span> </span><span class="annot"><a href="Servant.Server.Internal.ServerError.html#ServerError"><span class="hs-identifier hs-type">ServerError</span></a></span></span></span><span>
+</span><span id="line-34"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="local-6989586621679130306"><span class="annot"><span class="annottext">Monad Handler
+forall e a. Exception e =&gt; e -&gt; Handler a
+forall (m :: * -&gt; *).
+Monad m -&gt; (forall e a. Exception e =&gt; e -&gt; m a) -&gt; MonadThrow m
+throwM :: forall e a. Exception e =&gt; e -&gt; Handler a
+$cthrowM :: forall e a. Exception e =&gt; e -&gt; Handler a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var">MonadThrow</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679130291"><span class="annot"><span class="annottext">MonadThrow Handler
+forall e a.
+Exception e =&gt;
+Handler a -&gt; (e -&gt; Handler a) -&gt; Handler a
+forall (m :: * -&gt; *).
+MonadThrow m
+-&gt; (forall e a. Exception e =&gt; m a -&gt; (e -&gt; m a) -&gt; m a)
+-&gt; MonadCatch m
+catch :: forall e a.
+Exception e =&gt;
+Handler a -&gt; (e -&gt; Handler a) -&gt; Handler a
+$ccatch :: forall e a.
+Exception e =&gt;
+Handler a -&gt; (e -&gt; Handler a) -&gt; Handler a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var">MonadCatch</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679130267"><span id="local-6989586621679130272"><span id="local-6989586621679130278"><span class="annot"><span class="annottext">MonadCatch Handler
+forall b.
+((forall a. Handler a -&gt; Handler a) -&gt; Handler b) -&gt; Handler b
+forall a b c.
+Handler a
+-&gt; (a -&gt; ExitCase b -&gt; Handler c)
+-&gt; (a -&gt; Handler b)
+-&gt; Handler (b, c)
+forall (m :: * -&gt; *).
+MonadCatch m
+-&gt; (forall b. ((forall a. m a -&gt; m a) -&gt; m b) -&gt; m b)
+-&gt; (forall b. ((forall a. m a -&gt; m a) -&gt; m b) -&gt; m b)
+-&gt; (forall a b c.
+    m a -&gt; (a -&gt; ExitCase b -&gt; m c) -&gt; (a -&gt; m b) -&gt; m (b, c))
+-&gt; MonadMask m
+generalBracket :: forall a b c.
+Handler a
+-&gt; (a -&gt; ExitCase b -&gt; Handler c)
+-&gt; (a -&gt; Handler b)
+-&gt; Handler (b, c)
+$cgeneralBracket :: forall a b c.
+Handler a
+-&gt; (a -&gt; ExitCase b -&gt; Handler c)
+-&gt; (a -&gt; Handler b)
+-&gt; Handler (b, c)
+uninterruptibleMask :: forall b.
+((forall a. Handler a -&gt; Handler a) -&gt; Handler b) -&gt; Handler b
+$cuninterruptibleMask :: forall b.
+((forall a. Handler a -&gt; Handler a) -&gt; Handler b) -&gt; Handler b
+mask :: forall b.
+((forall a. Handler a -&gt; Handler a) -&gt; Handler b) -&gt; Handler b
+$cmask :: forall b.
+((forall a. Handler a -&gt; Handler a) -&gt; Handler b) -&gt; Handler b
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">MonadMask</span></span></span></span></span><span>
+</span><span id="line-35"></span><span>    </span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadFail</span></span><span> </span><span class="annot"><a href="Servant.Server.Internal.Handler.html#Handler"><span class="hs-identifier hs-type">Handler</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-38"></span><span>  </span><span id="local-6989586621679130252"><span class="annot"><span class="annottext">fail :: forall a. String -&gt; Handler a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">fail</span></span></span><span> </span><span id="local-6989586621679130251"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679130251"><span class="hs-identifier hs-var">str</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall e (m :: * -&gt; *) a. MonadError e m =&gt; e -&gt; m a
+</span><span class="hs-identifier hs-var">throwError</span></span><span> </span><span class="annot"><span class="annottext">ServerError
+</span><a href="Servant.Server.Internal.ServerError.html#err500"><span class="hs-identifier hs-var">err500</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">errBody :: ByteString
+</span><a href="Servant.Server.Internal.ServerError.html#errBody"><span class="hs-identifier hs-var">errBody</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. IsString a =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">fromString</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679130251"><span class="hs-identifier hs-var">str</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadBase</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Servant.Server.Internal.Handler.html#Handler"><span class="hs-identifier hs-type">Handler</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-41"></span><span>  </span><span id="local-6989586621679130234"><span class="annot"><span class="annottext">liftBase :: forall a. IO a -&gt; Handler a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">liftBase</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. ExceptT ServerError IO a -&gt; Handler a
+</span><a href="Servant.Server.Internal.Handler.html#Handler"><span class="hs-identifier hs-var">Handler</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall (b :: * -&gt; *) (m :: * -&gt; *) &#945;. MonadBase b m =&gt; b &#945; -&gt; m &#945;
+</span><span class="hs-identifier hs-var">liftBase</span></span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadBaseControl</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Servant.Server.Internal.Handler.html#Handler"><span class="hs-identifier hs-type">Handler</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-44"></span><span>  </span><span class="hs-keyword">type</span><span> </span><span id="StM"><span class="annot"><span class="hs-identifier hs-var">StM</span></span></span><span> </span><span id="local-6989586621679130225"><span class="annot"><a href="Servant.Server.Internal.Handler.html#Handler"><span class="hs-identifier hs-type">Handler</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679130225"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="Servant.Server.Internal.ServerError.html#ServerError"><span class="hs-identifier hs-type">ServerError</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679130225"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span>  </span><span class="hs-comment">-- liftBaseWith :: (RunInBase Handler IO -&gt; IO a) -&gt; Handler a</span><span>
+</span><span id="line-47"></span><span>  </span><span id="local-6989586621679130220"><span class="annot"><span class="annottext">liftBaseWith :: forall a. (RunInBase Handler IO -&gt; IO a) -&gt; Handler a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">liftBaseWith</span></span></span><span> </span><span id="local-6989586621679130218"><span class="annot"><span class="annottext">RunInBase Handler IO -&gt; IO a
+</span><a href="#local-6989586621679130218"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. ExceptT ServerError IO a -&gt; Handler a
+</span><a href="Servant.Server.Internal.Handler.html#Handler"><span class="hs-identifier hs-var">Handler</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (b :: * -&gt; *) (m :: * -&gt; *) a.
+MonadBaseControl b m =&gt;
+(RunInBase m b -&gt; b a) -&gt; m a
+</span><span class="hs-identifier hs-var">liftBaseWith</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679130217"><span class="annot"><span class="annottext">RunInBase (ExceptT ServerError IO) IO
+</span><a href="#local-6989586621679130217"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">RunInBase Handler IO -&gt; IO a
+</span><a href="#local-6989586621679130218"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">RunInBase (ExceptT ServerError IO) IO
+</span><a href="#local-6989586621679130217"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall a. Handler a -&gt; ExceptT ServerError IO a
+</span><a href="Servant.Server.Internal.Handler.html#runHandler%27"><span class="hs-identifier hs-var">runHandler'</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span>  </span><span class="hs-comment">-- restoreM :: StM Handler a -&gt; Handler a</span><span>
+</span><span id="line-50"></span><span>  </span><span id="local-6989586621679130214"><span class="annot"><span class="annottext">restoreM :: forall a. StM Handler a -&gt; Handler a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">restoreM</span></span></span><span> </span><span id="local-6989586621679130212"><span class="annot"><span class="annottext">StM Handler a
+</span><a href="#local-6989586621679130212"><span class="hs-identifier hs-var">st</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. ExceptT ServerError IO a -&gt; Handler a
+</span><a href="Servant.Server.Internal.Handler.html#Handler"><span class="hs-identifier hs-var">Handler</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (b :: * -&gt; *) (m :: * -&gt; *) a.
+MonadBaseControl b m =&gt;
+StM m a -&gt; m a
+</span><span class="hs-identifier hs-var">restoreM</span></span><span> </span><span class="annot"><span class="annottext">StM Handler a
+</span><a href="#local-6989586621679130212"><span class="hs-identifier hs-var">st</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span id="local-6989586621679130424"><span class="annot"><a href="Servant.Server.Internal.Handler.html#runHandler"><span class="hs-identifier hs-type">runHandler</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Servant.Server.Internal.Handler.html#Handler"><span class="hs-identifier hs-type">Handler</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679130424"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="Servant.Server.Internal.ServerError.html#ServerError"><span class="hs-identifier hs-type">ServerError</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679130424"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-53"></span><span id="runHandler"><span class="annot"><span class="annottext">runHandler :: forall a. Handler a -&gt; IO (Either ServerError a)
+</span><a href="Servant.Server.Internal.Handler.html#runHandler"><span class="hs-identifier hs-var hs-var">runHandler</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall e (m :: * -&gt; *) a. ExceptT e m a -&gt; m (Either e a)
+</span><span class="hs-identifier hs-var">runExceptT</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall a. Handler a -&gt; ExceptT ServerError IO a
+</span><a href="Servant.Server.Internal.Handler.html#runHandler%27"><span class="hs-identifier hs-var">runHandler'</span></a></span><span>
+</span><span id="line-54"></span></pre></body></html>

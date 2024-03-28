@@ -1,0 +1,94 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Network.HTTP.Date.Types</span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-2"></span><span>    </span><span class="annot"><a href="Network.HTTP.Date.Types.html#HTTPDate"><span class="hs-identifier">HTTPDate</span></a></span><span>
+</span><span id="line-3"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Date.Types.html#hdYear"><span class="hs-identifier">hdYear</span></a></span><span>
+</span><span id="line-4"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Date.Types.html#hdMonth"><span class="hs-identifier">hdMonth</span></a></span><span>
+</span><span id="line-5"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Date.Types.html#hdDay"><span class="hs-identifier">hdDay</span></a></span><span>
+</span><span id="line-6"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Date.Types.html#hdHour"><span class="hs-identifier">hdHour</span></a></span><span>
+</span><span id="line-7"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Date.Types.html#hdMinute"><span class="hs-identifier">hdMinute</span></a></span><span>
+</span><span id="line-8"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Date.Types.html#hdSecond"><span class="hs-identifier">hdSecond</span></a></span><span>
+</span><span id="line-9"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Date.Types.html#hdWkday"><span class="hs-identifier">hdWkday</span></a></span><span>
+</span><span id="line-10"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Date.Types.html#defaultHTTPDate"><span class="hs-identifier">defaultHTTPDate</span></a></span><span>
+</span><span id="line-11"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span class="hs-comment">{-|
+  Data structure for HTTP Date. This value should be specified
+  with 'defaultHTTPDate' and its field labels.
+-}</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">data</span><span> </span><span id="HTTPDate"><span class="annot"><a href="Network.HTTP.Date.Types.html#HTTPDate"><span class="hs-identifier hs-var">HTTPDate</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="HTTPDate"><span class="annot"><a href="Network.HTTP.Date.Types.html#HTTPDate"><span class="hs-identifier hs-var">HTTPDate</span></a></span></span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-18"></span><span>    </span><span id="hdYear"><span class="annot"><span class="annottext">HTTPDate -&gt; Int
+</span><a href="Network.HTTP.Date.Types.html#hdYear"><span class="hs-identifier hs-var hs-var">hdYear</span></a></span></span><span>   </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-19"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="hdMonth"><span class="annot"><span class="annottext">HTTPDate -&gt; Int
+</span><a href="Network.HTTP.Date.Types.html#hdMonth"><span class="hs-identifier hs-var hs-var">hdMonth</span></a></span></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-20"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="hdDay"><span class="annot"><span class="annottext">HTTPDate -&gt; Int
+</span><a href="Network.HTTP.Date.Types.html#hdDay"><span class="hs-identifier hs-var hs-var">hdDay</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-21"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="hdHour"><span class="annot"><span class="annottext">HTTPDate -&gt; Int
+</span><a href="Network.HTTP.Date.Types.html#hdHour"><span class="hs-identifier hs-var hs-var">hdHour</span></a></span></span><span>   </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-22"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="hdMinute"><span class="annot"><span class="annottext">HTTPDate -&gt; Int
+</span><a href="Network.HTTP.Date.Types.html#hdMinute"><span class="hs-identifier hs-var hs-var">hdMinute</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-23"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="hdSecond"><span class="annot"><span class="annottext">HTTPDate -&gt; Int
+</span><a href="Network.HTTP.Date.Types.html#hdSecond"><span class="hs-identifier hs-var hs-var">hdSecond</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-24"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="hdWkday"><span class="annot"><span class="annottext">HTTPDate -&gt; Int
+</span><a href="Network.HTTP.Date.Types.html#hdWkday"><span class="hs-identifier hs-var hs-var">hdWkday</span></a></span></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-25"></span><span>  </span><span class="hs-special">}</span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679048912"><span id="local-6989586621679048922"><span class="annot"><span class="annottext">HTTPDate -&gt; HTTPDate -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: HTTPDate -&gt; HTTPDate -&gt; Bool
+$c/= :: HTTPDate -&gt; HTTPDate -&gt; Bool
+== :: HTTPDate -&gt; HTTPDate -&gt; Bool
+$c== :: HTTPDate -&gt; HTTPDate -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679048895"><span id="local-6989586621679048897"><span id="local-6989586621679048909"><span class="annot"><span class="annottext">Int -&gt; HTTPDate -&gt; ShowS
+[HTTPDate] -&gt; ShowS
+HTTPDate -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [HTTPDate] -&gt; ShowS
+$cshowList :: [HTTPDate] -&gt; ShowS
+show :: HTTPDate -&gt; String
+$cshow :: HTTPDate -&gt; String
+showsPrec :: Int -&gt; HTTPDate -&gt; ShowS
+$cshowsPrec :: Int -&gt; HTTPDate -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679048861"><span id="local-6989586621679048863"><span id="local-6989586621679048866"><span id="local-6989586621679048869"><span id="local-6989586621679048872"><span id="local-6989586621679048881"><span id="local-6989586621679048890"><span class="annot"><span class="annottext">Eq HTTPDate
+HTTPDate -&gt; HTTPDate -&gt; Bool
+HTTPDate -&gt; HTTPDate -&gt; Ordering
+HTTPDate -&gt; HTTPDate -&gt; HTTPDate
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: HTTPDate -&gt; HTTPDate -&gt; HTTPDate
+$cmin :: HTTPDate -&gt; HTTPDate -&gt; HTTPDate
+max :: HTTPDate -&gt; HTTPDate -&gt; HTTPDate
+$cmax :: HTTPDate -&gt; HTTPDate -&gt; HTTPDate
+&gt;= :: HTTPDate -&gt; HTTPDate -&gt; Bool
+$c&gt;= :: HTTPDate -&gt; HTTPDate -&gt; Bool
+&gt; :: HTTPDate -&gt; HTTPDate -&gt; Bool
+$c&gt; :: HTTPDate -&gt; HTTPDate -&gt; Bool
+&lt;= :: HTTPDate -&gt; HTTPDate -&gt; Bool
+$c&lt;= :: HTTPDate -&gt; HTTPDate -&gt; Bool
+&lt; :: HTTPDate -&gt; HTTPDate -&gt; Bool
+$c&lt; :: HTTPDate -&gt; HTTPDate -&gt; Bool
+compare :: HTTPDate -&gt; HTTPDate -&gt; Ordering
+$ccompare :: HTTPDate -&gt; HTTPDate -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="hs-comment">{-|
+  A default value for 'HTTPDate'.
+-}</span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- 1970/1/1 is Thu (4)</span><span>
+</span><span id="line-31"></span><span class="annot"><a href="Network.HTTP.Date.Types.html#defaultHTTPDate"><span class="hs-identifier hs-type">defaultHTTPDate</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP.Date.Types.html#HTTPDate"><span class="hs-identifier hs-type">HTTPDate</span></a></span><span>
+</span><span id="line-32"></span><span id="defaultHTTPDate"><span class="annot"><span class="annottext">defaultHTTPDate :: HTTPDate
+</span><a href="Network.HTTP.Date.Types.html#defaultHTTPDate"><span class="hs-identifier hs-var hs-var">defaultHTTPDate</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int -&gt; Int -&gt; Int -&gt; Int -&gt; Int -&gt; HTTPDate
+</span><a href="Network.HTTP.Date.Types.html#HTTPDate"><span class="hs-identifier hs-var">HTTPDate</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1970</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span>
+</span><span id="line-33"></span></pre></body></html>

@@ -1,0 +1,246 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- THIS IS A GENERATED FILE, DO NOT EDIT</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-imports #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-matches #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-deprecations #-}</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.FoldingRangeClientCapabilities</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Hashable</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html"><span class="hs-identifier">Language.LSP.Protocol.Utils.Misc</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prettyprinter</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Row</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Row</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Aeson.html"><span class="hs-identifier">Data.Row.Aeson</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Hashable.html"><span class="hs-identifier">Data.Row.Hashable</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Hashable</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.FoldingRangeKind.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.FoldingRangeKind</span></a></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html"><span class="hs-identifier">Language.LSP.Protocol.Types.Common</span></a></span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="hs-comment">{-|
+
+-}</span><span>
+</span><span id="line-23"></span><span id="local-6989586621682179125"><span id="local-6989586621682179126"></span></span><span class="hs-keyword">data</span><span> </span><span id="FoldingRangeClientCapabilities"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.FoldingRangeClientCapabilities.html#FoldingRangeClientCapabilities"><span class="hs-identifier hs-var">FoldingRangeClientCapabilities</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="FoldingRangeClientCapabilities"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.FoldingRangeClientCapabilities.html#FoldingRangeClientCapabilities"><span class="hs-identifier hs-var">FoldingRangeClientCapabilities</span></a></span></span><span> </span><span>
+</span><span id="line-24"></span><span>  </span><span class="hs-special">{</span><span> </span><span class="hs-comment">{-|
+  Whether implementation supports dynamic registration for folding range
+  providers. If this is set to `true` the client supports the new
+  `FoldingRangeRegistrationOptions` return value for the corresponding
+  server capability as well.
+  -}</span><span>
+</span><span id="line-30"></span><span>  </span><span id="%24sel%3A_dynamicRegistration%3AFoldingRangeClientCapabilities"><span class="annot"><span class="annottext">FoldingRangeClientCapabilities -&gt; Maybe Bool
+</span><a href="Language.LSP.Protocol.Internal.Types.FoldingRangeClientCapabilities.html#%24sel%3A_dynamicRegistration%3AFoldingRangeClientCapabilities"><span class="hs-identifier hs-var hs-var">_dynamicRegistration</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-comment">{-|
+  The maximum number of folding ranges that the client prefers to receive
+  per document. The value serves as a hint, servers are free to follow the
+  limit.
+  -}</span><span>
+</span><span id="line-36"></span><span>  </span><span id="%24sel%3A_rangeLimit%3AFoldingRangeClientCapabilities"><span class="annot"><span class="annottext">FoldingRangeClientCapabilities -&gt; Maybe UInt
+</span><a href="Language.LSP.Protocol.Internal.Types.FoldingRangeClientCapabilities.html#%24sel%3A_rangeLimit%3AFoldingRangeClientCapabilities"><span class="hs-identifier hs-var hs-var">_rangeLimit</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#UInt"><span class="hs-identifier hs-type">Language.LSP.Protocol.Types.Common.UInt</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-37"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-comment">{-|
+  If set, the client signals that it only supports folding complete lines.
+  If set, client will ignore specified `startCharacter` and `endCharacter`
+  properties in a FoldingRange.
+  -}</span><span>
+</span><span id="line-42"></span><span>  </span><span id="%24sel%3A_lineFoldingOnly%3AFoldingRangeClientCapabilities"><span class="annot"><span class="annottext">FoldingRangeClientCapabilities -&gt; Maybe Bool
+</span><a href="Language.LSP.Protocol.Internal.Types.FoldingRangeClientCapabilities.html#%24sel%3A_lineFoldingOnly%3AFoldingRangeClientCapabilities"><span class="hs-identifier hs-var hs-var">_lineFoldingOnly</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span>
+</span><span id="line-43"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-comment">{-|
+  Specific options for the folding range kind.
+
+  @since 3.17.0
+  -}</span><span>
+</span><span id="line-48"></span><span>  </span><span id="%24sel%3A_foldingRangeKind%3AFoldingRangeClientCapabilities"><span class="annot"><span class="annottext">FoldingRangeClientCapabilities
+-&gt; Maybe
+     (Rec
+        (Extend &quot;valueSet&quot; (Maybe [FoldingRangeKind]) ('R '[]) .+ 'R '[]))
+</span><a href="Language.LSP.Protocol.Internal.Types.FoldingRangeClientCapabilities.html#%24sel%3A_foldingRangeKind%3AFoldingRangeClientCapabilities"><span class="hs-identifier hs-var hs-var">_foldingRangeKind</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Row.Rec</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-string">&quot;valueSet&quot;</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">Row..==</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.FoldingRangeKind.html#FoldingRangeKind"><span class="hs-identifier hs-type">Language.LSP.Protocol.Internal.Types.FoldingRangeKind.FoldingRangeKind</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-operator hs-type">Row..+</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Row.Empty</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-49"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-comment">{-|
+  Specific options for the folding range.
+
+  @since 3.17.0
+  -}</span><span>
+</span><span id="line-54"></span><span>  </span><span id="%24sel%3A_foldingRange%3AFoldingRangeClientCapabilities"><span class="annot"><span class="annottext">FoldingRangeClientCapabilities
+-&gt; Maybe
+     (Rec (Extend &quot;collapsedText&quot; (Maybe Bool) ('R '[]) .+ 'R '[]))
+</span><a href="Language.LSP.Protocol.Internal.Types.FoldingRangeClientCapabilities.html#%24sel%3A_foldingRange%3AFoldingRangeClientCapabilities"><span class="hs-identifier hs-var hs-var">_foldingRange</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Row.Rec</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-string">&quot;collapsedText&quot;</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">Row..==</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-operator hs-type">Row..+</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Row.Empty</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-55"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-56"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682179099"><span id="local-6989586621682179101"><span id="local-6989586621682179115"><span class="annot"><span class="annottext">Int -&gt; FoldingRangeClientCapabilities -&gt; ShowS
+[FoldingRangeClientCapabilities] -&gt; ShowS
+FoldingRangeClientCapabilities -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [FoldingRangeClientCapabilities] -&gt; ShowS
+$cshowList :: [FoldingRangeClientCapabilities] -&gt; ShowS
+show :: FoldingRangeClientCapabilities -&gt; String
+$cshow :: FoldingRangeClientCapabilities -&gt; String
+showsPrec :: Int -&gt; FoldingRangeClientCapabilities -&gt; ShowS
+$cshowsPrec :: Int -&gt; FoldingRangeClientCapabilities -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682179059"><span id="local-6989586621682179070"><span class="annot"><span class="annottext">FoldingRangeClientCapabilities
+-&gt; FoldingRangeClientCapabilities -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: FoldingRangeClientCapabilities
+-&gt; FoldingRangeClientCapabilities -&gt; Bool
+$c/= :: FoldingRangeClientCapabilities
+-&gt; FoldingRangeClientCapabilities -&gt; Bool
+== :: FoldingRangeClientCapabilities
+-&gt; FoldingRangeClientCapabilities -&gt; Bool
+$c== :: FoldingRangeClientCapabilities
+-&gt; FoldingRangeClientCapabilities -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682178997"><span id="local-6989586621682178999"><span id="local-6989586621682179002"><span id="local-6989586621682179005"><span id="local-6989586621682179008"><span id="local-6989586621682179019"><span id="local-6989586621682179031"><span class="annot"><span class="annottext">Eq FoldingRangeClientCapabilities
+FoldingRangeClientCapabilities
+-&gt; FoldingRangeClientCapabilities -&gt; Bool
+FoldingRangeClientCapabilities
+-&gt; FoldingRangeClientCapabilities -&gt; Ordering
+FoldingRangeClientCapabilities
+-&gt; FoldingRangeClientCapabilities -&gt; FoldingRangeClientCapabilities
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: FoldingRangeClientCapabilities
+-&gt; FoldingRangeClientCapabilities -&gt; FoldingRangeClientCapabilities
+$cmin :: FoldingRangeClientCapabilities
+-&gt; FoldingRangeClientCapabilities -&gt; FoldingRangeClientCapabilities
+max :: FoldingRangeClientCapabilities
+-&gt; FoldingRangeClientCapabilities -&gt; FoldingRangeClientCapabilities
+$cmax :: FoldingRangeClientCapabilities
+-&gt; FoldingRangeClientCapabilities -&gt; FoldingRangeClientCapabilities
+&gt;= :: FoldingRangeClientCapabilities
+-&gt; FoldingRangeClientCapabilities -&gt; Bool
+$c&gt;= :: FoldingRangeClientCapabilities
+-&gt; FoldingRangeClientCapabilities -&gt; Bool
+&gt; :: FoldingRangeClientCapabilities
+-&gt; FoldingRangeClientCapabilities -&gt; Bool
+$c&gt; :: FoldingRangeClientCapabilities
+-&gt; FoldingRangeClientCapabilities -&gt; Bool
+&lt;= :: FoldingRangeClientCapabilities
+-&gt; FoldingRangeClientCapabilities -&gt; Bool
+$c&lt;= :: FoldingRangeClientCapabilities
+-&gt; FoldingRangeClientCapabilities -&gt; Bool
+&lt; :: FoldingRangeClientCapabilities
+-&gt; FoldingRangeClientCapabilities -&gt; Bool
+$c&lt; :: FoldingRangeClientCapabilities
+-&gt; FoldingRangeClientCapabilities -&gt; Bool
+compare :: FoldingRangeClientCapabilities
+-&gt; FoldingRangeClientCapabilities -&gt; Ordering
+$ccompare :: FoldingRangeClientCapabilities
+-&gt; FoldingRangeClientCapabilities -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall x.
+Rep FoldingRangeClientCapabilities x
+-&gt; FoldingRangeClientCapabilities
+forall x.
+FoldingRangeClientCapabilities
+-&gt; Rep FoldingRangeClientCapabilities x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cto :: forall x.
+Rep FoldingRangeClientCapabilities x
+-&gt; FoldingRangeClientCapabilities
+$cfrom :: forall x.
+FoldingRangeClientCapabilities
+-&gt; Rep FoldingRangeClientCapabilities x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-57"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">anyclass</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682178924"><span class="annot"><span class="annottext">FoldingRangeClientCapabilities -&gt; ()
+forall a. (a -&gt; ()) -&gt; NFData a
+rnf :: FoldingRangeClientCapabilities -&gt; ()
+$crnf :: FoldingRangeClientCapabilities -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682178917"><span id="local-6989586621682178919"><span class="annot"><span class="annottext">Eq FoldingRangeClientCapabilities
+Int -&gt; FoldingRangeClientCapabilities -&gt; Int
+FoldingRangeClientCapabilities -&gt; Int
+forall a. Eq a -&gt; (Int -&gt; a -&gt; Int) -&gt; (a -&gt; Int) -&gt; Hashable a
+hash :: FoldingRangeClientCapabilities -&gt; Int
+$chash :: FoldingRangeClientCapabilities -&gt; Int
+hashWithSalt :: Int -&gt; FoldingRangeClientCapabilities -&gt; Int
+$chashWithSalt :: Int -&gt; FoldingRangeClientCapabilities -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Hashable</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-58"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621682178908"><span id="local-6989586621682178914"><span class="annot"><span class="annottext">forall ann. [FoldingRangeClientCapabilities] -&gt; Doc ann
+forall ann. FoldingRangeClientCapabilities -&gt; Doc ann
+forall a.
+(forall ann. a -&gt; Doc ann)
+-&gt; (forall ann. [a] -&gt; Doc ann) -&gt; Pretty a
+prettyList :: forall ann. [FoldingRangeClientCapabilities] -&gt; Doc ann
+$cprettyList :: forall ann. [FoldingRangeClientCapabilities] -&gt; Doc ann
+pretty :: forall ann. FoldingRangeClientCapabilities -&gt; Doc ann
+$cpretty :: forall ann. FoldingRangeClientCapabilities -&gt; Doc ann
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Pretty</span></span></span></span><span> </span><span class="hs-keyword">via</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html#ViaJSON"><span class="hs-identifier hs-type">ViaJSON</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.FoldingRangeClientCapabilities.html#FoldingRangeClientCapabilities"><span class="hs-identifier hs-type">FoldingRangeClientCapabilities</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682178896"><span id="local-6989586621682178898"><span id="local-6989586621682178900"><span class="annot"><span class="hs-identifier hs-type">Aeson.ToJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.FoldingRangeClientCapabilities.html#FoldingRangeClientCapabilities"><span class="hs-identifier hs-type">FoldingRangeClientCapabilities</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-61"></span><span>  </span><span id="local-6989586621682178853"><span class="annot"><span class="annottext">toJSON :: FoldingRangeClientCapabilities -&gt; Value
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">toJSON</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.FoldingRangeClientCapabilities.html#FoldingRangeClientCapabilities"><span class="hs-identifier hs-type">FoldingRangeClientCapabilities</span></a></span><span> </span><span id="local-6989586621682178851"><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682178851"><span class="hs-identifier hs-var">arg0</span></a></span></span><span> </span><span id="local-6989586621682178850"><span class="annot"><span class="annottext">Maybe UInt
+</span><a href="#local-6989586621682178850"><span class="hs-identifier hs-var">arg1</span></a></span></span><span> </span><span id="local-6989586621682178849"><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682178849"><span class="hs-identifier hs-var">arg2</span></a></span></span><span> </span><span id="local-6989586621682178848"><span class="annot"><span class="annottext">Maybe
+  (Rec
+     (Extend &quot;valueSet&quot; (Maybe [FoldingRangeKind]) ('R '[]) .+ 'R '[]))
+</span><a href="#local-6989586621682178848"><span class="hs-identifier hs-var">arg3</span></a></span></span><span> </span><span id="local-6989586621682178847"><span class="annot"><span class="annottext">Maybe
+  (Rec (Extend &quot;collapsedText&quot; (Maybe Bool) ('R '[]) .+ 'R '[]))
+</span><a href="#local-6989586621682178847"><span class="hs-identifier hs-var">arg4</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">Aeson.object</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">concat</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>  </span><span class="hs-special">[</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;dynamicRegistration&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682178851"><span class="hs-identifier hs-var">arg0</span></a></span><span>
+</span><span id="line-62"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;rangeLimit&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe UInt
+</span><a href="#local-6989586621682178850"><span class="hs-identifier hs-var">arg1</span></a></span><span>
+</span><span id="line-63"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;lineFoldingOnly&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682178849"><span class="hs-identifier hs-var">arg2</span></a></span><span>
+</span><span id="line-64"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;foldingRangeKind&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe
+  (Rec
+     (Extend &quot;valueSet&quot; (Maybe [FoldingRangeKind]) ('R '[]) .+ 'R '[]))
+</span><a href="#local-6989586621682178848"><span class="hs-identifier hs-var">arg3</span></a></span><span>
+</span><span id="line-65"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;foldingRange&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe
+  (Rec (Extend &quot;collapsedText&quot; (Maybe Bool) ('R '[]) .+ 'R '[]))
+</span><a href="#local-6989586621682178847"><span class="hs-identifier hs-var">arg4</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682178841"><span class="annot"><span class="hs-identifier hs-type">Aeson.FromJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.FoldingRangeClientCapabilities.html#FoldingRangeClientCapabilities"><span class="hs-identifier hs-type">FoldingRangeClientCapabilities</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-68"></span><span>  </span><span id="local-6989586621682178791"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser FoldingRangeClientCapabilities
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">Aeson.withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;FoldingRangeClientCapabilities&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621682178788"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682178788"><span class="hs-identifier hs-var">arg</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Bool
+-&gt; Maybe UInt
+-&gt; Maybe Bool
+-&gt; Maybe
+     (Rec
+        (Extend &quot;valueSet&quot; (Maybe [FoldingRangeKind]) ('R '[]) .+ 'R '[]))
+-&gt; Maybe
+     (Rec (Extend &quot;collapsedText&quot; (Maybe Bool) ('R '[]) .+ 'R '[]))
+-&gt; FoldingRangeClientCapabilities
+</span><a href="Language.LSP.Protocol.Internal.Types.FoldingRangeClientCapabilities.html#FoldingRangeClientCapabilities"><span class="hs-identifier hs-var">FoldingRangeClientCapabilities</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682178788"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">Aeson..:!</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;dynamicRegistration&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682178788"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">Aeson..:!</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;rangeLimit&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682178788"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">Aeson..:!</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;lineFoldingOnly&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682178788"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">Aeson..:!</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;foldingRangeKind&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682178788"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">Aeson..:!</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;foldingRange&quot;</span></span><span>
+</span><span id="line-69"></span></pre></body></html>

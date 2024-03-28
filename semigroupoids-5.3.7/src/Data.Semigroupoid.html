@@ -1,0 +1,234 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE GADTs #-}</span><span class="hs-cpp">
+
+#if __GLASGOW_HASKELL__ &gt;= 706
+</span><span class="hs-pragma">{-# LANGUAGE PolyKinds #-}</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ &gt;= 702
+</span><span class="hs-pragma">{-# LANGUAGE Trustworthy #-}</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- Module      :  Data.Semigroupoid</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- Copyright   :  (C) 2007-2015 Edward Kmett</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- License     :  BSD-style (see the file LICENSE)</span><span>
+</span><span id="line-17"></span><span class="hs-comment">--</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- Maintainer  :  Edward Kmett &lt;ekmett@gmail.com&gt;</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- Stability   :  provisional</span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- Portability :  portable</span><span>
+</span><span id="line-21"></span><span class="hs-comment">--</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- A semigroupoid satisfies all of the requirements to be a Category except</span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- for the existence of identity arrows.</span><span>
+</span><span id="line-24"></span><span class="hs-comment">----------------------------------------------------------------------------</span><span>
+</span><span id="line-25"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Data.Semigroupoid</span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Data.Semigroupoid.html#Semigroupoid"><span class="hs-identifier">Semigroupoid</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Semigroupoid.html#WrappedCategory"><span class="hs-identifier">WrappedCategory</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Semigroupoid.html#Semi"><span class="hs-identifier">Semi</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Applicative</span></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Arrow</span></span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Functor.Bind.html"><span class="hs-identifier">Data.Functor.Bind</span></a></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Semigroup</span></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Category</span></span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">id</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-operator">(.)</span></span><span class="hs-special">)</span><span class="hs-cpp">
+
+#ifdef MIN_VERSION_contravariant
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Functor.Contravariant</span></span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#ifdef MIN_VERSION_comonad
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Functor.Extend.html"><span class="hs-identifier">Data.Functor.Extend</span></a></span><span>
+</span><span id="line-44"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Comonad</span></span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#ifdef MIN_VERSION_tagged
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Tagged</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Tagged</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#if MIN_VERSION_base(4,7,0)
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Type.Coercion</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Co</span></span><span>
+</span><span id="line-53"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Type.Equality</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Eq</span></span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-56"></span><span class="hs-comment">-- | 'Control.Category.Category' sans 'Control.Category.id'</span><span>
+</span><span id="line-57"></span><span class="hs-keyword">class</span><span> </span><span id="Semigroupoid"><span class="annot"><a href="Data.Semigroupoid.html#Semigroupoid"><span class="hs-identifier hs-var">Semigroupoid</span></a></span></span><span> </span><span id="local-6989586621679100970"><span class="annot"><a href="#local-6989586621679100970"><span class="hs-identifier hs-type">c</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-58"></span><span>  </span><span id="o"><span class="annot"><a href="Data.Semigroupoid.html#o"><span class="hs-identifier hs-type">o</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span id="local-6989586621679100972"><span id="local-6989586621679100973"><span id="local-6989586621679100974"><span class="annot"><a href="#local-6989586621679100970"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679100974"><span class="hs-identifier hs-type">j</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679100973"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679100970"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679100972"><span class="hs-identifier hs-type">i</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679100974"><span class="hs-identifier hs-type">j</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679100970"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679100972"><span class="hs-identifier hs-type">i</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679100973"><span class="hs-identifier hs-type">k</span></a></span></span></span></span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Semigroupoid.html#Semigroupoid"><span class="hs-identifier hs-type">Semigroupoid</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">-&gt;</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-61"></span><span>  </span><span id="local-6989586621679100823"><span class="annot"><span class="annottext">o :: forall j k i. (j -&gt; k) -&gt; (i -&gt; j) -&gt; i -&gt; k
+</span><a href="#local-6989586621679100823"><span class="hs-identifier hs-var hs-var hs-var hs-var">o</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {k} (cat :: k -&gt; k -&gt; *) (b :: k) (c :: k) (a :: k).
+Category cat =&gt;
+cat b c -&gt; cat a b -&gt; cat a c
+</span><span class="hs-operator hs-var">(.)</span></span><span>
+</span><span id="line-62"></span><span>
+</span><span id="line-63"></span><span class="hs-comment">-- | &lt;http://en.wikipedia.org/wiki/Band_(mathematics)#Rectangular_bands&gt;</span><span>
+</span><span id="line-64"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Semigroupoid.html#Semigroupoid"><span class="hs-identifier hs-type">Semigroupoid</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">,</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-65"></span><span>  </span><span id="local-6989586621679100819"><span class="annot"><span class="annottext">o :: forall j k i. (j, k) -&gt; (i, j) -&gt; (i, k)
+</span><a href="#local-6989586621679100819"><span class="hs-identifier hs-var hs-var hs-var hs-var">o</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">j
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span id="local-6989586621679100818"><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621679100818"><span class="hs-identifier hs-var">k</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679100817"><span class="annot"><span class="annottext">i
+</span><a href="#local-6989586621679100817"><span class="hs-identifier hs-var">i</span></a></span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">j
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">i
+</span><a href="#local-6989586621679100817"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621679100818"><span class="hs-identifier hs-var">k</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679100956"><span class="annot"><a href="Data.Functor.Bind.Class.html#Bind"><span class="hs-identifier hs-type">Bind</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679100956"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Semigroupoid.html#Semigroupoid"><span class="hs-identifier hs-type">Semigroupoid</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Kleisli</span></span><span> </span><span class="annot"><a href="#local-6989586621679100956"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-68"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Kleisli</span></span><span> </span><span id="local-6989586621679100811"><span class="annot"><span class="annottext">j -&gt; m k
+</span><a href="#local-6989586621679100811"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span id="local-6989586621679100810"><span class="annot"><span class="annottext">o :: forall j k i. Kleisli m j k -&gt; Kleisli m i j -&gt; Kleisli m i k
+</span><a href="#local-6989586621679100810"><span class="hs-operator hs-var hs-var hs-var hs-var">`o`</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Kleisli</span></span><span> </span><span id="local-6989586621679100809"><span class="annot"><span class="annottext">i -&gt; m j
+</span><a href="#local-6989586621679100809"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. (a -&gt; m b) -&gt; Kleisli m a b
+</span><span class="hs-identifier hs-var">Kleisli</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679100808"><span class="annot"><span class="annottext">i
+</span><a href="#local-6989586621679100808"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">i -&gt; m j
+</span><a href="#local-6989586621679100809"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">i
+</span><a href="#local-6989586621679100808"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Bind m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><a href="Data.Functor.Bind.Class.html#%3E%3E-"><span class="hs-operator hs-var">&gt;&gt;-</span></a></span><span> </span><span class="annot"><span class="annottext">j -&gt; m k
+</span><a href="#local-6989586621679100811"><span class="hs-identifier hs-var">g</span></a></span><span class="hs-cpp">
+
+#ifdef MIN_VERSION_comonad
+</span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679100940"><span class="annot"><a href="Data.Functor.Extend.html#Extend"><span class="hs-identifier hs-type">Extend</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679100940"><span class="hs-identifier hs-type">w</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Semigroupoid.html#Semigroupoid"><span class="hs-identifier hs-type">Semigroupoid</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Cokleisli</span></span><span> </span><span class="annot"><a href="#local-6989586621679100940"><span class="hs-identifier hs-type">w</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-72"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Cokleisli</span></span><span> </span><span id="local-6989586621679100800"><span class="annot"><span class="annottext">w j -&gt; k
+</span><a href="#local-6989586621679100800"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679100799"><span class="annot"><span class="annottext">o :: forall j k i. Cokleisli w j k -&gt; Cokleisli w i j -&gt; Cokleisli w i k
+</span><a href="#local-6989586621679100799"><span class="hs-operator hs-var hs-var hs-var hs-var">`o`</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Cokleisli</span></span><span> </span><span id="local-6989586621679100798"><span class="annot"><span class="annottext">w i -&gt; j
+</span><a href="#local-6989586621679100798"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {k} (w :: k -&gt; *) (a :: k) b. (w a -&gt; b) -&gt; Cokleisli w a b
+</span><span class="hs-identifier hs-var">Cokleisli</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">w j -&gt; k
+</span><a href="#local-6989586621679100800"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">forall {k} (cat :: k -&gt; k -&gt; *) (b :: k) (c :: k) (a :: k).
+Category cat =&gt;
+cat b c -&gt; cat a b -&gt; cat a c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall (w :: * -&gt; *) a b. Extend w =&gt; (w a -&gt; b) -&gt; w a -&gt; w b
+</span><a href="Data.Functor.Extend.html#extended"><span class="hs-identifier hs-var">extended</span></a></span><span> </span><span class="annot"><span class="annottext">w i -&gt; j
+</span><a href="#local-6989586621679100798"><span class="hs-identifier hs-var">g</span></a></span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#ifdef MIN_VERSION_contravariant
+</span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Semigroupoid.html#Semigroupoid"><span class="hs-identifier hs-type">Semigroupoid</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Op</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-77"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Op</span></span><span> </span><span id="local-6989586621679100792"><span class="annot"><span class="annottext">k -&gt; j
+</span><a href="#local-6989586621679100792"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679100791"><span class="annot"><span class="annottext">o :: forall j k i. Op j k -&gt; Op i j -&gt; Op i k
+</span><a href="#local-6989586621679100791"><span class="hs-operator hs-var hs-var hs-var hs-var">`o`</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Op</span></span><span> </span><span id="local-6989586621679100790"><span class="annot"><span class="annottext">j -&gt; i
+</span><a href="#local-6989586621679100790"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (b -&gt; a) -&gt; Op a b
+</span><span class="hs-identifier hs-var">Op</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">j -&gt; i
+</span><a href="#local-6989586621679100790"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">forall {k} (c :: k -&gt; k -&gt; *) (j :: k) (k :: k) (i :: k).
+Semigroupoid c =&gt;
+c j k -&gt; c i j -&gt; c i k
+</span><a href="Data.Semigroupoid.html#o"><span class="hs-operator hs-var">`o`</span></a></span><span> </span><span class="annot"><span class="annottext">k -&gt; j
+</span><a href="#local-6989586621679100792"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-80"></span><span class="hs-keyword">newtype</span><span> </span><span id="WrappedCategory"><span class="annot"><a href="Data.Semigroupoid.html#WrappedCategory"><span class="hs-identifier hs-var">WrappedCategory</span></a></span></span><span> </span><span id="local-6989586621679100921"><span class="annot"><a href="#local-6989586621679100921"><span class="hs-identifier hs-type">k</span></a></span></span><span> </span><span id="local-6989586621679100920"><span class="annot"><a href="#local-6989586621679100920"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span id="local-6989586621679100919"><span class="annot"><a href="#local-6989586621679100919"><span class="hs-identifier hs-type">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="WrapCategory"><span class="annot"><a href="Data.Semigroupoid.html#WrapCategory"><span class="hs-identifier hs-var">WrapCategory</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="unwrapCategory"><span class="annot"><span class="annottext">forall {k} {k} (k :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+WrappedCategory k a b -&gt; k a b
+</span><a href="Data.Semigroupoid.html#unwrapCategory"><span class="hs-identifier hs-var hs-var">unwrapCategory</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679100921"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679100920"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679100919"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-81"></span><span>
+</span><span id="line-82"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679100909"><span class="annot"><span class="hs-identifier hs-type">Category</span></span><span> </span><span class="annot"><a href="#local-6989586621679100909"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Semigroupoid.html#Semigroupoid"><span class="hs-identifier hs-type">Semigroupoid</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Semigroupoid.html#WrappedCategory"><span class="hs-identifier hs-type">WrappedCategory</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679100909"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-83"></span><span>  </span><span class="annot"><a href="Data.Semigroupoid.html#WrapCategory"><span class="hs-identifier hs-type">WrapCategory</span></a></span><span> </span><span id="local-6989586621679100783"><span class="annot"><span class="annottext">k j k
+</span><a href="#local-6989586621679100783"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679100782"><span class="annot"><span class="annottext">o :: forall (j :: k) (k :: k) (i :: k).
+WrappedCategory k j k
+-&gt; WrappedCategory k i j -&gt; WrappedCategory k i k
+</span><a href="#local-6989586621679100782"><span class="hs-operator hs-var hs-var hs-var hs-var">`o`</span></a></span></span><span> </span><span class="annot"><a href="Data.Semigroupoid.html#WrapCategory"><span class="hs-identifier hs-type">WrapCategory</span></a></span><span> </span><span id="local-6989586621679100781"><span class="annot"><span class="annottext">k i j
+</span><a href="#local-6989586621679100781"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {k} {k} (k :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+k a b -&gt; WrappedCategory k a b
+</span><a href="Data.Semigroupoid.html#WrapCategory"><span class="hs-identifier hs-var">WrapCategory</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">k j k
+</span><a href="#local-6989586621679100783"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">forall {k} (cat :: k -&gt; k -&gt; *) (b :: k) (c :: k) (a :: k).
+Category cat =&gt;
+cat b c -&gt; cat a b -&gt; cat a c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">k i j
+</span><a href="#local-6989586621679100781"><span class="hs-identifier hs-var">g</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-84"></span><span>
+</span><span id="line-85"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679100901"><span class="annot"><span class="hs-identifier hs-type">Category</span></span><span> </span><span class="annot"><a href="#local-6989586621679100901"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Category</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Semigroupoid.html#WrappedCategory"><span class="hs-identifier hs-type">WrappedCategory</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679100901"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-86"></span><span>  </span><span id="local-6989586621679100774"><span class="annot"><span class="annottext">id :: forall (a :: k). WrappedCategory k a a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">id</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {k} {k} (k :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+k a b -&gt; WrappedCategory k a b
+</span><a href="Data.Semigroupoid.html#WrapCategory"><span class="hs-identifier hs-var">WrapCategory</span></a></span><span> </span><span class="annot"><span class="annottext">forall {k} (cat :: k -&gt; k -&gt; *) (a :: k). Category cat =&gt; cat a a
+</span><span class="hs-identifier hs-var">id</span></span><span>
+</span><span id="line-87"></span><span>  </span><span class="annot"><a href="Data.Semigroupoid.html#WrapCategory"><span class="hs-identifier hs-type">WrapCategory</span></a></span><span> </span><span id="local-6989586621679100771"><span class="annot"><span class="annottext">k b c
+</span><a href="#local-6989586621679100771"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679100770"><span class="annot"><span class="annottext">. :: forall (b :: k) (c :: k) (a :: k).
+WrappedCategory k b c
+-&gt; WrappedCategory k a b -&gt; WrappedCategory k a c
+</span><a href="#local-6989586621679100770"><span class="hs-operator hs-var hs-var hs-var hs-var">.</span></a></span></span><span> </span><span class="annot"><a href="Data.Semigroupoid.html#WrapCategory"><span class="hs-identifier hs-type">WrapCategory</span></a></span><span> </span><span id="local-6989586621679100769"><span class="annot"><span class="annottext">k a b
+</span><a href="#local-6989586621679100769"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {k} {k} (k :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+k a b -&gt; WrappedCategory k a b
+</span><a href="Data.Semigroupoid.html#WrapCategory"><span class="hs-identifier hs-var">WrapCategory</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">k b c
+</span><a href="#local-6989586621679100771"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">forall {k} (cat :: k -&gt; k -&gt; *) (b :: k) (c :: k) (a :: k).
+Category cat =&gt;
+cat b c -&gt; cat a b -&gt; cat a c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">k a b
+</span><a href="#local-6989586621679100769"><span class="hs-identifier hs-var">g</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-88"></span><span>
+</span><span id="line-89"></span><span class="hs-keyword">newtype</span><span> </span><span id="Semi"><span class="annot"><a href="Data.Semigroupoid.html#Semi"><span class="hs-identifier hs-var">Semi</span></a></span></span><span> </span><span id="local-6989586621679100895"><span class="annot"><a href="#local-6989586621679100895"><span class="hs-identifier hs-type">m</span></a></span></span><span> </span><span id="local-6989586621679100894"><span class="annot"><a href="#local-6989586621679100894"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span id="local-6989586621679100893"><span class="annot"><a href="#local-6989586621679100893"><span class="hs-identifier hs-type">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Semi"><span class="annot"><a href="Data.Semigroupoid.html#Semi"><span class="hs-identifier hs-var">Semi</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="getSemi"><span class="annot"><span class="annottext">forall {k} {k} m (a :: k) (b :: k). Semi m a b -&gt; m
+</span><a href="Data.Semigroupoid.html#getSemi"><span class="hs-identifier hs-var hs-var">getSemi</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679100895"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-90"></span><span>
+</span><span id="line-91"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679100884"><span class="annot"><span class="hs-identifier hs-type">Semigroup</span></span><span> </span><span class="annot"><a href="#local-6989586621679100884"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Semigroupoid.html#Semigroupoid"><span class="hs-identifier hs-type">Semigroupoid</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Semigroupoid.html#Semi"><span class="hs-identifier hs-type">Semi</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679100884"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-92"></span><span>  </span><span class="annot"><a href="Data.Semigroupoid.html#Semi"><span class="hs-identifier hs-type">Semi</span></a></span><span> </span><span id="local-6989586621679100762"><span class="annot"><span class="annottext">m
+</span><a href="#local-6989586621679100762"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span id="local-6989586621679100761"><span class="annot"><span class="annottext">o :: forall (j :: k) (k :: k) (i :: k).
+Semi m j k -&gt; Semi m i j -&gt; Semi m i k
+</span><a href="#local-6989586621679100761"><span class="hs-operator hs-var hs-var hs-var hs-var">`o`</span></a></span></span><span> </span><span class="annot"><a href="Data.Semigroupoid.html#Semi"><span class="hs-identifier hs-type">Semi</span></a></span><span> </span><span id="local-6989586621679100760"><span class="annot"><span class="annottext">m
+</span><a href="#local-6989586621679100760"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {k} {k} m (a :: k) (b :: k). m -&gt; Semi m a b
+</span><a href="Data.Semigroupoid.html#Semi"><span class="hs-identifier hs-var">Semi</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">m
+</span><a href="#local-6989586621679100762"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">m
+</span><a href="#local-6989586621679100760"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-93"></span><span>
+</span><span id="line-94"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679100876"><span class="annot"><span class="hs-identifier hs-type">Monoid</span></span><span> </span><span class="annot"><a href="#local-6989586621679100876"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Category</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Semigroupoid.html#Semi"><span class="hs-identifier hs-type">Semi</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679100876"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-95"></span><span>  </span><span id="local-6989586621679100754"><span class="annot"><span class="annottext">id :: forall (a :: k). Semi m a a
+</span><a href="#local-6989586621679100754"><span class="hs-identifier hs-var hs-var hs-var hs-var">id</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {k} {k} m (a :: k) (b :: k). m -&gt; Semi m a b
+</span><a href="Data.Semigroupoid.html#Semi"><span class="hs-identifier hs-var">Semi</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-96"></span><span>  </span><span class="annot"><a href="Data.Semigroupoid.html#Semi"><span class="hs-identifier hs-type">Semi</span></a></span><span> </span><span id="local-6989586621679100752"><span class="annot"><span class="annottext">m
+</span><a href="#local-6989586621679100752"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span id="local-6989586621679100751"><span class="annot"><span class="annottext">. :: forall (b :: k) (c :: k) (a :: k).
+Semi m b c -&gt; Semi m a b -&gt; Semi m a c
+</span><a href="#local-6989586621679100751"><span class="hs-operator hs-var hs-var hs-var hs-var">.</span></a></span></span><span> </span><span class="annot"><a href="Data.Semigroupoid.html#Semi"><span class="hs-identifier hs-type">Semi</span></a></span><span> </span><span id="local-6989586621679100750"><span class="annot"><span class="annottext">m
+</span><a href="#local-6989586621679100750"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {k} {k} m (a :: k) (b :: k). m -&gt; Semi m a b
+</span><a href="Data.Semigroupoid.html#Semi"><span class="hs-identifier hs-var">Semi</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">m
+</span><a href="#local-6989586621679100752"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Monoid a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`mappend`</span></span><span> </span><span class="annot"><span class="annottext">m
+</span><a href="#local-6989586621679100750"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-97"></span><span>
+</span><span id="line-98"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Semigroupoid.html#Semigroupoid"><span class="hs-identifier hs-type">Semigroupoid</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Const</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-99"></span><span>  </span><span class="annot"><span class="annottext">Const j k
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679100747"><span class="annot"><span class="annottext">o :: forall j k i. Const j k -&gt; Const i j -&gt; Const i k
+</span><a href="#local-6989586621679100747"><span class="hs-operator hs-var hs-var hs-var hs-var">`o`</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Const</span></span><span> </span><span id="local-6989586621679100745"><span class="annot"><span class="annottext">i
+</span><a href="#local-6989586621679100745"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {k} a (b :: k). a -&gt; Const a b
+</span><span class="hs-identifier hs-var">Const</span></span><span> </span><span class="annot"><span class="annottext">i
+</span><a href="#local-6989586621679100745"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-cpp">
+
+#ifdef MIN_VERSION_tagged
+</span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Semigroupoid.html#Semigroupoid"><span class="hs-identifier hs-type">Semigroupoid</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Tagged</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-103"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Tagged</span></span><span> </span><span id="local-6989586621679100741"><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621679100741"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span id="local-6989586621679100740"><span class="annot"><span class="annottext">o :: forall j k i. Tagged j k -&gt; Tagged i j -&gt; Tagged i k
+</span><a href="#local-6989586621679100740"><span class="hs-operator hs-var hs-var hs-var hs-var">`o`</span></a></span></span><span> </span><span class="annot"><span class="annottext">Tagged i j
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {k} (s :: k) b. b -&gt; Tagged s b
+</span><span class="hs-identifier hs-var">Tagged</span></span><span> </span><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621679100741"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#if MIN_VERSION_base(4,7,0)
+</span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Semigroupoid.html#Semigroupoid"><span class="hs-identifier hs-type">Semigroupoid</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Co.Coercion</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-108"></span><span>  </span><span id="local-6989586621679100737"><span class="annot"><span class="annottext">o :: forall (j :: k) (k :: k) (i :: k).
+Coercion j k -&gt; Coercion i j -&gt; Coercion i k
+</span><a href="#local-6989586621679100737"><span class="hs-identifier hs-var hs-var hs-var hs-var">o</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b c. (a -&gt; b -&gt; c) -&gt; b -&gt; a -&gt; c
+</span><span class="hs-identifier hs-var">flip</span></span><span> </span><span class="annot"><span class="annottext">forall {k} (a :: k) (b :: k) (c :: k).
+Coercion a b -&gt; Coercion b c -&gt; Coercion a c
+</span><span class="hs-identifier hs-var">Co.trans</span></span><span>
+</span><span id="line-109"></span><span>
+</span><span id="line-110"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Semigroupoid.html#Semigroupoid"><span class="hs-identifier hs-type">Semigroupoid</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">(Eq.:~:)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-111"></span><span>  </span><span id="local-6989586621679100732"><span class="annot"><span class="annottext">o :: forall (j :: k) (k :: k) (i :: k).
+(j :~: k) -&gt; (i :~: j) -&gt; i :~: k
+</span><a href="#local-6989586621679100732"><span class="hs-identifier hs-var hs-var hs-var hs-var">o</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b c. (a -&gt; b -&gt; c) -&gt; b -&gt; a -&gt; c
+</span><span class="hs-identifier hs-var">flip</span></span><span> </span><span class="annot"><span class="annottext">forall {k} (a :: k) (b :: k) (c :: k).
+(a :~: b) -&gt; (b :~: c) -&gt; a :~: c
+</span><span class="hs-identifier hs-var">Eq.trans</span></span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#if MIN_VERSION_base(4,10,0)
+</span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Semigroupoid.html#Semigroupoid"><span class="hs-identifier hs-type">Semigroupoid</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">(Eq.:~~:)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-116"></span><span>  </span><span id="local-6989586621679100728"><span class="annot"><span class="annottext">o :: forall (j :: k) (k :: k) (i :: k).
+(j :~~: k) -&gt; (i :~~: j) -&gt; i :~~: k
+</span><a href="#local-6989586621679100728"><span class="hs-identifier hs-var hs-var hs-var hs-var">o</span></a></span></span><span> </span><span class="annot"><span class="annottext">j :~~: k
+</span><span class="hs-identifier hs-var">Eq.HRefl</span></span><span> </span><span class="annot"><span class="annottext">i :~~: j
+</span><span class="hs-identifier hs-var">Eq.HRefl</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {k1} (a :: k1). a :~~: a
+</span><span class="hs-identifier hs-var">Eq.HRefl</span></span><span class="hs-cpp">
+#endif
+</span></pre></body></html>

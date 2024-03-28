@@ -1,0 +1,122 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Ki.Internal.ByteCount</span><span>
+</span><span id="line-2"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Ki.Internal.ByteCount.html#ByteCount"><span class="hs-identifier">ByteCount</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-3"></span><span>    </span><span class="annot"><a href="Ki.Internal.ByteCount.html#kilobytes"><span class="hs-identifier">kilobytes</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-4"></span><span>    </span><span class="annot"><a href="Ki.Internal.ByteCount.html#megabytes"><span class="hs-identifier">megabytes</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-5"></span><span>    </span><span class="annot"><a href="Ki.Internal.ByteCount.html#byteCountToInt64"><span class="hs-identifier">byteCountToInt64</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-6"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Coerce</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">coerce</span></span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Int</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Int64</span></span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Numeric.Natural</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Natural</span></span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- | A number of bytes.</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">newtype</span><span> </span><span id="ByteCount"><span class="annot"><a href="Ki.Internal.ByteCount.html#ByteCount"><span class="hs-identifier hs-var">ByteCount</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="ByteCount"><span class="annot"><a href="Ki.Internal.ByteCount.html#ByteCount"><span class="hs-identifier hs-var">ByteCount</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int64</span></span><span>
+</span><span id="line-15"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">newtype</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679035292"><span id="local-6989586621679035297"><span class="annot"><span class="annottext">ByteCount -&gt; ByteCount -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: ByteCount -&gt; ByteCount -&gt; Bool
+$c/= :: ByteCount -&gt; ByteCount -&gt; Bool
+== :: ByteCount -&gt; ByteCount -&gt; Bool
+$c== :: ByteCount -&gt; ByteCount -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679035259"><span id="local-6989586621679035263"><span id="local-6989586621679035267"><span id="local-6989586621679035271"><span id="local-6989586621679035275"><span id="local-6989586621679035279"><span id="local-6989586621679035284"><span class="annot"><span class="annottext">Eq ByteCount
+ByteCount -&gt; ByteCount -&gt; Bool
+ByteCount -&gt; ByteCount -&gt; Ordering
+ByteCount -&gt; ByteCount -&gt; ByteCount
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: ByteCount -&gt; ByteCount -&gt; ByteCount
+$cmin :: ByteCount -&gt; ByteCount -&gt; ByteCount
+max :: ByteCount -&gt; ByteCount -&gt; ByteCount
+$cmax :: ByteCount -&gt; ByteCount -&gt; ByteCount
+&gt;= :: ByteCount -&gt; ByteCount -&gt; Bool
+$c&gt;= :: ByteCount -&gt; ByteCount -&gt; Bool
+&gt; :: ByteCount -&gt; ByteCount -&gt; Bool
+$c&gt; :: ByteCount -&gt; ByteCount -&gt; Bool
+&lt;= :: ByteCount -&gt; ByteCount -&gt; Bool
+$c&lt;= :: ByteCount -&gt; ByteCount -&gt; Bool
+&lt; :: ByteCount -&gt; ByteCount -&gt; Bool
+$c&lt; :: ByteCount -&gt; ByteCount -&gt; Bool
+compare :: ByteCount -&gt; ByteCount -&gt; Ordering
+$ccompare :: ByteCount -&gt; ByteCount -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679035250"><span id="local-6989586621679035253"><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="Ki.Internal.ByteCount.html#ByteCount"><span class="hs-identifier hs-type">ByteCount</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-18"></span><span>  </span><span id="local-6989586621679035233"><span class="annot"><span class="annottext">show :: ByteCount -&gt; String
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">show</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Ki.Internal.ByteCount.html#ByteCount"><span class="hs-identifier hs-type">ByteCount</span></a></span><span> </span><span id="local-6989586621679035231"><span class="annot"><span class="annottext">Int64
+</span><a href="#local-6989586621679035231"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679035230"><span class="annot"><span class="annottext">Int64
+</span><a href="#local-6989586621679035230"><span class="hs-identifier hs-var">mb</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int64
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a. Integral a =&gt; a -&gt; a -&gt; (a, a)
+</span><span class="hs-identifier hs-var">quotRem</span></span><span> </span><span class="annot"><span class="annottext">Int64
+</span><a href="#local-6989586621679035231"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">Int64
+</span><span class="hs-number">1048576</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int64
+</span><a href="#local-6989586621679035230"><span class="hs-identifier hs-var">mb</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int64
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;megabytes &quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Int64
+</span><a href="#local-6989586621679035230"><span class="hs-identifier hs-var">mb</span></a></span><span>
+</span><span id="line-20"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679035227"><span class="annot"><span class="annottext">Int64
+</span><a href="#local-6989586621679035227"><span class="hs-identifier hs-var">kb</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int64
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a. Integral a =&gt; a -&gt; a -&gt; (a, a)
+</span><span class="hs-identifier hs-var">quotRem</span></span><span> </span><span class="annot"><span class="annottext">Int64
+</span><a href="#local-6989586621679035231"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">Int64
+</span><span class="hs-number">1024</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;kilobytes &quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Int64
+</span><a href="#local-6989586621679035227"><span class="hs-identifier hs-var">kb</span></a></span><span>
+</span><span id="line-21"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. HasCallStack =&gt; a
+</span><span class="hs-identifier hs-var">undefined</span></span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- | A number of kilobytes.</span><span>
+</span><span id="line-24"></span><span class="annot"><a href="Ki.Internal.ByteCount.html#kilobytes"><span class="hs-identifier hs-type">kilobytes</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Natural</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Ki.Internal.ByteCount.html#ByteCount"><span class="hs-identifier hs-type">ByteCount</span></a></span><span>
+</span><span id="line-25"></span><span id="kilobytes"><span class="annot"><span class="annottext">kilobytes :: Natural -&gt; ByteCount
+</span><a href="Ki.Internal.ByteCount.html#kilobytes"><span class="hs-identifier hs-var hs-var">kilobytes</span></a></span></span><span> </span><span id="local-6989586621679035225"><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679035225"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-26"></span><span>  </span><span class="annot"><span class="annottext">Int64 -&gt; ByteCount
+</span><a href="Ki.Internal.ByteCount.html#ByteCount"><span class="hs-identifier hs-var">ByteCount</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Natural -&gt; Int64
+</span><a href="Ki.Internal.ByteCount.html#snip"><span class="hs-identifier hs-var">snip</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679035225"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Natural
+</span><span class="hs-number">1024</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="hs-comment">-- | A number of megabytes.</span><span>
+</span><span id="line-29"></span><span class="annot"><a href="Ki.Internal.ByteCount.html#megabytes"><span class="hs-identifier hs-type">megabytes</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Natural</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Ki.Internal.ByteCount.html#ByteCount"><span class="hs-identifier hs-type">ByteCount</span></a></span><span>
+</span><span id="line-30"></span><span id="megabytes"><span class="annot"><span class="annottext">megabytes :: Natural -&gt; ByteCount
+</span><a href="Ki.Internal.ByteCount.html#megabytes"><span class="hs-identifier hs-var hs-var">megabytes</span></a></span></span><span> </span><span id="local-6989586621679035222"><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679035222"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-31"></span><span>  </span><span class="annot"><span class="annottext">Int64 -&gt; ByteCount
+</span><a href="Ki.Internal.ByteCount.html#ByteCount"><span class="hs-identifier hs-var">ByteCount</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Natural -&gt; Int64
+</span><a href="Ki.Internal.ByteCount.html#snip"><span class="hs-identifier hs-var">snip</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679035222"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Natural
+</span><span class="hs-number">1048576</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span class="annot"><a href="Ki.Internal.ByteCount.html#byteCountToInt64"><span class="hs-identifier hs-type">byteCountToInt64</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Ki.Internal.ByteCount.html#ByteCount"><span class="hs-identifier hs-type">ByteCount</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int64</span></span><span>
+</span><span id="line-34"></span><span id="byteCountToInt64"><span class="annot"><span class="annottext">byteCountToInt64 :: ByteCount -&gt; Int64
+</span><a href="Ki.Internal.ByteCount.html#byteCountToInt64"><span class="hs-identifier hs-var hs-var">byteCountToInt64</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-35"></span><span>  </span><span class="annot"><span class="annottext">coerce :: forall a b. Coercible a b =&gt; a -&gt; b
+</span><span class="hs-identifier hs-type">coerce</span></span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="annot"><a href="Ki.Internal.ByteCount.html#snip"><span class="hs-identifier hs-type">snip</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Natural</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int64</span></span><span>
+</span><span id="line-38"></span><span id="snip"><span class="annot"><span class="annottext">snip :: Natural -&gt; Int64
+</span><a href="Ki.Internal.ByteCount.html#snip"><span class="hs-identifier hs-var hs-var">snip</span></a></span></span><span> </span><span id="local-6989586621679035221"><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679035221"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-39"></span><span>  </span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">min</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Bounded a =&gt; a
+</span><span class="hs-identifier hs-var">maxBound</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int64</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679035221"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-40"></span></pre></body></html>

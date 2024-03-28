@@ -1,0 +1,54 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP                 #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE ScopedTypeVariables #-}</span><span class="hs-cpp">
+
+#if MIN_VERSION_filepath(1,4,100)
+</span><span class="hs-cpp">#define OS_PATH 1
+</span><span class="hs-cpp">#endif
+</span><span>
+</span><span id="line-8"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Language.LSP.Protocol.Types.Uri.OsPath</span><span>
+</span><span id="line-9"></span><span>  </span><span class="hs-special">(</span><span class="hs-cpp">
+#ifdef OS_PATH
+</span><span>    </span><span class="hs-identifier">osPathToNormalizedFilePath</span><span>
+</span><span id="line-12"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-identifier">normalizedFilePathToOsPath</span><span>
+</span><span id="line-13"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-identifier">EncodingException</span><span class="hs-cpp">
+#endif
+</span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span class="hs-cpp">
+
+#ifdef OS_PATH
+</span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Control.Exception</span><span>      </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">try</span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Control.Monad.Catch</span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">GHC.IO.Encoding</span><span>        </span><span class="hs-special">(</span><span class="hs-identifier">getFileSystemEncoding</span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Language.LSP.Protocol.Types.Uri</span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">System.IO</span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">System.IO.Unsafe</span><span>       </span><span class="hs-special">(</span><span class="hs-identifier">unsafePerformIO</span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">System.OsPath</span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">System.OsPath.Encoding</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">EncodingException</span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="hs-comment">{-|
+Constructs 'NormalizedFilePath' from 'OsPath'. Throws 'EncodingException' if the conversion fails.
+
+We store a 'Text' in 'NormalizedFilePath', which is UTF-16 or UTF-8 depending on the verion of text library.
+'OsPath' may have a different encoding than 'Text', so this function may fail.
+But DO NOTE THAT encoding mismatch doesn't always mean an exception will be thrown.
+[Possibly your encoding simply won't throw exception on failure](https://hackage.haskell.org/package/base-4.17.0.0/docs/src/GHC.IO.Encoding.html#initFileSystemEncoding).
+Possibly the conversion function can't find any invalid byte sequence, giving a sucessful but wrong result.
+-}</span><span>
+</span><span id="line-37"></span><span class="hs-identifier">osPathToNormalizedFilePath</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">MonadThrow</span><span> </span><span class="hs-identifier">m</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-identifier">OsPath</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">m</span><span> </span><span class="hs-identifier">NormalizedFilePath</span><span>
+</span><span id="line-38"></span><span class="hs-identifier">osPathToNormalizedFilePath</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">fmap</span><span> </span><span class="hs-identifier">toNormalizedFilePath</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-identifier">liftException</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-identifier">decodeWith</span><span> </span><span class="hs-identifier">systemEnc</span><span> </span><span class="hs-identifier">utf16le</span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span class="hs-comment">{-|
+Extracts 'OsPath' from 'NormalizedFilePath'. Throws 'EncodingException' if the conversion fails.
+-}</span><span>
+</span><span id="line-43"></span><span class="hs-identifier">normalizedFilePathToOsPath</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">MonadThrow</span><span> </span><span class="hs-identifier">m</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-identifier">NormalizedFilePath</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">m</span><span> </span><span class="hs-identifier">OsPath</span><span>
+</span><span id="line-44"></span><span class="hs-identifier">normalizedFilePathToOsPath</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">liftException</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-identifier">encodeWith</span><span> </span><span class="hs-identifier">systemEnc</span><span> </span><span class="hs-identifier">utf16le</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-identifier">fromNormalizedFilePath</span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span class="hs-identifier">liftException</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">MonadThrow</span><span> </span><span class="hs-identifier">m</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">Exception</span><span> </span><span class="hs-identifier">e</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-identifier">Either</span><span> </span><span class="hs-identifier">e</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">m</span><span> </span><span class="hs-identifier">a</span><span>
+</span><span id="line-47"></span><span class="hs-identifier">liftException</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Right</span><span> </span><span class="hs-identifier">x</span><span class="hs-special">)</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">pure</span><span> </span><span class="hs-identifier">x</span><span>
+</span><span id="line-48"></span><span class="hs-identifier">liftException</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Left</span><span> </span><span class="hs-identifier">err</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">throwM</span><span> </span><span class="hs-identifier">err</span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span class="hs-identifier">systemEnc</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">TextEncoding</span><span>
+</span><span id="line-51"></span><span class="hs-identifier">systemEnc</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">unsafePerformIO</span><span> </span><span class="hs-identifier">getFileSystemEncoding</span><span class="hs-cpp">
+
+#endif
+</span></pre></body></html>

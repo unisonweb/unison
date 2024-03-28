@@ -1,0 +1,262 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">NeatInterpolation.Parsing</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="NeatInterpolation.Prelude.html"><span class="hs-identifier">NeatInterpolation.Prelude</span></a></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">many</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">some</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">try</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-operator">(&lt;|&gt;)</span></span><span class="hs-special">)</span><span>
+</span><span id="line-4"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Text</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">pack</span></span><span class="hs-special">)</span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Text.Megaparsec</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Line</span><span class="hs-special">)</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Text.Megaparsec.Char</span></span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">data</span><span> </span><span id="Line"><span class="annot"><a href="NeatInterpolation.Parsing.html#Line"><span class="hs-identifier hs-var">Line</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-9"></span><span>  </span><span id="Line"><span class="annot"><a href="NeatInterpolation.Parsing.html#Line"><span class="hs-identifier hs-var">Line</span></a></span></span><span> </span><span class="hs-special">{</span><span id="%24sel%3AlineIndent%3ALine"><span class="annot"><span class="annottext">Line -&gt; Int
+</span><a href="NeatInterpolation.Parsing.html#%24sel%3AlineIndent%3ALine"><span class="hs-identifier hs-var hs-var">lineIndent</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span id="%24sel%3AlineContents%3ALine"><span class="annot"><span class="annottext">Line -&gt; [LineContent]
+</span><a href="NeatInterpolation.Parsing.html#%24sel%3AlineContents%3ALine"><span class="hs-identifier hs-var hs-var">lineContents</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="NeatInterpolation.Parsing.html#LineContent"><span class="hs-identifier hs-type">LineContent</span></a></span><span class="hs-special">]</span><span class="hs-special">}</span><span>
+</span><span id="line-10"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679070940"><span id="local-6989586621679070942"><span id="local-6989586621679070951"><span class="annot"><span class="annottext">Int -&gt; Line -&gt; ShowS
+[Line] -&gt; ShowS
+Line -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [Line] -&gt; ShowS
+$cshowList :: [Line] -&gt; ShowS
+show :: Line -&gt; String
+$cshow :: Line -&gt; String
+showsPrec :: Int -&gt; Line -&gt; ShowS
+$cshowsPrec :: Int -&gt; Line -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">data</span><span> </span><span id="LineContent"><span class="annot"><a href="NeatInterpolation.Parsing.html#LineContent"><span class="hs-identifier hs-var">LineContent</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-13"></span><span>  </span><span id="LineContentText"><span class="annot"><a href="NeatInterpolation.Parsing.html#LineContentText"><span class="hs-identifier hs-var">LineContentText</span></a></span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Char</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">|</span><span>
+</span><span id="line-14"></span><span>  </span><span id="LineContentIdentifier"><span class="annot"><a href="NeatInterpolation.Parsing.html#LineContentIdentifier"><span class="hs-identifier hs-var">LineContentIdentifier</span></a></span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Char</span></span><span class="hs-special">]</span><span>
+</span><span id="line-15"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679070926"><span id="local-6989586621679070928"><span id="local-6989586621679070935"><span class="annot"><span class="annottext">Int -&gt; LineContent -&gt; ShowS
+[LineContent] -&gt; ShowS
+LineContent -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [LineContent] -&gt; ShowS
+$cshowList :: [LineContent] -&gt; ShowS
+show :: LineContent -&gt; String
+$cshow :: LineContent -&gt; String
+showsPrec :: Int -&gt; LineContent -&gt; ShowS
+$cshowsPrec :: Int -&gt; LineContent -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">type</span><span> </span><span id="Parser"><span class="annot"><a href="NeatInterpolation.Parsing.html#Parser"><span class="hs-identifier hs-var">Parser</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Parsec</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Void</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- | Pretty parse exception for parsing lines.</span><span>
+</span><span id="line-20"></span><span class="hs-keyword">newtype</span><span> </span><span id="ParseException"><span class="annot"><a href="NeatInterpolation.Parsing.html#ParseException"><span class="hs-identifier hs-var">ParseException</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="ParseException"><span class="annot"><a href="NeatInterpolation.Parsing.html#ParseException"><span class="hs-identifier hs-var">ParseException</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-21"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679070915"><span id="local-6989586621679070917"><span id="local-6989586621679070922"><span class="annot"><span class="annottext">Int -&gt; ParseException -&gt; ShowS
+[ParseException] -&gt; ShowS
+ParseException -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [ParseException] -&gt; ShowS
+$cshowList :: [ParseException] -&gt; ShowS
+show :: ParseException -&gt; String
+$cshow :: ParseException -&gt; String
+showsPrec :: Int -&gt; ParseException -&gt; ShowS
+$cshowsPrec :: Int -&gt; ParseException -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679070908"><span id="local-6989586621679070913"><span class="annot"><span class="annottext">ParseException -&gt; ParseException -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: ParseException -&gt; ParseException -&gt; Bool
+$c/= :: ParseException -&gt; ParseException -&gt; Bool
+== :: ParseException -&gt; ParseException -&gt; Bool
+$c== :: ParseException -&gt; ParseException -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="annot"><a href="NeatInterpolation.Parsing.html#parseLines"><span class="hs-identifier hs-type">parseLines</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Char</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="NeatInterpolation.Parsing.html#ParseException"><span class="hs-identifier hs-type">ParseException</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="NeatInterpolation.Parsing.html#Line"><span class="hs-identifier hs-type">Line</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-24"></span><span id="parseLines"><span class="annot"><span class="annottext">parseLines :: String -&gt; Either ParseException [Line]
+</span><a href="NeatInterpolation.Parsing.html#parseLines"><span class="hs-identifier hs-var hs-var">parseLines</span></a></span></span><span> </span><span id="local-6989586621679070902"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679070902"><span class="hs-identifier hs-var">input</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">forall e s a.
+Parsec e s a -&gt; String -&gt; s -&gt; Either (ParseErrorBundle s e) a
+</span><span class="hs-identifier hs-var">parse</span></span><span> </span><span class="annot"><span class="annottext">Parser [Line]
+</span><a href="#local-6989586621679070900"><span class="hs-identifier hs-var">lines</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;NeatInterpolation.Parsing.parseLines&quot;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679070902"><span class="hs-identifier hs-var">input</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-25"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span id="local-6989586621679070899"><span class="annot"><span class="annottext">ParseErrorBundle String Void
+</span><a href="#local-6989586621679070899"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; ParseException
+</span><a href="NeatInterpolation.Parsing.html#ParseException"><span class="hs-identifier hs-var">ParseException</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Text
+</span><span class="hs-identifier hs-var">pack</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall s e.
+(VisualStream s, TraversableStream s, ShowErrorComponent e) =&gt;
+ParseErrorBundle s e -&gt; String
+</span><span class="hs-identifier hs-var">errorBundlePretty</span></span><span> </span><span class="annot"><span class="annottext">ParseErrorBundle String Void
+</span><a href="#local-6989586621679070899"><span class="hs-identifier hs-var">err</span></a></span><span>
+</span><span id="line-26"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span id="local-6989586621679070897"><span class="annot"><span class="annottext">[Line]
+</span><a href="#local-6989586621679070897"><span class="hs-identifier hs-var">output</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">[Line]
+</span><a href="#local-6989586621679070897"><span class="hs-identifier hs-var">output</span></a></span><span>
+</span><span id="line-27"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-28"></span><span>    </span><span class="annot"><a href="#local-6989586621679070900"><span class="hs-identifier hs-type">lines</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="NeatInterpolation.Parsing.html#Parser"><span class="hs-identifier hs-type">Parser</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="NeatInterpolation.Parsing.html#Line"><span class="hs-identifier hs-type">Line</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-29"></span><span>    </span><span id="local-6989586621679070900"><span class="annot"><span class="annottext">lines :: Parser [Line]
+</span><a href="#local-6989586621679070900"><span class="hs-identifier hs-var hs-var">lines</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a sep. MonadPlus m =&gt; m a -&gt; m sep -&gt; m [a]
+</span><span class="hs-identifier hs-var">sepBy</span></span><span> </span><span class="annot"><span class="annottext">forall {s} {f :: * -&gt; *} {e}.
+(Token s ~ Char, MonadParsec e s f, MonadFail f) =&gt;
+f Line
+</span><a href="#local-6989586621679070895"><span class="hs-identifier hs-var">line</span></a></span><span> </span><span class="annot"><span class="annottext">forall e s (m :: * -&gt; *).
+(MonadParsec e s m, Token s ~ Char) =&gt;
+m (Token s)
+</span><span class="hs-identifier hs-var">newline</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f a -&gt; f b -&gt; f a
+</span><span class="hs-operator hs-var">&lt;*</span></span><span> </span><span class="annot"><span class="annottext">forall e s (m :: * -&gt; *). MonadParsec e s m =&gt; m ()
+</span><span class="hs-identifier hs-var">eof</span></span><span>
+</span><span id="line-30"></span><span>    </span><span id="local-6989586621679070895"><span class="annot"><span class="annottext">line :: f Line
+</span><a href="#local-6989586621679070895"><span class="hs-identifier hs-var hs-var">line</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; [LineContent] -&gt; Line
+</span><a href="NeatInterpolation.Parsing.html#Line"><span class="hs-identifier hs-var">Line</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall {s} {f :: * -&gt; *} {e}.
+(Token s ~ Char, MonadParsec e s f) =&gt;
+f Int
+</span><a href="#local-6989586621679070870"><span class="hs-identifier hs-var">countIndent</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. MonadPlus m =&gt; m a -&gt; m [a]
+</span><span class="hs-identifier hs-var">many</span></span><span> </span><span class="annot"><span class="annottext">forall {s} {f :: * -&gt; *} {e}.
+(Token s ~ Char, MonadParsec e s f, MonadFail f) =&gt;
+f LineContent
+</span><a href="#local-6989586621679070868"><span class="hs-identifier hs-var">content</span></a></span><span>
+</span><span id="line-31"></span><span>    </span><span id="local-6989586621679070870"><span class="annot"><span class="annottext">countIndent :: f Int
+</span><a href="#local-6989586621679070870"><span class="hs-identifier hs-var hs-var">countIndent</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall e s (m :: * -&gt; *) a. MonadParsec e s m =&gt; m a -&gt; m a
+</span><span class="hs-identifier hs-var">try</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall e s (m :: * -&gt; *) a. MonadParsec e s m =&gt; m a -&gt; m a
+</span><span class="hs-identifier hs-var">lookAhead</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. MonadPlus m =&gt; m a -&gt; m [a]
+</span><span class="hs-identifier hs-var">many</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall e s (m :: * -&gt; *).
+(MonadParsec e s m, Token s ~ Char) =&gt;
+Token s -&gt; m (Token s)
+</span><span class="hs-identifier hs-var">char</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">' '</span></span><span>
+</span><span id="line-32"></span><span>    </span><span id="local-6989586621679070868"><span class="annot"><span class="annottext">content :: f LineContent
+</span><a href="#local-6989586621679070868"><span class="hs-identifier hs-var hs-var">content</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall e s (m :: * -&gt; *) a. MonadParsec e s m =&gt; m a -&gt; m a
+</span><span class="hs-identifier hs-var">try</span></span><span> </span><span class="annot"><span class="annottext">forall {s} {f :: * -&gt; *} {e}.
+(Token s ~ Char, MonadParsec e s f) =&gt;
+f LineContent
+</span><a href="#local-6989586621679070829"><span class="hs-identifier hs-var">escapedDollar</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Alternative f =&gt; f a -&gt; f a -&gt; f a
+</span><span class="hs-operator hs-var">&lt;|&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall e s (m :: * -&gt; *) a. MonadParsec e s m =&gt; m a -&gt; m a
+</span><span class="hs-identifier hs-var">try</span></span><span> </span><span class="annot"><span class="annottext">forall {s} {f :: * -&gt; *} {e}.
+(Token s ~ Char, MonadParsec e s f) =&gt;
+f LineContent
+</span><a href="#local-6989586621679070828"><span class="hs-identifier hs-var">identifier</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Alternative f =&gt; f a -&gt; f a -&gt; f a
+</span><span class="hs-operator hs-var">&lt;|&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall {s} {f :: * -&gt; *} {e}.
+(Token s ~ Char, MonadParsec e s f, MonadFail f) =&gt;
+f LineContent
+</span><a href="#local-6989586621679070827"><span class="hs-identifier hs-var">contentText</span></a></span><span>
+</span><span id="line-33"></span><span>    </span><span id="local-6989586621679070828"><span class="annot"><span class="annottext">identifier :: f LineContent
+</span><a href="#local-6989586621679070828"><span class="hs-identifier hs-var hs-var">identifier</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; LineContent
+</span><a href="NeatInterpolation.Parsing.html#LineContentIdentifier"><span class="hs-identifier hs-var">LineContentIdentifier</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-34"></span><span>      </span><span class="annot"><span class="annottext">forall e s (m :: * -&gt; *).
+(MonadParsec e s m, Token s ~ Char) =&gt;
+Token s -&gt; m (Token s)
+</span><span class="hs-identifier hs-var">char</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'$'</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f a -&gt; f b -&gt; f b
+</span><span class="hs-operator hs-var">*&gt;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall e s (m :: * -&gt; *) a. MonadParsec e s m =&gt; m a -&gt; m a
+</span><span class="hs-identifier hs-var">try</span></span><span> </span><span class="annot"><span class="annottext">forall {s} {m :: * -&gt; *} {e}.
+(Token s ~ Char, MonadParsec e s m) =&gt;
+m [Token s]
+</span><a href="#local-6989586621679070804"><span class="hs-identifier hs-var">identifier'</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Alternative f =&gt; f a -&gt; f a -&gt; f a
+</span><span class="hs-operator hs-var">&lt;|&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) open close a.
+Applicative m =&gt;
+m open -&gt; m close -&gt; m a -&gt; m a
+</span><span class="hs-identifier hs-var">between</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall e s (m :: * -&gt; *).
+(MonadParsec e s m, Token s ~ Char) =&gt;
+Token s -&gt; m (Token s)
+</span><span class="hs-identifier hs-var">char</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'{'</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall e s (m :: * -&gt; *).
+(MonadParsec e s m, Token s ~ Char) =&gt;
+Token s -&gt; m (Token s)
+</span><span class="hs-identifier hs-var">char</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'}'</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall {s} {m :: * -&gt; *} {e}.
+(Token s ~ Char, MonadParsec e s m) =&gt;
+m [Token s]
+</span><a href="#local-6989586621679070804"><span class="hs-identifier hs-var">identifier'</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span>    </span><span id="local-6989586621679070829"><span class="annot"><span class="annottext">escapedDollar :: f LineContent
+</span><a href="#local-6989586621679070829"><span class="hs-identifier hs-var hs-var">escapedDollar</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; LineContent
+</span><a href="NeatInterpolation.Parsing.html#LineContentText"><span class="hs-identifier hs-var">LineContentText</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall e s (m :: * -&gt; *).
+(MonadParsec e s m, Token s ~ Char) =&gt;
+Token s -&gt; m (Token s)
+</span><span class="hs-identifier hs-var">char</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'$'</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f a -&gt; f b -&gt; f b
+</span><span class="hs-operator hs-var">*&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; Int -&gt; m a -&gt; m [a]
+</span><span class="hs-identifier hs-var">count</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall e s (m :: * -&gt; *).
+(MonadParsec e s m, Token s ~ Char) =&gt;
+Token s -&gt; m (Token s)
+</span><span class="hs-identifier hs-var">char</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'$'</span></span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span>    </span><span id="local-6989586621679070804"><span class="annot"><span class="annottext">identifier' :: m [Token s]
+</span><a href="#local-6989586621679070804"><span class="hs-identifier hs-var hs-var">identifier'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. MonadPlus m =&gt; m a -&gt; m [a]
+</span><span class="hs-identifier hs-var">some</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall e s (m :: * -&gt; *).
+(MonadParsec e s m, Token s ~ Char) =&gt;
+m (Token s)
+</span><span class="hs-identifier hs-var">alphaNumChar</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Alternative f =&gt; f a -&gt; f a -&gt; f a
+</span><span class="hs-operator hs-var">&lt;|&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall e s (m :: * -&gt; *).
+(MonadParsec e s m, Token s ~ Char) =&gt;
+Token s -&gt; m (Token s)
+</span><span class="hs-identifier hs-var">char</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'\''</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Alternative f =&gt; f a -&gt; f a -&gt; f a
+</span><span class="hs-operator hs-var">&lt;|&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall e s (m :: * -&gt; *).
+(MonadParsec e s m, Token s ~ Char) =&gt;
+Token s -&gt; m (Token s)
+</span><span class="hs-identifier hs-var">char</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'_'</span></span><span class="hs-special">)</span><span>
+</span><span id="line-37"></span><span>    </span><span id="local-6989586621679070827"><span class="annot"><span class="annottext">contentText :: m LineContent
+</span><a href="#local-6989586621679070827"><span class="hs-identifier hs-var hs-var">contentText</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-38"></span><span>      </span><span id="local-6989586621679070755"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679070755"><span class="hs-identifier hs-var">text</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a sep. MonadPlus m =&gt; m a -&gt; m sep -&gt; m [a]
+</span><span class="hs-identifier hs-var">manyTill</span></span><span> </span><span class="annot"><span class="annottext">forall e s (m :: * -&gt; *). MonadParsec e s m =&gt; m (Token s)
+</span><span class="hs-identifier hs-var">anySingle</span></span><span> </span><span class="annot"><span class="annottext">forall {s} {e} {f :: * -&gt; *}.
+(Token s ~ Char, MonadParsec e s f) =&gt;
+f ()
+</span><a href="#local-6989586621679070752"><span class="hs-identifier hs-var">end</span></a></span><span>
+</span><span id="line-39"></span><span>      </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">null</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679070755"><span class="hs-identifier hs-var">text</span></a></span><span>
+</span><span id="line-40"></span><span>        </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. MonadFail m =&gt; String -&gt; m a
+</span><span class="hs-identifier hs-var">fail</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Empty text&quot;</span></span><span>
+</span><span id="line-41"></span><span>        </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; LineContent
+</span><a href="NeatInterpolation.Parsing.html#LineContentText"><span class="hs-identifier hs-var">LineContentText</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679070755"><span class="hs-identifier hs-var">text</span></a></span><span>
+</span><span id="line-42"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-43"></span><span>        </span><span id="local-6989586621679070752"><span class="annot"><span class="annottext">end :: f ()
+</span><a href="#local-6989586621679070752"><span class="hs-identifier hs-var hs-var">end</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-44"></span><span>          </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Functor f =&gt; f a -&gt; f ()
+</span><span class="hs-identifier hs-var">void</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall e s (m :: * -&gt; *) a. MonadParsec e s m =&gt; m a -&gt; m a
+</span><span class="hs-identifier hs-var">try</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall e s (m :: * -&gt; *) a. MonadParsec e s m =&gt; m a -&gt; m a
+</span><span class="hs-identifier hs-var">lookAhead</span></span><span> </span><span class="annot"><span class="annottext">forall {s} {f :: * -&gt; *} {e}.
+(Token s ~ Char, MonadParsec e s f) =&gt;
+f LineContent
+</span><a href="#local-6989586621679070829"><span class="hs-identifier hs-var">escapedDollar</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Alternative f =&gt; f a -&gt; f a -&gt; f a
+</span><span class="hs-operator hs-var">&lt;|&gt;</span></span><span>
+</span><span id="line-45"></span><span>          </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Functor f =&gt; f a -&gt; f ()
+</span><span class="hs-identifier hs-var">void</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall e s (m :: * -&gt; *) a. MonadParsec e s m =&gt; m a -&gt; m a
+</span><span class="hs-identifier hs-var">try</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall e s (m :: * -&gt; *) a. MonadParsec e s m =&gt; m a -&gt; m a
+</span><span class="hs-identifier hs-var">lookAhead</span></span><span> </span><span class="annot"><span class="annottext">forall {s} {f :: * -&gt; *} {e}.
+(Token s ~ Char, MonadParsec e s f) =&gt;
+f LineContent
+</span><a href="#local-6989586621679070828"><span class="hs-identifier hs-var">identifier</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Alternative f =&gt; f a -&gt; f a -&gt; f a
+</span><span class="hs-operator hs-var">&lt;|&gt;</span></span><span>
+</span><span id="line-46"></span><span>          </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Functor f =&gt; f a -&gt; f ()
+</span><span class="hs-identifier hs-var">void</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall e s (m :: * -&gt; *) a. MonadParsec e s m =&gt; m a -&gt; m a
+</span><span class="hs-identifier hs-var">try</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall e s (m :: * -&gt; *) a. MonadParsec e s m =&gt; m a -&gt; m a
+</span><span class="hs-identifier hs-var">lookAhead</span></span><span> </span><span class="annot"><span class="annottext">forall e s (m :: * -&gt; *).
+(MonadParsec e s m, Token s ~ Char) =&gt;
+m (Token s)
+</span><span class="hs-identifier hs-var">newline</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Alternative f =&gt; f a -&gt; f a -&gt; f a
+</span><span class="hs-operator hs-var">&lt;|&gt;</span></span><span>
+</span><span id="line-47"></span><span>          </span><span class="annot"><span class="annottext">forall e s (m :: * -&gt; *). MonadParsec e s m =&gt; m ()
+</span><span class="hs-identifier hs-var">eof</span></span><span>
+</span><span id="line-48"></span></pre></body></html>

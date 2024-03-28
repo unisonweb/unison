@@ -1,0 +1,133 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LINE 1 &quot;libraries/unix/System/Posix/DynamicLinker/Prim.hsc&quot; #-}</span><span>
+</span><span id="line-1"></span><span class="hs-pragma">{-# LANGUAGE Trustworthy #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LINE 3 &quot;libraries/unix/System/Posix/DynamicLinker/Prim.hsc&quot; #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# OPTIONS_GHC -fno-warn-trustworthy-safe #-}</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LINE 5 &quot;libraries/unix/System/Posix/DynamicLinker/Prim.hsc&quot; #-}</span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- Module      :  System.Posix.DynamicLinker.Prim</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- Copyright   :  (c) Volker Stolz &lt;vs@foldr.org&gt; 2003</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- License     :  BSD-style (see the file libraries/base/LICENSE)</span><span>
+</span><span id="line-11"></span><span class="hs-comment">--</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- Maintainer  :  vs@foldr.org</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- Stability   :  provisional</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- Portability :  non-portable (requires POSIX)</span><span>
+</span><span id="line-15"></span><span class="hs-comment">--</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- @dlopen(3)@ and friends</span><span>
+</span><span id="line-17"></span><span class="hs-comment">--  Derived from @GModule.chs@ by M.Weber &amp; M.Chakravarty which is part of c2hs.</span><span>
+</span><span id="line-18"></span><span class="hs-comment">--  I left the API more or less the same, mostly the flags are different.</span><span>
+</span><span id="line-19"></span><span class="hs-comment">--</span><span>
+</span><span id="line-20"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">System.Posix.DynamicLinker.Prim</span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-23"></span><span>  </span><span class="hs-comment">-- * low level API</span><span>
+</span><span id="line-24"></span><span>  </span><span class="hs-identifier">c_dlopen</span><span class="hs-special">,</span><span>
+</span><span id="line-25"></span><span>  </span><span class="hs-identifier">c_dlsym</span><span class="hs-special">,</span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-identifier">c_dlerror</span><span class="hs-special">,</span><span>
+</span><span id="line-27"></span><span>  </span><span class="hs-identifier">c_dlclose</span><span class="hs-special">,</span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-comment">-- dlAddr, -- XXX NYI</span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-identifier">haveRtldNext</span><span class="hs-special">,</span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-identifier">haveRtldLocal</span><span class="hs-special">,</span><span>
+</span><span id="line-31"></span><span>  </span><span class="hs-identifier">packRTLDFlags</span><span class="hs-special">,</span><span>
+</span><span id="line-32"></span><span>  </span><span class="hs-identifier">RTLDFlags</span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-33"></span><span>  </span><span class="hs-identifier">packDL</span><span class="hs-special">,</span><span>
+</span><span id="line-34"></span><span>  </span><span class="hs-identifier">DL</span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-35"></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Bits</span><span>        </span><span class="hs-special">(</span><span> </span><span class="hs-special">(</span><span class="hs-operator">.|.</span><span class="hs-special">)</span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Foreign.Ptr</span><span>      </span><span class="hs-special">(</span><span> </span><span class="hs-identifier">Ptr</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">FunPtr</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">nullPtr</span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-43"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Foreign.C.Types</span><span>
+</span><span id="line-44"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Foreign.C.String</span><span> </span><span class="hs-special">(</span><span> </span><span class="hs-identifier">CString</span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span class="hs-comment">-- |On some hosts (e.g. SuSe and Ubuntu Linux) @RTLD_NEXT@ (and</span><span>
+</span><span id="line-48"></span><span class="hs-comment">-- @RTLD_DEFAULT@) are not visible without setting the macro</span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- @_GNU_SOURCE@. Since we don\'t want to define this macro, you can use</span><span>
+</span><span id="line-50"></span><span class="hs-comment">-- the function 'haveRtldNext' to check wether the flag `Next` is</span><span>
+</span><span id="line-51"></span><span class="hs-comment">-- available. Ideally, this will be optimized by the compiler so that it</span><span>
+</span><span id="line-52"></span><span class="hs-comment">-- should be as efficient as an @#ifdef@.</span><span>
+</span><span id="line-53"></span><span class="hs-comment">--</span><span>
+</span><span id="line-54"></span><span class="hs-comment">-- If you fail to test the flag and use it although it is undefined,</span><span>
+</span><span id="line-55"></span><span class="hs-comment">-- 'packDL' will throw an error.</span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span class="hs-identifier">haveRtldNext</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Bool</span><span>
+</span><span id="line-58"></span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span class="hs-pragma">{-# LINE 60 &quot;libraries/unix/System/Posix/DynamicLinker/Prim.hsc&quot; #-}</span><span>
+</span><span id="line-60"></span><span class="hs-identifier">haveRtldNext</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">True</span><span>
+</span><span id="line-61"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">ccall</span><span> </span><span class="hs-keyword">unsafe</span><span> </span><span class="hs-string">&quot;__hsunix_rtldNext&quot;</span><span> </span><span class="hs-identifier">rtldNext</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Ptr</span><span> </span><span class="hs-identifier">a</span><span>
+</span><span id="line-62"></span><span>
+</span><span id="line-63"></span><span class="hs-pragma">{-# LINE 65 &quot;libraries/unix/System/Posix/DynamicLinker/Prim.hsc&quot; #-}</span><span>
+</span><span id="line-65"></span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span class="hs-pragma">{-# LINE 67 &quot;libraries/unix/System/Posix/DynamicLinker/Prim.hsc&quot; #-}</span><span>
+</span><span id="line-67"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">ccall</span><span> </span><span class="hs-keyword">unsafe</span><span> </span><span class="hs-string">&quot;__hsunix_rtldDefault&quot;</span><span> </span><span class="hs-identifier">rtldDefault</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Ptr</span><span> </span><span class="hs-identifier">a</span><span>
+</span><span id="line-68"></span><span>
+</span><span id="line-69"></span><span class="hs-pragma">{-# LINE 69 &quot;libraries/unix/System/Posix/DynamicLinker/Prim.hsc&quot; #-}</span><span>
+</span><span id="line-69"></span><span>
+</span><span id="line-70"></span><span class="hs-identifier">haveRtldLocal</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Bool</span><span>
+</span><span id="line-71"></span><span class="hs-identifier">haveRtldLocal</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">True</span><span>
+</span><span id="line-72"></span><span class="hs-pragma">{-# DEPRECATED</span><span> </span><span class="hs-pragma">haveRtldLocal</span><span> </span><span class="hs-pragma">&quot;defaults to True&quot;</span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-73"></span><span>
+</span><span id="line-74"></span><span>
+</span><span id="line-75"></span><span class="hs-comment">-- |Flags for 'System.Posix.DynamicLinker.dlopen'.</span><span>
+</span><span id="line-76"></span><span>
+</span><span id="line-77"></span><span class="hs-keyword">data</span><span> </span><span class="hs-identifier">RTLDFlags</span><span>
+</span><span id="line-78"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">RTLD_LAZY</span><span>
+</span><span id="line-79"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-identifier">RTLD_NOW</span><span>
+</span><span id="line-80"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-identifier">RTLD_GLOBAL</span><span>
+</span><span id="line-81"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-identifier">RTLD_LOCAL</span><span>
+</span><span id="line-82"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Show</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">Read</span><span class="hs-special">)</span><span>
+</span><span id="line-83"></span><span>
+</span><span id="line-84"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">ccall</span><span> </span><span class="hs-keyword">unsafe</span><span> </span><span class="hs-string">&quot;dlopen&quot;</span><span> </span><span class="hs-identifier">c_dlopen</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">CString</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">CInt</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Ptr</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-85"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">ccall</span><span> </span><span class="hs-keyword">unsafe</span><span> </span><span class="hs-string">&quot;dlsym&quot;</span><span>  </span><span class="hs-identifier">c_dlsym</span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Ptr</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">CString</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">FunPtr</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span>
+</span><span id="line-86"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">ccall</span><span> </span><span class="hs-keyword">unsafe</span><span> </span><span class="hs-string">&quot;dlerror&quot;</span><span> </span><span class="hs-identifier">c_dlerror</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">CString</span><span>
+</span><span id="line-87"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">ccall</span><span> </span><span class="hs-keyword">unsafe</span><span> </span><span class="hs-string">&quot;dlclose&quot;</span><span> </span><span class="hs-identifier">c_dlclose</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Ptr</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">CInt</span><span>
+</span><span id="line-88"></span><span>
+</span><span id="line-89"></span><span class="hs-identifier">packRTLDFlags</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="hs-identifier">RTLDFlags</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">CInt</span><span>
+</span><span id="line-90"></span><span class="hs-identifier">packRTLDFlags</span><span> </span><span class="hs-identifier">flags</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">foldl</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span> </span><span class="hs-identifier">s</span><span> </span><span class="hs-identifier">f</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">packRTLDFlag</span><span> </span><span class="hs-identifier">f</span><span class="hs-special">)</span><span> </span><span class="hs-operator">.|.</span><span> </span><span class="hs-identifier">s</span><span class="hs-special">)</span><span> </span><span class="hs-number">0</span><span> </span><span class="hs-identifier">flags</span><span>
+</span><span id="line-91"></span><span>
+</span><span id="line-92"></span><span class="hs-identifier">packRTLDFlag</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">RTLDFlags</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">CInt</span><span>
+</span><span id="line-93"></span><span class="hs-identifier">packRTLDFlag</span><span> </span><span class="hs-identifier">RTLD_LAZY</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-number">1</span><span>
+</span><span id="line-94"></span><span class="hs-pragma">{-# LINE 94 &quot;libraries/unix/System/Posix/DynamicLinker/Prim.hsc&quot; #-}</span><span>
+</span><span id="line-94"></span><span class="hs-identifier">packRTLDFlag</span><span> </span><span class="hs-identifier">RTLD_NOW</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-number">2</span><span>
+</span><span id="line-95"></span><span class="hs-pragma">{-# LINE 95 &quot;libraries/unix/System/Posix/DynamicLinker/Prim.hsc&quot; #-}</span><span>
+</span><span id="line-95"></span><span class="hs-identifier">packRTLDFlag</span><span> </span><span class="hs-identifier">RTLD_GLOBAL</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-number">256</span><span>
+</span><span id="line-96"></span><span class="hs-pragma">{-# LINE 96 &quot;libraries/unix/System/Posix/DynamicLinker/Prim.hsc&quot; #-}</span><span>
+</span><span id="line-96"></span><span class="hs-identifier">packRTLDFlag</span><span> </span><span class="hs-identifier">RTLD_LOCAL</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-number">0</span><span>
+</span><span id="line-97"></span><span class="hs-pragma">{-# LINE 97 &quot;libraries/unix/System/Posix/DynamicLinker/Prim.hsc&quot; #-}</span><span>
+</span><span id="line-97"></span><span>
+</span><span id="line-98"></span><span>
+</span><span id="line-99"></span><span class="hs-comment">-- |Flags for 'System.Posix.DynamicLinker.dlsym'. Notice that 'Next'</span><span>
+</span><span id="line-100"></span><span class="hs-comment">-- might not be available on your particular platform! Use</span><span>
+</span><span id="line-101"></span><span class="hs-comment">-- 'haveRtldNext'.</span><span>
+</span><span id="line-102"></span><span class="hs-comment">--</span><span>
+</span><span id="line-103"></span><span class="hs-comment">-- If 'RTLD_DEFAULT' is not defined on your platform, 'packDL' 'Default'</span><span>
+</span><span id="line-104"></span><span class="hs-comment">-- reduces to 'nullPtr'.</span><span>
+</span><span id="line-105"></span><span>
+</span><span id="line-106"></span><span class="hs-keyword">data</span><span> </span><span class="hs-identifier">DL</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">Null</span><span> </span><span class="hs-glyph">|</span><span> </span><span class="hs-identifier">Next</span><span> </span><span class="hs-glyph">|</span><span> </span><span class="hs-identifier">Default</span><span> </span><span class="hs-glyph">|</span><span> </span><span class="hs-identifier">DLHandle</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Ptr</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Show</span><span class="hs-special">)</span><span>
+</span><span id="line-107"></span><span>
+</span><span id="line-108"></span><span class="hs-identifier">packDL</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">DL</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">Ptr</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-109"></span><span class="hs-identifier">packDL</span><span> </span><span class="hs-identifier">Null</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">nullPtr</span><span>
+</span><span id="line-110"></span><span>
+</span><span id="line-111"></span><span>
+</span><span id="line-112"></span><span class="hs-pragma">{-# LINE 112 &quot;libraries/unix/System/Posix/DynamicLinker/Prim.hsc&quot; #-}</span><span>
+</span><span id="line-112"></span><span class="hs-identifier">packDL</span><span> </span><span class="hs-identifier">Next</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">rtldNext</span><span>
+</span><span id="line-113"></span><span>
+</span><span id="line-114"></span><span class="hs-pragma">{-# LINE 116 &quot;libraries/unix/System/Posix/DynamicLinker/Prim.hsc&quot; #-}</span><span>
+</span><span id="line-116"></span><span>
+</span><span id="line-117"></span><span>
+</span><span id="line-118"></span><span class="hs-pragma">{-# LINE 118 &quot;libraries/unix/System/Posix/DynamicLinker/Prim.hsc&quot; #-}</span><span>
+</span><span id="line-118"></span><span class="hs-identifier">packDL</span><span> </span><span class="hs-identifier">Default</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">rtldDefault</span><span>
+</span><span id="line-119"></span><span>
+</span><span id="line-120"></span><span class="hs-pragma">{-# LINE 122 &quot;libraries/unix/System/Posix/DynamicLinker/Prim.hsc&quot; #-}</span><span>
+</span><span id="line-122"></span><span>
+</span><span id="line-123"></span><span class="hs-identifier">packDL</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">DLHandle</span><span> </span><span class="hs-identifier">h</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">h</span><span>
+</span><span id="line-124"></span></pre></body></html>

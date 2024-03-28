@@ -1,0 +1,204 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Unison.LSP.UCMWorker</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Reader</span></span><span>
+</span><span id="line-4"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">U.Codebase.HashTags</span></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Codebase</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Codebase</span></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Codebase.Branch</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Branch</span></span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Codebase.Branch.Names</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Branch</span></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Codebase.Path</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Path</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Debug</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Debug</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.LSP.Completion.html"><span class="hs-identifier">Unison.LSP.Completion</span></a></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.LSP.Types.html"><span class="hs-identifier">Unison.LSP.Types</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.LSP.VFS.html"><span class="hs-identifier">Unison.LSP.VFS</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">VFS</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Names</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Names</span></span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.PrettyPrintEnv.Names</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">PPE</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.PrettyPrintEnvDecl</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.PrettyPrintEnvDecl.Names</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">PPED</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Server.NameSearch</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">NameSearch</span></span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Server.NameSearch.FromNames</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">NameSearch</span></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Sqlite</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Sqlite</span></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">UnliftIO.STM</span></span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- | Watches for state changes in UCM and updates cached LSP state accordingly</span><span>
+</span><span id="line-23"></span><span class="annot"><a href="Unison.LSP.UCMWorker.html#ucmWorker"><span class="hs-identifier hs-type">ucmWorker</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-24"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">TMVar</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">PrettyPrintEnvDecl</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-25"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">TMVar</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Names</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-26"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">TMVar</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">NameSearch</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Sqlite.Transaction</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-27"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">TMVar</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Path.Absolute</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-28"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">STM</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CausalHash</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-29"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">STM</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Path.Absolute</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-30"></span><span>  </span><span class="annot"><a href="Unison.LSP.Types.html#Lsp"><span class="hs-identifier hs-type">Lsp</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span id="ucmWorker"><span class="annot"><span class="annottext">ucmWorker :: TMVar PrettyPrintEnvDecl
+-&gt; TMVar Names
+-&gt; TMVar (NameSearch Transaction)
+-&gt; TMVar Absolute
+-&gt; STM CausalHash
+-&gt; STM Absolute
+-&gt; Lsp ()
+</span><a href="Unison.LSP.UCMWorker.html#ucmWorker"><span class="hs-identifier hs-var hs-var">ucmWorker</span></a></span></span><span> </span><span id="local-6989586621679597683"><span class="annot"><span class="annottext">TMVar PrettyPrintEnvDecl
+</span><a href="#local-6989586621679597683"><span class="hs-identifier hs-var">ppedVar</span></a></span></span><span> </span><span id="local-6989586621679597682"><span class="annot"><span class="annottext">TMVar Names
+</span><a href="#local-6989586621679597682"><span class="hs-identifier hs-var">parseNamesVar</span></a></span></span><span> </span><span id="local-6989586621679597681"><span class="annot"><span class="annottext">TMVar (NameSearch Transaction)
+</span><a href="#local-6989586621679597681"><span class="hs-identifier hs-var">nameSearchCacheVar</span></a></span></span><span> </span><span id="local-6989586621679597680"><span class="annot"><span class="annottext">TMVar Absolute
+</span><a href="#local-6989586621679597680"><span class="hs-identifier hs-var">currentPathVar</span></a></span></span><span> </span><span id="local-6989586621679597679"><span class="annot"><span class="annottext">STM CausalHash
+</span><a href="#local-6989586621679597679"><span class="hs-identifier hs-var">getLatestRoot</span></a></span></span><span> </span><span id="local-6989586621679597678"><span class="annot"><span class="annottext">STM Absolute
+</span><a href="#local-6989586621679597678"><span class="hs-identifier hs-var">getLatestPath</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-32"></span><span>  </span><span class="annot"><a href="Unison.LSP.Types.html#Env"><span class="hs-identifier hs-type">Env</span></a></span><span> </span><span class="hs-special">{</span><span id="local-6989586621679597676"><span class="annot"><span class="annottext">Codebase IO Symbol Ann
+$sel:codebase:Env :: Env -&gt; Codebase IO Symbol Ann
+codebase :: Codebase IO Symbol Ann
+</span><a href="Unison.LSP.Types.html#%24sel%3Acodebase%3AEnv"><span class="hs-identifier hs-var hs-var">codebase</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679597674"><span class="annot"><span class="annottext">TMVar CompletionTree
+$sel:completionsVar:Env :: Env -&gt; TMVar CompletionTree
+completionsVar :: TMVar CompletionTree
+</span><a href="Unison.LSP.Types.html#%24sel%3AcompletionsVar%3AEnv"><span class="hs-identifier hs-var hs-var">completionsVar</span></a></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall r (m :: * -&gt; *). MonadReader r m =&gt; m r
+</span><span class="hs-identifier hs-var">ask</span></span><span>
+</span><span id="line-33"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679597745"><span class="annot"><a href="#local-6989586621679597671"><span class="hs-identifier hs-type">loop</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">CausalHash</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Path.Absolute</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.LSP.Types.html#Lsp"><span class="hs-identifier hs-type">Lsp</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679597745"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-34"></span><span>      </span><span id="local-6989586621679597671"><span class="annot"><span class="annottext">loop :: forall a. (CausalHash, Absolute) -&gt; Lsp a
+</span><a href="#local-6989586621679597671"><span class="hs-identifier hs-var hs-var">loop</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679597627"><span class="annot"><span class="annottext">CausalHash
+</span><a href="#local-6989586621679597627"><span class="hs-identifier hs-var">currentRoot</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679597626"><span class="annot"><span class="annottext">Absolute
+</span><a href="#local-6989586621679597626"><span class="hs-identifier hs-var">currentPath</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-35"></span><span>        </span><span class="annot"><span class="annottext">forall a (m :: * -&gt; *).
+(Show a, Monad m) =&gt;
+DebugFlag -&gt; String -&gt; a -&gt; m ()
+</span><span class="hs-identifier hs-var">Debug.debugM</span></span><span> </span><span class="annot"><span class="annottext">DebugFlag
+</span><span class="hs-identifier hs-var">Debug.LSP</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;LSP path: &quot;</span></span><span> </span><span class="annot"><span class="annottext">Absolute
+</span><a href="#local-6989586621679597626"><span class="hs-identifier hs-var">currentPath</span></a></span><span>
+</span><span id="line-36"></span><span>        </span><span id="local-6989586621679597623"><span class="annot"><span class="annottext">Branch0 IO
+</span><a href="#local-6989586621679597623"><span class="hs-identifier hs-var">currentBranch0</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *). Branch m -&gt; Branch0 m
+</span><span class="hs-identifier hs-var">Branch.head</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><span class="hs-identifier hs-var">liftIO</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) v a.
+MonadIO m =&gt;
+Codebase m v a -&gt; Absolute -&gt; m (Branch m)
+</span><span class="hs-identifier hs-var">Codebase.getBranchAtPath</span></span><span> </span><span class="annot"><span class="annottext">Codebase IO Symbol Ann
+</span><a href="#local-6989586621679597676"><span class="hs-identifier hs-var">codebase</span></a></span><span> </span><span class="annot"><span class="annottext">Absolute
+</span><a href="#local-6989586621679597626"><span class="hs-identifier hs-var">currentPath</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-37"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679597618"><span class="annot"><span class="annottext">parseNames :: Names
+</span><a href="#local-6989586621679597618"><span class="hs-identifier hs-var hs-var">parseNames</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *). Branch0 m -&gt; Names
+</span><span class="hs-identifier hs-var">Branch.toNames</span></span><span> </span><span class="annot"><span class="annottext">Branch0 IO
+</span><a href="#local-6989586621679597623"><span class="hs-identifier hs-var">currentBranch0</span></a></span><span>
+</span><span id="line-38"></span><span>        </span><span id="local-6989586621679597616"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679597616"><span class="hs-identifier hs-var">hl</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><span class="hs-identifier hs-var">liftIO</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) v a b.
+MonadIO m =&gt;
+Codebase m v a -&gt; Transaction b -&gt; m b
+</span><span class="hs-identifier hs-var">Codebase.runTransaction</span></span><span> </span><span class="annot"><span class="annottext">Codebase IO Symbol Ann
+</span><a href="#local-6989586621679597676"><span class="hs-identifier hs-var">codebase</span></a></span><span> </span><span class="annot"><span class="annottext">Transaction Int
+</span><span class="hs-identifier hs-var">Codebase.hashLength</span></span><span>
+</span><span id="line-39"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679597613"><span class="annot"><span class="annottext">pped :: PrettyPrintEnvDecl
+</span><a href="#local-6989586621679597613"><span class="hs-identifier hs-var hs-var">pped</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Namer -&gt; Suffixifier -&gt; PrettyPrintEnvDecl
+</span><span class="hs-identifier hs-var">PPED.makePPED</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Names -&gt; Namer
+</span><span class="hs-identifier hs-var">PPE.hqNamer</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679597616"><span class="hs-identifier hs-var">hl</span></a></span><span> </span><span class="annot"><span class="annottext">Names
+</span><a href="#local-6989586621679597618"><span class="hs-identifier hs-var">parseNames</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Names -&gt; Suffixifier
+</span><span class="hs-identifier hs-var">PPE.suffixifyByHash</span></span><span> </span><span class="annot"><span class="annottext">Names
+</span><a href="#local-6989586621679597618"><span class="hs-identifier hs-var">parseNames</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-40"></span><span>        </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. MonadIO m =&gt; STM a -&gt; m a
+</span><span class="hs-identifier hs-var">atomically</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-41"></span><span>          </span><span class="annot"><span class="annottext">forall a. TMVar a -&gt; a -&gt; STM ()
+</span><a href="#local-6989586621679597608"><span class="hs-identifier hs-var">writeTMVar</span></a></span><span> </span><span class="annot"><span class="annottext">TMVar Absolute
+</span><a href="#local-6989586621679597680"><span class="hs-identifier hs-var">currentPathVar</span></a></span><span> </span><span class="annot"><span class="annottext">Absolute
+</span><a href="#local-6989586621679597626"><span class="hs-identifier hs-var">currentPath</span></a></span><span>
+</span><span id="line-42"></span><span>          </span><span class="annot"><span class="annottext">forall a. TMVar a -&gt; a -&gt; STM ()
+</span><a href="#local-6989586621679597608"><span class="hs-identifier hs-var">writeTMVar</span></a></span><span> </span><span class="annot"><span class="annottext">TMVar Names
+</span><a href="#local-6989586621679597682"><span class="hs-identifier hs-var">parseNamesVar</span></a></span><span> </span><span class="annot"><span class="annottext">Names
+</span><a href="#local-6989586621679597618"><span class="hs-identifier hs-var">parseNames</span></a></span><span>
+</span><span id="line-43"></span><span>          </span><span class="annot"><span class="annottext">forall a. TMVar a -&gt; a -&gt; STM ()
+</span><a href="#local-6989586621679597608"><span class="hs-identifier hs-var">writeTMVar</span></a></span><span> </span><span class="annot"><span class="annottext">TMVar PrettyPrintEnvDecl
+</span><a href="#local-6989586621679597683"><span class="hs-identifier hs-var">ppedVar</span></a></span><span> </span><span class="annot"><span class="annottext">PrettyPrintEnvDecl
+</span><a href="#local-6989586621679597613"><span class="hs-identifier hs-var">pped</span></a></span><span>
+</span><span id="line-44"></span><span>          </span><span class="annot"><span class="annottext">forall a. TMVar a -&gt; a -&gt; STM ()
+</span><a href="#local-6989586621679597608"><span class="hs-identifier hs-var">writeTMVar</span></a></span><span> </span><span class="annot"><span class="annottext">TMVar (NameSearch Transaction)
+</span><a href="#local-6989586621679597681"><span class="hs-identifier hs-var">nameSearchCacheVar</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (m :: * -&gt; *). Applicative m =&gt; Int -&gt; Names -&gt; NameSearch m
+</span><span class="hs-identifier hs-var">NameSearch.makeNameSearch</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679597616"><span class="hs-identifier hs-var">hl</span></a></span><span> </span><span class="annot"><span class="annottext">Names
+</span><a href="#local-6989586621679597618"><span class="hs-identifier hs-var">parseNames</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-45"></span><span>        </span><span class="hs-comment">-- Re-check everything with the new names and ppe</span><span>
+</span><span id="line-46"></span><span>        </span><span class="annot"><span class="annottext">Lsp ()
+</span><a href="Unison.LSP.VFS.html#markAllFilesDirty"><span class="hs-identifier hs-var">VFS.markAllFilesDirty</span></a></span><span>
+</span><span id="line-47"></span><span>        </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. MonadIO m =&gt; STM a -&gt; m a
+</span><span class="hs-identifier hs-var">atomically</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-48"></span><span>          </span><span class="annot"><span class="annottext">forall a. TMVar a -&gt; a -&gt; STM ()
+</span><a href="#local-6989586621679597608"><span class="hs-identifier hs-var">writeTMVar</span></a></span><span> </span><span class="annot"><span class="annottext">TMVar CompletionTree
+</span><a href="#local-6989586621679597674"><span class="hs-identifier hs-var">completionsVar</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Names -&gt; CompletionTree
+</span><a href="Unison.LSP.Completion.html#namesToCompletionTree"><span class="hs-identifier hs-var">namesToCompletionTree</span></a></span><span> </span><span class="annot"><span class="annottext">Names
+</span><a href="#local-6989586621679597618"><span class="hs-identifier hs-var">parseNames</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-49"></span><span>        </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *). Monad m =&gt; DebugFlag -&gt; String -&gt; m ()
+</span><span class="hs-identifier hs-var">Debug.debugLogM</span></span><span> </span><span class="annot"><span class="annottext">DebugFlag
+</span><span class="hs-identifier hs-var">Debug.LSP</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;LSP Initialized&quot;</span></span><span>
+</span><span id="line-50"></span><span>        </span><span id="local-6989586621679597603"><span class="annot"><span class="annottext">(CausalHash, Absolute)
+</span><a href="#local-6989586621679597603"><span class="hs-identifier hs-var">latest</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. MonadIO m =&gt; STM a -&gt; m a
+</span><span class="hs-identifier hs-var">atomically</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-51"></span><span>          </span><span id="local-6989586621679597602"><span class="annot"><span class="annottext">CausalHash
+</span><a href="#local-6989586621679597602"><span class="hs-identifier hs-var">latestRoot</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">STM CausalHash
+</span><a href="#local-6989586621679597679"><span class="hs-identifier hs-var">getLatestRoot</span></a></span><span>
+</span><span id="line-52"></span><span>          </span><span id="local-6989586621679597601"><span class="annot"><span class="annottext">Absolute
+</span><a href="#local-6989586621679597601"><span class="hs-identifier hs-var">latestPath</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">STM Absolute
+</span><a href="#local-6989586621679597678"><span class="hs-identifier hs-var">getLatestPath</span></a></span><span>
+</span><span id="line-53"></span><span>          </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *). Alternative f =&gt; Bool -&gt; f ()
+</span><span class="hs-identifier hs-var">guard</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CausalHash
+</span><a href="#local-6989586621679597627"><span class="hs-identifier hs-var">currentRoot</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">CausalHash
+</span><a href="#local-6989586621679597602"><span class="hs-identifier hs-var">latestRoot</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">Absolute
+</span><a href="#local-6989586621679597626"><span class="hs-identifier hs-var">currentPath</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">Absolute
+</span><a href="#local-6989586621679597601"><span class="hs-identifier hs-var">latestPath</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-54"></span><span>          </span><span class="hs-identifier">pure</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CausalHash
+</span><a href="#local-6989586621679597602"><span class="hs-identifier hs-var">latestRoot</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Absolute
+</span><a href="#local-6989586621679597601"><span class="hs-identifier hs-var">latestPath</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-55"></span><span>        </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *). Monad m =&gt; DebugFlag -&gt; String -&gt; m ()
+</span><span class="hs-identifier hs-var">Debug.debugLogM</span></span><span> </span><span class="annot"><span class="annottext">DebugFlag
+</span><span class="hs-identifier hs-var">Debug.LSP</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;LSP Change detected&quot;</span></span><span>
+</span><span id="line-56"></span><span>        </span><span class="annot"><span class="annottext">forall a. (CausalHash, Absolute) -&gt; Lsp a
+</span><a href="#local-6989586621679597671"><span class="hs-identifier hs-var">loop</span></a></span><span> </span><span class="annot"><span class="annottext">(CausalHash, Absolute)
+</span><a href="#local-6989586621679597603"><span class="hs-identifier hs-var">latest</span></a></span><span>
+</span><span id="line-57"></span><span>  </span><span class="hs-special">(</span><span id="local-6989586621679597598"><span class="annot"><span class="annottext">CausalHash
+</span><a href="#local-6989586621679597598"><span class="hs-identifier hs-var">rootBranch</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679597597"><span class="annot"><span class="annottext">Absolute
+</span><a href="#local-6989586621679597597"><span class="hs-identifier hs-var">currentPath</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. MonadIO m =&gt; STM a -&gt; m a
+</span><span class="hs-identifier hs-var">atomically</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-58"></span><span>    </span><span id="local-6989586621679597596"><span class="annot"><span class="annottext">CausalHash
+</span><a href="#local-6989586621679597596"><span class="hs-identifier hs-var">rootBranch</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">STM CausalHash
+</span><a href="#local-6989586621679597679"><span class="hs-identifier hs-var">getLatestRoot</span></a></span><span>
+</span><span id="line-59"></span><span>    </span><span id="local-6989586621679597595"><span class="annot"><span class="annottext">Absolute
+</span><a href="#local-6989586621679597595"><span class="hs-identifier hs-var">currentPath</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">STM Absolute
+</span><a href="#local-6989586621679597678"><span class="hs-identifier hs-var">getLatestPath</span></a></span><span>
+</span><span id="line-60"></span><span>    </span><span class="hs-identifier">pure</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CausalHash
+</span><a href="#local-6989586621679597596"><span class="hs-identifier hs-var">rootBranch</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Absolute
+</span><a href="#local-6989586621679597595"><span class="hs-identifier hs-var">currentPath</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-61"></span><span>  </span><span class="annot"><span class="annottext">(CausalHash, Absolute) -&gt; Lsp ()
+</span><a href="#local-6989586621679597671"><span class="hs-identifier hs-var">loop</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CausalHash
+</span><a href="#local-6989586621679597598"><span class="hs-identifier hs-var">rootBranch</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Absolute
+</span><a href="#local-6989586621679597597"><span class="hs-identifier hs-var">currentPath</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-62"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-63"></span><span>    </span><span class="hs-comment">-- This is added in stm-2.5.1, remove this if we upgrade.</span><span>
+</span><span id="line-64"></span><span>    </span><span id="local-6989586621679597713"><span class="annot"><a href="#local-6989586621679597608"><span class="hs-identifier hs-type">writeTMVar</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TMVar</span></span><span> </span><span class="annot"><a href="#local-6989586621679597713"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679597713"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">STM</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-65"></span><span>    </span><span id="local-6989586621679597608"><span class="annot"><span class="annottext">writeTMVar :: forall a. TMVar a -&gt; a -&gt; STM ()
+</span><a href="#local-6989586621679597608"><span class="hs-identifier hs-var hs-var">writeTMVar</span></a></span></span><span> </span><span id="local-6989586621679597592"><span class="annot"><span class="annottext">TMVar a
+</span><a href="#local-6989586621679597592"><span class="hs-identifier hs-var">var</span></a></span></span><span> </span><span id="local-6989586621679597591"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679597591"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-66"></span><span>      </span><span class="annot"><span class="annottext">forall a. TMVar a -&gt; STM (Maybe a)
+</span><span class="hs-identifier hs-var">tryReadTMVar</span></span><span> </span><span class="annot"><span class="annottext">TMVar a
+</span><a href="#local-6989586621679597592"><span class="hs-identifier hs-var">var</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-67"></span><span>        </span><span class="annot"><span class="annottext">Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. TMVar a -&gt; a -&gt; STM ()
+</span><span class="hs-identifier hs-var">putTMVar</span></span><span> </span><span class="annot"><span class="annottext">TMVar a
+</span><a href="#local-6989586621679597592"><span class="hs-identifier hs-var">var</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679597591"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-68"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Functor f =&gt; f a -&gt; f ()
+</span><span class="hs-identifier hs-var">void</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall a. TMVar a -&gt; a -&gt; STM a
+</span><span class="hs-identifier hs-var">swapTMVar</span></span><span> </span><span class="annot"><span class="annottext">TMVar a
+</span><a href="#local-6989586621679597592"><span class="hs-identifier hs-var">var</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679597591"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-69"></span></pre></body></html>

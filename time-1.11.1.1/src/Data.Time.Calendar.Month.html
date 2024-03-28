@@ -1,0 +1,438 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span id="local-6989586621679070965"><span id="local-6989586621679070966"></span></span><span class="hs-pragma">{-# LANGUAGE Safe #-}</span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ &lt; 802
+</span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-incomplete-patterns -Wno-incomplete-uni-patterns #-}</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- | An absolute count of common calendar months.</span><span>
+</span><span id="line-7"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Data.Time.Calendar.Month</span><span>
+</span><span id="line-8"></span><span>    </span><span class="hs-special">(</span><span>
+</span><span id="line-9"></span><span>        </span><span class="annot"><a href="Data.Time.Calendar.Month.html#Month"><span class="hs-identifier">Month</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Time.Calendar.Month.html#addMonths"><span class="hs-identifier">addMonths</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Time.Calendar.Month.html#diffMonths"><span class="hs-identifier">diffMonths</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-10"></span><span>        </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Time.Calendar.Month.html#YearMonth"><span class="hs-identifier">YearMonth</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-11"></span><span>        </span><span class="annot"><a href="Data.Time.Calendar.Month.html#fromYearMonthValid"><span class="hs-identifier">fromYearMonthValid</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-12"></span><span>        </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Time.Calendar.Month.html#MonthDay"><span class="hs-identifier">MonthDay</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-13"></span><span>        </span><span class="annot"><a href="Data.Time.Calendar.Month.html#fromMonthDayValid"><span class="hs-identifier">fromMonthDayValid</span></a></span><span>
+</span><span id="line-14"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Time.Calendar.Types.html"><span class="hs-identifier">Data.Time.Calendar.Types</span></a></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Time.Calendar.Days.html"><span class="hs-identifier">Data.Time.Calendar.Days</span></a></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Time.Calendar.Gregorian.html"><span class="hs-identifier">Data.Time.Calendar.Gregorian</span></a></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Time.Calendar.Private.html"><span class="hs-identifier">Data.Time.Calendar.Private</span></a></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Data-Data.html#"><span class="hs-identifier">Data.Data</span></a></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Data-Fixed.html#"><span class="hs-identifier">Data.Fixed</span></a></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Text-Read.html#"><span class="hs-identifier">Text.Read</span></a></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Text-ParserCombinators-ReadP.html#"><span class="hs-identifier">Text.ParserCombinators.ReadP</span></a></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../deepseq-1.4.6.1/src/Control-DeepSeq.html#"><span class="hs-identifier">Control.DeepSeq</span></a></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Data-Ix.html#"><span class="hs-identifier">Data.Ix</span></a></span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="hs-comment">-- | An absolute count of common calendar months.</span><span>
+</span><span id="line-28"></span><span class="hs-comment">-- Number is equal to @(year * 12) + (monthOfYear - 1)@.</span><span>
+</span><span id="line-29"></span><span class="hs-keyword">newtype</span><span> </span><span id="Month"><span class="annot"><a href="Data.Time.Calendar.Month.html#Month"><span class="hs-identifier hs-var">Month</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="MkMonth"><span class="annot"><a href="Data.Time.Calendar.Month.html#MkMonth"><span class="hs-identifier hs-var">MkMonth</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679070930"><span id="local-6989586621679070935"><span class="annot"><span class="annottext">Month -&gt; Month -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: Month -&gt; Month -&gt; Bool
+$c/= :: Month -&gt; Month -&gt; Bool
+== :: Month -&gt; Month -&gt; Bool
+$c== :: Month -&gt; Month -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679070897"><span id="local-6989586621679070901"><span id="local-6989586621679070905"><span id="local-6989586621679070909"><span id="local-6989586621679070913"><span id="local-6989586621679070917"><span id="local-6989586621679070922"><span class="annot"><span class="annottext">Eq Month
+Month -&gt; Month -&gt; Bool
+Month -&gt; Month -&gt; Ordering
+Month -&gt; Month -&gt; Month
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: Month -&gt; Month -&gt; Month
+$cmin :: Month -&gt; Month -&gt; Month
+max :: Month -&gt; Month -&gt; Month
+$cmax :: Month -&gt; Month -&gt; Month
+&gt;= :: Month -&gt; Month -&gt; Bool
+$c&gt;= :: Month -&gt; Month -&gt; Bool
+&gt; :: Month -&gt; Month -&gt; Bool
+$c&gt; :: Month -&gt; Month -&gt; Bool
+&lt;= :: Month -&gt; Month -&gt; Bool
+$c&lt;= :: Month -&gt; Month -&gt; Bool
+&lt; :: Month -&gt; Month -&gt; Bool
+$c&lt; :: Month -&gt; Month -&gt; Bool
+compare :: Month -&gt; Month -&gt; Ordering
+$ccompare :: Month -&gt; Month -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679070860"><span id="local-6989586621679070862"><span id="local-6989586621679070864"><span id="local-6989586621679070866"><span id="local-6989586621679070868"><span id="local-6989586621679070870"><span id="local-6989586621679070872"><span id="local-6989586621679070874"><span id="local-6989586621679070876"><span id="local-6989586621679070878"><span id="local-6989586621679070880"><span id="local-6989586621679070882"><span id="local-6989586621679070885"><span id="local-6989586621679070889"><span class="annot"><span class="annottext">Typeable Month
+Month -&gt; DataType
+Month -&gt; Constr
+(forall b. Data b =&gt; b -&gt; b) -&gt; Month -&gt; Month
+forall a.
+Typeable a
+-&gt; (forall (c :: * -&gt; *).
+    (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+    -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u.
+    MonthOfYear -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall u. MonthOfYear -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Month -&gt; u
+forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Month -&gt; [u]
+forall r r'.
+(r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Month -&gt; r
+forall r r'.
+(r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Month -&gt; r
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Month -&gt; m Month
+forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Month -&gt; m Month
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Month
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Month -&gt; c Month
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Month)
+forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Month)
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Month -&gt; m Month
+$cgmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Month -&gt; m Month
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Month -&gt; m Month
+$cgmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Month -&gt; m Month
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Month -&gt; m Month
+$cgmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Month -&gt; m Month
+gmapQi :: forall u. MonthOfYear -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Month -&gt; u
+$cgmapQi :: forall u. MonthOfYear -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Month -&gt; u
+gmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Month -&gt; [u]
+$cgmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Month -&gt; [u]
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Month -&gt; r
+$cgmapQr :: forall r r'.
+(r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Month -&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Month -&gt; r
+$cgmapQl :: forall r r'.
+(r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Month -&gt; r
+gmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; Month -&gt; Month
+$cgmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; Month -&gt; Month
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Month)
+$cdataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Month)
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Month)
+$cdataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Month)
+dataTypeOf :: Month -&gt; DataType
+$cdataTypeOf :: Month -&gt; DataType
+toConstr :: Month -&gt; Constr
+$ctoConstr :: Month -&gt; Constr
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Month
+$cgunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Month
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Month -&gt; c Month
+$cgfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Month -&gt; c Month
+</span><a href="../../base-4.16.4.0/src/Data-Data.html#Data"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data</span></a></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Data-Typeable-Internal.html#Typeable"><span class="hs-identifier hs-type">Typeable</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="../../deepseq-1.4.6.1/src/Control-DeepSeq.html#NFData"><span class="hs-identifier hs-type">NFData</span></a></span><span> </span><span class="annot"><a href="Data.Time.Calendar.Month.html#Month"><span class="hs-identifier hs-type">Month</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-32"></span><span>    </span><span id="local-6989586621679070853"><span class="annot"><span class="annottext">rnf :: Month -&gt; ()
+</span><a href="../../deepseq-1.4.6.1/src/Control-DeepSeq.html#rnf"><span class="hs-identifier hs-var hs-var hs-var hs-var">rnf</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Time.Calendar.Month.html#MkMonth"><span class="hs-identifier hs-type">MkMonth</span></a></span><span> </span><span id="local-6989586621679070851"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070851"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. NFData a =&gt; a -&gt; ()
+</span><a href="../../deepseq-1.4.6.1/src/Control-DeepSeq.html#rnf"><span class="hs-identifier hs-var">rnf</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070851"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Enum.html#Enum"><span class="hs-identifier hs-type">Enum</span></a></span><span> </span><span class="annot"><a href="Data.Time.Calendar.Month.html#Month"><span class="hs-identifier hs-type">Month</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-35"></span><span>    </span><span id="local-6989586621679070838"><span class="annot"><span class="annottext">succ :: Month -&gt; Month
+</span><a href="../../base-4.16.4.0/src/GHC-Enum.html#succ"><span class="hs-identifier hs-var hs-var hs-var hs-var">succ</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Time.Calendar.Month.html#MkMonth"><span class="hs-identifier hs-type">MkMonth</span></a></span><span> </span><span id="local-6989586621679070836"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070836"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Month
+</span><a href="Data.Time.Calendar.Month.html#MkMonth"><span class="hs-identifier hs-var">MkMonth</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Enum a =&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Enum.html#succ"><span class="hs-identifier hs-var">succ</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070836"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span>    </span><span id="local-6989586621679070834"><span class="annot"><span class="annottext">pred :: Month -&gt; Month
+</span><a href="../../base-4.16.4.0/src/GHC-Enum.html#pred"><span class="hs-identifier hs-var hs-var hs-var hs-var">pred</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Time.Calendar.Month.html#MkMonth"><span class="hs-identifier hs-type">MkMonth</span></a></span><span> </span><span id="local-6989586621679070832"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070832"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Month
+</span><a href="Data.Time.Calendar.Month.html#MkMonth"><span class="hs-identifier hs-var">MkMonth</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Enum a =&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Enum.html#pred"><span class="hs-identifier hs-var">pred</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070832"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-37"></span><span>    </span><span id="local-6989586621679070830"><span class="annot"><span class="annottext">toEnum :: MonthOfYear -&gt; Month
+</span><a href="../../base-4.16.4.0/src/GHC-Enum.html#toEnum"><span class="hs-identifier hs-var hs-var hs-var hs-var">toEnum</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Month
+</span><a href="Data.Time.Calendar.Month.html#MkMonth"><span class="hs-identifier hs-var">MkMonth</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#."><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Enum a =&gt; MonthOfYear -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Enum.html#toEnum"><span class="hs-identifier hs-var">toEnum</span></a></span><span>
+</span><span id="line-38"></span><span>    </span><span id="local-6989586621679070826"><span class="annot"><span class="annottext">fromEnum :: Month -&gt; MonthOfYear
+</span><a href="../../base-4.16.4.0/src/GHC-Enum.html#fromEnum"><span class="hs-identifier hs-var hs-var hs-var hs-var">fromEnum</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Time.Calendar.Month.html#MkMonth"><span class="hs-identifier hs-type">MkMonth</span></a></span><span> </span><span id="local-6989586621679070824"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070824"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Enum a =&gt; a -&gt; MonthOfYear
+</span><a href="../../base-4.16.4.0/src/GHC-Enum.html#fromEnum"><span class="hs-identifier hs-var">fromEnum</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070824"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-39"></span><span>    </span><span id="local-6989586621679070820"><span class="annot"><span class="annottext">enumFrom :: Month -&gt; [Month]
+</span><a href="../../base-4.16.4.0/src/GHC-Enum.html#enumFrom"><span class="hs-identifier hs-var hs-var hs-var hs-var">enumFrom</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Time.Calendar.Month.html#MkMonth"><span class="hs-identifier hs-type">MkMonth</span></a></span><span> </span><span id="local-6989586621679070819"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070819"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#fmap"><span class="hs-identifier hs-var">fmap</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Month
+</span><a href="Data.Time.Calendar.Month.html#MkMonth"><span class="hs-identifier hs-var">MkMonth</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Enum a =&gt; a -&gt; [a]
+</span><a href="../../base-4.16.4.0/src/GHC-Enum.html#enumFrom"><span class="hs-identifier hs-var">enumFrom</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070819"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-40"></span><span>    </span><span id="local-6989586621679070816"><span class="annot"><span class="annottext">enumFromThen :: Month -&gt; Month -&gt; [Month]
+</span><a href="../../base-4.16.4.0/src/GHC-Enum.html#enumFromThen"><span class="hs-identifier hs-var hs-var hs-var hs-var">enumFromThen</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Time.Calendar.Month.html#MkMonth"><span class="hs-identifier hs-type">MkMonth</span></a></span><span> </span><span id="local-6989586621679070815"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070815"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Time.Calendar.Month.html#MkMonth"><span class="hs-identifier hs-type">MkMonth</span></a></span><span> </span><span id="local-6989586621679070814"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070814"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#fmap"><span class="hs-identifier hs-var">fmap</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Month
+</span><a href="Data.Time.Calendar.Month.html#MkMonth"><span class="hs-identifier hs-var">MkMonth</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Enum a =&gt; a -&gt; a -&gt; [a]
+</span><a href="../../base-4.16.4.0/src/GHC-Enum.html#enumFromThen"><span class="hs-identifier hs-var">enumFromThen</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070815"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070814"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-41"></span><span>    </span><span id="local-6989586621679070811"><span class="annot"><span class="annottext">enumFromTo :: Month -&gt; Month -&gt; [Month]
+</span><a href="../../base-4.16.4.0/src/GHC-Enum.html#enumFromTo"><span class="hs-identifier hs-var hs-var hs-var hs-var">enumFromTo</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Time.Calendar.Month.html#MkMonth"><span class="hs-identifier hs-type">MkMonth</span></a></span><span> </span><span id="local-6989586621679070810"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070810"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Time.Calendar.Month.html#MkMonth"><span class="hs-identifier hs-type">MkMonth</span></a></span><span> </span><span id="local-6989586621679070809"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070809"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#fmap"><span class="hs-identifier hs-var">fmap</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Month
+</span><a href="Data.Time.Calendar.Month.html#MkMonth"><span class="hs-identifier hs-var">MkMonth</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Enum a =&gt; a -&gt; a -&gt; [a]
+</span><a href="../../base-4.16.4.0/src/GHC-Enum.html#enumFromTo"><span class="hs-identifier hs-var">enumFromTo</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070810"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070809"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span>    </span><span id="local-6989586621679070806"><span class="annot"><span class="annottext">enumFromThenTo :: Month -&gt; Month -&gt; Month -&gt; [Month]
+</span><a href="../../base-4.16.4.0/src/GHC-Enum.html#enumFromThenTo"><span class="hs-identifier hs-var hs-var hs-var hs-var">enumFromThenTo</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Time.Calendar.Month.html#MkMonth"><span class="hs-identifier hs-type">MkMonth</span></a></span><span> </span><span id="local-6989586621679070805"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070805"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Time.Calendar.Month.html#MkMonth"><span class="hs-identifier hs-type">MkMonth</span></a></span><span> </span><span id="local-6989586621679070804"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070804"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Time.Calendar.Month.html#MkMonth"><span class="hs-identifier hs-type">MkMonth</span></a></span><span> </span><span id="local-6989586621679070803"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070803"><span class="hs-identifier hs-var">c</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-43"></span><span>        </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#fmap"><span class="hs-identifier hs-var">fmap</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Month
+</span><a href="Data.Time.Calendar.Month.html#MkMonth"><span class="hs-identifier hs-var">MkMonth</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Enum a =&gt; a -&gt; a -&gt; a -&gt; [a]
+</span><a href="../../base-4.16.4.0/src/GHC-Enum.html#enumFromThenTo"><span class="hs-identifier hs-var">enumFromThenTo</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070805"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070804"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070803"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679070793"><span id="local-6989586621679070797"><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Ix.html#Ix"><span class="hs-identifier hs-type">Ix</span></a></span><span> </span><span class="annot"><a href="Data.Time.Calendar.Month.html#Month"><span class="hs-identifier hs-type">Month</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-46"></span><span>    </span><span id="local-6989586621679070788"><span class="annot"><span class="annottext">range :: (Month, Month) -&gt; [Month]
+</span><a href="../../base-4.16.4.0/src/GHC-Ix.html#range"><span class="hs-identifier hs-var hs-var hs-var hs-var">range</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Time.Calendar.Month.html#MkMonth"><span class="hs-identifier hs-type">MkMonth</span></a></span><span> </span><span id="local-6989586621679070786"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070786"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Time.Calendar.Month.html#MkMonth"><span class="hs-identifier hs-type">MkMonth</span></a></span><span> </span><span id="local-6989586621679070785"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070785"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#fmap"><span class="hs-identifier hs-var">fmap</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Month
+</span><a href="Data.Time.Calendar.Month.html#MkMonth"><span class="hs-identifier hs-var">MkMonth</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Ix a =&gt; (a, a) -&gt; [a]
+</span><a href="../../base-4.16.4.0/src/GHC-Ix.html#range"><span class="hs-identifier hs-var">range</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070786"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070785"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-47"></span><span>    </span><span id="local-6989586621679070783"><span class="annot"><span class="annottext">index :: (Month, Month) -&gt; Month -&gt; MonthOfYear
+</span><a href="../../base-4.16.4.0/src/GHC-Ix.html#index"><span class="hs-identifier hs-var hs-var hs-var hs-var">index</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Time.Calendar.Month.html#MkMonth"><span class="hs-identifier hs-type">MkMonth</span></a></span><span> </span><span id="local-6989586621679070781"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070781"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Time.Calendar.Month.html#MkMonth"><span class="hs-identifier hs-type">MkMonth</span></a></span><span> </span><span id="local-6989586621679070780"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070780"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Time.Calendar.Month.html#MkMonth"><span class="hs-identifier hs-type">MkMonth</span></a></span><span> </span><span id="local-6989586621679070779"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070779"><span class="hs-identifier hs-var">c</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Ix a =&gt; (a, a) -&gt; a -&gt; MonthOfYear
+</span><a href="../../base-4.16.4.0/src/GHC-Ix.html#index"><span class="hs-identifier hs-var">index</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070781"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070780"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070779"><span class="hs-identifier hs-var">c</span></a></span><span>
+</span><span id="line-48"></span><span>    </span><span id="local-6989586621679070777"><span class="annot"><span class="annottext">inRange :: (Month, Month) -&gt; Month -&gt; Bool
+</span><a href="../../base-4.16.4.0/src/GHC-Ix.html#inRange"><span class="hs-identifier hs-var hs-var hs-var hs-var">inRange</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Time.Calendar.Month.html#MkMonth"><span class="hs-identifier hs-type">MkMonth</span></a></span><span> </span><span id="local-6989586621679070775"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070775"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Time.Calendar.Month.html#MkMonth"><span class="hs-identifier hs-type">MkMonth</span></a></span><span> </span><span id="local-6989586621679070774"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070774"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Time.Calendar.Month.html#MkMonth"><span class="hs-identifier hs-type">MkMonth</span></a></span><span> </span><span id="local-6989586621679070773"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070773"><span class="hs-identifier hs-var">c</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Ix a =&gt; (a, a) -&gt; a -&gt; Bool
+</span><a href="../../base-4.16.4.0/src/GHC-Ix.html#inRange"><span class="hs-identifier hs-var">inRange</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070775"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070774"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070773"><span class="hs-identifier hs-var">c</span></a></span><span>
+</span><span id="line-49"></span><span>    </span><span id="local-6989586621679070771"><span class="annot"><span class="annottext">rangeSize :: (Month, Month) -&gt; MonthOfYear
+</span><a href="../../base-4.16.4.0/src/GHC-Ix.html#rangeSize"><span class="hs-identifier hs-var hs-var hs-var hs-var">rangeSize</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Time.Calendar.Month.html#MkMonth"><span class="hs-identifier hs-type">MkMonth</span></a></span><span> </span><span id="local-6989586621679070769"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070769"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Time.Calendar.Month.html#MkMonth"><span class="hs-identifier hs-type">MkMonth</span></a></span><span> </span><span id="local-6989586621679070768"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070768"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Ix a =&gt; (a, a) -&gt; MonthOfYear
+</span><a href="../../base-4.16.4.0/src/GHC-Ix.html#rangeSize"><span class="hs-identifier hs-var">rangeSize</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070769"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070768"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-50"></span><span>
+</span><span id="line-51"></span><span class="hs-comment">-- | Show as @yyyy-mm@.</span><span>
+</span><span id="line-52"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679070763"><span id="local-6989586621679070766"><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Show.html#Show"><span class="hs-identifier hs-type">Show</span></a></span><span> </span><span class="annot"><a href="Data.Time.Calendar.Month.html#Month"><span class="hs-identifier hs-type">Month</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-53"></span><span>    </span><span id="local-6989586621679070757"><span class="annot"><span class="annottext">show :: Month -&gt; String
+</span><a href="../../base-4.16.4.0/src/GHC-Show.html#show"><span class="hs-identifier hs-var hs-var hs-var hs-var">show</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Time.Calendar.Month.html#YearMonth"><span class="hs-identifier hs-type">YearMonth</span></a></span><span> </span><span id="local-6989586621679070755"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070755"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span id="local-6989586621679070754"><span class="annot"><span class="annottext">MonthOfYear
+</span><a href="#local-6989586621679070754"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall t. ShowPadded t =&gt; t -&gt; String
+</span><a href="Data.Time.Calendar.Private.html#show4"><span class="hs-identifier hs-var">show4</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070755"><span class="hs-identifier hs-var">y</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%2B%2B"><span class="hs-operator hs-var">++</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;-&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%2B%2B"><span class="hs-operator hs-var">++</span></a></span><span> </span><span class="annot"><span class="annottext">forall t. ShowPadded t =&gt; t -&gt; String
+</span><a href="Data.Time.Calendar.Private.html#show2"><span class="hs-identifier hs-var">show2</span></a></span><span> </span><span class="annot"><span class="annottext">MonthOfYear
+</span><a href="#local-6989586621679070754"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="hs-comment">-- | Read as @yyyy-mm@.</span><span>
+</span><span id="line-56"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679070745"><span id="local-6989586621679070748"><span id="local-6989586621679070750"><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Read.html#Read"><span class="hs-identifier hs-type">Read</span></a></span><span> </span><span class="annot"><a href="Data.Time.Calendar.Month.html#Month"><span class="hs-identifier hs-type">Month</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-57"></span><span>    </span><span id="local-6989586621679070734"><span class="annot"><span class="annottext">readPrec :: ReadPrec Month
+</span><a href="../../base-4.16.4.0/src/GHC-Read.html#readPrec"><span class="hs-identifier hs-var hs-var hs-var hs-var">readPrec</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-58"></span><span>        </span><span id="local-6989586621679070732"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070732"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a. Read a =&gt; ReadPrec a
+</span><a href="../../base-4.16.4.0/src/GHC-Read.html#readPrec"><span class="hs-identifier hs-var">readPrec</span></a></span><span>
+</span><span id="line-59"></span><span>        </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a. ReadP a -&gt; ReadPrec a
+</span><a href="../../base-4.16.4.0/src/Text-ParserCombinators-ReadPrec.html#lift"><span class="hs-identifier hs-var">lift</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">Char -&gt; ReadP Char
+</span><a href="../../base-4.16.4.0/src/Text-ParserCombinators-ReadP.html#char"><span class="hs-identifier hs-var">char</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'-'</span></span><span>
+</span><span id="line-60"></span><span>        </span><span id="local-6989586621679070729"><span class="annot"><span class="annottext">MonthOfYear
+</span><a href="#local-6989586621679070729"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a. Read a =&gt; ReadPrec a
+</span><a href="../../base-4.16.4.0/src/GHC-Read.html#readPrec"><span class="hs-identifier hs-var">readPrec</span></a></span><span>
+</span><span id="line-61"></span><span>        </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#return"><span class="hs-identifier hs-var">return</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; MonthOfYear -&gt; Month
+</span><a href="Data.Time.Calendar.Month.html#YearMonth"><span class="hs-identifier hs-var">YearMonth</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070732"><span class="hs-identifier hs-var">y</span></a></span><span> </span><span class="annot"><span class="annottext">MonthOfYear
+</span><a href="#local-6989586621679070729"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-62"></span><span>
+</span><span id="line-63"></span><span class="annot"><a href="Data.Time.Calendar.Month.html#addMonths"><span class="hs-identifier hs-type">addMonths</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Time.Calendar.Month.html#Month"><span class="hs-identifier hs-type">Month</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Time.Calendar.Month.html#Month"><span class="hs-identifier hs-type">Month</span></a></span><span>
+</span><span id="line-64"></span><span id="addMonths"><span class="annot"><span class="annottext">addMonths :: Integer -&gt; Month -&gt; Month
+</span><a href="Data.Time.Calendar.Month.html#addMonths"><span class="hs-identifier hs-var hs-var">addMonths</span></a></span></span><span> </span><span id="local-6989586621679070728"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070728"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Time.Calendar.Month.html#MkMonth"><span class="hs-identifier hs-type">MkMonth</span></a></span><span> </span><span id="local-6989586621679070727"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070727"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Month
+</span><a href="Data.Time.Calendar.Month.html#MkMonth"><span class="hs-identifier hs-var">MkMonth</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070727"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070728"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-65"></span><span>
+</span><span id="line-66"></span><span class="annot"><a href="Data.Time.Calendar.Month.html#diffMonths"><span class="hs-identifier hs-type">diffMonths</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Time.Calendar.Month.html#Month"><span class="hs-identifier hs-type">Month</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Time.Calendar.Month.html#Month"><span class="hs-identifier hs-type">Month</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span>
+</span><span id="line-67"></span><span id="diffMonths"><span class="annot"><span class="annottext">diffMonths :: Month -&gt; Month -&gt; Integer
+</span><a href="Data.Time.Calendar.Month.html#diffMonths"><span class="hs-identifier hs-var hs-var">diffMonths</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Time.Calendar.Month.html#MkMonth"><span class="hs-identifier hs-type">MkMonth</span></a></span><span> </span><span id="local-6989586621679070725"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070725"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Time.Calendar.Month.html#MkMonth"><span class="hs-identifier hs-type">MkMonth</span></a></span><span> </span><span id="local-6989586621679070724"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070724"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070725"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#-"><span class="hs-glyph hs-var">-</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070724"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-68"></span><span>
+</span><span id="line-69"></span><span class="hs-comment">-- | Bidirectional abstract constructor.</span><span>
+</span><span id="line-70"></span><span class="hs-comment">-- Invalid months of year will be clipped to the correct range.</span><span>
+</span><span id="line-71"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Time.Calendar.Month.html#YearMonth"><span class="hs-identifier hs-type">YearMonth</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Time.Calendar.Types.html#Year"><span class="hs-identifier hs-type">Year</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Time.Calendar.Types.html#MonthOfYear"><span class="hs-identifier hs-type">MonthOfYear</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Time.Calendar.Month.html#Month"><span class="hs-identifier hs-type">Month</span></a></span><span>
+</span><span id="line-72"></span><span class="hs-keyword">pattern</span><span> </span><span id="%24mYearMonth"><span id="%24bYearMonth"><span id="YearMonth"><span class="annot"><span class="annottext">$mYearMonth :: forall {r}.
+Month -&gt; (Integer -&gt; MonthOfYear -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bYearMonth :: Integer -&gt; MonthOfYear -&gt; Month
+</span><a href="Data.Time.Calendar.Month.html#%24mYearMonth"><span class="hs-identifier hs-var hs-var hs-var hs-var">YearMonth</span></a></span></span></span></span><span> </span><span class="annot"><a href="#local-6989586621679070720"><span class="hs-identifier hs-type">y</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679070719"><span class="hs-identifier hs-type">my</span></a></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="Data.Time.Calendar.Month.html#MkMonth"><span class="hs-identifier hs-type">MkMonth</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679070711"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070711"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a b. (Real a, Integral b) =&gt; a -&gt; a -&gt; (b, a)
+</span><a href="../../base-4.16.4.0/src/Data-Fixed.html#divMod%27"><span class="hs-identifier hs-var">divMod'</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070711"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">12</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679070720"><span class="annot"><a href="#local-6989586621679070720"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">,</span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Enum.html#succ"><span class="hs-identifier hs-type">succ</span></a></span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Base.html#."><span class="hs-operator hs-type">.</span></a></span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Num.html#fromInteger"><span class="hs-identifier hs-type">fromInteger</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span id="local-6989586621679070719"><span class="annot"><a href="#local-6989586621679070719"><span class="hs-identifier hs-var">my</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-73"></span><span>    </span><span class="annot"><a href="Data.Time.Calendar.Month.html#YearMonth"><span class="hs-identifier hs-var">YearMonth</span></a></span><span> </span><span id="local-6989586621679070709"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070709"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span id="local-6989586621679070708"><span class="annot"><span class="annottext">MonthOfYear
+</span><a href="#local-6989586621679070708"><span class="hs-identifier hs-var">my</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Month
+</span><a href="Data.Time.Calendar.Month.html#MkMonth"><span class="hs-identifier hs-var">MkMonth</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070709"><span class="hs-identifier hs-var">y</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2A"><span class="hs-operator hs-var">*</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">12</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Integral a =&gt; a -&gt; Integer
+</span><a href="../../base-4.16.4.0/src/GHC-Real.html#toInteger"><span class="hs-identifier hs-var">toInteger</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Enum a =&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Enum.html#pred"><span class="hs-identifier hs-var">pred</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">forall t. Ord t =&gt; t -&gt; t -&gt; t -&gt; t
+</span><a href="Data.Time.Calendar.Private.html#clip"><span class="hs-identifier hs-var">clip</span></a></span><span> </span><span class="annot"><span class="annottext">MonthOfYear
+</span><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="annottext">MonthOfYear
+</span><span class="hs-number">12</span></span><span> </span><span class="annot"><span class="annottext">MonthOfYear
+</span><a href="#local-6989586621679070708"><span class="hs-identifier hs-var">my</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-74"></span><span>
+</span><span id="line-75"></span><span class="annot"><a href="Data.Time.Calendar.Month.html#fromYearMonthValid"><span class="hs-identifier hs-type">fromYearMonthValid</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Time.Calendar.Types.html#Year"><span class="hs-identifier hs-type">Year</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Time.Calendar.Types.html#MonthOfYear"><span class="hs-identifier hs-type">MonthOfYear</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Maybe"><span class="hs-identifier hs-type">Maybe</span></a></span><span> </span><span class="annot"><a href="Data.Time.Calendar.Month.html#Month"><span class="hs-identifier hs-type">Month</span></a></span><span>
+</span><span id="line-76"></span><span id="fromYearMonthValid"><span class="annot"><span class="annottext">fromYearMonthValid :: Integer -&gt; MonthOfYear -&gt; Maybe Month
+</span><a href="Data.Time.Calendar.Month.html#fromYearMonthValid"><span class="hs-identifier hs-var hs-var">fromYearMonthValid</span></a></span></span><span> </span><span id="local-6989586621679070705"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070705"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span id="local-6989586621679070704"><span class="annot"><span class="annottext">MonthOfYear
+</span><a href="#local-6989586621679070704"><span class="hs-identifier hs-var">my</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-77"></span><span>    </span><span id="local-6989586621679070703"><span class="annot"><span class="annottext">MonthOfYear
+</span><a href="#local-6989586621679070703"><span class="hs-identifier hs-var">my'</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall t. Ord t =&gt; t -&gt; t -&gt; t -&gt; Maybe t
+</span><a href="Data.Time.Calendar.Private.html#clipValid"><span class="hs-identifier hs-var">clipValid</span></a></span><span> </span><span class="annot"><span class="annottext">MonthOfYear
+</span><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="annottext">MonthOfYear
+</span><span class="hs-number">12</span></span><span> </span><span class="annot"><span class="annottext">MonthOfYear
+</span><a href="#local-6989586621679070704"><span class="hs-identifier hs-var">my</span></a></span><span>
+</span><span id="line-78"></span><span>    </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#return"><span class="hs-identifier hs-var">return</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; MonthOfYear -&gt; Month
+</span><a href="Data.Time.Calendar.Month.html#YearMonth"><span class="hs-identifier hs-var">YearMonth</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070705"><span class="hs-identifier hs-var">y</span></a></span><span> </span><span class="annot"><span class="annottext">MonthOfYear
+</span><a href="#local-6989586621679070703"><span class="hs-identifier hs-var">my'</span></a></span><span class="hs-cpp">
+
+#if __GLASGOW_HASKELL__ &gt;= 802
+</span><span class="hs-pragma">{-# COMPLETE</span><span> </span><span class="annot"><a href="Data.Time.Calendar.Month.html#YearMonth"><span class="hs-pragma hs-type">YearMonth</span></a></span><span> </span><span class="hs-pragma">#-}</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-84"></span><span class="annot"><a href="Data.Time.Calendar.Month.html#toMonthDay"><span class="hs-identifier hs-type">toMonthDay</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Time.Calendar.Days.html#Day"><span class="hs-identifier hs-type">Day</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Time.Calendar.Month.html#Month"><span class="hs-identifier hs-type">Month</span></a></span><span class="hs-special">,</span><span class="annot"><a href="Data.Time.Calendar.Types.html#DayOfMonth"><span class="hs-identifier hs-type">DayOfMonth</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-85"></span><span id="toMonthDay"><span class="annot"><span class="annottext">toMonthDay :: Day -&gt; (Month, MonthOfYear)
+</span><a href="Data.Time.Calendar.Month.html#toMonthDay"><span class="hs-identifier hs-var hs-var">toMonthDay</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Time.Calendar.Gregorian.html#YearMonthDay"><span class="hs-identifier hs-type">YearMonthDay</span></a></span><span> </span><span id="local-6989586621679070698"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070698"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span id="local-6989586621679070697"><span class="annot"><span class="annottext">MonthOfYear
+</span><a href="#local-6989586621679070697"><span class="hs-identifier hs-var">my</span></a></span></span><span> </span><span id="local-6989586621679070696"><span class="annot"><span class="annottext">MonthOfYear
+</span><a href="#local-6989586621679070696"><span class="hs-identifier hs-var">dm</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer -&gt; MonthOfYear -&gt; Month
+</span><a href="Data.Time.Calendar.Month.html#YearMonth"><span class="hs-identifier hs-var">YearMonth</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070698"><span class="hs-identifier hs-var">y</span></a></span><span> </span><span class="annot"><span class="annottext">MonthOfYear
+</span><a href="#local-6989586621679070697"><span class="hs-identifier hs-var">my</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">MonthOfYear
+</span><a href="#local-6989586621679070696"><span class="hs-identifier hs-var">dm</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-86"></span><span>
+</span><span id="line-87"></span><span class="hs-comment">-- | Bidirectional abstract constructor.</span><span>
+</span><span id="line-88"></span><span class="hs-comment">-- Invalid days of month will be clipped to the correct range.</span><span>
+</span><span id="line-89"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Time.Calendar.Month.html#MonthDay"><span class="hs-identifier hs-type">MonthDay</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Time.Calendar.Month.html#Month"><span class="hs-identifier hs-type">Month</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Time.Calendar.Types.html#DayOfMonth"><span class="hs-identifier hs-type">DayOfMonth</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Time.Calendar.Days.html#Day"><span class="hs-identifier hs-type">Day</span></a></span><span>
+</span><span id="line-90"></span><span class="hs-keyword">pattern</span><span> </span><span id="%24mMonthDay"><span id="%24bMonthDay"><span id="MonthDay"><span class="annot"><span class="annottext">$mMonthDay :: forall {r}. Day -&gt; (Month -&gt; MonthOfYear -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bMonthDay :: Month -&gt; MonthOfYear -&gt; Day
+</span><a href="Data.Time.Calendar.Month.html#%24mMonthDay"><span class="hs-identifier hs-var hs-var hs-var hs-var">MonthDay</span></a></span></span></span></span><span> </span><span class="annot"><a href="#local-6989586621679070693"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679070692"><span class="hs-identifier hs-type">dm</span></a></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Time.Calendar.Month.html#toMonthDay"><span class="hs-identifier hs-type">toMonthDay</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679070693"><span class="annot"><a href="#local-6989586621679070693"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679070692"><span class="annot"><a href="#local-6989586621679070692"><span class="hs-identifier hs-var">dm</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-91"></span><span>    </span><span class="annot"><a href="Data.Time.Calendar.Month.html#MonthDay"><span class="hs-identifier hs-var">MonthDay</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Time.Calendar.Month.html#YearMonth"><span class="hs-identifier hs-type">YearMonth</span></a></span><span> </span><span id="local-6989586621679070691"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070691"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span id="local-6989586621679070690"><span class="annot"><span class="annottext">MonthOfYear
+</span><a href="#local-6989586621679070690"><span class="hs-identifier hs-var">my</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679070689"><span class="annot"><span class="annottext">MonthOfYear
+</span><a href="#local-6989586621679070689"><span class="hs-identifier hs-var">dm</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; MonthOfYear -&gt; MonthOfYear -&gt; Day
+</span><a href="Data.Time.Calendar.Gregorian.html#YearMonthDay"><span class="hs-identifier hs-var">YearMonthDay</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070691"><span class="hs-identifier hs-var">y</span></a></span><span> </span><span class="annot"><span class="annottext">MonthOfYear
+</span><a href="#local-6989586621679070690"><span class="hs-identifier hs-var">my</span></a></span><span> </span><span class="annot"><span class="annottext">MonthOfYear
+</span><a href="#local-6989586621679070689"><span class="hs-identifier hs-var">dm</span></a></span><span>
+</span><span id="line-92"></span><span>
+</span><span id="line-93"></span><span class="annot"><a href="Data.Time.Calendar.Month.html#fromMonthDayValid"><span class="hs-identifier hs-type">fromMonthDayValid</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Time.Calendar.Month.html#Month"><span class="hs-identifier hs-type">Month</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Time.Calendar.Types.html#DayOfMonth"><span class="hs-identifier hs-type">DayOfMonth</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Maybe"><span class="hs-identifier hs-type">Maybe</span></a></span><span> </span><span class="annot"><a href="Data.Time.Calendar.Days.html#Day"><span class="hs-identifier hs-type">Day</span></a></span><span>
+</span><span id="line-94"></span><span id="fromMonthDayValid"><span class="annot"><span class="annottext">fromMonthDayValid :: Month -&gt; MonthOfYear -&gt; Maybe Day
+</span><a href="Data.Time.Calendar.Month.html#fromMonthDayValid"><span class="hs-identifier hs-var hs-var">fromMonthDayValid</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Time.Calendar.Month.html#YearMonth"><span class="hs-identifier hs-type">YearMonth</span></a></span><span> </span><span id="local-6989586621679070688"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070688"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span id="local-6989586621679070687"><span class="annot"><span class="annottext">MonthOfYear
+</span><a href="#local-6989586621679070687"><span class="hs-identifier hs-var">my</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679070686"><span class="annot"><span class="annottext">MonthOfYear
+</span><a href="#local-6989586621679070686"><span class="hs-identifier hs-var">dm</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; MonthOfYear -&gt; MonthOfYear -&gt; Maybe Day
+</span><a href="Data.Time.Calendar.Gregorian.html#fromGregorianValid"><span class="hs-identifier hs-var">fromGregorianValid</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070688"><span class="hs-identifier hs-var">y</span></a></span><span> </span><span class="annot"><span class="annottext">MonthOfYear
+</span><a href="#local-6989586621679070687"><span class="hs-identifier hs-var">my</span></a></span><span> </span><span class="annot"><span class="annottext">MonthOfYear
+</span><a href="#local-6989586621679070686"><span class="hs-identifier hs-var">dm</span></a></span><span class="hs-cpp">
+
+#if __GLASGOW_HASKELL__ &gt;= 802
+</span><span class="hs-pragma">{-# COMPLETE</span><span> </span><span class="annot"><a href="Data.Time.Calendar.Month.html#MonthDay"><span class="hs-pragma hs-type">MonthDay</span></a></span><span> </span><span class="hs-pragma">#-}</span><span class="hs-cpp">
+#endif
+</span></pre></body></html>

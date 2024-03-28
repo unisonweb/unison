@@ -1,0 +1,53 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>GHC.Stg.Lift</title><link href="linuwial.css" rel="stylesheet" type="text/css" title="Linuwial" /><link rel="stylesheet" type="text/css" href="quick-jump.css" /><link rel="stylesheet" type="text/css" href="https://fonts.googleapis.com/css?family=PT+Sans:400,400i,700" /><script src="haddock-bundle.min.js" async="async" type="text/javascript"></script><script type="text/x-mathjax-config">MathJax.Hub.Config({ tex2jax: { processClass: "mathjax", ignoreClass: ".*" } });</script><script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/MathJax.js?config=TeX-AMS-MML_HTMLorMML" type="text/javascript"></script></head><body><div id="package-header"><span class="caption">ghc-9.2.8: The GHC API</span><ul class="links" id="page-menu"><li><a href="src/GHC.Stg.Lift.html">Source</a></li><li><a href="index.html">Contents</a></li><li><a href="doc-index.html">Index</a></li></ul></div><div id="content"><div id="module-header"><table class="info"><tr><th>Safe Haskell</th><td>Safe-Inferred</td></tr><tr><th>Language</th><td>Haskell2010</td></tr></table><p class="caption">GHC.Stg.Lift</p></div><div id="table-of-contents"><div id="contents-list"><p class="caption" onclick="window.scrollTo(0,0)">Contents</p><ul><li><a href="#g:1">Late lambda lifting in STG</a></li></ul></div></div><div id="description"><p class="caption">Description</p><div class="doc"><p>Implements a selective lambda lifter, running late in the optimisation
+ pipeline.</p><p>If you are interested in the cost model that is employed to decide whether
+ to lift a binding or not, look at <a href="GHC-Stg-Lift-Analysis.html">GHC.Stg.Lift.Analysis</a>.
+ <a href="GHC-Stg-Lift-Monad.html">GHC.Stg.Lift.Monad</a> contains the transformation monad that hides away some
+ plumbing of the transformation.</p></div></div><div id="synopsis"><details id="syn"><summary>Synopsis</summary><ul class="details-toggle" data-details-id="syn"><li class="src short"><a href="#v:stgLiftLams">stgLiftLams</a> :: <a href="GHC-Driver-Session.html#t:DynFlags" title="GHC.Driver.Session">DynFlags</a> -&gt; <a href="GHC-Types-Unique-Supply.html#t:UniqSupply" title="GHC.Types.Unique.Supply">UniqSupply</a> -&gt; [<a href="GHC-Stg-Syntax.html#t:InStgTopBinding" title="GHC.Stg.Syntax">InStgTopBinding</a>] -&gt; [<a href="GHC-Stg-Syntax.html#t:OutStgTopBinding" title="GHC.Stg.Syntax">OutStgTopBinding</a>]</li></ul></details></div><div id="interface"><a href="#g:1" id="g:1"><h1>Late lambda lifting in STG</h1></a><div class="doc"><p>See also the <a href="https://gitlab.haskell.org/ghc/ghc/wikis/late-lam-lift">wiki page</a>
+ and #9476.</p><p>The basic idea behind lambda lifting is to turn locally defined functions
+ into top-level functions. Free variables are then passed as additional
+ arguments at *call sites* instead of having a closure allocated for them at
+ *definition site*. Example:</p><pre>   let x = ...; y = ... in
+   let f = {x y} a -&gt; a + x + y in
+   let g = {f x} b -&gt; f b + x in
+   g 5
+</pre><p>Lambda lifting <code>f</code> would</p><ol><li>Turn <code>f</code>'s free variables into formal parameters</li><li>Update <code>f</code>'s call site within <code>g</code> to <code>f x y b</code></li><li>Update <code>g</code>'s closure: Add <code>y</code> as an additional free variable, while
+      removing <code>f</code>, because <code>f</code> no longer allocates and can be floated to
+      top-level.</li><li>Actually float the binding of <code>f</code> to top-level, eliminating the <code>let</code>
+      in the process.</li></ol><p>This results in the following program (with free var annotations):</p><pre>   f x y a = a + x + y;
+   let x = ...; y = ... in
+   let g = {x y} b -&gt; f x y b + x in
+   g 5
+</pre><p>This optimisation is all about lifting only when it is beneficial to do so.
+ The above seems like a worthwhile lift, judging from heap allocation:
+ We eliminate <code>f</code>'s closure, saving to allocate a closure with 2 words, while
+ not changing the size of <code>g</code>'s closure.</p><p>You can probably sense that there's some kind of cost model at play here.
+ And you are right! But we also employ a couple of other heuristics for the
+ lifting decision which are outlined in <a href="GHC-Stg-Lift-Analysis.html#when">GHC.Stg.Lift.Analysis</a>.</p><p>The transformation is done in <a href="GHC-Stg-Lift.html">GHC.Stg.Lift</a>, which calls out to
+ <code><a href="GHC-Stg-Lift-Analysis.html#v:goodToLift" title="GHC.Stg.Lift.Analysis">goodToLift</a></code> for its lifting decision.  It relies on
+ <a href="GHC-Stg-Lift-Monad.html">GHC.Stg.Lift.Monad</a>, which abstracts some subtle STG invariants into a
+ monadic substrate.</p><p>Suffice to say: We trade heap allocation for stack allocation.
+ The additional arguments have to passed on the stack (or in registers,
+ depending on architecture) every time we call the function to save a single
+ heap allocation when entering the let binding. Nofib suggests a mean
+ improvement of about 1% for this pass, so it seems like a worthwhile thing to
+ do. Compile-times went up by 0.6%, so all in all a very modest change.</p><p>For a concrete example, look at <code>spectral/atom</code>. There's a call to <code><a href="GHC-Prelude.html#v:zipWith" title="GHC.Prelude">zipWith</a></code>
+ that is ultimately compiled to something like this
+ (module desugaring/lowering to actual STG):</p><pre>   propagate dt = ...;
+   runExperiment ... =
+     let xs = ... in
+     let ys = ... in
+     let go = {dt go} xs ys -&gt; case (xs, ys) of
+           ([], []) -&gt; []
+           (x:xs', y:ys') -&gt; propagate dt x y : go xs' ys'
+     in go xs ys
+</pre><p>This will lambda lift <code>go</code> to top-level, speeding up the resulting program
+ by roughly one percent:</p><pre>   propagate dt = ...;
+   go dt xs ys = case (xs, ys) of
+     ([], []) -&gt; []
+     (x:xs', y:ys') -&gt; propagate dt x y : go dt xs' ys'
+   runExperiment ... =
+     let xs = ... in
+     let ys = ... in
+     in go dt xs ys
+</pre></div><div class="top"><p class="src"><a id="v:stgLiftLams" class="def">stgLiftLams</a> :: <a href="GHC-Driver-Session.html#t:DynFlags" title="GHC.Driver.Session">DynFlags</a> -&gt; <a href="GHC-Types-Unique-Supply.html#t:UniqSupply" title="GHC.Types.Unique.Supply">UniqSupply</a> -&gt; [<a href="GHC-Stg-Syntax.html#t:InStgTopBinding" title="GHC.Stg.Syntax">InStgTopBinding</a>] -&gt; [<a href="GHC-Stg-Syntax.html#t:OutStgTopBinding" title="GHC.Stg.Syntax">OutStgTopBinding</a>] <a href="src/GHC.Stg.Lift.html#stgLiftLams" class="link">Source</a> <a href="#v:stgLiftLams" class="selflink">#</a></p><div class="doc"><p>Lambda lifts bindings to top-level deemed worth lifting (see <code><a href="GHC-Stg-Lift-Analysis.html#v:goodToLift" title="GHC.Stg.Lift.Analysis">goodToLift</a></code>).</p><p>(Mostly) textbook instance of the lambda lifting transformation, selecting
+ which bindings to lambda lift by consulting <code><a href="GHC-Stg-Lift-Analysis.html#v:goodToLift" title="GHC.Stg.Lift.Analysis">goodToLift</a></code>.</p></div></div></div></div><div id="footer"><p>Produced by <a href="http://www.haskell.org/haddock/">Haddock</a> version 2.26.0</p></div></body></html>

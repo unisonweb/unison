@@ -1,0 +1,514 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DeriveFunctor #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE DeriveFoldable #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE DeriveTraversable #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE FlexibleContexts #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LANGUAGE ConstraintKinds #-}</span><span>
+</span><span id="line-6"></span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- NOTE: re-exported from Test.Hspec.Core.Spec</span><span>
+</span><span id="line-8"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Test.Hspec.Core.Tree</span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-9"></span><span>  </span><span class="annot"><a href="Test.Hspec.Core.Tree.html#SpecTree"><span class="hs-identifier">SpecTree</span></a></span><span>
+</span><span id="line-10"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Tree.html#Tree"><span class="hs-identifier">Tree</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Tree.html#Item"><span class="hs-identifier">Item</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Tree.html#specGroup"><span class="hs-identifier">specGroup</span></a></span><span>
+</span><span id="line-13"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Tree.html#specItem"><span class="hs-identifier">specItem</span></a></span><span>
+</span><span id="line-14"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Tree.html#bimapTree"><span class="hs-identifier">bimapTree</span></a></span><span>
+</span><span id="line-15"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Tree.html#bimapForest"><span class="hs-identifier">bimapForest</span></a></span><span>
+</span><span id="line-16"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Tree.html#filterTree"><span class="hs-identifier">filterTree</span></a></span><span>
+</span><span id="line-17"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Tree.html#filterForest"><span class="hs-identifier">filterForest</span></a></span><span>
+</span><span id="line-18"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Tree.html#filterTreeWithLabels"><span class="hs-identifier">filterTreeWithLabels</span></a></span><span>
+</span><span id="line-19"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Tree.html#filterForestWithLabels"><span class="hs-identifier">filterForestWithLabels</span></a></span><span>
+</span><span id="line-20"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Tree.html#pruneTree"><span class="hs-identifier">pruneTree</span></a></span><span> </span><span class="hs-comment">-- unused</span><span>
+</span><span id="line-21"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Tree.html#pruneForest"><span class="hs-identifier">pruneForest</span></a></span><span> </span><span class="hs-comment">-- unused</span><span>
+</span><span id="line-22"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Tree.html#location"><span class="hs-identifier">location</span></a></span><span>
+</span><span id="line-23"></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Test.Hspec.Core.Compat.html"><span class="hs-identifier">Test.Hspec.Core.Compat</span></a></span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.CallStack</span></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Maybe</span></span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Test.Hspec.Core.Example.html"><span class="hs-identifier">Test.Hspec.Core.Example</span></a></span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span class="hs-comment">-- | Internal tree data structure</span><span>
+</span><span id="line-34"></span><span class="hs-keyword">data</span><span> </span><span id="Tree"><span class="annot"><a href="Test.Hspec.Core.Tree.html#Tree"><span class="hs-identifier hs-var">Tree</span></a></span></span><span> </span><span id="local-6989586621679158653"><span class="annot"><a href="#local-6989586621679158653"><span class="hs-identifier hs-type">c</span></a></span></span><span> </span><span id="local-6989586621679158652"><span class="annot"><a href="#local-6989586621679158652"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-35"></span><span>    </span><span id="Node"><span class="annot"><a href="Test.Hspec.Core.Tree.html#Node"><span class="hs-identifier hs-var">Node</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Test.Hspec.Core.Tree.html#Tree"><span class="hs-identifier hs-type">Tree</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158653"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158652"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="NodeWithCleanup"><span class="annot"><a href="Test.Hspec.Core.Tree.html#NodeWithCleanup"><span class="hs-identifier hs-var">NodeWithCleanup</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.Location.html#Location"><span class="hs-identifier hs-type">Location</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679158653"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Test.Hspec.Core.Tree.html#Tree"><span class="hs-identifier hs-type">Tree</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158653"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158652"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-37"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Leaf"><span class="annot"><a href="Test.Hspec.Core.Tree.html#Leaf"><span class="hs-identifier hs-var">Leaf</span></a></span></span><span> </span><span class="annot"><a href="#local-6989586621679158652"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-38"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679158444"><span id="local-6989586621679158457"><span class="annot"><span class="annottext">Tree c a -&gt; Tree c a -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+forall c a. (Eq c, Eq a) =&gt; Tree c a -&gt; Tree c a -&gt; Bool
+/= :: Tree c a -&gt; Tree c a -&gt; Bool
+$c/= :: forall c a. (Eq c, Eq a) =&gt; Tree c a -&gt; Tree c a -&gt; Bool
+== :: Tree c a -&gt; Tree c a -&gt; Bool
+$c== :: forall c a. (Eq c, Eq a) =&gt; Tree c a -&gt; Tree c a -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679158420"><span id="local-6989586621679158422"><span id="local-6989586621679158439"><span class="annot"><span class="annottext">Int -&gt; Tree c a -&gt; ShowS
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+forall c a. (Show c, Show a) =&gt; Int -&gt; Tree c a -&gt; ShowS
+forall c a. (Show c, Show a) =&gt; [Tree c a] -&gt; ShowS
+forall c a. (Show c, Show a) =&gt; Tree c a -&gt; String
+showList :: [Tree c a] -&gt; ShowS
+$cshowList :: forall c a. (Show c, Show a) =&gt; [Tree c a] -&gt; ShowS
+show :: Tree c a -&gt; String
+$cshow :: forall c a. (Show c, Show a) =&gt; Tree c a -&gt; String
+showsPrec :: Int -&gt; Tree c a -&gt; ShowS
+$cshowsPrec :: forall c a. (Show c, Show a) =&gt; Int -&gt; Tree c a -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679158407"><span id="local-6989586621679158415"><span class="annot"><span class="annottext">forall a b. a -&gt; Tree c b -&gt; Tree c a
+forall a b. (a -&gt; b) -&gt; Tree c a -&gt; Tree c b
+forall c a b. a -&gt; Tree c b -&gt; Tree c a
+forall c a b. (a -&gt; b) -&gt; Tree c a -&gt; Tree c b
+forall (f :: * -&gt; *).
+(forall a b. (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b. a -&gt; f b -&gt; f a) -&gt; Functor f
+&lt;$ :: forall a b. a -&gt; Tree c b -&gt; Tree c a
+$c&lt;$ :: forall c a b. a -&gt; Tree c b -&gt; Tree c a
+fmap :: forall a b. (a -&gt; b) -&gt; Tree c a -&gt; Tree c b
+$cfmap :: forall c a b. (a -&gt; b) -&gt; Tree c a -&gt; Tree c b
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Functor</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679158350"><span id="local-6989586621679158352"><span id="local-6989586621679158354"><span id="local-6989586621679158356"><span id="local-6989586621679158358"><span id="local-6989586621679158360"><span id="local-6989586621679158366"><span id="local-6989586621679158368"><span id="local-6989586621679158370"><span id="local-6989586621679158372"><span id="local-6989586621679158374"><span id="local-6989586621679158376"><span id="local-6989586621679158378"><span id="local-6989586621679158384"><span id="local-6989586621679158386"><span id="local-6989586621679158398"><span id="local-6989586621679158400"><span class="annot"><span class="annottext">forall a. Tree c a -&gt; Bool
+forall c a. Eq a =&gt; a -&gt; Tree c a -&gt; Bool
+forall c a. Num a =&gt; Tree c a -&gt; a
+forall c a. Ord a =&gt; Tree c a -&gt; a
+forall m a. Monoid m =&gt; (a -&gt; m) -&gt; Tree c a -&gt; m
+forall c m. Monoid m =&gt; Tree c m -&gt; m
+forall c a. Tree c a -&gt; Bool
+forall c a. Tree c a -&gt; Int
+forall c a. Tree c a -&gt; [a]
+forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; Tree c a -&gt; b
+forall c a. (a -&gt; a -&gt; a) -&gt; Tree c a -&gt; a
+forall c m a. Monoid m =&gt; (a -&gt; m) -&gt; Tree c a -&gt; m
+forall c b a. (b -&gt; a -&gt; b) -&gt; b -&gt; Tree c a -&gt; b
+forall c a b. (a -&gt; b -&gt; b) -&gt; b -&gt; Tree c a -&gt; b
+forall (t :: * -&gt; *).
+(forall m. Monoid m =&gt; t m -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; t a -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; t a -&gt; m)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; t a -&gt; a)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; t a -&gt; a)
+-&gt; (forall a. t a -&gt; [a])
+-&gt; (forall a. t a -&gt; Bool)
+-&gt; (forall a. t a -&gt; Int)
+-&gt; (forall a. Eq a =&gt; a -&gt; t a -&gt; Bool)
+-&gt; (forall a. Ord a =&gt; t a -&gt; a)
+-&gt; (forall a. Ord a =&gt; t a -&gt; a)
+-&gt; (forall a. Num a =&gt; t a -&gt; a)
+-&gt; (forall a. Num a =&gt; t a -&gt; a)
+-&gt; Foldable t
+product :: forall a. Num a =&gt; Tree c a -&gt; a
+$cproduct :: forall c a. Num a =&gt; Tree c a -&gt; a
+sum :: forall a. Num a =&gt; Tree c a -&gt; a
+$csum :: forall c a. Num a =&gt; Tree c a -&gt; a
+minimum :: forall a. Ord a =&gt; Tree c a -&gt; a
+$cminimum :: forall c a. Ord a =&gt; Tree c a -&gt; a
+maximum :: forall a. Ord a =&gt; Tree c a -&gt; a
+$cmaximum :: forall c a. Ord a =&gt; Tree c a -&gt; a
+elem :: forall a. Eq a =&gt; a -&gt; Tree c a -&gt; Bool
+$celem :: forall c a. Eq a =&gt; a -&gt; Tree c a -&gt; Bool
+length :: forall a. Tree c a -&gt; Int
+$clength :: forall c a. Tree c a -&gt; Int
+null :: forall a. Tree c a -&gt; Bool
+$cnull :: forall c a. Tree c a -&gt; Bool
+toList :: forall a. Tree c a -&gt; [a]
+$ctoList :: forall c a. Tree c a -&gt; [a]
+foldl1 :: forall a. (a -&gt; a -&gt; a) -&gt; Tree c a -&gt; a
+$cfoldl1 :: forall c a. (a -&gt; a -&gt; a) -&gt; Tree c a -&gt; a
+foldr1 :: forall a. (a -&gt; a -&gt; a) -&gt; Tree c a -&gt; a
+$cfoldr1 :: forall c a. (a -&gt; a -&gt; a) -&gt; Tree c a -&gt; a
+foldl' :: forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; Tree c a -&gt; b
+$cfoldl' :: forall c b a. (b -&gt; a -&gt; b) -&gt; b -&gt; Tree c a -&gt; b
+foldl :: forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; Tree c a -&gt; b
+$cfoldl :: forall c b a. (b -&gt; a -&gt; b) -&gt; b -&gt; Tree c a -&gt; b
+foldr' :: forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; Tree c a -&gt; b
+$cfoldr' :: forall c a b. (a -&gt; b -&gt; b) -&gt; b -&gt; Tree c a -&gt; b
+foldr :: forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; Tree c a -&gt; b
+$cfoldr :: forall c a b. (a -&gt; b -&gt; b) -&gt; b -&gt; Tree c a -&gt; b
+foldMap' :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; Tree c a -&gt; m
+$cfoldMap' :: forall c m a. Monoid m =&gt; (a -&gt; m) -&gt; Tree c a -&gt; m
+foldMap :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; Tree c a -&gt; m
+$cfoldMap :: forall c m a. Monoid m =&gt; (a -&gt; m) -&gt; Tree c a -&gt; m
+fold :: forall m. Monoid m =&gt; Tree c m -&gt; m
+$cfold :: forall c m. Monoid m =&gt; Tree c m -&gt; m
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Foldable</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679158323"><span id="local-6989586621679158325"><span id="local-6989586621679158327"><span id="local-6989586621679158343"><span class="annot"><span class="annottext">forall c. Functor (Tree c)
+forall c. Foldable (Tree c)
+forall c (m :: * -&gt; *) a. Monad m =&gt; Tree c (m a) -&gt; m (Tree c a)
+forall c (f :: * -&gt; *) a.
+Applicative f =&gt;
+Tree c (f a) -&gt; f (Tree c a)
+forall c (m :: * -&gt; *) a b.
+Monad m =&gt;
+(a -&gt; m b) -&gt; Tree c a -&gt; m (Tree c b)
+forall c (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; Tree c a -&gt; f (Tree c b)
+forall (t :: * -&gt; *).
+Functor t
+-&gt; Foldable t
+-&gt; (forall (f :: * -&gt; *) a b.
+    Applicative f =&gt;
+    (a -&gt; f b) -&gt; t a -&gt; f (t b))
+-&gt; (forall (f :: * -&gt; *) a. Applicative f =&gt; t (f a) -&gt; f (t a))
+-&gt; (forall (m :: * -&gt; *) a b.
+    Monad m =&gt;
+    (a -&gt; m b) -&gt; t a -&gt; m (t b))
+-&gt; (forall (m :: * -&gt; *) a. Monad m =&gt; t (m a) -&gt; m (t a))
+-&gt; Traversable t
+forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; Tree c a -&gt; f (Tree c b)
+sequence :: forall (m :: * -&gt; *) a. Monad m =&gt; Tree c (m a) -&gt; m (Tree c a)
+$csequence :: forall c (m :: * -&gt; *) a. Monad m =&gt; Tree c (m a) -&gt; m (Tree c a)
+mapM :: forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+(a -&gt; m b) -&gt; Tree c a -&gt; m (Tree c b)
+$cmapM :: forall c (m :: * -&gt; *) a b.
+Monad m =&gt;
+(a -&gt; m b) -&gt; Tree c a -&gt; m (Tree c b)
+sequenceA :: forall (f :: * -&gt; *) a.
+Applicative f =&gt;
+Tree c (f a) -&gt; f (Tree c a)
+$csequenceA :: forall c (f :: * -&gt; *) a.
+Applicative f =&gt;
+Tree c (f a) -&gt; f (Tree c a)
+traverse :: forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; Tree c a -&gt; f (Tree c b)
+$ctraverse :: forall c (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; Tree c a -&gt; f (Tree c b)
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Traversable</span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- | A tree is used to represent a spec internally.  The tree is parameterized</span><span>
+</span><span id="line-41"></span><span class="hs-comment">-- over the type of cleanup actions and the type of the actual spec items.</span><span>
+</span><span id="line-42"></span><span class="hs-keyword">type</span><span> </span><span id="SpecTree"><span class="annot"><a href="Test.Hspec.Core.Tree.html#SpecTree"><span class="hs-identifier hs-var">SpecTree</span></a></span></span><span> </span><span id="local-6989586621679158320"><span class="annot"><a href="#local-6989586621679158320"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Tree.html#Tree"><span class="hs-identifier hs-type">Tree</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.Hspec.Core.Example.html#ActionWith"><span class="hs-identifier hs-type">ActionWith</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158320"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.Hspec.Core.Tree.html#Item"><span class="hs-identifier hs-type">Item</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158320"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span id="local-6989586621679158604"><span id="local-6989586621679158605"><span id="local-6989586621679158606"><span id="local-6989586621679158607"><span class="annot"><a href="Test.Hspec.Core.Tree.html#bimapForest"><span class="hs-identifier hs-type">bimapForest</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679158607"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679158606"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679158605"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679158604"><span class="hs-identifier hs-type">d</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Test.Hspec.Core.Tree.html#Tree"><span class="hs-identifier hs-type">Tree</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158607"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158605"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Test.Hspec.Core.Tree.html#Tree"><span class="hs-identifier hs-type">Tree</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158606"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158604"><span class="hs-identifier hs-type">d</span></a></span><span class="hs-special">]</span></span></span></span></span><span>
+</span><span id="line-45"></span><span id="bimapForest"><span class="annot"><span class="annottext">bimapForest :: forall a b c d. (a -&gt; b) -&gt; (c -&gt; d) -&gt; [Tree a c] -&gt; [Tree b d]
+</span><a href="Test.Hspec.Core.Tree.html#bimapForest"><span class="hs-identifier hs-var hs-var">bimapForest</span></a></span></span><span> </span><span id="local-6989586621679158319"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679158319"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span id="local-6989586621679158318"><span class="annot"><span class="annottext">c -&gt; d
+</span><a href="#local-6989586621679158318"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b c d. (a -&gt; b) -&gt; (c -&gt; d) -&gt; Tree a c -&gt; Tree b d
+</span><a href="Test.Hspec.Core.Tree.html#bimapTree"><span class="hs-identifier hs-var">bimapTree</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679158319"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">c -&gt; d
+</span><a href="#local-6989586621679158318"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span id="local-6989586621679158594"><span id="local-6989586621679158595"><span id="local-6989586621679158596"><span id="local-6989586621679158597"><span class="annot"><a href="Test.Hspec.Core.Tree.html#bimapTree"><span class="hs-identifier hs-type">bimapTree</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679158597"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679158596"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679158595"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679158594"><span class="hs-identifier hs-type">d</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Tree.html#Tree"><span class="hs-identifier hs-type">Tree</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158597"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158595"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Tree.html#Tree"><span class="hs-identifier hs-type">Tree</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158596"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158594"><span class="hs-identifier hs-type">d</span></a></span></span></span></span></span><span>
+</span><span id="line-48"></span><span id="bimapTree"><span class="annot"><span class="annottext">bimapTree :: forall a b c d. (a -&gt; b) -&gt; (c -&gt; d) -&gt; Tree a c -&gt; Tree b d
+</span><a href="Test.Hspec.Core.Tree.html#bimapTree"><span class="hs-identifier hs-var hs-var">bimapTree</span></a></span></span><span> </span><span id="local-6989586621679158317"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679158317"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span id="local-6989586621679158316"><span class="annot"><span class="annottext">c -&gt; d
+</span><a href="#local-6989586621679158316"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Tree a c -&gt; Tree b d
+</span><a href="#local-6989586621679158315"><span class="hs-identifier hs-var">go</span></a></span><span>
+</span><span id="line-49"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-50"></span><span>    </span><span id="local-6989586621679158315"><span class="annot"><span class="annottext">go :: Tree a c -&gt; Tree b d
+</span><a href="#local-6989586621679158315"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span id="local-6989586621679158314"><span class="annot"><span class="annottext">Tree a c
+</span><a href="#local-6989586621679158314"><span class="hs-identifier hs-var">spec</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Tree a c
+</span><a href="#local-6989586621679158314"><span class="hs-identifier hs-var">spec</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-51"></span><span>      </span><span class="annot"><a href="Test.Hspec.Core.Tree.html#Node"><span class="hs-identifier hs-type">Node</span></a></span><span> </span><span id="local-6989586621679158313"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679158313"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span id="local-6989586621679158312"><span class="annot"><span class="annottext">[Tree a c]
+</span><a href="#local-6989586621679158312"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall c a. String -&gt; [Tree c a] -&gt; Tree c a
+</span><a href="Test.Hspec.Core.Tree.html#Node"><span class="hs-identifier hs-var">Node</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679158313"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">Tree a c -&gt; Tree b d
+</span><a href="#local-6989586621679158315"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">[Tree a c]
+</span><a href="#local-6989586621679158312"><span class="hs-identifier hs-var">xs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-52"></span><span>      </span><span class="annot"><a href="Test.Hspec.Core.Tree.html#NodeWithCleanup"><span class="hs-identifier hs-type">NodeWithCleanup</span></a></span><span> </span><span id="local-6989586621679158311"><span class="annot"><span class="annottext">Maybe Location
+</span><a href="#local-6989586621679158311"><span class="hs-identifier hs-var">loc</span></a></span></span><span> </span><span id="local-6989586621679158310"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679158310"><span class="hs-identifier hs-var">cleanup</span></a></span></span><span> </span><span id="local-6989586621679158309"><span class="annot"><span class="annottext">[Tree a c]
+</span><a href="#local-6989586621679158309"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall c a. Maybe Location -&gt; c -&gt; [Tree c a] -&gt; Tree c a
+</span><a href="Test.Hspec.Core.Tree.html#NodeWithCleanup"><span class="hs-identifier hs-var">NodeWithCleanup</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Location
+</span><a href="#local-6989586621679158311"><span class="hs-identifier hs-var">loc</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679158317"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679158310"><span class="hs-identifier hs-var">cleanup</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">Tree a c -&gt; Tree b d
+</span><a href="#local-6989586621679158315"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">[Tree a c]
+</span><a href="#local-6989586621679158309"><span class="hs-identifier hs-var">xs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-53"></span><span>      </span><span class="annot"><a href="Test.Hspec.Core.Tree.html#Leaf"><span class="hs-identifier hs-type">Leaf</span></a></span><span> </span><span id="local-6989586621679158308"><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679158308"><span class="hs-identifier hs-var">item</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall c a. a -&gt; Tree c a
+</span><a href="Test.Hspec.Core.Tree.html#Leaf"><span class="hs-identifier hs-var">Leaf</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">c -&gt; d
+</span><a href="#local-6989586621679158316"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679158308"><span class="hs-identifier hs-var">item</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span id="local-6989586621679158588"><span id="local-6989586621679158589"><span class="annot"><a href="Test.Hspec.Core.Tree.html#filterTree"><span class="hs-identifier hs-type">filterTree</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679158589"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Tree.html#Tree"><span class="hs-identifier hs-type">Tree</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158588"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158589"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.Hspec.Core.Tree.html#Tree"><span class="hs-identifier hs-type">Tree</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158588"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158589"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-56"></span><span id="filterTree"><span class="annot"><span class="annottext">filterTree :: forall a c. (a -&gt; Bool) -&gt; Tree c a -&gt; Maybe (Tree c a)
+</span><a href="Test.Hspec.Core.Tree.html#filterTree"><span class="hs-identifier hs-var hs-var">filterTree</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a c. ([String] -&gt; a -&gt; Bool) -&gt; Tree c a -&gt; Maybe (Tree c a)
+</span><a href="Test.Hspec.Core.Tree.html#filterTreeWithLabels"><span class="hs-identifier hs-var">filterTreeWithLabels</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span id="local-6989586621679158577"><span id="local-6989586621679158578"><span class="annot"><a href="Test.Hspec.Core.Tree.html#filterForest"><span class="hs-identifier hs-type">filterForest</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679158578"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Test.Hspec.Core.Tree.html#Tree"><span class="hs-identifier hs-type">Tree</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158577"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158578"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Test.Hspec.Core.Tree.html#Tree"><span class="hs-identifier hs-type">Tree</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158577"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158578"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span></span></span><span>
+</span><span id="line-59"></span><span id="filterForest"><span class="annot"><span class="annottext">filterForest :: forall a c. (a -&gt; Bool) -&gt; [Tree c a] -&gt; [Tree c a]
+</span><a href="Test.Hspec.Core.Tree.html#filterForest"><span class="hs-identifier hs-var hs-var">filterForest</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a c. ([String] -&gt; a -&gt; Bool) -&gt; [Tree c a] -&gt; [Tree c a]
+</span><a href="Test.Hspec.Core.Tree.html#filterForestWithLabels"><span class="hs-identifier hs-var">filterForestWithLabels</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span>
+</span><span id="line-60"></span><span>
+</span><span id="line-61"></span><span id="local-6989586621679158584"><span id="local-6989586621679158585"><span class="annot"><a href="Test.Hspec.Core.Tree.html#filterTreeWithLabels"><span class="hs-identifier hs-type">filterTreeWithLabels</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679158585"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Tree.html#Tree"><span class="hs-identifier hs-type">Tree</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158584"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158585"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.Hspec.Core.Tree.html#Tree"><span class="hs-identifier hs-type">Tree</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158584"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158585"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-62"></span><span id="filterTreeWithLabels"><span class="annot"><span class="annottext">filterTreeWithLabels :: forall a c. ([String] -&gt; a -&gt; Bool) -&gt; Tree c a -&gt; Maybe (Tree c a)
+</span><a href="Test.Hspec.Core.Tree.html#filterTreeWithLabels"><span class="hs-identifier hs-var hs-var">filterTreeWithLabels</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a c.
+[String] -&gt; ([String] -&gt; a -&gt; Bool) -&gt; Tree c a -&gt; Maybe (Tree c a)
+</span><a href="Test.Hspec.Core.Tree.html#filterTree_"><span class="hs-identifier hs-var">filterTree_</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-63"></span><span>
+</span><span id="line-64"></span><span id="local-6989586621679158573"><span id="local-6989586621679158574"><span class="annot"><a href="Test.Hspec.Core.Tree.html#filterForestWithLabels"><span class="hs-identifier hs-type">filterForestWithLabels</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679158574"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Test.Hspec.Core.Tree.html#Tree"><span class="hs-identifier hs-type">Tree</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158573"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158574"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Test.Hspec.Core.Tree.html#Tree"><span class="hs-identifier hs-type">Tree</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158573"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158574"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span></span></span><span>
+</span><span id="line-65"></span><span id="filterForestWithLabels"><span class="annot"><span class="annottext">filterForestWithLabels :: forall a c. ([String] -&gt; a -&gt; Bool) -&gt; [Tree c a] -&gt; [Tree c a]
+</span><a href="Test.Hspec.Core.Tree.html#filterForestWithLabels"><span class="hs-identifier hs-var hs-var">filterForestWithLabels</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a c.
+[String] -&gt; ([String] -&gt; a -&gt; Bool) -&gt; [Tree c a] -&gt; [Tree c a]
+</span><a href="Test.Hspec.Core.Tree.html#filterForest_"><span class="hs-identifier hs-var">filterForest_</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span id="local-6989586621679158568"><span id="local-6989586621679158569"><span class="annot"><a href="Test.Hspec.Core.Tree.html#filterForest_"><span class="hs-identifier hs-type">filterForest_</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679158569"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Test.Hspec.Core.Tree.html#Tree"><span class="hs-identifier hs-type">Tree</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158568"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158569"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Test.Hspec.Core.Tree.html#Tree"><span class="hs-identifier hs-type">Tree</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158568"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158569"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span></span></span><span>
+</span><span id="line-68"></span><span id="filterForest_"><span class="annot"><span class="annottext">filterForest_ :: forall a c.
+[String] -&gt; ([String] -&gt; a -&gt; Bool) -&gt; [Tree c a] -&gt; [Tree c a]
+</span><a href="Test.Hspec.Core.Tree.html#filterForest_"><span class="hs-identifier hs-var hs-var">filterForest_</span></a></span></span><span> </span><span id="local-6989586621679158303"><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621679158303"><span class="hs-identifier hs-var">groups</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; Maybe b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">mapMaybe</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall a c.
+[String] -&gt; ([String] -&gt; a -&gt; Bool) -&gt; Tree c a -&gt; Maybe (Tree c a)
+</span><a href="Test.Hspec.Core.Tree.html#filterTree_"><span class="hs-identifier hs-var">filterTree_</span></a></span><span> </span><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621679158303"><span class="hs-identifier hs-var">groups</span></a></span><span>
+</span><span id="line-69"></span><span>
+</span><span id="line-70"></span><span id="local-6989586621679158571"><span id="local-6989586621679158572"><span class="annot"><a href="Test.Hspec.Core.Tree.html#filterTree_"><span class="hs-identifier hs-type">filterTree_</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679158572"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Tree.html#Tree"><span class="hs-identifier hs-type">Tree</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158571"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158572"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.Hspec.Core.Tree.html#Tree"><span class="hs-identifier hs-type">Tree</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158571"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158572"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-71"></span><span id="filterTree_"><span class="annot"><span class="annottext">filterTree_ :: forall a c.
+[String] -&gt; ([String] -&gt; a -&gt; Bool) -&gt; Tree c a -&gt; Maybe (Tree c a)
+</span><a href="Test.Hspec.Core.Tree.html#filterTree_"><span class="hs-identifier hs-var hs-var">filterTree_</span></a></span></span><span> </span><span id="local-6989586621679158297"><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621679158297"><span class="hs-identifier hs-var">groups</span></a></span></span><span> </span><span id="local-6989586621679158296"><span class="annot"><span class="annottext">[String] -&gt; a -&gt; Bool
+</span><a href="#local-6989586621679158296"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span id="local-6989586621679158295"><span class="annot"><span class="annottext">Tree c a
+</span><a href="#local-6989586621679158295"><span class="hs-identifier hs-var">tree</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Tree c a
+</span><a href="#local-6989586621679158295"><span class="hs-identifier hs-var">tree</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-72"></span><span>  </span><span class="annot"><a href="Test.Hspec.Core.Tree.html#Node"><span class="hs-identifier hs-type">Node</span></a></span><span> </span><span id="local-6989586621679158294"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679158294"><span class="hs-identifier hs-var">group</span></a></span></span><span> </span><span id="local-6989586621679158293"><span class="annot"><span class="annottext">[Tree c a]
+</span><a href="#local-6989586621679158293"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall c a. String -&gt; [Tree c a] -&gt; Tree c a
+</span><a href="Test.Hspec.Core.Tree.html#Node"><span class="hs-identifier hs-var">Node</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679158294"><span class="hs-identifier hs-var">group</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall a c.
+[String] -&gt; ([String] -&gt; a -&gt; Bool) -&gt; [Tree c a] -&gt; [Tree c a]
+</span><a href="Test.Hspec.Core.Tree.html#filterForest_"><span class="hs-identifier hs-var">filterForest_</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621679158297"><span class="hs-identifier hs-var">groups</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679158294"><span class="hs-identifier hs-var">group</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[String] -&gt; a -&gt; Bool
+</span><a href="#local-6989586621679158296"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">[Tree c a]
+</span><a href="#local-6989586621679158293"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-73"></span><span>  </span><span class="annot"><a href="Test.Hspec.Core.Tree.html#NodeWithCleanup"><span class="hs-identifier hs-type">NodeWithCleanup</span></a></span><span> </span><span id="local-6989586621679158292"><span class="annot"><span class="annottext">Maybe Location
+</span><a href="#local-6989586621679158292"><span class="hs-identifier hs-var">loc</span></a></span></span><span> </span><span id="local-6989586621679158291"><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679158291"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span id="local-6989586621679158290"><span class="annot"><span class="annottext">[Tree c a]
+</span><a href="#local-6989586621679158290"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall c a. Maybe Location -&gt; c -&gt; [Tree c a] -&gt; Tree c a
+</span><a href="Test.Hspec.Core.Tree.html#NodeWithCleanup"><span class="hs-identifier hs-var">NodeWithCleanup</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Location
+</span><a href="#local-6989586621679158292"><span class="hs-identifier hs-var">loc</span></a></span><span> </span><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679158291"><span class="hs-identifier hs-var">action</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall a c.
+[String] -&gt; ([String] -&gt; a -&gt; Bool) -&gt; [Tree c a] -&gt; [Tree c a]
+</span><a href="Test.Hspec.Core.Tree.html#filterForest_"><span class="hs-identifier hs-var">filterForest_</span></a></span><span> </span><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621679158297"><span class="hs-identifier hs-var">groups</span></a></span><span> </span><span class="annot"><span class="annottext">[String] -&gt; a -&gt; Bool
+</span><a href="#local-6989586621679158296"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">[Tree c a]
+</span><a href="#local-6989586621679158290"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-74"></span><span>  </span><span class="annot"><a href="Test.Hspec.Core.Tree.html#Leaf"><span class="hs-identifier hs-type">Leaf</span></a></span><span> </span><span id="local-6989586621679158289"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679158289"><span class="hs-identifier hs-var">item</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall c a. a -&gt; Tree c a
+</span><a href="Test.Hspec.Core.Tree.html#Leaf"><span class="hs-identifier hs-var">Leaf</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Alternative m =&gt; (a -&gt; Bool) -&gt; a -&gt; m a
+</span><a href="Test.Hspec.Core.Compat.html#guarded"><span class="hs-identifier hs-var">guarded</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[String] -&gt; a -&gt; Bool
+</span><a href="#local-6989586621679158296"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621679158297"><span class="hs-identifier hs-var">groups</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679158289"><span class="hs-identifier hs-var">item</span></a></span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span><span id="local-6989586621679158550"><span id="local-6989586621679158551"><span class="annot"><a href="Test.Hspec.Core.Tree.html#pruneForest"><span class="hs-identifier hs-type">pruneForest</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Test.Hspec.Core.Tree.html#Tree"><span class="hs-identifier hs-type">Tree</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158551"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158550"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Test.Hspec.Core.Tree.html#Tree"><span class="hs-identifier hs-type">Tree</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158551"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158550"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span></span></span><span>
+</span><span id="line-77"></span><span id="pruneForest"><span class="annot"><span class="annottext">pruneForest :: forall c a. [Tree c a] -&gt; [Tree c a]
+</span><a href="Test.Hspec.Core.Tree.html#pruneForest"><span class="hs-identifier hs-var hs-var">pruneForest</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; Maybe b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">mapMaybe</span></span><span> </span><span class="annot"><span class="annottext">forall c a. Tree c a -&gt; Maybe (Tree c a)
+</span><a href="Test.Hspec.Core.Tree.html#pruneTree"><span class="hs-identifier hs-var">pruneTree</span></a></span><span>
+</span><span id="line-78"></span><span>
+</span><span id="line-79"></span><span id="local-6989586621679158548"><span id="local-6989586621679158549"><span class="annot"><a href="Test.Hspec.Core.Tree.html#pruneTree"><span class="hs-identifier hs-type">pruneTree</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Tree.html#Tree"><span class="hs-identifier hs-type">Tree</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158549"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158548"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.Hspec.Core.Tree.html#Tree"><span class="hs-identifier hs-type">Tree</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158549"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158548"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-80"></span><span id="pruneTree"><span class="annot"><span class="annottext">pruneTree :: forall c a. Tree c a -&gt; Maybe (Tree c a)
+</span><a href="Test.Hspec.Core.Tree.html#pruneTree"><span class="hs-identifier hs-var hs-var">pruneTree</span></a></span></span><span> </span><span id="local-6989586621679158284"><span class="annot"><span class="annottext">Tree c a
+</span><a href="#local-6989586621679158284"><span class="hs-identifier hs-var">node</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Tree c a
+</span><a href="#local-6989586621679158284"><span class="hs-identifier hs-var">node</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-81"></span><span>  </span><span class="annot"><a href="Test.Hspec.Core.Tree.html#Node"><span class="hs-identifier hs-type">Node</span></a></span><span> </span><span id="local-6989586621679158283"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679158283"><span class="hs-identifier hs-var">group</span></a></span></span><span> </span><span id="local-6989586621679158282"><span class="annot"><span class="annottext">[Tree c a]
+</span><a href="#local-6989586621679158282"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall c a. String -&gt; [Tree c a] -&gt; Tree c a
+</span><a href="Test.Hspec.Core.Tree.html#Node"><span class="hs-identifier hs-var">Node</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679158283"><span class="hs-identifier hs-var">group</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall {c} {a}. [Tree c a] -&gt; Maybe [Tree c a]
+</span><a href="#local-6989586621679158281"><span class="hs-identifier hs-var">prune</span></a></span><span> </span><span class="annot"><span class="annottext">[Tree c a]
+</span><a href="#local-6989586621679158282"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-82"></span><span>  </span><span class="annot"><a href="Test.Hspec.Core.Tree.html#NodeWithCleanup"><span class="hs-identifier hs-type">NodeWithCleanup</span></a></span><span> </span><span id="local-6989586621679158280"><span class="annot"><span class="annottext">Maybe Location
+</span><a href="#local-6989586621679158280"><span class="hs-identifier hs-var">loc</span></a></span></span><span> </span><span id="local-6989586621679158279"><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679158279"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span id="local-6989586621679158278"><span class="annot"><span class="annottext">[Tree c a]
+</span><a href="#local-6989586621679158278"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall c a. Maybe Location -&gt; c -&gt; [Tree c a] -&gt; Tree c a
+</span><a href="Test.Hspec.Core.Tree.html#NodeWithCleanup"><span class="hs-identifier hs-var">NodeWithCleanup</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Location
+</span><a href="#local-6989586621679158280"><span class="hs-identifier hs-var">loc</span></a></span><span> </span><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679158279"><span class="hs-identifier hs-var">action</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall {c} {a}. [Tree c a] -&gt; Maybe [Tree c a]
+</span><a href="#local-6989586621679158281"><span class="hs-identifier hs-var">prune</span></a></span><span> </span><span class="annot"><span class="annottext">[Tree c a]
+</span><a href="#local-6989586621679158278"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-83"></span><span>  </span><span class="annot"><a href="Test.Hspec.Core.Tree.html#Leaf"><span class="hs-identifier hs-type">Leaf</span></a></span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Tree c a
+</span><a href="#local-6989586621679158284"><span class="hs-identifier hs-var">node</span></a></span><span>
+</span><span id="line-84"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-85"></span><span>    </span><span id="local-6989586621679158281"><span class="annot"><span class="annottext">prune :: [Tree c a] -&gt; Maybe [Tree c a]
+</span><a href="#local-6989586621679158281"><span class="hs-identifier hs-var hs-var">prune</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Alternative m =&gt; (a -&gt; Bool) -&gt; a -&gt; m a
+</span><a href="Test.Hspec.Core.Compat.html#guarded"><span class="hs-identifier hs-var">guarded</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">null</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall c a. [Tree c a] -&gt; [Tree c a]
+</span><a href="Test.Hspec.Core.Tree.html#pruneForest"><span class="hs-identifier hs-var">pruneForest</span></a></span><span>
+</span><span id="line-86"></span><span>
+</span><span id="line-87"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-88"></span><span class="hs-comment">-- @Item@ is used to represent spec items internally.  A spec item consists of:</span><span>
+</span><span id="line-89"></span><span class="hs-comment">--</span><span>
+</span><span id="line-90"></span><span class="hs-comment">-- * a textual description of a desired behavior</span><span>
+</span><span id="line-91"></span><span class="hs-comment">-- * an example for that behavior</span><span>
+</span><span id="line-92"></span><span class="hs-comment">-- * additional meta information</span><span>
+</span><span id="line-93"></span><span class="hs-comment">--</span><span>
+</span><span id="line-94"></span><span class="hs-comment">-- Everything that is an instance of the `Example` type class can be used as an</span><span>
+</span><span id="line-95"></span><span class="hs-comment">-- example, including QuickCheck properties, Hspec expectations and HUnit</span><span>
+</span><span id="line-96"></span><span class="hs-comment">-- assertions.</span><span>
+</span><span id="line-97"></span><span class="hs-keyword">data</span><span> </span><span id="Item"><span class="annot"><a href="Test.Hspec.Core.Tree.html#Item"><span class="hs-identifier hs-var">Item</span></a></span></span><span> </span><span id="local-6989586621679158543"><span class="annot"><a href="#local-6989586621679158543"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Item"><span class="annot"><a href="Test.Hspec.Core.Tree.html#Item"><span class="hs-identifier hs-var">Item</span></a></span></span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-98"></span><span>
+</span><span id="line-99"></span><span>  </span><span class="hs-comment">-- | Textual description of behavior</span><span>
+</span><span id="line-100"></span><span>  </span><span id="itemRequirement"><span class="annot"><span class="annottext">forall a. Item a -&gt; String
+</span><a href="Test.Hspec.Core.Tree.html#itemRequirement"><span class="hs-identifier hs-var hs-var">itemRequirement</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-101"></span><span>
+</span><span id="line-102"></span><span>  </span><span class="hs-comment">-- | Source location of the spec item</span><span>
+</span><span id="line-103"></span><span class="hs-special">,</span><span> </span><span id="itemLocation"><span class="annot"><span class="annottext">forall a. Item a -&gt; Maybe Location
+</span><a href="Test.Hspec.Core.Tree.html#itemLocation"><span class="hs-identifier hs-var hs-var">itemLocation</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.Location.html#Location"><span class="hs-identifier hs-type">Location</span></a></span><span>
+</span><span id="line-104"></span><span>
+</span><span id="line-105"></span><span>  </span><span class="hs-comment">-- | A flag that indicates whether it is safe to evaluate this spec item in</span><span>
+</span><span id="line-106"></span><span>  </span><span class="hs-comment">-- parallel with other spec items</span><span>
+</span><span id="line-107"></span><span class="hs-special">,</span><span> </span><span id="itemIsParallelizable"><span class="annot"><span class="annottext">forall a. Item a -&gt; Maybe Bool
+</span><a href="Test.Hspec.Core.Tree.html#itemIsParallelizable"><span class="hs-identifier hs-var hs-var">itemIsParallelizable</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-108"></span><span>
+</span><span id="line-109"></span><span>  </span><span class="hs-comment">-- | A flag that indicates whether this spec item is focused.</span><span>
+</span><span id="line-110"></span><span class="hs-special">,</span><span> </span><span id="itemIsFocused"><span class="annot"><span class="annottext">forall a. Item a -&gt; Bool
+</span><a href="Test.Hspec.Core.Tree.html#itemIsFocused"><span class="hs-identifier hs-var hs-var">itemIsFocused</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-111"></span><span>
+</span><span id="line-112"></span><span>  </span><span class="hs-comment">-- | Example for behavior</span><span>
+</span><span id="line-113"></span><span class="hs-special">,</span><span> </span><span id="itemExample"><span class="annot"><span class="annottext">forall a.
+Item a
+-&gt; Params
+-&gt; (ActionWith a -&gt; IO ())
+-&gt; ProgressCallback
+-&gt; IO Result
+</span><a href="Test.Hspec.Core.Tree.html#itemExample"><span class="hs-identifier hs-var hs-var">itemExample</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.html#Params"><span class="hs-identifier hs-type">Params</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.Hspec.Core.Example.html#ActionWith"><span class="hs-identifier hs-type">ActionWith</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158543"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.html#ProgressCallback"><span class="hs-identifier hs-type">ProgressCallback</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.html#Result"><span class="hs-identifier hs-type">Result</span></a></span><span>
+</span><span id="line-114"></span><span class="hs-special">}</span><span>
+</span><span id="line-115"></span><span>
+</span><span id="line-116"></span><span class="hs-comment">-- | The @specGroup@ function combines a list of specs into a larger spec.</span><span>
+</span><span id="line-117"></span><span id="local-6989586621679158531"><span class="annot"><a href="Test.Hspec.Core.Tree.html#specGroup"><span class="hs-identifier hs-type">specGroup</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">HasCallStack</span></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Test.Hspec.Core.Tree.html#SpecTree"><span class="hs-identifier hs-type">SpecTree</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158531"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Tree.html#SpecTree"><span class="hs-identifier hs-type">SpecTree</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158531"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-118"></span><span id="specGroup"><span class="annot"><span class="annottext">specGroup :: forall a. HasCallStack =&gt; String -&gt; [SpecTree a] -&gt; SpecTree a
+</span><a href="Test.Hspec.Core.Tree.html#specGroup"><span class="hs-identifier hs-var hs-var">specGroup</span></a></span></span><span> </span><span id="local-6989586621679158264"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679158264"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall c a. String -&gt; [Tree c a] -&gt; Tree c a
+</span><a href="Test.Hspec.Core.Tree.html#Node"><span class="hs-identifier hs-var">Node</span></a></span><span> </span><span class="annot"><span class="annottext">HasCallStack =&gt; String
+</span><a href="#local-6989586621679158263"><span class="hs-identifier hs-var">msg</span></a></span><span>
+</span><span id="line-119"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-120"></span><span>    </span><span class="annot"><a href="#local-6989586621679158263"><span class="hs-identifier hs-type">msg</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">HasCallStack</span></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-121"></span><span>    </span><span id="local-6989586621679158263"><span class="annot"><span class="annottext">msg :: HasCallStack =&gt; String
+</span><a href="#local-6989586621679158263"><span class="hs-identifier hs-var hs-var">msg</span></a></span></span><span>
+</span><span id="line-122"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">null</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679158264"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a -&gt; a
+</span><span class="hs-identifier hs-var">fromMaybe</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;(no description given)&quot;</span></span><span> </span><span class="annot"><span class="annottext">HasCallStack =&gt; Maybe String
+</span><a href="Test.Hspec.Core.Tree.html#defaultDescription"><span class="hs-identifier hs-var">defaultDescription</span></a></span><span>
+</span><span id="line-123"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679158264"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-124"></span><span>
+</span><span id="line-125"></span><span class="hs-comment">-- | The @specItem@ function creates a spec item.</span><span>
+</span><span id="line-126"></span><span id="local-6989586621679158528"><span class="annot"><a href="Test.Hspec.Core.Tree.html#specItem"><span class="hs-identifier hs-type">specItem</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">HasCallStack</span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.html#Example"><span class="hs-identifier hs-type">Example</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158528"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679158528"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Tree.html#SpecTree"><span class="hs-identifier hs-type">SpecTree</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.Hspec.Core.Example.html#Arg"><span class="hs-identifier hs-type">Arg</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158528"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-127"></span><span id="specItem"><span class="annot"><span class="annottext">specItem :: forall a.
+(HasCallStack, Example a) =&gt;
+String -&gt; a -&gt; SpecTree (Arg a)
+</span><a href="Test.Hspec.Core.Tree.html#specItem"><span class="hs-identifier hs-var hs-var">specItem</span></a></span></span><span> </span><span id="local-6989586621679158249"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679158249"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span id="local-6989586621679158248"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679158248"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall c a. a -&gt; Tree c a
+</span><a href="Test.Hspec.Core.Tree.html#Leaf"><span class="hs-identifier hs-var">Leaf</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall a.
+String
+-&gt; Maybe Location
+-&gt; Maybe Bool
+-&gt; Bool
+-&gt; (Params
+    -&gt; (ActionWith a -&gt; IO ()) -&gt; ProgressCallback -&gt; IO Result)
+-&gt; Item a
+</span><a href="Test.Hspec.Core.Tree.html#Item"><span class="hs-identifier hs-var">Item</span></a></span><span> </span><span class="annot"><span class="annottext">HasCallStack =&gt; String
+</span><a href="#local-6989586621679158247"><span class="hs-identifier hs-var">requirement</span></a></span><span> </span><span class="annot"><span class="annottext">HasCallStack =&gt; Maybe Location
+</span><a href="Test.Hspec.Core.Tree.html#location"><span class="hs-identifier hs-var">location</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall e.
+Example e =&gt;
+e
+-&gt; Params
+-&gt; (ActionWith (Arg e) -&gt; IO ())
+-&gt; ProgressCallback
+-&gt; IO Result
+</span><a href="Test.Hspec.Core.Example.html#safeEvaluateExample"><span class="hs-identifier hs-var">safeEvaluateExample</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679158248"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-128"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-129"></span><span>    </span><span class="annot"><a href="#local-6989586621679158247"><span class="hs-identifier hs-type">requirement</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">HasCallStack</span></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-130"></span><span>    </span><span id="local-6989586621679158247"><span class="annot"><span class="annottext">requirement :: HasCallStack =&gt; String
+</span><a href="#local-6989586621679158247"><span class="hs-identifier hs-var hs-var">requirement</span></a></span></span><span>
+</span><span id="line-131"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">null</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679158249"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a -&gt; a
+</span><span class="hs-identifier hs-var">fromMaybe</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;(unspecified behavior)&quot;</span></span><span> </span><span class="annot"><span class="annottext">HasCallStack =&gt; Maybe String
+</span><a href="Test.Hspec.Core.Tree.html#defaultDescription"><span class="hs-identifier hs-var">defaultDescription</span></a></span><span>
+</span><span id="line-132"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679158249"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-133"></span><span>
+</span><span id="line-134"></span><span class="annot"><a href="Test.Hspec.Core.Tree.html#location"><span class="hs-identifier hs-type">location</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">HasCallStack</span></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.Location.html#Location"><span class="hs-identifier hs-type">Location</span></a></span><span>
+</span><span id="line-135"></span><span id="location"><span class="annot"><span class="annottext">location :: HasCallStack =&gt; Maybe Location
+</span><a href="Test.Hspec.Core.Tree.html#location"><span class="hs-identifier hs-var hs-var">location</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">reverse</span></span><span> </span><span class="annot"><span class="annottext">HasCallStack =&gt; CallStack
+</span><span class="hs-identifier hs-var">callStack</span></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-136"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679158236"><span class="annot"><span class="annottext">SrcLoc
+</span><a href="#local-6989586621679158236"><span class="hs-identifier hs-var">loc</span></a></span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span class="annot"><span class="annottext">CallStack
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; Int -&gt; Int -&gt; Location
+</span><a href="Test.Hspec.Core.Example.Location.html#Location"><span class="hs-identifier hs-var">Location</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SrcLoc -&gt; String
+</span><span class="hs-identifier hs-var">srcLocFile</span></span><span> </span><span class="annot"><span class="annottext">SrcLoc
+</span><a href="#local-6989586621679158236"><span class="hs-identifier hs-var">loc</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SrcLoc -&gt; Int
+</span><span class="hs-identifier hs-var">srcLocStartLine</span></span><span> </span><span class="annot"><span class="annottext">SrcLoc
+</span><a href="#local-6989586621679158236"><span class="hs-identifier hs-var">loc</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SrcLoc -&gt; Int
+</span><span class="hs-identifier hs-var">srcLocStartCol</span></span><span> </span><span class="annot"><span class="annottext">SrcLoc
+</span><a href="#local-6989586621679158236"><span class="hs-identifier hs-var">loc</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-137"></span><span>  </span><span class="annot"><span class="annottext">CallStack
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-138"></span><span>
+</span><span id="line-139"></span><span class="annot"><a href="Test.Hspec.Core.Tree.html#defaultDescription"><span class="hs-identifier hs-type">defaultDescription</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">HasCallStack</span></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-140"></span><span id="defaultDescription"><span class="annot"><span class="annottext">defaultDescription :: HasCallStack =&gt; Maybe String
+</span><a href="Test.Hspec.Core.Tree.html#defaultDescription"><span class="hs-identifier hs-var hs-var">defaultDescription</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">reverse</span></span><span> </span><span class="annot"><span class="annottext">HasCallStack =&gt; CallStack
+</span><span class="hs-identifier hs-var">callStack</span></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-141"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679158225"><span class="annot"><span class="annottext">SrcLoc
+</span><a href="#local-6989586621679158225"><span class="hs-identifier hs-var">loc</span></a></span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span class="annot"><span class="annottext">CallStack
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SrcLoc -&gt; String
+</span><span class="hs-identifier hs-var">srcLocModule</span></span><span> </span><span class="annot"><span class="annottext">SrcLoc
+</span><a href="#local-6989586621679158225"><span class="hs-identifier hs-var">loc</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;[&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SrcLoc -&gt; Int
+</span><span class="hs-identifier hs-var">srcLocStartLine</span></span><span> </span><span class="annot"><span class="annottext">SrcLoc
+</span><a href="#local-6989586621679158225"><span class="hs-identifier hs-var">loc</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;:&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SrcLoc -&gt; Int
+</span><span class="hs-identifier hs-var">srcLocStartCol</span></span><span> </span><span class="annot"><span class="annottext">SrcLoc
+</span><a href="#local-6989586621679158225"><span class="hs-identifier hs-var">loc</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;]&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-142"></span><span>  </span><span class="annot"><span class="annottext">CallStack
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-143"></span></pre></body></html>

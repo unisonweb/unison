@@ -1,0 +1,560 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP                 #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE FlexibleContexts    #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE FlexibleInstances   #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE MagicHash           #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LANGUAGE ScopedTypeVariables #-}</span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# LANGUAGE UnboxedTuples       #-}</span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ &gt;= 706
+</span><span class="hs-pragma">{-# LANGUAGE PolyKinds           #-}</span><span class="hs-cpp">
+#endif
+</span><span class="hs-pragma">{-# OPTIONS_GHC -fno-warn-orphans -fno-warn-unused-imports #-}</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Data.Binary.Orphans</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Binary</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Binary.Put</span></span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Applicative</span></span><span>   </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Alternative</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span>
+</span><span id="line-18"></span><span>                 </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">MonadPlus</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">liftM</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">liftM2</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">replicateM</span></span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Fail</span></span><span>    </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Fail</span></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Bits</span></span><span>             </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Bits</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">shiftL</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">shiftR</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-operator">(.|.)</span></span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Complex</span></span><span>          </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Complex</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Fixed</span></span><span>            </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Fixed</span></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Functor.Identity</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Identity</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.List</span></span><span>             </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">foldl'</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">unfoldr</span></span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.List.NonEmpty</span></span><span>    </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">NE</span></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Monoid</span></span><span>           </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Monoid</span></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Semigroup</span></span><span>        </span><span class="hs-special">(</span><span class="annot"><span class="hs-operator">(&lt;&gt;)</span></span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Semigroup</span></span><span>        </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Semigroup</span></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Version</span></span><span>          </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Version</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Void</span></span><span>             </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Void</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">absurd</span></span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">GHC.Fingerprint</span></span><span>       </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Fingerprint</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Numeric.Natural</span></span><span>       </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Natural</span></span><span class="hs-special">)</span><span class="hs-cpp">
+
+#if MIN_VERSION_base(4,18,0)
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Tuple</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Solo</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">MkSolo</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-cpp">
+#elif MIN_VERSION_base(4,16,0)
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Tuple</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Solo</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Solo</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-cpp">
+#define MkSolo Solo
+</span><span class="hs-cpp">#else
+</span><span class="hs-cpp">#if MIN_VERSION_OneTuple(0,4,0)
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Tuple.Solo</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Solo</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">MkSolo</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-cpp">
+#else
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Tuple.Solo</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Solo</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Solo</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-cpp">
+#define MkSolo Solo
+</span><span class="hs-cpp">#endif
+</span><span class="hs-cpp">#endif
+</span><span class="hs-cpp">
+#if MIN_VERSION_base(4,9,0)
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Array.Byte</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ByteArray</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">MutableByteArray</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-50"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Exts</span></span><span>
+</span><span id="line-51"></span><span>       </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Int</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">indexWord8Array#</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">newByteArray#</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">sizeofByteArray#</span></span><span class="hs-special">,</span><span>
+</span><span id="line-52"></span><span>       </span><span class="annot"><span class="hs-identifier">unsafeFreezeByteArray#</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">writeWord8Array#</span></span><span class="hs-special">)</span><span>
+</span><span id="line-53"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.ST</span></span><span>          </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ST</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">runST</span></span><span class="hs-special">)</span><span>
+</span><span id="line-54"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Word</span></span><span>        </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Word8</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-57"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-58"></span><span class="hs-comment">-- binary-0.7.1.0</span><span>
+</span><span id="line-59"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span class="hs-cpp">
+
+#if !(MIN_VERSION_binary(0,7,1))
+</span><span>
+</span><span id="line-63"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-64"></span><span class="hs-comment">-- Add MonadPlus instance for Get.</span><span>
+</span><span id="line-65"></span><span>
+</span><span id="line-66"></span><span class="hs-comment">-- Not implementable, as far as I can see</span><span class="hs-cpp">
+
+#endif
+</span><span>
+</span><span id="line-70"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-71"></span><span class="hs-comment">-- binary-0.7.3.0</span><span>
+</span><span id="line-72"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span class="hs-cpp">
+
+#if !(MIN_VERSION_binary(0,7,3) )
+</span><span>
+</span><span id="line-76"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-77"></span><span class="hs-comment">-- Add Binary instance for Natural (only with base &gt; 4.8).</span><span class="hs-cpp">
+
+#ifndef MIN_VERSION_nats
+</span><span class="hs-cpp">#define MIN_VERSION_nats(x,y,z) 0
+</span><span class="hs-cpp">#endif
+</span><span class="hs-cpp">
+#if !(MIN_VERSION_nats(1,1,0))
+</span><span class="hs-comment">-- Fixed-size type for a subset of Natural</span><span>
+</span><span id="line-85"></span><span class="hs-keyword">type</span><span> </span><span class="hs-identifier">NaturalWord</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">Word64</span><span>
+</span><span id="line-86"></span><span>
+</span><span id="line-87"></span><span class="hs-comment">-- | /Since: 0.7.3.0/</span><span>
+</span><span id="line-88"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">Binary</span><span> </span><span class="hs-identifier">Natural</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-89"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="hs-pragma">put</span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-90"></span><span>    </span><span class="hs-identifier">put</span><span> </span><span class="hs-identifier">n</span><span> </span><span class="hs-glyph">|</span><span> </span><span class="hs-identifier">n</span><span> </span><span class="hs-operator">&lt;=</span><span> </span><span class="hs-identifier">hi</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-91"></span><span>        </span><span class="hs-identifier">putWord8</span><span> </span><span class="hs-number">0</span><span>
+</span><span id="line-92"></span><span>        </span><span class="hs-operator">&gt;&gt;</span><span> </span><span class="hs-identifier">put</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">fromIntegral</span><span> </span><span class="hs-identifier">n</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">NaturalWord</span><span class="hs-special">)</span><span>  </span><span class="hs-comment">-- fast path</span><span>
+</span><span id="line-93"></span><span>     </span><span class="hs-keyword">where</span><span>
+</span><span id="line-94"></span><span>        </span><span class="hs-identifier">hi</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">fromIntegral</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">maxBound</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">NaturalWord</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Natural</span><span>
+</span><span id="line-95"></span><span>
+</span><span id="line-96"></span><span>    </span><span class="hs-identifier">put</span><span> </span><span class="hs-identifier">n</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-97"></span><span>        </span><span class="hs-identifier">putWord8</span><span> </span><span class="hs-number">1</span><span>
+</span><span id="line-98"></span><span>        </span><span class="hs-operator">&gt;&gt;</span><span> </span><span class="hs-identifier">put</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">unroll</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">abs</span><span> </span><span class="hs-identifier">n</span><span class="hs-special">)</span><span class="hs-special">)</span><span>         </span><span class="hs-comment">-- unroll the bytes</span><span>
+</span><span id="line-99"></span><span>
+</span><span id="line-100"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="hs-pragma">get</span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-101"></span><span>    </span><span class="hs-identifier">get</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-102"></span><span>        </span><span class="hs-identifier">tag</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier">get</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Get</span><span> </span><span class="hs-identifier">Word8</span><span>
+</span><span id="line-103"></span><span>        </span><span class="hs-keyword">case</span><span> </span><span class="hs-identifier">tag</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-104"></span><span>            </span><span class="hs-number">0</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">liftM</span><span> </span><span class="hs-identifier">fromIntegral</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">get</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Get</span><span> </span><span class="hs-identifier">NaturalWord</span><span class="hs-special">)</span><span>
+</span><span id="line-105"></span><span>            </span><span class="hs-identifier">_</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span> </span><span class="hs-identifier">bytes</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier">get</span><span>
+</span><span id="line-106"></span><span>                    </span><span class="hs-identifier">return</span><span> </span><span class="hs-operator">$!</span><span> </span><span class="hs-identifier">roll</span><span> </span><span class="hs-identifier">bytes</span><span>
+</span><span id="line-107"></span><span>
+</span><span id="line-108"></span><span>
+</span><span id="line-109"></span><span class="hs-comment">--</span><span>
+</span><span id="line-110"></span><span class="hs-comment">-- Fold and unfold an Integer to and from a list of its bytes</span><span>
+</span><span id="line-111"></span><span class="hs-comment">--</span><span>
+</span><span id="line-112"></span><span class="hs-identifier">unroll</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Integral</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">Bits</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-identifier">Word8</span><span class="hs-special">]</span><span>
+</span><span id="line-113"></span><span class="hs-identifier">unroll</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">unfoldr</span><span> </span><span class="hs-identifier">step</span><span>
+</span><span id="line-114"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-115"></span><span>    </span><span class="hs-identifier">step</span><span> </span><span class="hs-number">0</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">Nothing</span><span>
+</span><span id="line-116"></span><span>    </span><span class="hs-identifier">step</span><span> </span><span class="hs-identifier">i</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">Just</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">fromIntegral</span><span> </span><span class="hs-identifier">i</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">i</span><span> </span><span class="hs-special">`</span><span class="hs-identifier">shiftR</span><span class="hs-special">`</span><span> </span><span class="hs-number">8</span><span class="hs-special">)</span><span>
+</span><span id="line-117"></span><span>
+</span><span id="line-118"></span><span class="hs-identifier">roll</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Integral</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">Bits</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-identifier">Word8</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">a</span><span>
+</span><span id="line-119"></span><span class="hs-identifier">roll</span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">foldl'</span><span> </span><span class="hs-identifier">unstep</span><span> </span><span class="hs-number">0</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-identifier">reverse</span><span>
+</span><span id="line-120"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-121"></span><span>    </span><span class="hs-identifier">unstep</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-identifier">b</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-special">`</span><span class="hs-identifier">shiftL</span><span class="hs-special">`</span><span> </span><span class="hs-number">8</span><span> </span><span class="hs-operator">.|.</span><span> </span><span class="hs-identifier">fromIntegral</span><span> </span><span class="hs-identifier">b</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-126"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-127"></span><span class="hs-comment">-- binary-0.7.6.0</span><span>
+</span><span id="line-128"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span class="hs-cpp">
+
+#if !MIN_VERSION_binary(0,7,6)
+</span><span>
+</span><span id="line-132"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-133"></span><span class="hs-comment">-- Added binary instance for GHC.Fingerprint (from GHC &gt;= 7.4).</span><span>
+</span><span id="line-134"></span><span>
+</span><span id="line-135"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">Binary</span><span> </span><span class="hs-identifier">Fingerprint</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-136"></span><span>    </span><span class="hs-identifier">put</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Fingerprint</span><span> </span><span class="hs-identifier">x1</span><span> </span><span class="hs-identifier">x2</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">put</span><span> </span><span class="hs-identifier">x1</span><span> </span><span class="hs-operator">&lt;&gt;</span><span> </span><span class="hs-identifier">put</span><span> </span><span class="hs-identifier">x2</span><span>
+</span><span id="line-137"></span><span>    </span><span class="hs-identifier">get</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-138"></span><span>        </span><span class="hs-identifier">x1</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier">get</span><span>
+</span><span id="line-139"></span><span>        </span><span class="hs-identifier">x2</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier">get</span><span>
+</span><span id="line-140"></span><span>        </span><span class="hs-identifier">return</span><span> </span><span class="hs-operator">$!</span><span> </span><span class="hs-identifier">Fingerprint</span><span> </span><span class="hs-identifier">x1</span><span> </span><span class="hs-identifier">x2</span><span class="hs-cpp">
+
+#endif
+</span><span>
+</span><span id="line-144"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-145"></span><span class="hs-comment">-- binary-0.8.0.0</span><span>
+</span><span id="line-146"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span class="hs-cpp">
+
+#if !(MIN_VERSION_binary(0,8,0))
+</span><span>
+</span><span id="line-150"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-151"></span><span class="hs-comment">-- Added binary instance for Version from Data.Version.</span><span>
+</span><span id="line-152"></span><span>
+</span><span id="line-153"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">Binary</span><span> </span><span class="hs-identifier">Version</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-154"></span><span>    </span><span class="hs-identifier">put</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Version</span><span> </span><span class="hs-identifier">br</span><span> </span><span class="hs-identifier">tags</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">put</span><span> </span><span class="hs-identifier">br</span><span> </span><span class="hs-operator">&lt;&gt;</span><span> </span><span class="hs-identifier">put</span><span> </span><span class="hs-identifier">tags</span><span>
+</span><span id="line-155"></span><span>    </span><span class="hs-identifier">get</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">liftM2</span><span> </span><span class="hs-identifier">Version</span><span> </span><span class="hs-identifier">get</span><span> </span><span class="hs-identifier">get</span><span>
+</span><span id="line-156"></span><span>
+</span><span id="line-157"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-158"></span><span class="hs-comment">-- Added binary instance for Void from GHC 7.10.1.</span><span>
+</span><span id="line-159"></span><span>
+</span><span id="line-160"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">Binary</span><span> </span><span class="hs-identifier">Void</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-161"></span><span>    </span><span class="hs-identifier">put</span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">absurd</span><span>
+</span><span id="line-162"></span><span>    </span><span class="hs-identifier">get</span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">fail</span><span> </span><span class="hs-string">&quot;get @Void&quot;</span><span>
+</span><span id="line-163"></span><span>
+</span><span id="line-164"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-165"></span><span class="hs-comment">-- Added binary instance for (Data.Fixed a) from GHC 7.8.1.</span><span class="hs-cpp">
+
+#if MIN_VERSION_base(4,7,0)
+</span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">Binary</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Fixed.Fixed</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-169"></span><span>  </span><span class="hs-identifier">put</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Fixed.MkFixed</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">put</span><span> </span><span class="hs-identifier">a</span><span>
+</span><span id="line-170"></span><span>  </span><span class="hs-identifier">get</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">Fixed.MkFixed</span><span> </span><span class="hs-special">`</span><span class="hs-identifier">fmap</span><span class="hs-special">`</span><span> </span><span class="hs-identifier">get</span><span class="hs-cpp">
+#else
+</span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">Fixed.HasResolution</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-identifier">Binary</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Fixed.Fixed</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-173"></span><span>  </span><span class="hs-comment">-- Using undefined :: Maybe a as a proxy, as Data.Proxy is introduced only in base-4.7</span><span>
+</span><span id="line-174"></span><span>  </span><span class="hs-identifier">put</span><span> </span><span class="hs-identifier">x</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">put</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">truncate</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">x</span><span> </span><span class="hs-operator">*</span><span> </span><span class="hs-identifier">fromInteger</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Fixed.resolution</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">undefined</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Maybe</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Integer</span><span class="hs-special">)</span><span>
+</span><span id="line-175"></span><span>  </span><span class="hs-identifier">get</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-identifier">x</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">fromInteger</span><span> </span><span class="hs-identifier">x</span><span> </span><span class="hs-operator">/</span><span> </span><span class="hs-identifier">fromInteger</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Fixed.resolution</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">undefined</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Maybe</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">`</span><span class="hs-identifier">fmap</span><span class="hs-special">`</span><span> </span><span class="hs-identifier">get</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-180"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-181"></span><span class="hs-comment">-- Added semigroup instance for Data.Binary.Builder from GHC 8.0.</span><span>
+</span><span id="line-182"></span><span>
+</span><span id="line-183"></span><span class="hs-comment">-- in semigroups</span><span>
+</span><span id="line-184"></span><span>
+</span><span id="line-185"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-186"></span><span class="hs-comment">-- binary-0.8.2.0</span><span>
+</span><span id="line-187"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-188"></span><span>
+</span><span id="line-189"></span><span>
+</span><span id="line-190"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-191"></span><span class="hs-comment">-- When using GHC &gt;= 8, Data.Binary.Get.Get implements MonadFail and delegates its fail to MonadFail.fail.</span><span class="hs-cpp">
+
+#if !(MIN_VERSION_binary(0,8,2)) || !(MIN_VERSION_base(4,9,0))
+</span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">Fail.MonadFail</span><span> </span><span class="hs-identifier">Get</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-195"></span><span>    </span><span class="hs-comment">-- this is ok, as if old base: Prelude.fail is Monad's fail</span><span>
+</span><span id="line-196"></span><span>    </span><span class="hs-identifier">fail</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">Prelude.fail</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-199"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-200"></span><span class="hs-comment">-- binary-0.8.3</span><span>
+</span><span id="line-201"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-202"></span><span>
+</span><span id="line-203"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-204"></span><span class="hs-comment">-- Add Monoid and Semigroup instance for Put.</span><span class="hs-cpp">
+
+#if !(MIN_VERSION_binary(0,8,3)) || !(MIN_VERSION_base(4,9,0))
+</span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">Semigroup.Semigroup</span><span> </span><span class="hs-identifier">Put</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-208"></span><span>    </span><span class="hs-special">(</span><span class="hs-operator">&lt;&gt;</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-operator">&gt;&gt;</span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#if !(MIN_VERSION_binary(0,8,3))
+</span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">Monoid.Monoid</span><span> </span><span class="hs-identifier">Put</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-213"></span><span>    </span><span class="hs-identifier">mempty</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">return</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-214"></span><span>    </span><span class="hs-identifier">mappend</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-operator">&lt;&gt;</span><span class="hs-special">)</span><span class="hs-cpp">
+
+#endif
+</span><span>
+</span><span id="line-218"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-219"></span><span class="hs-comment">-- Add Binary instance for Complex a.</span><span class="hs-cpp">
+
+#if !(MIN_VERSION_binary(0,8,3))
+</span><span>
+</span><span id="line-223"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">Binary</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-identifier">Binary</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Complex</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-224"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="hs-pragma">put</span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-225"></span><span>    </span><span class="hs-identifier">put</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">r</span><span> </span><span class="hs-operator">:+</span><span> </span><span class="hs-identifier">i</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">put</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">r</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">i</span><span class="hs-special">)</span><span>
+</span><span id="line-226"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="hs-pragma">get</span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-227"></span><span>    </span><span class="hs-identifier">get</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">fmap</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="hs-identifier">r</span><span class="hs-special">,</span><span class="hs-identifier">i</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">r</span><span> </span><span class="hs-operator">:+</span><span> </span><span class="hs-identifier">i</span><span class="hs-special">)</span><span> </span><span class="hs-identifier">get</span><span class="hs-cpp">
+
+#endif
+</span><span>
+</span><span id="line-231"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-232"></span><span class="hs-comment">-- binary-0.8.4</span><span>
+</span><span id="line-233"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-234"></span><span>
+</span><span id="line-235"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-236"></span><span class="hs-comment">-- Add Binary instances for datatypes in Data.Monoid/Data.Semigroup</span><span>
+</span><span id="line-237"></span><span class="hs-comment">-- https://github.com/kolmodin/binary/pull/114</span><span class="hs-cpp">
+
+#if !MIN_VERSION_binary(0,8,4)
+</span><span>
+</span><span id="line-241"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">Binary</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-identifier">Binary</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Monoid.Dual</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-242"></span><span>  </span><span class="hs-identifier">get</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">fmap</span><span> </span><span class="hs-identifier">Monoid.Dual</span><span> </span><span class="hs-identifier">get</span><span>
+</span><span id="line-243"></span><span>  </span><span class="hs-identifier">put</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">put</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-identifier">Monoid.getDual</span><span>
+</span><span id="line-244"></span><span>
+</span><span id="line-245"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">Binary</span><span> </span><span class="hs-identifier">Monoid.All</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-246"></span><span>  </span><span class="hs-identifier">get</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">fmap</span><span> </span><span class="hs-identifier">Monoid.All</span><span> </span><span class="hs-identifier">get</span><span>
+</span><span id="line-247"></span><span>  </span><span class="hs-identifier">put</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">put</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-identifier">Monoid.getAll</span><span>
+</span><span id="line-248"></span><span>
+</span><span id="line-249"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">Binary</span><span> </span><span class="hs-identifier">Monoid.Any</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-250"></span><span>  </span><span class="hs-identifier">get</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">fmap</span><span> </span><span class="hs-identifier">Monoid.Any</span><span> </span><span class="hs-identifier">get</span><span>
+</span><span id="line-251"></span><span>  </span><span class="hs-identifier">put</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">put</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-identifier">Monoid.getAny</span><span>
+</span><span id="line-252"></span><span>
+</span><span id="line-253"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">Binary</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-identifier">Binary</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Monoid.Sum</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-254"></span><span>  </span><span class="hs-identifier">get</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">fmap</span><span> </span><span class="hs-identifier">Monoid.Sum</span><span> </span><span class="hs-identifier">get</span><span>
+</span><span id="line-255"></span><span>  </span><span class="hs-identifier">put</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">put</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-identifier">Monoid.getSum</span><span>
+</span><span id="line-256"></span><span>
+</span><span id="line-257"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">Binary</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-identifier">Binary</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Monoid.Product</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-258"></span><span>  </span><span class="hs-identifier">get</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">fmap</span><span> </span><span class="hs-identifier">Monoid.Product</span><span> </span><span class="hs-identifier">get</span><span>
+</span><span id="line-259"></span><span>  </span><span class="hs-identifier">put</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">put</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-identifier">Monoid.getProduct</span><span>
+</span><span id="line-260"></span><span>
+</span><span id="line-261"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">Binary</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-identifier">Binary</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Monoid.First</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-262"></span><span>  </span><span class="hs-identifier">get</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">fmap</span><span> </span><span class="hs-identifier">Monoid.First</span><span> </span><span class="hs-identifier">get</span><span>
+</span><span id="line-263"></span><span>  </span><span class="hs-identifier">put</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">put</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-identifier">Monoid.getFirst</span><span>
+</span><span id="line-264"></span><span>
+</span><span id="line-265"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">Binary</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-identifier">Binary</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Monoid.Last</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-266"></span><span>  </span><span class="hs-identifier">get</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">fmap</span><span> </span><span class="hs-identifier">Monoid.Last</span><span> </span><span class="hs-identifier">get</span><span>
+</span><span id="line-267"></span><span>  </span><span class="hs-identifier">put</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">put</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-identifier">Monoid.getLast</span><span class="hs-cpp">
+
+#if MIN_VERSION_base(4,8,0)
+</span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">Binary</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">f</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-identifier">Binary</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Monoid.Alt</span><span> </span><span class="hs-identifier">f</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-271"></span><span>  </span><span class="hs-identifier">get</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">fmap</span><span> </span><span class="hs-identifier">Monoid.Alt</span><span> </span><span class="hs-identifier">get</span><span>
+</span><span id="line-272"></span><span>  </span><span class="hs-identifier">put</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">put</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-identifier">Monoid.getAlt</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-277"></span><span class="hs-comment">------------------------------------------------------------------------</span><span>
+</span><span id="line-278"></span><span class="hs-comment">-- Data.Semigroup datatypes</span><span class="hs-cpp">
+
+#if !MIN_VERSION_binary(0,8,4) || !MIN_VERSION_base(4,9,0)
+</span><span>
+</span><span id="line-282"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">Binary</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-identifier">Binary</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Semigroup.Min</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-283"></span><span>  </span><span class="hs-identifier">get</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">fmap</span><span> </span><span class="hs-identifier">Semigroup.Min</span><span> </span><span class="hs-identifier">get</span><span>
+</span><span id="line-284"></span><span>  </span><span class="hs-identifier">put</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">put</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-identifier">Semigroup.getMin</span><span>
+</span><span id="line-285"></span><span>
+</span><span id="line-286"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">Binary</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-identifier">Binary</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Semigroup.Max</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-287"></span><span>  </span><span class="hs-identifier">get</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">fmap</span><span> </span><span class="hs-identifier">Semigroup.Max</span><span> </span><span class="hs-identifier">get</span><span>
+</span><span id="line-288"></span><span>  </span><span class="hs-identifier">put</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">put</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-identifier">Semigroup.getMax</span><span>
+</span><span id="line-289"></span><span>
+</span><span id="line-290"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">Binary</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-identifier">Binary</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Semigroup.First</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-291"></span><span>  </span><span class="hs-identifier">get</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">fmap</span><span> </span><span class="hs-identifier">Semigroup.First</span><span> </span><span class="hs-identifier">get</span><span>
+</span><span id="line-292"></span><span>  </span><span class="hs-identifier">put</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">put</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-identifier">Semigroup.getFirst</span><span>
+</span><span id="line-293"></span><span>
+</span><span id="line-294"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">Binary</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-identifier">Binary</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Semigroup.Last</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-295"></span><span>  </span><span class="hs-identifier">get</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">fmap</span><span> </span><span class="hs-identifier">Semigroup.Last</span><span> </span><span class="hs-identifier">get</span><span>
+</span><span id="line-296"></span><span>  </span><span class="hs-identifier">put</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">put</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-identifier">Semigroup.getLast</span><span>
+</span><span id="line-297"></span><span>
+</span><span id="line-298"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">Binary</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-identifier">Binary</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Semigroup.Option</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-299"></span><span>  </span><span class="hs-identifier">get</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">fmap</span><span> </span><span class="hs-identifier">Semigroup.Option</span><span> </span><span class="hs-identifier">get</span><span>
+</span><span id="line-300"></span><span>  </span><span class="hs-identifier">put</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">put</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-identifier">Semigroup.getOption</span><span>
+</span><span id="line-301"></span><span>
+</span><span id="line-302"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">Binary</span><span> </span><span class="hs-identifier">m</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-identifier">Binary</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Semigroup.WrappedMonoid</span><span> </span><span class="hs-identifier">m</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-303"></span><span>  </span><span class="hs-identifier">get</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">fmap</span><span> </span><span class="hs-identifier">Semigroup.WrapMonoid</span><span> </span><span class="hs-identifier">get</span><span>
+</span><span id="line-304"></span><span>  </span><span class="hs-identifier">put</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">put</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-identifier">Semigroup.unwrapMonoid</span><span>
+</span><span id="line-305"></span><span>
+</span><span id="line-306"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Binary</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">Binary</span><span> </span><span class="hs-identifier">b</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-identifier">Binary</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Semigroup.Arg</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-identifier">b</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-307"></span><span>  </span><span class="hs-identifier">get</span><span>                     </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">liftM2</span><span> </span><span class="hs-identifier">Semigroup.Arg</span><span> </span><span class="hs-identifier">get</span><span> </span><span class="hs-identifier">get</span><span>
+</span><span id="line-308"></span><span>  </span><span class="hs-identifier">put</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Semigroup.Arg</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-identifier">b</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">put</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-operator">&lt;&gt;</span><span> </span><span class="hs-identifier">put</span><span> </span><span class="hs-identifier">b</span><span>
+</span><span id="line-309"></span><span>
+</span><span id="line-310"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">Binary</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-identifier">Binary</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">NE.NonEmpty</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-311"></span><span>  </span><span class="hs-identifier">get</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-312"></span><span>      </span><span class="hs-identifier">x</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier">get</span><span>
+</span><span id="line-313"></span><span>      </span><span class="hs-keyword">case</span><span> </span><span class="hs-identifier">x</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-314"></span><span>          </span><span class="hs-special">[</span><span class="hs-special">]</span><span>     </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">fail</span><span> </span><span class="hs-string">&quot;empty NonEmpty&quot;</span><span>
+</span><span id="line-315"></span><span>          </span><span class="hs-special">(</span><span class="hs-identifier">x</span><span class="hs-glyph">:</span><span class="hs-identifier">xs</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">return</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">x</span><span> </span><span class="hs-operator">NE.:|</span><span> </span><span class="hs-identifier">xs</span><span class="hs-special">)</span><span>
+</span><span id="line-316"></span><span>  </span><span class="hs-identifier">put</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">put</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-identifier">NE.toList</span><span class="hs-cpp">
+
+#endif
+</span><span>
+</span><span id="line-320"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-321"></span><span class="hs-comment">-- binary-0.8.5.0</span><span>
+</span><span id="line-322"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span class="hs-cpp">
+
+#if !(MIN_VERSION_binary(8,6,0))
+</span><span>
+</span><span id="line-326"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-327"></span><span class="hs-comment">-- Typeable TypeReps</span><span>
+</span><span id="line-328"></span><span class="hs-comment">-- Add Binary instances for Typeable TypeReps</span><span>
+</span><span id="line-329"></span><span class="hs-comment">-- https://github.com/kolmodin/binary/pull/131</span><span>
+</span><span id="line-330"></span><span>
+</span><span id="line-331"></span><span class="hs-comment">-- TODO</span><span class="hs-cpp">
+
+#endif
+</span><span>
+</span><span id="line-335"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-336"></span><span class="hs-comment">-- binary-0.8.6.0</span><span>
+</span><span id="line-337"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span class="hs-cpp">
+
+#if !(MIN_VERSION_binary(8,6,0))
+</span><span>
+</span><span id="line-341"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-342"></span><span class="hs-comment">-- Add binary instance for Data.Functor.Identity from base,</span><span>
+</span><span id="line-343"></span><span class="hs-comment">-- https://github.com/kolmodin/binary/pull/146</span><span class="hs-cpp">
+
+#if !MIN_VERSION_base(4,8,0)
+</span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">Binary</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-identifier">Binary</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Identity</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-347"></span><span>  </span><span class="hs-identifier">put</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Identity</span><span> </span><span class="hs-identifier">x</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">put</span><span> </span><span class="hs-identifier">x</span><span>
+</span><span id="line-348"></span><span>  </span><span class="hs-identifier">get</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">fmap</span><span> </span><span class="hs-identifier">Identity</span><span> </span><span class="hs-identifier">get</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-353"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-354"></span><span class="hs-comment">-- future-binary</span><span>
+</span><span id="line-355"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-356"></span><span>
+</span><span id="line-357"></span><span class="hs-comment">-- | @since 1.0.2</span><span>
+</span><span id="line-358"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679035154"><span id="local-6989586621679035216"><span class="annot"><span class="hs-identifier hs-type">Binary</span></span><span> </span><span class="annot"><a href="#local-6989586621679035216"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Binary</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Solo</span></span><span> </span><span class="annot"><a href="#local-6989586621679035216"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-359"></span><span>  </span><span id="local-6989586621679035151"><span class="annot"><span class="annottext">put :: Solo a -&gt; Put
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">put</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Solo a
+</span><span class="hs-identifier">MkSolo</span></span><span> </span><span class="hs-identifier">x</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">put</span><span> </span><span class="hs-identifier">x</span><span>
+</span><span id="line-360"></span><span>  </span><span id="local-6989586621679035145"><span class="annot"><span class="annottext">get :: Get (Solo a)
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">get</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-identifier">MkSolo</span><span> </span><span class="hs-identifier">get</span><span class="hs-cpp">
+
+#if MIN_VERSION_base(4,9,0)
+</span><span class="hs-comment">-- | @since 1.0.3</span><span>
+</span><span id="line-364"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679035140"><span class="annot"><span class="hs-identifier hs-type">Binary</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteArray</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-365"></span><span>  </span><span id="local-6989586621679035126"><span class="annot"><span class="annottext">put :: ByteArray -&gt; Put
+</span><a href="#local-6989586621679035126"><span class="hs-identifier hs-var hs-var hs-var hs-var">put</span></a></span></span><span> </span><span id="local-6989586621679035125"><span class="annot"><span class="annottext">ByteArray
+</span><a href="#local-6989586621679035125"><span class="hs-identifier hs-var">ba</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall t. Binary t =&gt; t -&gt; Put
+</span><span class="hs-identifier hs-var">put</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679035124"><span class="hs-identifier hs-var">maxI</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Put
+</span><a href="#local-6989586621679035123"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-366"></span><span>    </span><span class="hs-keyword">where</span><span>
+</span><span id="line-367"></span><span>      </span><span class="annot"><a href="#local-6989586621679035124"><span class="hs-identifier hs-type">maxI</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-368"></span><span>      </span><span id="local-6989586621679035124"><span class="annot"><span class="annottext">maxI :: Int
+</span><a href="#local-6989586621679035124"><span class="hs-identifier hs-var hs-var">maxI</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteArray -&gt; Int
+</span><a href="Data.Binary.Orphans.html#sizeofByteArray"><span class="hs-identifier hs-var">sizeofByteArray</span></a></span><span> </span><span class="annot"><span class="annottext">ByteArray
+</span><a href="#local-6989586621679035125"><span class="hs-identifier hs-var">ba</span></a></span><span>
+</span><span id="line-369"></span><span>
+</span><span id="line-370"></span><span>      </span><span class="annot"><a href="#local-6989586621679035123"><span class="hs-identifier hs-type">go</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Put</span></span><span>
+</span><span id="line-371"></span><span>      </span><span id="local-6989586621679035123"><span class="annot"><span class="annottext">go :: Int -&gt; Put
+</span><a href="#local-6989586621679035123"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span id="local-6989586621679035121"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679035121"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679035121"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679035124"><span class="hs-identifier hs-var">maxI</span></a></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall t. Binary t =&gt; t -&gt; Put
+</span><span class="hs-identifier hs-var">put</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteArray -&gt; Int -&gt; Word8
+</span><a href="Data.Binary.Orphans.html#indexByteArray"><span class="hs-identifier hs-var">indexByteArray</span></a></span><span> </span><span class="annot"><span class="annottext">ByteArray
+</span><a href="#local-6989586621679035125"><span class="hs-identifier hs-var">ba</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679035121"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Put
+</span><a href="#local-6989586621679035123"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679035121"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span>
+</span><span id="line-372"></span><span>           </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-373"></span><span>
+</span><span id="line-374"></span><span>  </span><span id="local-6989586621679035109"><span class="annot"><span class="annottext">get :: Get ByteArray
+</span><a href="#local-6989586621679035109"><span class="hs-identifier hs-var hs-var hs-var hs-var">get</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-375"></span><span>    </span><span id="local-6989586621679035108"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679035108"><span class="hs-identifier hs-var">len</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall t. Binary t =&gt; Get t
+</span><span class="hs-identifier hs-var">get</span></span><span>
+</span><span id="line-376"></span><span>    </span><span id="local-6989586621679035107"><span class="annot"><span class="annottext">[Word8]
+</span><a href="#local-6989586621679035107"><span class="hs-identifier hs-var">xs</span></a></span></span><span>  </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Applicative m =&gt; Int -&gt; m a -&gt; m [a]
+</span><span class="hs-identifier hs-var">replicateM</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679035108"><span class="hs-identifier hs-var">len</span></a></span><span> </span><span class="annot"><span class="annottext">forall t. Binary t =&gt; Get t
+</span><span class="hs-identifier hs-var">get</span></span><span>
+</span><span id="line-377"></span><span>    </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; [Word8] -&gt; ByteArray
+</span><a href="Data.Binary.Orphans.html#byteArrayFromListN"><span class="hs-identifier hs-var">byteArrayFromListN</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679035108"><span class="hs-identifier hs-var">len</span></a></span><span> </span><span class="annot"><span class="annottext">[Word8]
+</span><a href="#local-6989586621679035107"><span class="hs-identifier hs-var">xs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-378"></span><span>
+</span><span id="line-379"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Binary.Orphans.html#sizeofByteArray"><span class="hs-pragma hs-type">sizeofByteArray</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-380"></span><span class="annot"><a href="Data.Binary.Orphans.html#sizeofByteArray"><span class="hs-identifier hs-type">sizeofByteArray</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteArray</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-381"></span><span id="sizeofByteArray"><span class="annot"><span class="annottext">sizeofByteArray :: ByteArray -&gt; Int
+</span><a href="Data.Binary.Orphans.html#sizeofByteArray"><span class="hs-identifier hs-var hs-var">sizeofByteArray</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ByteArray</span></span><span> </span><span id="local-6989586621679035104"><span class="annot"><span class="annottext">ByteArray#
+</span><a href="#local-6989586621679035104"><span class="hs-identifier hs-var">ba</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int# -&gt; Int
+</span><span class="hs-identifier hs-var">I#</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteArray# -&gt; Int#
+</span><span class="hs-identifier hs-var">sizeofByteArray#</span></span><span> </span><span class="annot"><span class="annottext">ByteArray#
+</span><a href="#local-6989586621679035104"><span class="hs-identifier hs-var">ba</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-382"></span><span>
+</span><span id="line-383"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Binary.Orphans.html#indexByteArray"><span class="hs-pragma hs-type">indexByteArray</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-384"></span><span class="annot"><a href="Data.Binary.Orphans.html#indexByteArray"><span class="hs-identifier hs-type">indexByteArray</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteArray</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span>
+</span><span id="line-385"></span><span id="indexByteArray"><span class="annot"><span class="annottext">indexByteArray :: ByteArray -&gt; Int -&gt; Word8
+</span><a href="Data.Binary.Orphans.html#indexByteArray"><span class="hs-identifier hs-var hs-var">indexByteArray</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ByteArray</span></span><span> </span><span id="local-6989586621679035103"><span class="annot"><span class="annottext">ByteArray#
+</span><a href="#local-6989586621679035103"><span class="hs-identifier hs-var">ba</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">I#</span></span><span> </span><span id="local-6989586621679035102"><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679035102"><span class="hs-identifier hs-var">i</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word8# -&gt; Word8
+</span><span class="hs-identifier hs-var">W8#</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteArray# -&gt; Int# -&gt; Word8#
+</span><span class="hs-identifier hs-var">indexWord8Array#</span></span><span> </span><span class="annot"><span class="annottext">ByteArray#
+</span><a href="#local-6989586621679035103"><span class="hs-identifier hs-var">ba</span></a></span><span> </span><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679035102"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-386"></span><span>
+</span><span id="line-387"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Binary.Orphans.html#byteArrayFromListN"><span class="hs-pragma hs-type">byteArrayFromListN</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-388"></span><span class="annot"><a href="Data.Binary.Orphans.html#byteArrayFromListN"><span class="hs-identifier hs-type">byteArrayFromListN</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteArray</span></span><span>
+</span><span id="line-389"></span><span id="byteArrayFromListN"><span class="annot"><span class="annottext">byteArrayFromListN :: Int -&gt; [Word8] -&gt; ByteArray
+</span><a href="Data.Binary.Orphans.html#byteArrayFromListN"><span class="hs-identifier hs-var hs-var">byteArrayFromListN</span></a></span></span><span> </span><span id="local-6989586621679035100"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679035100"><span class="hs-identifier hs-var">len</span></a></span></span><span> </span><span id="local-6989586621679035099"><span class="annot"><span class="annottext">[Word8]
+</span><a href="#local-6989586621679035099"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. (forall s. ST s a) -&gt; a
+</span><span class="hs-identifier hs-var">runST</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-390"></span><span>    </span><span id="local-6989586621679035095"><span class="annot"><span class="annottext">MutableByteArray s
+</span><a href="#local-6989586621679035095"><span class="hs-identifier hs-var">mba</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall s. Int -&gt; ST s (MutableByteArray s)
+</span><a href="Data.Binary.Orphans.html#newByteArray"><span class="hs-identifier hs-var">newByteArray</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679035100"><span class="hs-identifier hs-var">len</span></a></span><span>
+</span><span id="line-391"></span><span>    </span><span class="annot"><span class="annottext">forall s. MutableByteArray s -&gt; Int -&gt; [Word8] -&gt; ST s ()
+</span><a href="#local-6989586621679035093"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">MutableByteArray s
+</span><a href="#local-6989586621679035095"><span class="hs-identifier hs-var">mba</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">[Word8]
+</span><a href="#local-6989586621679035099"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-392"></span><span>    </span><span class="annot"><span class="annottext">forall s. MutableByteArray s -&gt; ST s ByteArray
+</span><a href="Data.Binary.Orphans.html#unsafeFreezeByteArray"><span class="hs-identifier hs-var">unsafeFreezeByteArray</span></a></span><span> </span><span class="annot"><span class="annottext">MutableByteArray s
+</span><a href="#local-6989586621679035095"><span class="hs-identifier hs-var">mba</span></a></span><span>
+</span><span id="line-393"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-394"></span><span>    </span><span id="local-6989586621679035192"><span class="annot"><a href="#local-6989586621679035093"><span class="hs-identifier hs-type">go</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MutableByteArray</span></span><span> </span><span class="annot"><a href="#local-6989586621679035192"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ST</span></span><span> </span><span class="annot"><a href="#local-6989586621679035192"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-395"></span><span>    </span><span id="local-6989586621679035093"><span class="annot"><span class="annottext">go :: forall s. MutableByteArray s -&gt; Int -&gt; [Word8] -&gt; ST s ()
+</span><a href="#local-6989586621679035093"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span id="local-6989586621679035081"><span class="annot"><span class="annottext">MutableByteArray s
+</span><a href="#local-6989586621679035081"><span class="hs-identifier hs-var">mba</span></a></span></span><span> </span><span id="local-6989586621679035080"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679035080"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span id="local-6989586621679035079"><span class="annot"><span class="annottext">[Word8]
+</span><a href="#local-6989586621679035079"><span class="hs-identifier hs-var">ys</span></a></span></span><span>
+</span><span id="line-396"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679035080"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679035100"><span class="hs-identifier hs-var">len</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">[Word8]
+</span><a href="#local-6989586621679035079"><span class="hs-identifier hs-var">ys</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-397"></span><span>            </span><span class="hs-special">[</span><span class="hs-special">]</span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall s. MutableByteArray s -&gt; Int -&gt; Word8 -&gt; ST s ()
+</span><a href="Data.Binary.Orphans.html#writeWord8Array"><span class="hs-identifier hs-var">writeWord8Array</span></a></span><span> </span><span class="annot"><span class="annottext">MutableByteArray s
+</span><a href="#local-6989586621679035081"><span class="hs-identifier hs-var">mba</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679035080"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall s. MutableByteArray s -&gt; Int -&gt; [Word8] -&gt; ST s ()
+</span><a href="#local-6989586621679035093"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">MutableByteArray s
+</span><a href="#local-6989586621679035081"><span class="hs-identifier hs-var">mba</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679035080"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Word8]
+</span><a href="#local-6989586621679035079"><span class="hs-identifier hs-var">ys</span></a></span><span>
+</span><span id="line-398"></span><span>            </span><span id="local-6989586621679035077"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679035077"><span class="hs-identifier hs-var">z</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679035076"><span class="annot"><span class="annottext">[Word8]
+</span><a href="#local-6989586621679035076"><span class="hs-identifier hs-var">zs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall s. MutableByteArray s -&gt; Int -&gt; Word8 -&gt; ST s ()
+</span><a href="Data.Binary.Orphans.html#writeWord8Array"><span class="hs-identifier hs-var">writeWord8Array</span></a></span><span> </span><span class="annot"><span class="annottext">MutableByteArray s
+</span><a href="#local-6989586621679035081"><span class="hs-identifier hs-var">mba</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679035080"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679035077"><span class="hs-identifier hs-var">z</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall s. MutableByteArray s -&gt; Int -&gt; [Word8] -&gt; ST s ()
+</span><a href="#local-6989586621679035093"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">MutableByteArray s
+</span><a href="#local-6989586621679035081"><span class="hs-identifier hs-var">mba</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679035080"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Word8]
+</span><a href="#local-6989586621679035076"><span class="hs-identifier hs-var">zs</span></a></span><span>
+</span><span id="line-399"></span><span>
+</span><span id="line-400"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-401"></span><span>
+</span><span id="line-402"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Binary.Orphans.html#newByteArray"><span class="hs-pragma hs-type">newByteArray</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-403"></span><span id="local-6989586621679035193"><span class="annot"><a href="Data.Binary.Orphans.html#newByteArray"><span class="hs-identifier hs-type">newByteArray</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ST</span></span><span> </span><span class="annot"><a href="#local-6989586621679035193"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MutableByteArray</span></span><span> </span><span class="annot"><a href="#local-6989586621679035193"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-404"></span><span id="newByteArray"><span class="annot"><span class="annottext">newByteArray :: forall s. Int -&gt; ST s (MutableByteArray s)
+</span><a href="Data.Binary.Orphans.html#newByteArray"><span class="hs-identifier hs-var hs-var">newByteArray</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">I#</span></span><span> </span><span id="local-6989586621679035075"><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679035075"><span class="hs-identifier hs-var">len</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall s a. STRep s a -&gt; ST s a
+</span><span class="hs-identifier hs-var">ST</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679035073"><span class="annot"><span class="annottext">State# s
+</span><a href="#local-6989586621679035073"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">forall d. Int# -&gt; State# d -&gt; (# State# d, MutableByteArray# d #)
+</span><span class="hs-identifier hs-var">newByteArray#</span></span><span> </span><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679035075"><span class="hs-identifier hs-var">len</span></a></span><span> </span><span class="annot"><span class="annottext">State# s
+</span><a href="#local-6989586621679035073"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-405"></span><span>    </span><span class="hs-special">(#</span><span> </span><span id="local-6989586621679035072"><span class="annot"><span class="annottext">State# s
+</span><a href="#local-6989586621679035072"><span class="hs-identifier hs-var">s'</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679035071"><span class="annot"><span class="annottext">MutableByteArray# s
+</span><a href="#local-6989586621679035071"><span class="hs-identifier hs-var">mba</span></a></span></span><span> </span><span class="hs-special">#)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(#</span><span> </span><span class="annot"><span class="annottext">State# s
+</span><a href="#local-6989586621679035072"><span class="hs-identifier hs-var">s'</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall s. MutableByteArray# s -&gt; MutableByteArray s
+</span><span class="hs-identifier hs-var">MutableByteArray</span></span><span> </span><span class="annot"><span class="annottext">MutableByteArray# s
+</span><a href="#local-6989586621679035071"><span class="hs-identifier hs-var">mba</span></a></span><span> </span><span class="hs-special">#)</span><span>
+</span><span id="line-406"></span><span>
+</span><span id="line-407"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Binary.Orphans.html#unsafeFreezeByteArray"><span class="hs-pragma hs-type">unsafeFreezeByteArray</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-408"></span><span id="local-6989586621679035191"><span class="annot"><a href="Data.Binary.Orphans.html#unsafeFreezeByteArray"><span class="hs-identifier hs-type">unsafeFreezeByteArray</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MutableByteArray</span></span><span> </span><span class="annot"><a href="#local-6989586621679035191"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ST</span></span><span> </span><span class="annot"><a href="#local-6989586621679035191"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteArray</span></span></span><span>
+</span><span id="line-409"></span><span id="unsafeFreezeByteArray"><span class="annot"><span class="annottext">unsafeFreezeByteArray :: forall s. MutableByteArray s -&gt; ST s ByteArray
+</span><a href="Data.Binary.Orphans.html#unsafeFreezeByteArray"><span class="hs-identifier hs-var hs-var">unsafeFreezeByteArray</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MutableByteArray</span></span><span> </span><span id="local-6989586621679035069"><span class="annot"><span class="annottext">MutableByteArray# s
+</span><a href="#local-6989586621679035069"><span class="hs-identifier hs-var">mba</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall s a. STRep s a -&gt; ST s a
+</span><span class="hs-identifier hs-var">ST</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679035068"><span class="annot"><span class="annottext">State# s
+</span><a href="#local-6989586621679035068"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">forall d.
+MutableByteArray# d -&gt; State# d -&gt; (# State# d, ByteArray# #)
+</span><span class="hs-identifier hs-var">unsafeFreezeByteArray#</span></span><span> </span><span class="annot"><span class="annottext">MutableByteArray# s
+</span><a href="#local-6989586621679035069"><span class="hs-identifier hs-var">mba</span></a></span><span> </span><span class="annot"><span class="annottext">State# s
+</span><a href="#local-6989586621679035068"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-410"></span><span>    </span><span class="hs-special">(#</span><span> </span><span id="local-6989586621679035067"><span class="annot"><span class="annottext">State# s
+</span><a href="#local-6989586621679035067"><span class="hs-identifier hs-var">s'</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679035066"><span class="annot"><span class="annottext">ByteArray#
+</span><a href="#local-6989586621679035066"><span class="hs-identifier hs-var">ba</span></a></span></span><span> </span><span class="hs-special">#)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(#</span><span> </span><span class="annot"><span class="annottext">State# s
+</span><a href="#local-6989586621679035067"><span class="hs-identifier hs-var">s'</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ByteArray# -&gt; ByteArray
+</span><span class="hs-identifier hs-var">ByteArray</span></span><span> </span><span class="annot"><span class="annottext">ByteArray#
+</span><a href="#local-6989586621679035066"><span class="hs-identifier hs-var">ba</span></a></span><span> </span><span class="hs-special">#)</span><span>
+</span><span id="line-411"></span><span>
+</span><span id="line-412"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Binary.Orphans.html#writeWord8Array"><span class="hs-pragma hs-type">writeWord8Array</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-413"></span><span id="local-6989586621679035189"><span class="annot"><a href="Data.Binary.Orphans.html#writeWord8Array"><span class="hs-identifier hs-type">writeWord8Array</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MutableByteArray</span></span><span> </span><span class="annot"><a href="#local-6989586621679035189"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ST</span></span><span> </span><span class="annot"><a href="#local-6989586621679035189"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-414"></span><span id="writeWord8Array"><span class="annot"><span class="annottext">writeWord8Array :: forall s. MutableByteArray s -&gt; Int -&gt; Word8 -&gt; ST s ()
+</span><a href="Data.Binary.Orphans.html#writeWord8Array"><span class="hs-identifier hs-var hs-var">writeWord8Array</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MutableByteArray</span></span><span> </span><span id="local-6989586621679035065"><span class="annot"><span class="annottext">MutableByteArray# s
+</span><a href="#local-6989586621679035065"><span class="hs-identifier hs-var">mba</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">I#</span></span><span> </span><span id="local-6989586621679035064"><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679035064"><span class="hs-identifier hs-var">i</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">W8#</span></span><span> </span><span id="local-6989586621679035063"><span class="annot"><span class="annottext">Word8#
+</span><a href="#local-6989586621679035063"><span class="hs-identifier hs-var">w</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall s a. STRep s a -&gt; ST s a
+</span><span class="hs-identifier hs-var">ST</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679035062"><span class="annot"><span class="annottext">State# s
+</span><a href="#local-6989586621679035062"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">forall d.
+MutableByteArray# d -&gt; Int# -&gt; Word8# -&gt; State# d -&gt; State# d
+</span><span class="hs-identifier hs-var">writeWord8Array#</span></span><span> </span><span class="annot"><span class="annottext">MutableByteArray# s
+</span><a href="#local-6989586621679035065"><span class="hs-identifier hs-var">mba</span></a></span><span> </span><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679035064"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Word8#
+</span><a href="#local-6989586621679035063"><span class="hs-identifier hs-var">w</span></a></span><span> </span><span class="annot"><span class="annottext">State# s
+</span><a href="#local-6989586621679035062"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-415"></span><span>    </span><span id="local-6989586621679035061"><span class="annot"><span class="annottext">State# s
+</span><a href="#local-6989586621679035061"><span class="hs-identifier hs-var">s'</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(#</span><span> </span><span class="annot"><span class="annottext">State# s
+</span><a href="#local-6989586621679035061"><span class="hs-identifier hs-var">s'</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-special">#)</span><span class="hs-cpp">
+#endif
+</span></pre></body></html>

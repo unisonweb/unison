@@ -1,0 +1,231 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DeriveDataTypeable #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE DeriveFunctor      #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE DeriveGeneric      #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE OverloadedStrings  #-}</span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Servant.Server.Internal.BasicAuth</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span>
+</span><span id="line-9"></span><span>                 </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">guard</span></span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad.Trans</span></span><span>
+</span><span id="line-11"></span><span>                 </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">liftIO</span></span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString</span></span><span>                     </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">BS</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.ByteString.Base64</span></span><span>
+</span><span id="line-14"></span><span>                 </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">decodeLenient</span></span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Typeable</span></span><span>
+</span><span id="line-16"></span><span>                 </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Typeable</span></span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Word8</span></span><span>
+</span><span id="line-18"></span><span>                 </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">isSpace</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">toLower</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">_colon</span></span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Network.HTTP.Types</span></span><span>
+</span><span id="line-21"></span><span>                 </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Header</span></span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Network.Wai</span></span><span>
+</span><span id="line-23"></span><span>                 </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Request</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">requestHeaders</span></span><span class="hs-special">)</span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Servant.API.BasicAuth</span></span><span>
+</span><span id="line-26"></span><span>                 </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">BasicAuthData</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">BasicAuthData</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Servant.Server.Internal.DelayedIO.html"><span class="hs-identifier">Servant.Server.Internal.DelayedIO</span></a></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Servant.Server.Internal.ServerError.html"><span class="hs-identifier">Servant.Server.Internal.ServerError</span></a></span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- * Basic Auth</span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="hs-comment">-- | servant-server's current implementation of basic authentication is not</span><span>
+</span><span id="line-33"></span><span class="hs-comment">-- immune to certain kinds of timing attacks. Decoding payloads does not take</span><span>
+</span><span id="line-34"></span><span class="hs-comment">-- a fixed amount of time.</span><span>
+</span><span id="line-35"></span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- | The result of authentication/authorization</span><span>
+</span><span id="line-37"></span><span id="local-6989586621679131983"><span id="local-6989586621679131984"></span></span><span class="hs-keyword">data</span><span> </span><span id="BasicAuthResult"><span class="annot"><a href="Servant.Server.Internal.BasicAuth.html#BasicAuthResult"><span class="hs-identifier hs-var">BasicAuthResult</span></a></span></span><span> </span><span id="local-6989586621679132066"><span class="annot"><a href="#local-6989586621679132066"><span class="hs-identifier hs-type">usr</span></a></span></span><span>
+</span><span id="line-38"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="Unauthorized"><span class="annot"><a href="Servant.Server.Internal.BasicAuth.html#Unauthorized"><span class="hs-identifier hs-var">Unauthorized</span></a></span></span><span>
+</span><span id="line-39"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="BadPassword"><span class="annot"><a href="Servant.Server.Internal.BasicAuth.html#BadPassword"><span class="hs-identifier hs-var">BadPassword</span></a></span></span><span>
+</span><span id="line-40"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="NoSuchUser"><span class="annot"><a href="Servant.Server.Internal.BasicAuth.html#NoSuchUser"><span class="hs-identifier hs-var">NoSuchUser</span></a></span></span><span>
+</span><span id="line-41"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Authorized"><span class="annot"><a href="Servant.Server.Internal.BasicAuth.html#Authorized"><span class="hs-identifier hs-var">Authorized</span></a></span></span><span> </span><span class="annot"><a href="#local-6989586621679132066"><span class="hs-identifier hs-type">usr</span></a></span><span>
+</span><span id="line-42"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679131974"><span id="local-6989586621679131977"><span class="annot"><span class="annottext">BasicAuthResult usr -&gt; BasicAuthResult usr -&gt; Bool
+forall usr.
+Eq usr =&gt;
+BasicAuthResult usr -&gt; BasicAuthResult usr -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: BasicAuthResult usr -&gt; BasicAuthResult usr -&gt; Bool
+$c/= :: forall usr.
+Eq usr =&gt;
+BasicAuthResult usr -&gt; BasicAuthResult usr -&gt; Bool
+== :: BasicAuthResult usr -&gt; BasicAuthResult usr -&gt; Bool
+$c== :: forall usr.
+Eq usr =&gt;
+BasicAuthResult usr -&gt; BasicAuthResult usr -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679131964"><span id="local-6989586621679131966"><span id="local-6989586621679131971"><span class="annot"><span class="annottext">Int -&gt; BasicAuthResult usr -&gt; ShowS
+forall usr. Show usr =&gt; Int -&gt; BasicAuthResult usr -&gt; ShowS
+forall usr. Show usr =&gt; [BasicAuthResult usr] -&gt; ShowS
+forall usr. Show usr =&gt; BasicAuthResult usr -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [BasicAuthResult usr] -&gt; ShowS
+$cshowList :: forall usr. Show usr =&gt; [BasicAuthResult usr] -&gt; ShowS
+show :: BasicAuthResult usr -&gt; String
+$cshow :: forall usr. Show usr =&gt; BasicAuthResult usr -&gt; String
+showsPrec :: Int -&gt; BasicAuthResult usr -&gt; ShowS
+$cshowsPrec :: forall usr. Show usr =&gt; Int -&gt; BasicAuthResult usr -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679131946"><span id="local-6989586621679131956"><span id="local-6989586621679131959"><span id="local-6989586621679131961"><span class="annot"><span class="annottext">ReadPrec [BasicAuthResult usr]
+ReadPrec (BasicAuthResult usr)
+ReadS [BasicAuthResult usr]
+forall usr. Read usr =&gt; ReadPrec [BasicAuthResult usr]
+forall usr. Read usr =&gt; ReadPrec (BasicAuthResult usr)
+forall usr. Read usr =&gt; Int -&gt; ReadS (BasicAuthResult usr)
+forall usr. Read usr =&gt; ReadS [BasicAuthResult usr]
+forall a.
+(Int -&gt; ReadS a)
+-&gt; ReadS [a] -&gt; ReadPrec a -&gt; ReadPrec [a] -&gt; Read a
+readListPrec :: ReadPrec [BasicAuthResult usr]
+$creadListPrec :: forall usr. Read usr =&gt; ReadPrec [BasicAuthResult usr]
+readPrec :: ReadPrec (BasicAuthResult usr)
+$creadPrec :: forall usr. Read usr =&gt; ReadPrec (BasicAuthResult usr)
+readList :: ReadS [BasicAuthResult usr]
+$creadList :: forall usr. Read usr =&gt; ReadS [BasicAuthResult usr]
+readsPrec :: Int -&gt; ReadS (BasicAuthResult usr)
+$creadsPrec :: forall usr. Read usr =&gt; Int -&gt; ReadS (BasicAuthResult usr)
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Read</span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+forall usr x. Rep (BasicAuthResult usr) x -&gt; BasicAuthResult usr
+forall usr x. BasicAuthResult usr -&gt; Rep (BasicAuthResult usr) x
+$cto :: forall usr x. Rep (BasicAuthResult usr) x -&gt; BasicAuthResult usr
+$cfrom :: forall usr x. BasicAuthResult usr -&gt; Rep (BasicAuthResult usr) x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Typeable</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679131936"><span id="local-6989586621679131938"><span class="annot"><span class="annottext">forall a b. a -&gt; BasicAuthResult b -&gt; BasicAuthResult a
+forall a b. (a -&gt; b) -&gt; BasicAuthResult a -&gt; BasicAuthResult b
+forall (f :: * -&gt; *).
+(forall a b. (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b. a -&gt; f b -&gt; f a) -&gt; Functor f
+&lt;$ :: forall a b. a -&gt; BasicAuthResult b -&gt; BasicAuthResult a
+$c&lt;$ :: forall a b. a -&gt; BasicAuthResult b -&gt; BasicAuthResult a
+fmap :: forall a b. (a -&gt; b) -&gt; BasicAuthResult a -&gt; BasicAuthResult b
+$cfmap :: forall a b. (a -&gt; b) -&gt; BasicAuthResult a -&gt; BasicAuthResult b
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Functor</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span class="hs-comment">-- | Datatype wrapping a function used to check authentication.</span><span>
+</span><span id="line-45"></span><span id="local-6989586621679131932"><span id="local-6989586621679131933"></span></span><span class="hs-keyword">newtype</span><span> </span><span id="BasicAuthCheck"><span class="annot"><a href="Servant.Server.Internal.BasicAuth.html#BasicAuthCheck"><span class="hs-identifier hs-var">BasicAuthCheck</span></a></span></span><span> </span><span id="local-6989586621679132052"><span class="annot"><a href="#local-6989586621679132052"><span class="hs-identifier hs-type">usr</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="BasicAuthCheck"><span class="annot"><a href="Servant.Server.Internal.BasicAuth.html#BasicAuthCheck"><span class="hs-identifier hs-var">BasicAuthCheck</span></a></span></span><span>
+</span><span id="line-46"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="unBasicAuthCheck"><span class="annot"><span class="annottext">forall usr.
+BasicAuthCheck usr -&gt; BasicAuthData -&gt; IO (BasicAuthResult usr)
+</span><a href="Servant.Server.Internal.BasicAuth.html#unBasicAuthCheck"><span class="hs-identifier hs-var hs-var">unBasicAuthCheck</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">BasicAuthData</span></span><span>
+</span><span id="line-47"></span><span>                     </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Servant.Server.Internal.BasicAuth.html#BasicAuthResult"><span class="hs-identifier hs-type">BasicAuthResult</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679132052"><span class="hs-identifier hs-type">usr</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-48"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-49"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+forall usr x. Rep (BasicAuthCheck usr) x -&gt; BasicAuthCheck usr
+forall usr x. BasicAuthCheck usr -&gt; Rep (BasicAuthCheck usr) x
+$cto :: forall usr x. Rep (BasicAuthCheck usr) x -&gt; BasicAuthCheck usr
+$cfrom :: forall usr x. BasicAuthCheck usr -&gt; Rep (BasicAuthCheck usr) x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Typeable</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679131920"><span id="local-6989586621679131925"><span class="annot"><span class="annottext">forall a b. a -&gt; BasicAuthCheck b -&gt; BasicAuthCheck a
+forall a b. (a -&gt; b) -&gt; BasicAuthCheck a -&gt; BasicAuthCheck b
+forall (f :: * -&gt; *).
+(forall a b. (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b. a -&gt; f b -&gt; f a) -&gt; Functor f
+&lt;$ :: forall a b. a -&gt; BasicAuthCheck b -&gt; BasicAuthCheck a
+$c&lt;$ :: forall a b. a -&gt; BasicAuthCheck b -&gt; BasicAuthCheck a
+fmap :: forall a b. (a -&gt; b) -&gt; BasicAuthCheck a -&gt; BasicAuthCheck b
+$cfmap :: forall a b. (a -&gt; b) -&gt; BasicAuthCheck a -&gt; BasicAuthCheck b
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Functor</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-50"></span><span>
+</span><span id="line-51"></span><span class="hs-comment">-- | Internal method to make a basic-auth challenge</span><span>
+</span><span id="line-52"></span><span class="annot"><a href="Servant.Server.Internal.BasicAuth.html#mkBAChallengerHdr"><span class="hs-identifier hs-type">mkBAChallengerHdr</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">BS.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Header</span></span><span>
+</span><span id="line-53"></span><span id="mkBAChallengerHdr"><span class="annot"><span class="annottext">mkBAChallengerHdr :: ByteString -&gt; Header
+</span><a href="Servant.Server.Internal.BasicAuth.html#mkBAChallengerHdr"><span class="hs-identifier hs-var hs-var">mkBAChallengerHdr</span></a></span></span><span> </span><span id="local-6989586621679131915"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679131915"><span class="hs-identifier hs-var">realm</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">HeaderName
+</span><span class="hs-string">&quot;WWW-Authenticate&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;Basic realm=\&quot;&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679131915"><span class="hs-identifier hs-var">realm</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;\&quot;&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="hs-comment">-- | Find and decode an 'Authorization' header from the request as Basic Auth</span><span>
+</span><span id="line-56"></span><span class="annot"><a href="Servant.Server.Internal.BasicAuth.html#decodeBAHdr"><span class="hs-identifier hs-type">decodeBAHdr</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Request</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">BasicAuthData</span></span><span>
+</span><span id="line-57"></span><span id="decodeBAHdr"><span class="annot"><span class="annottext">decodeBAHdr :: Request -&gt; Maybe BasicAuthData
+</span><a href="Servant.Server.Internal.BasicAuth.html#decodeBAHdr"><span class="hs-identifier hs-var hs-var">decodeBAHdr</span></a></span></span><span> </span><span id="local-6989586621679131913"><span class="annot"><span class="annottext">Request
+</span><a href="#local-6989586621679131913"><span class="hs-identifier hs-var">req</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-58"></span><span>    </span><span id="local-6989586621679131912"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679131912"><span class="hs-identifier hs-var">ah</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a b. Eq a =&gt; a -&gt; [(a, b)] -&gt; Maybe b
+</span><span class="hs-identifier hs-var">lookup</span></span><span> </span><span class="annot"><span class="annottext">HeaderName
+</span><span class="hs-string">&quot;Authorization&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Request -&gt; RequestHeaders
+</span><span class="hs-identifier hs-var">requestHeaders</span></span><span> </span><span class="annot"><span class="annottext">Request
+</span><a href="#local-6989586621679131913"><span class="hs-identifier hs-var">req</span></a></span><span>
+</span><span id="line-59"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679131910"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679131910"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679131909"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679131909"><span class="hs-identifier hs-var">rest</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Word8 -&gt; Bool) -&gt; ByteString -&gt; (ByteString, ByteString)
+</span><span class="hs-identifier hs-var">BS.break</span></span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Bool
+</span><span class="hs-identifier hs-var">isSpace</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679131912"><span class="hs-identifier hs-var">ah</span></a></span><span>
+</span><span id="line-60"></span><span>    </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *). Alternative f =&gt; Bool -&gt; f ()
+</span><span class="hs-identifier hs-var">guard</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Word8 -&gt; Word8) -&gt; ByteString -&gt; ByteString
+</span><span class="hs-identifier hs-var">BS.map</span></span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Word8
+</span><span class="hs-identifier hs-var">toLower</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679131910"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;basic&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-61"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679131906"><span class="annot"><span class="annottext">decoded :: ByteString
+</span><a href="#local-6989586621679131906"><span class="hs-identifier hs-var hs-var">decoded</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ByteString
+</span><span class="hs-identifier hs-var">decodeLenient</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Word8 -&gt; Bool) -&gt; ByteString -&gt; ByteString
+</span><span class="hs-identifier hs-var">BS.dropWhile</span></span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Bool
+</span><span class="hs-identifier hs-var">isSpace</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679131909"><span class="hs-identifier hs-var">rest</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-62"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679131902"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679131902"><span class="hs-identifier hs-var">username</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679131901"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679131901"><span class="hs-identifier hs-var">passWithColonAtHead</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Word8 -&gt; Bool) -&gt; ByteString -&gt; (ByteString, ByteString)
+</span><span class="hs-identifier hs-var">BS.break</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-identifier hs-var">_colon</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679131906"><span class="hs-identifier hs-var">decoded</span></a></span><span>
+</span><span id="line-63"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679131900"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679131900"><span class="hs-identifier hs-var">password</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Maybe (Word8, ByteString)
+</span><span class="hs-identifier hs-var">BS.uncons</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679131901"><span class="hs-identifier hs-var">passWithColonAtHead</span></a></span><span>
+</span><span id="line-64"></span><span>    </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString -&gt; ByteString -&gt; BasicAuthData
+</span><span class="hs-identifier hs-var">BasicAuthData</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679131902"><span class="hs-identifier hs-var">username</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679131900"><span class="hs-identifier hs-var">password</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-65"></span><span>
+</span><span id="line-66"></span><span class="hs-comment">-- | Run and check basic authentication, returning the appropriate http error per</span><span>
+</span><span id="line-67"></span><span class="hs-comment">-- the spec.</span><span>
+</span><span id="line-68"></span><span id="local-6989586621679132037"><span class="annot"><a href="Servant.Server.Internal.BasicAuth.html#runBasicAuth"><span class="hs-identifier hs-type">runBasicAuth</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Request</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">BS.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Servant.Server.Internal.BasicAuth.html#BasicAuthCheck"><span class="hs-identifier hs-type">BasicAuthCheck</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679132037"><span class="hs-identifier hs-type">usr</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Servant.Server.Internal.DelayedIO.html#DelayedIO"><span class="hs-identifier hs-type">DelayedIO</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679132037"><span class="hs-identifier hs-type">usr</span></a></span></span><span>
+</span><span id="line-69"></span><span id="runBasicAuth"><span class="annot"><span class="annottext">runBasicAuth :: forall usr.
+Request -&gt; ByteString -&gt; BasicAuthCheck usr -&gt; DelayedIO usr
+</span><a href="Servant.Server.Internal.BasicAuth.html#runBasicAuth"><span class="hs-identifier hs-var hs-var">runBasicAuth</span></a></span></span><span> </span><span id="local-6989586621679131892"><span class="annot"><span class="annottext">Request
+</span><a href="#local-6989586621679131892"><span class="hs-identifier hs-var">req</span></a></span></span><span> </span><span id="local-6989586621679131891"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679131891"><span class="hs-identifier hs-var">realm</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Servant.Server.Internal.BasicAuth.html#BasicAuthCheck"><span class="hs-identifier hs-type">BasicAuthCheck</span></a></span><span> </span><span id="local-6989586621679131890"><span class="annot"><span class="annottext">BasicAuthData -&gt; IO (BasicAuthResult usr)
+</span><a href="#local-6989586621679131890"><span class="hs-identifier hs-var">ba</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-70"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Request -&gt; Maybe BasicAuthData
+</span><a href="Servant.Server.Internal.BasicAuth.html#decodeBAHdr"><span class="hs-identifier hs-var">decodeBAHdr</span></a></span><span> </span><span class="annot"><span class="annottext">Request
+</span><a href="#local-6989586621679131892"><span class="hs-identifier hs-var">req</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-71"></span><span>     </span><span class="annot"><span class="annottext">Maybe BasicAuthData
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall {a}. DelayedIO a
+</span><a href="#local-6989586621679131889"><span class="hs-identifier hs-var">plzAuthenticate</span></a></span><span>
+</span><span id="line-72"></span><span>     </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679131888"><span class="annot"><span class="annottext">BasicAuthData
+</span><a href="#local-6989586621679131888"><span class="hs-identifier hs-var">e</span></a></span></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><span class="hs-identifier hs-var">liftIO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">BasicAuthData -&gt; IO (BasicAuthResult usr)
+</span><a href="#local-6989586621679131890"><span class="hs-identifier hs-var">ba</span></a></span><span> </span><span class="annot"><span class="annottext">BasicAuthData
+</span><a href="#local-6989586621679131888"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679131887"><span class="annot"><span class="annottext">BasicAuthResult usr
+</span><a href="#local-6989586621679131887"><span class="hs-identifier hs-var">res</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">BasicAuthResult usr
+</span><a href="#local-6989586621679131887"><span class="hs-identifier hs-var">res</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-73"></span><span>       </span><span class="annot"><span class="annottext">BasicAuthResult usr
+</span><a href="Servant.Server.Internal.BasicAuth.html#BadPassword"><span class="hs-identifier hs-var">BadPassword</span></a></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall {a}. DelayedIO a
+</span><a href="#local-6989586621679131889"><span class="hs-identifier hs-var">plzAuthenticate</span></a></span><span>
+</span><span id="line-74"></span><span>       </span><span class="annot"><span class="annottext">BasicAuthResult usr
+</span><a href="Servant.Server.Internal.BasicAuth.html#NoSuchUser"><span class="hs-identifier hs-var">NoSuchUser</span></a></span><span>     </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall {a}. DelayedIO a
+</span><a href="#local-6989586621679131889"><span class="hs-identifier hs-var">plzAuthenticate</span></a></span><span>
+</span><span id="line-75"></span><span>       </span><span class="annot"><span class="annottext">BasicAuthResult usr
+</span><a href="Servant.Server.Internal.BasicAuth.html#Unauthorized"><span class="hs-identifier hs-var">Unauthorized</span></a></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. ServerError -&gt; DelayedIO a
+</span><a href="Servant.Server.Internal.DelayedIO.html#delayedFailFatal"><span class="hs-identifier hs-var">delayedFailFatal</span></a></span><span> </span><span class="annot"><span class="annottext">ServerError
+</span><a href="Servant.Server.Internal.ServerError.html#err403"><span class="hs-identifier hs-var">err403</span></a></span><span>
+</span><span id="line-76"></span><span>       </span><span class="annot"><a href="Servant.Server.Internal.BasicAuth.html#Authorized"><span class="hs-identifier hs-type">Authorized</span></a></span><span> </span><span id="local-6989586621679131884"><span class="annot"><span class="annottext">usr
+</span><a href="#local-6989586621679131884"><span class="hs-identifier hs-var">usr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">usr
+</span><a href="#local-6989586621679131884"><span class="hs-identifier hs-var">usr</span></a></span><span>
+</span><span id="line-77"></span><span>  </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679131889"><span class="annot"><span class="annottext">plzAuthenticate :: DelayedIO a
+</span><a href="#local-6989586621679131889"><span class="hs-identifier hs-var hs-var">plzAuthenticate</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. ServerError -&gt; DelayedIO a
+</span><a href="Servant.Server.Internal.DelayedIO.html#delayedFailFatal"><span class="hs-identifier hs-var">delayedFailFatal</span></a></span><span> </span><span class="annot"><span class="annottext">ServerError
+</span><a href="Servant.Server.Internal.ServerError.html#err401"><span class="hs-identifier hs-var">err401</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">errHeaders :: RequestHeaders
+</span><a href="Servant.Server.Internal.ServerError.html#errHeaders"><span class="hs-identifier hs-var">errHeaders</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">ByteString -&gt; Header
+</span><a href="Servant.Server.Internal.BasicAuth.html#mkBAChallengerHdr"><span class="hs-identifier hs-var">mkBAChallengerHdr</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679131891"><span class="hs-identifier hs-var">realm</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-78"></span></pre></body></html>

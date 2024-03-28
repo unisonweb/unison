@@ -1,0 +1,69 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP, NoImplicitPrelude, FlexibleContexts #-}</span><span class="hs-cpp">
+
+#if __GLASGOW_HASKELL__ &gt;= 702
+</span><span class="hs-pragma">{-# LANGUAGE Safe #-}</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- Module      :  System.Timeout.Lifted</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- Copyright   :  (c) The University of Glasgow 2007</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- License     :  BSD-style (see the file libraries/base/LICENSE)</span><span>
+</span><span id="line-12"></span><span class="hs-comment">--</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- Maintainer  :  libraries@haskell.org</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- Stability   :  experimental</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- Portability :  non-portable</span><span>
+</span><span id="line-16"></span><span class="hs-comment">--</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- Attach a timeout event to monadic computations</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- which are instances of 'MonadBaseControl'.</span><span>
+</span><span id="line-19"></span><span class="hs-comment">--</span><span>
+</span><span id="line-20"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">System.Timeout.Lifted</span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="System.Timeout.Lifted.html#timeout"><span class="hs-identifier">timeout</span></a></span><span> </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- from base:</span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span>                       </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-operator">(.)</span></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Int</span></span><span>            </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier">Int</span></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Maybe</span></span><span>          </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier">Maybe</span></span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Nothing</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Just</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">maybe</span></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span>       </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-operator">(&gt;&gt;=)</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">return</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">liftM</span></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">System.IO</span></span><span>           </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier">IO</span></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">System.Timeout</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">T</span></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier">timeout</span></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="hs-comment">-- from monad-control:</span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Trans.Control</span></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier">MonadBaseControl</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">restoreM</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">liftBaseWith</span></span><span> </span><span class="hs-special">)</span><span class="hs-cpp">
+
+#include &quot;inlinable.h&quot;
+</span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- | Generalized version of 'T.timeout'.</span><span>
+</span><span id="line-38"></span><span class="hs-comment">--</span><span>
+</span><span id="line-39"></span><span class="hs-comment">-- Note that when the given computation times out any side effects of @m@ are</span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- discarded. When the computation completes within the given time the</span><span>
+</span><span id="line-41"></span><span class="hs-comment">-- side-effects are restored on return.</span><span>
+</span><span id="line-42"></span><span id="local-6989586621679038048"><span id="local-6989586621679038050"><span class="annot"><a href="System.Timeout.Lifted.html#timeout"><span class="hs-identifier hs-type">timeout</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadBaseControl</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679038050"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679038050"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679038048"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679038050"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679038048"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-43"></span><span id="timeout"><span class="annot"><span class="annottext">timeout :: forall (m :: * -&gt; *) a.
+MonadBaseControl IO m =&gt;
+Int -&gt; m a -&gt; m (Maybe a)
+</span><a href="System.Timeout.Lifted.html#timeout"><span class="hs-identifier hs-var hs-var">timeout</span></a></span></span><span> </span><span id="local-6989586621679038005"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679038005"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span id="local-6989586621679038004"><span class="annot"><span class="annottext">m a
+</span><a href="#local-6989586621679038004"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (b :: * -&gt; *) (m :: * -&gt; *) a.
+MonadBaseControl b m =&gt;
+(RunInBase m b -&gt; b a) -&gt; m a
+</span><span class="hs-identifier hs-var">liftBaseWith</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679038003"><span class="annot"><span class="annottext">RunInBase m IO
+</span><a href="#local-6989586621679038003"><span class="hs-identifier hs-var">runInIO</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. Int -&gt; IO a -&gt; IO (Maybe a)
+</span><span class="hs-identifier hs-var">T.timeout</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679038005"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">RunInBase m IO
+</span><a href="#local-6989586621679038003"><span class="hs-identifier hs-var">runInIO</span></a></span><span> </span><span class="annot"><span class="annottext">m a
+</span><a href="#local-6989586621679038004"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span>
+</span><span id="line-44"></span><span>                </span><span class="annot"><span class="annottext">forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><span class="hs-identifier hs-var">maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a1 r. Monad m =&gt; (a1 -&gt; r) -&gt; m a1 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM</span></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall (b :: * -&gt; *) (m :: * -&gt; *) a.
+MonadBaseControl b m =&gt;
+StM m a -&gt; m a
+</span><span class="hs-identifier hs-var">restoreM</span></span><span class="hs-special">)</span><span>
+</span><span id="line-45"></span><span class="hs-pragma">{-# INLINABLE</span><span> </span><span class="annot"><a href="System.Timeout.Lifted.html#timeout"><span class="hs-pragma hs-type">timeout</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-46"></span></pre></body></html>

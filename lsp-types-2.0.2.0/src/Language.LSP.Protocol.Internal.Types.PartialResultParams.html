@@ -1,0 +1,130 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- THIS IS A GENERATED FILE, DO NOT EDIT</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-imports #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-matches #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-deprecations #-}</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.PartialResultParams</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Hashable</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html"><span class="hs-identifier">Language.LSP.Protocol.Utils.Misc</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prettyprinter</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Aeson.html"><span class="hs-identifier">Data.Row.Aeson</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Hashable.html"><span class="hs-identifier">Data.Row.Hashable</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Hashable</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ProgressToken.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.ProgressToken</span></a></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html"><span class="hs-identifier">Language.LSP.Protocol.Types.Common</span></a></span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-comment">{-|
+
+-}</span><span>
+</span><span id="line-22"></span><span id="local-6989586621682157154"><span id="local-6989586621682157155"></span></span><span class="hs-keyword">data</span><span> </span><span id="PartialResultParams"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.PartialResultParams.html#PartialResultParams"><span class="hs-identifier hs-var">PartialResultParams</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="PartialResultParams"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.PartialResultParams.html#PartialResultParams"><span class="hs-identifier hs-var">PartialResultParams</span></a></span></span><span> </span><span>
+</span><span id="line-23"></span><span>  </span><span class="hs-special">{</span><span> </span><span class="hs-comment">{-|
+  An optional token that a server can use to report partial results (e.g. streaming) to
+  the client.
+  -}</span><span>
+</span><span id="line-27"></span><span>  </span><span id="%24sel%3A_partialResultToken%3APartialResultParams"><span class="annot"><span class="annottext">PartialResultParams -&gt; Maybe ProgressToken
+</span><a href="Language.LSP.Protocol.Internal.Types.PartialResultParams.html#%24sel%3A_partialResultToken%3APartialResultParams"><span class="hs-identifier hs-var hs-var">_partialResultToken</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ProgressToken.html#ProgressToken"><span class="hs-identifier hs-type">Language.LSP.Protocol.Internal.Types.ProgressToken.ProgressToken</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682157141"><span id="local-6989586621682157143"><span id="local-6989586621682157150"><span class="annot"><span class="annottext">Int -&gt; PartialResultParams -&gt; ShowS
+[PartialResultParams] -&gt; ShowS
+PartialResultParams -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [PartialResultParams] -&gt; ShowS
+$cshowList :: [PartialResultParams] -&gt; ShowS
+show :: PartialResultParams -&gt; String
+$cshow :: PartialResultParams -&gt; String
+showsPrec :: Int -&gt; PartialResultParams -&gt; ShowS
+$cshowsPrec :: Int -&gt; PartialResultParams -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682157132"><span id="local-6989586621682157137"><span class="annot"><span class="annottext">PartialResultParams -&gt; PartialResultParams -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: PartialResultParams -&gt; PartialResultParams -&gt; Bool
+$c/= :: PartialResultParams -&gt; PartialResultParams -&gt; Bool
+== :: PartialResultParams -&gt; PartialResultParams -&gt; Bool
+$c== :: PartialResultParams -&gt; PartialResultParams -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682157106"><span id="local-6989586621682157108"><span id="local-6989586621682157111"><span id="local-6989586621682157114"><span id="local-6989586621682157117"><span id="local-6989586621682157121"><span id="local-6989586621682157126"><span class="annot"><span class="annottext">Eq PartialResultParams
+PartialResultParams -&gt; PartialResultParams -&gt; Bool
+PartialResultParams -&gt; PartialResultParams -&gt; Ordering
+PartialResultParams -&gt; PartialResultParams -&gt; PartialResultParams
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: PartialResultParams -&gt; PartialResultParams -&gt; PartialResultParams
+$cmin :: PartialResultParams -&gt; PartialResultParams -&gt; PartialResultParams
+max :: PartialResultParams -&gt; PartialResultParams -&gt; PartialResultParams
+$cmax :: PartialResultParams -&gt; PartialResultParams -&gt; PartialResultParams
+&gt;= :: PartialResultParams -&gt; PartialResultParams -&gt; Bool
+$c&gt;= :: PartialResultParams -&gt; PartialResultParams -&gt; Bool
+&gt; :: PartialResultParams -&gt; PartialResultParams -&gt; Bool
+$c&gt; :: PartialResultParams -&gt; PartialResultParams -&gt; Bool
+&lt;= :: PartialResultParams -&gt; PartialResultParams -&gt; Bool
+$c&lt;= :: PartialResultParams -&gt; PartialResultParams -&gt; Bool
+&lt; :: PartialResultParams -&gt; PartialResultParams -&gt; Bool
+$c&lt; :: PartialResultParams -&gt; PartialResultParams -&gt; Bool
+compare :: PartialResultParams -&gt; PartialResultParams -&gt; Ordering
+$ccompare :: PartialResultParams -&gt; PartialResultParams -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall x. Rep PartialResultParams x -&gt; PartialResultParams
+forall x. PartialResultParams -&gt; Rep PartialResultParams x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cto :: forall x. Rep PartialResultParams x -&gt; PartialResultParams
+$cfrom :: forall x. PartialResultParams -&gt; Rep PartialResultParams x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">anyclass</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682157099"><span class="annot"><span class="annottext">PartialResultParams -&gt; ()
+forall a. (a -&gt; ()) -&gt; NFData a
+rnf :: PartialResultParams -&gt; ()
+$crnf :: PartialResultParams -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682157092"><span id="local-6989586621682157094"><span class="annot"><span class="annottext">Eq PartialResultParams
+Int -&gt; PartialResultParams -&gt; Int
+PartialResultParams -&gt; Int
+forall a. Eq a -&gt; (Int -&gt; a -&gt; Int) -&gt; (a -&gt; Int) -&gt; Hashable a
+hash :: PartialResultParams -&gt; Int
+$chash :: PartialResultParams -&gt; Int
+hashWithSalt :: Int -&gt; PartialResultParams -&gt; Int
+$chashWithSalt :: Int -&gt; PartialResultParams -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Hashable</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621682157083"><span id="local-6989586621682157089"><span class="annot"><span class="annottext">forall ann. [PartialResultParams] -&gt; Doc ann
+forall ann. PartialResultParams -&gt; Doc ann
+forall a.
+(forall ann. a -&gt; Doc ann)
+-&gt; (forall ann. [a] -&gt; Doc ann) -&gt; Pretty a
+prettyList :: forall ann. [PartialResultParams] -&gt; Doc ann
+$cprettyList :: forall ann. [PartialResultParams] -&gt; Doc ann
+pretty :: forall ann. PartialResultParams -&gt; Doc ann
+$cpretty :: forall ann. PartialResultParams -&gt; Doc ann
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Pretty</span></span></span></span><span> </span><span class="hs-keyword">via</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html#ViaJSON"><span class="hs-identifier hs-type">ViaJSON</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.PartialResultParams.html#PartialResultParams"><span class="hs-identifier hs-type">PartialResultParams</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682157071"><span id="local-6989586621682157073"><span id="local-6989586621682157075"><span class="annot"><span class="hs-identifier hs-type">Aeson.ToJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.PartialResultParams.html#PartialResultParams"><span class="hs-identifier hs-type">PartialResultParams</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-34"></span><span>  </span><span id="local-6989586621682157063"><span class="annot"><span class="annottext">toJSON :: PartialResultParams -&gt; Value
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">toJSON</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.PartialResultParams.html#PartialResultParams"><span class="hs-identifier hs-type">PartialResultParams</span></a></span><span> </span><span id="local-6989586621682157061"><span class="annot"><span class="annottext">Maybe ProgressToken
+</span><a href="#local-6989586621682157061"><span class="hs-identifier hs-var">arg0</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">Aeson.object</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">concat</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>  </span><span class="hs-special">[</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;partialResultToken&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe ProgressToken
+</span><a href="#local-6989586621682157061"><span class="hs-identifier hs-var">arg0</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-35"></span><span>
+</span><span id="line-36"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682157055"><span class="annot"><span class="hs-identifier hs-type">Aeson.FromJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.PartialResultParams.html#PartialResultParams"><span class="hs-identifier hs-type">PartialResultParams</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-37"></span><span>  </span><span id="local-6989586621682157047"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser PartialResultParams
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">Aeson.withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;PartialResultParams&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621682157044"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682157044"><span class="hs-identifier hs-var">arg</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe ProgressToken -&gt; PartialResultParams
+</span><a href="Language.LSP.Protocol.Internal.Types.PartialResultParams.html#PartialResultParams"><span class="hs-identifier hs-var">PartialResultParams</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682157044"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">Aeson..:!</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;partialResultToken&quot;</span></span><span>
+</span><span id="line-38"></span></pre></body></html>

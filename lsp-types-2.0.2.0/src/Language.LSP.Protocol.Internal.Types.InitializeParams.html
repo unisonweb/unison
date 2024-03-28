@@ -1,0 +1,311 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- THIS IS A GENERATED FILE, DO NOT EDIT</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-imports #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-matches #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-deprecations #-}</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.InitializeParams</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Hashable</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html"><span class="hs-identifier">Language.LSP.Protocol.Utils.Misc</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prettyprinter</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Row</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Row</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Aeson.html"><span class="hs-identifier">Data.Row.Aeson</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Hashable.html"><span class="hs-identifier">Data.Row.Hashable</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Hashable</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ClientCapabilities.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.ClientCapabilities</span></a></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ProgressToken.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.ProgressToken</span></a></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.TraceValues.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.TraceValues</span></a></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.WorkspaceFolder.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.WorkspaceFolder</span></a></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html"><span class="hs-identifier">Language.LSP.Protocol.Types.Common</span></a></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Uri.html"><span class="hs-identifier">Language.LSP.Protocol.Types.Uri</span></a></span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span class="hs-comment">{-|
+
+-}</span><span>
+</span><span id="line-29"></span><span id="local-6989586621682239406"><span id="local-6989586621682239407"></span></span><span class="hs-keyword">data</span><span> </span><span id="InitializeParams"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.InitializeParams.html#InitializeParams"><span class="hs-identifier hs-var">InitializeParams</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="InitializeParams"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.InitializeParams.html#InitializeParams"><span class="hs-identifier hs-var">InitializeParams</span></a></span></span><span> </span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-special">{</span><span> </span><span class="hs-comment">{-|
+  An optional token that a server can use to report work done progress.
+  -}</span><span>
+</span><span id="line-33"></span><span>  </span><span id="%24sel%3A_workDoneToken%3AInitializeParams"><span class="annot"><span class="annottext">InitializeParams -&gt; Maybe ProgressToken
+</span><a href="Language.LSP.Protocol.Internal.Types.InitializeParams.html#%24sel%3A_workDoneToken%3AInitializeParams"><span class="hs-identifier hs-var hs-var">_workDoneToken</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ProgressToken.html#ProgressToken"><span class="hs-identifier hs-type">Language.LSP.Protocol.Internal.Types.ProgressToken.ProgressToken</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-34"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-comment">{-|
+  The process Id of the parent process that started
+  the server.
+
+  Is `null` if the process has not been started by another process.
+  If the parent process is not alive then the server should exit.
+  -}</span><span>
+</span><span id="line-41"></span><span>  </span><span id="%24sel%3A_processId%3AInitializeParams"><span class="annot"><span class="annottext">InitializeParams -&gt; Int32 |? Null
+</span><a href="Language.LSP.Protocol.Internal.Types.InitializeParams.html#%24sel%3A_processId%3AInitializeParams"><span class="hs-identifier hs-var hs-var">_processId</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Language.LSP.Protocol.Types.Common.Int32</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#%7C%3F"><span class="hs-operator hs-type">Language.LSP.Protocol.Types.Common.|?</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#Null"><span class="hs-identifier hs-type">Language.LSP.Protocol.Types.Common.Null</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-comment">{-|
+  Information about the client
+
+  @since 3.15.0
+  -}</span><span>
+</span><span id="line-47"></span><span>  </span><span id="%24sel%3A_clientInfo%3AInitializeParams"><span class="annot"><span class="annottext">InitializeParams
+-&gt; Maybe
+     (Rec
+        ((&quot;name&quot; .== Text)
+         .+ (Extend &quot;version&quot; (Maybe Text) ('R '[]) .+ 'R '[])))
+</span><a href="Language.LSP.Protocol.Internal.Types.InitializeParams.html#%24sel%3A_clientInfo%3AInitializeParams"><span class="hs-identifier hs-var hs-var">_clientInfo</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Row.Rec</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-string">&quot;name&quot;</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">Row..==</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Data.Text.Text</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">Row..+</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-string">&quot;version&quot;</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">Row..==</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Data.Text.Text</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-operator hs-type">Row..+</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Row.Empty</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-48"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-comment">{-|
+  The locale the client is currently showing the user interface
+  in. This must not necessarily be the locale of the operating
+  system.
+
+  Uses IETF language tags as the value's syntax
+  (See https://en.wikipedia.org/wiki/IETF_language_tag)
+
+  @since 3.16.0
+  -}</span><span>
+</span><span id="line-58"></span><span>  </span><span id="%24sel%3A_locale%3AInitializeParams"><span class="annot"><span class="annottext">InitializeParams -&gt; Maybe Text
+</span><a href="Language.LSP.Protocol.Internal.Types.InitializeParams.html#%24sel%3A_locale%3AInitializeParams"><span class="hs-identifier hs-var hs-var">_locale</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Data.Text.Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-59"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-comment">{-|
+  The rootPath of the workspace. Is null
+  if no folder is open.
+
+  @deprecated in favour of rootUri.
+  -}</span><span>
+</span><span id="line-65"></span><span>  </span><span id="%24sel%3A_rootPath%3AInitializeParams"><span class="annot"><span class="annottext">InitializeParams -&gt; Maybe (Text |? Null)
+</span><a href="Language.LSP.Protocol.Internal.Types.InitializeParams.html#%24sel%3A_rootPath%3AInitializeParams"><span class="hs-identifier hs-var hs-var">_rootPath</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Data.Text.Text</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#%7C%3F"><span class="hs-operator hs-type">Language.LSP.Protocol.Types.Common.|?</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#Null"><span class="hs-identifier hs-type">Language.LSP.Protocol.Types.Common.Null</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-66"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-comment">{-|
+  The rootUri of the workspace. Is null if no
+  folder is open. If both `rootPath` and `rootUri` are set
+  `rootUri` wins.
+
+  @deprecated in favour of workspaceFolders.
+  -}</span><span>
+</span><span id="line-73"></span><span>  </span><span id="%24sel%3A_rootUri%3AInitializeParams"><span class="annot"><span class="annottext">InitializeParams -&gt; Uri |? Null
+</span><a href="Language.LSP.Protocol.Internal.Types.InitializeParams.html#%24sel%3A_rootUri%3AInitializeParams"><span class="hs-identifier hs-var hs-var">_rootUri</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Types.Uri.html#Uri"><span class="hs-identifier hs-type">Language.LSP.Protocol.Types.Uri.Uri</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#%7C%3F"><span class="hs-operator hs-type">Language.LSP.Protocol.Types.Common.|?</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#Null"><span class="hs-identifier hs-type">Language.LSP.Protocol.Types.Common.Null</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-74"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-comment">{-|
+  The capabilities provided by the client (editor or tool)
+  -}</span><span>
+</span><span id="line-77"></span><span>  </span><span id="%24sel%3A_capabilities%3AInitializeParams"><span class="annot"><span class="annottext">InitializeParams -&gt; ClientCapabilities
+</span><a href="Language.LSP.Protocol.Internal.Types.InitializeParams.html#%24sel%3A_capabilities%3AInitializeParams"><span class="hs-identifier hs-var hs-var">_capabilities</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ClientCapabilities.html#ClientCapabilities"><span class="hs-identifier hs-type">Language.LSP.Protocol.Internal.Types.ClientCapabilities.ClientCapabilities</span></a></span><span>
+</span><span id="line-78"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-comment">{-|
+  User provided initialization options.
+  -}</span><span>
+</span><span id="line-81"></span><span>  </span><span id="%24sel%3A_initializationOptions%3AInitializeParams"><span class="annot"><span class="annottext">InitializeParams -&gt; Maybe Value
+</span><a href="Language.LSP.Protocol.Internal.Types.InitializeParams.html#%24sel%3A_initializationOptions%3AInitializeParams"><span class="hs-identifier hs-var hs-var">_initializationOptions</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Data.Aeson.Value</span></span><span class="hs-special">)</span><span>
+</span><span id="line-82"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-comment">{-|
+  The initial trace setting. If omitted trace is disabled ('off').
+  -}</span><span>
+</span><span id="line-85"></span><span>  </span><span id="%24sel%3A_trace%3AInitializeParams"><span class="annot"><span class="annottext">InitializeParams -&gt; Maybe TraceValues
+</span><a href="Language.LSP.Protocol.Internal.Types.InitializeParams.html#%24sel%3A_trace%3AInitializeParams"><span class="hs-identifier hs-var hs-var">_trace</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.TraceValues.html#TraceValues"><span class="hs-identifier hs-type">Language.LSP.Protocol.Internal.Types.TraceValues.TraceValues</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-86"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-comment">{-|
+  The workspace folders configured in the client when the server starts.
+
+  This property is only available if the client supports workspace folders.
+  It can be `null` if the client supports workspace folders but none are
+  configured.
+
+  @since 3.6.0
+  -}</span><span>
+</span><span id="line-95"></span><span>  </span><span id="%24sel%3A_workspaceFolders%3AInitializeParams"><span class="annot"><span class="annottext">InitializeParams -&gt; Maybe ([WorkspaceFolder] |? Null)
+</span><a href="Language.LSP.Protocol.Internal.Types.InitializeParams.html#%24sel%3A_workspaceFolders%3AInitializeParams"><span class="hs-identifier hs-var hs-var">_workspaceFolders</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">[</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.WorkspaceFolder.html#WorkspaceFolder"><span class="hs-identifier hs-type">Language.LSP.Protocol.Internal.Types.WorkspaceFolder.WorkspaceFolder</span></a></span><span class="hs-special">]</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#%7C%3F"><span class="hs-operator hs-type">Language.LSP.Protocol.Types.Common.|?</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#Null"><span class="hs-identifier hs-type">Language.LSP.Protocol.Types.Common.Null</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-96"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-97"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682239363"><span id="local-6989586621682239365"><span id="local-6989586621682239392"><span class="annot"><span class="annottext">Int -&gt; InitializeParams -&gt; ShowS
+[InitializeParams] -&gt; ShowS
+InitializeParams -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [InitializeParams] -&gt; ShowS
+$cshowList :: [InitializeParams] -&gt; ShowS
+show :: InitializeParams -&gt; String
+$cshow :: InitializeParams -&gt; String
+showsPrec :: Int -&gt; InitializeParams -&gt; ShowS
+$cshowsPrec :: Int -&gt; InitializeParams -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682239305"><span id="local-6989586621682239329"><span class="annot"><span class="annottext">InitializeParams -&gt; InitializeParams -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: InitializeParams -&gt; InitializeParams -&gt; Bool
+$c/= :: InitializeParams -&gt; InitializeParams -&gt; Bool
+== :: InitializeParams -&gt; InitializeParams -&gt; Bool
+$c== :: InitializeParams -&gt; InitializeParams -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682239212"><span id="local-6989586621682239214"><span id="local-6989586621682239217"><span id="local-6989586621682239220"><span id="local-6989586621682239223"><span id="local-6989586621682239245"><span id="local-6989586621682239270"><span class="annot"><span class="annottext">Eq InitializeParams
+InitializeParams -&gt; InitializeParams -&gt; Bool
+InitializeParams -&gt; InitializeParams -&gt; Ordering
+InitializeParams -&gt; InitializeParams -&gt; InitializeParams
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: InitializeParams -&gt; InitializeParams -&gt; InitializeParams
+$cmin :: InitializeParams -&gt; InitializeParams -&gt; InitializeParams
+max :: InitializeParams -&gt; InitializeParams -&gt; InitializeParams
+$cmax :: InitializeParams -&gt; InitializeParams -&gt; InitializeParams
+&gt;= :: InitializeParams -&gt; InitializeParams -&gt; Bool
+$c&gt;= :: InitializeParams -&gt; InitializeParams -&gt; Bool
+&gt; :: InitializeParams -&gt; InitializeParams -&gt; Bool
+$c&gt; :: InitializeParams -&gt; InitializeParams -&gt; Bool
+&lt;= :: InitializeParams -&gt; InitializeParams -&gt; Bool
+$c&lt;= :: InitializeParams -&gt; InitializeParams -&gt; Bool
+&lt; :: InitializeParams -&gt; InitializeParams -&gt; Bool
+$c&lt; :: InitializeParams -&gt; InitializeParams -&gt; Bool
+compare :: InitializeParams -&gt; InitializeParams -&gt; Ordering
+$ccompare :: InitializeParams -&gt; InitializeParams -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall x. Rep InitializeParams x -&gt; InitializeParams
+forall x. InitializeParams -&gt; Rep InitializeParams x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cto :: forall x. Rep InitializeParams x -&gt; InitializeParams
+$cfrom :: forall x. InitializeParams -&gt; Rep InitializeParams x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-98"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">anyclass</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682239140"><span class="annot"><span class="annottext">InitializeParams -&gt; ()
+forall a. (a -&gt; ()) -&gt; NFData a
+rnf :: InitializeParams -&gt; ()
+$crnf :: InitializeParams -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682239133"><span id="local-6989586621682239135"><span class="annot"><span class="annottext">Eq InitializeParams
+Int -&gt; InitializeParams -&gt; Int
+InitializeParams -&gt; Int
+forall a. Eq a -&gt; (Int -&gt; a -&gt; Int) -&gt; (a -&gt; Int) -&gt; Hashable a
+hash :: InitializeParams -&gt; Int
+$chash :: InitializeParams -&gt; Int
+hashWithSalt :: Int -&gt; InitializeParams -&gt; Int
+$chashWithSalt :: Int -&gt; InitializeParams -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Hashable</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-99"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621682239124"><span id="local-6989586621682239130"><span class="annot"><span class="annottext">forall ann. [InitializeParams] -&gt; Doc ann
+forall ann. InitializeParams -&gt; Doc ann
+forall a.
+(forall ann. a -&gt; Doc ann)
+-&gt; (forall ann. [a] -&gt; Doc ann) -&gt; Pretty a
+prettyList :: forall ann. [InitializeParams] -&gt; Doc ann
+$cprettyList :: forall ann. [InitializeParams] -&gt; Doc ann
+pretty :: forall ann. InitializeParams -&gt; Doc ann
+$cpretty :: forall ann. InitializeParams -&gt; Doc ann
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Pretty</span></span></span></span><span> </span><span class="hs-keyword">via</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html#ViaJSON"><span class="hs-identifier hs-type">ViaJSON</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.InitializeParams.html#InitializeParams"><span class="hs-identifier hs-type">InitializeParams</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-100"></span><span>
+</span><span id="line-101"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682239112"><span id="local-6989586621682239114"><span id="local-6989586621682239116"><span class="annot"><span class="hs-identifier hs-type">Aeson.ToJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.InitializeParams.html#InitializeParams"><span class="hs-identifier hs-type">InitializeParams</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-102"></span><span>  </span><span id="local-6989586621682239043"><span class="annot"><span class="annottext">toJSON :: InitializeParams -&gt; Value
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">toJSON</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.InitializeParams.html#InitializeParams"><span class="hs-identifier hs-type">InitializeParams</span></a></span><span> </span><span id="local-6989586621682239041"><span class="annot"><span class="annottext">Maybe ProgressToken
+</span><a href="#local-6989586621682239041"><span class="hs-identifier hs-var">arg0</span></a></span></span><span> </span><span id="local-6989586621682239040"><span class="annot"><span class="annottext">Int32 |? Null
+</span><a href="#local-6989586621682239040"><span class="hs-identifier hs-var">arg1</span></a></span></span><span> </span><span id="local-6989586621682239039"><span class="annot"><span class="annottext">Maybe
+  (Rec
+     ((&quot;name&quot; .== Text)
+      .+ (Extend &quot;version&quot; (Maybe Text) ('R '[]) .+ 'R '[])))
+</span><a href="#local-6989586621682239039"><span class="hs-identifier hs-var">arg2</span></a></span></span><span> </span><span id="local-6989586621682239038"><span class="annot"><span class="annottext">Maybe Text
+</span><a href="#local-6989586621682239038"><span class="hs-identifier hs-var">arg3</span></a></span></span><span> </span><span id="local-6989586621682239037"><span class="annot"><span class="annottext">Maybe (Text |? Null)
+</span><a href="#local-6989586621682239037"><span class="hs-identifier hs-var">arg4</span></a></span></span><span> </span><span id="local-6989586621682239036"><span class="annot"><span class="annottext">Uri |? Null
+</span><a href="#local-6989586621682239036"><span class="hs-identifier hs-var">arg5</span></a></span></span><span> </span><span id="local-6989586621682239035"><span class="annot"><span class="annottext">ClientCapabilities
+</span><a href="#local-6989586621682239035"><span class="hs-identifier hs-var">arg6</span></a></span></span><span> </span><span id="local-6989586621682239034"><span class="annot"><span class="annottext">Maybe Value
+</span><a href="#local-6989586621682239034"><span class="hs-identifier hs-var">arg7</span></a></span></span><span> </span><span id="local-6989586621682239033"><span class="annot"><span class="annottext">Maybe TraceValues
+</span><a href="#local-6989586621682239033"><span class="hs-identifier hs-var">arg8</span></a></span></span><span> </span><span id="local-6989586621682239032"><span class="annot"><span class="annottext">Maybe ([WorkspaceFolder] |? Null)
+</span><a href="#local-6989586621682239032"><span class="hs-identifier hs-var">arg9</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">Aeson.object</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">concat</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>  </span><span class="hs-special">[</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;workDoneToken&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe ProgressToken
+</span><a href="#local-6989586621682239041"><span class="hs-identifier hs-var">arg0</span></a></span><span>
+</span><span id="line-103"></span><span>    </span><span class="hs-special">,</span><span class="hs-special">[</span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;processId&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">Aeson..=</span></span><span> </span><span class="annot"><span class="annottext">Int32 |? Null
+</span><a href="#local-6989586621682239040"><span class="hs-identifier hs-var">arg1</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-104"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;clientInfo&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe
+  (Rec
+     ((&quot;name&quot; .== Text)
+      .+ (Extend &quot;version&quot; (Maybe Text) ('R '[]) .+ 'R '[])))
+</span><a href="#local-6989586621682239039"><span class="hs-identifier hs-var">arg2</span></a></span><span>
+</span><span id="line-105"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;locale&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Text
+</span><a href="#local-6989586621682239038"><span class="hs-identifier hs-var">arg3</span></a></span><span>
+</span><span id="line-106"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;rootPath&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe (Text |? Null)
+</span><a href="#local-6989586621682239037"><span class="hs-identifier hs-var">arg4</span></a></span><span>
+</span><span id="line-107"></span><span>    </span><span class="hs-special">,</span><span class="hs-special">[</span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;rootUri&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">Aeson..=</span></span><span> </span><span class="annot"><span class="annottext">Uri |? Null
+</span><a href="#local-6989586621682239036"><span class="hs-identifier hs-var">arg5</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-108"></span><span>    </span><span class="hs-special">,</span><span class="hs-special">[</span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;capabilities&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">Aeson..=</span></span><span> </span><span class="annot"><span class="annottext">ClientCapabilities
+</span><a href="#local-6989586621682239035"><span class="hs-identifier hs-var">arg6</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-109"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;initializationOptions&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Value
+</span><a href="#local-6989586621682239034"><span class="hs-identifier hs-var">arg7</span></a></span><span>
+</span><span id="line-110"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;trace&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe TraceValues
+</span><a href="#local-6989586621682239033"><span class="hs-identifier hs-var">arg8</span></a></span><span>
+</span><span id="line-111"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;workspaceFolders&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe ([WorkspaceFolder] |? Null)
+</span><a href="#local-6989586621682239032"><span class="hs-identifier hs-var">arg9</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-112"></span><span>
+</span><span id="line-113"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682239025"><span class="annot"><span class="hs-identifier hs-type">Aeson.FromJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.InitializeParams.html#InitializeParams"><span class="hs-identifier hs-type">InitializeParams</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-114"></span><span>  </span><span id="local-6989586621682238944"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser InitializeParams
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">Aeson.withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;InitializeParams&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621682238941"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682238941"><span class="hs-identifier hs-var">arg</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe ProgressToken
+-&gt; (Int32 |? Null)
+-&gt; Maybe
+     (Rec
+        ((&quot;name&quot; .== Text)
+         .+ (Extend &quot;version&quot; (Maybe Text) ('R '[]) .+ 'R '[])))
+-&gt; Maybe Text
+-&gt; Maybe (Text |? Null)
+-&gt; (Uri |? Null)
+-&gt; ClientCapabilities
+-&gt; Maybe Value
+-&gt; Maybe TraceValues
+-&gt; Maybe ([WorkspaceFolder] |? Null)
+-&gt; InitializeParams
+</span><a href="Language.LSP.Protocol.Internal.Types.InitializeParams.html#InitializeParams"><span class="hs-identifier hs-var">InitializeParams</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682238941"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">Aeson..:!</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;workDoneToken&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682238941"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">Aeson..:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;processId&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682238941"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">Aeson..:!</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;clientInfo&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682238941"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">Aeson..:!</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;locale&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682238941"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">Aeson..:!</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;rootPath&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682238941"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">Aeson..:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;rootUri&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682238941"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">Aeson..:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;capabilities&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682238941"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">Aeson..:!</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;initializationOptions&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682238941"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">Aeson..:!</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;trace&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682238941"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">Aeson..:!</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;workspaceFolders&quot;</span></span><span>
+</span><span id="line-115"></span></pre></body></html>

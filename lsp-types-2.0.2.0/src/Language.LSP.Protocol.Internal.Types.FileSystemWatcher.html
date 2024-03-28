@@ -1,0 +1,148 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- THIS IS A GENERATED FILE, DO NOT EDIT</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-imports #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-matches #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-deprecations #-}</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.FileSystemWatcher</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Hashable</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html"><span class="hs-identifier">Language.LSP.Protocol.Utils.Misc</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prettyprinter</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Aeson.html"><span class="hs-identifier">Data.Row.Aeson</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Hashable.html"><span class="hs-identifier">Data.Row.Hashable</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Hashable</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.GlobPattern.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.GlobPattern</span></a></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.WatchKind.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.WatchKind</span></a></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html"><span class="hs-identifier">Language.LSP.Protocol.Types.Common</span></a></span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="hs-comment">{-|
+
+-}</span><span>
+</span><span id="line-23"></span><span id="local-6989586621682179834"><span id="local-6989586621682179835"></span></span><span class="hs-keyword">data</span><span> </span><span id="FileSystemWatcher"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.FileSystemWatcher.html#FileSystemWatcher"><span class="hs-identifier hs-var">FileSystemWatcher</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="FileSystemWatcher"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.FileSystemWatcher.html#FileSystemWatcher"><span class="hs-identifier hs-var">FileSystemWatcher</span></a></span></span><span> </span><span>
+</span><span id="line-24"></span><span>  </span><span class="hs-special">{</span><span> </span><span class="hs-comment">{-|
+  The glob pattern to watch. See `GlobPattern` for more detail.
+
+  @since 3.17.0 support for relative patterns.
+  -}</span><span>
+</span><span id="line-29"></span><span>  </span><span id="%24sel%3A_globPattern%3AFileSystemWatcher"><span class="annot"><span class="annottext">FileSystemWatcher -&gt; GlobPattern
+</span><a href="Language.LSP.Protocol.Internal.Types.FileSystemWatcher.html#%24sel%3A_globPattern%3AFileSystemWatcher"><span class="hs-identifier hs-var hs-var">_globPattern</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.GlobPattern.html#GlobPattern"><span class="hs-identifier hs-type">Language.LSP.Protocol.Internal.Types.GlobPattern.GlobPattern</span></a></span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-comment">{-|
+  The kind of events of interest. If omitted it defaults
+  to WatchKind.Create | WatchKind.Change | WatchKind.Delete
+  which is 7.
+  -}</span><span>
+</span><span id="line-35"></span><span>  </span><span id="%24sel%3A_kind%3AFileSystemWatcher"><span class="annot"><span class="annottext">FileSystemWatcher -&gt; Maybe WatchKind
+</span><a href="Language.LSP.Protocol.Internal.Types.FileSystemWatcher.html#%24sel%3A_kind%3AFileSystemWatcher"><span class="hs-identifier hs-var hs-var">_kind</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.WatchKind.html#WatchKind"><span class="hs-identifier hs-type">Language.LSP.Protocol.Internal.Types.WatchKind.WatchKind</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-37"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682179818"><span id="local-6989586621682179820"><span id="local-6989586621682179829"><span class="annot"><span class="annottext">Int -&gt; FileSystemWatcher -&gt; ShowS
+[FileSystemWatcher] -&gt; ShowS
+FileSystemWatcher -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [FileSystemWatcher] -&gt; ShowS
+$cshowList :: [FileSystemWatcher] -&gt; ShowS
+show :: FileSystemWatcher -&gt; String
+$cshow :: FileSystemWatcher -&gt; String
+showsPrec :: Int -&gt; FileSystemWatcher -&gt; ShowS
+$cshowsPrec :: Int -&gt; FileSystemWatcher -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682179807"><span id="local-6989586621682179814"><span class="annot"><span class="annottext">FileSystemWatcher -&gt; FileSystemWatcher -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: FileSystemWatcher -&gt; FileSystemWatcher -&gt; Bool
+$c/= :: FileSystemWatcher -&gt; FileSystemWatcher -&gt; Bool
+== :: FileSystemWatcher -&gt; FileSystemWatcher -&gt; Bool
+$c== :: FileSystemWatcher -&gt; FileSystemWatcher -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682179778"><span id="local-6989586621682179780"><span id="local-6989586621682179783"><span id="local-6989586621682179786"><span id="local-6989586621682179789"><span id="local-6989586621682179794"><span id="local-6989586621682179801"><span class="annot"><span class="annottext">Eq FileSystemWatcher
+FileSystemWatcher -&gt; FileSystemWatcher -&gt; Bool
+FileSystemWatcher -&gt; FileSystemWatcher -&gt; Ordering
+FileSystemWatcher -&gt; FileSystemWatcher -&gt; FileSystemWatcher
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: FileSystemWatcher -&gt; FileSystemWatcher -&gt; FileSystemWatcher
+$cmin :: FileSystemWatcher -&gt; FileSystemWatcher -&gt; FileSystemWatcher
+max :: FileSystemWatcher -&gt; FileSystemWatcher -&gt; FileSystemWatcher
+$cmax :: FileSystemWatcher -&gt; FileSystemWatcher -&gt; FileSystemWatcher
+&gt;= :: FileSystemWatcher -&gt; FileSystemWatcher -&gt; Bool
+$c&gt;= :: FileSystemWatcher -&gt; FileSystemWatcher -&gt; Bool
+&gt; :: FileSystemWatcher -&gt; FileSystemWatcher -&gt; Bool
+$c&gt; :: FileSystemWatcher -&gt; FileSystemWatcher -&gt; Bool
+&lt;= :: FileSystemWatcher -&gt; FileSystemWatcher -&gt; Bool
+$c&lt;= :: FileSystemWatcher -&gt; FileSystemWatcher -&gt; Bool
+&lt; :: FileSystemWatcher -&gt; FileSystemWatcher -&gt; Bool
+$c&lt; :: FileSystemWatcher -&gt; FileSystemWatcher -&gt; Bool
+compare :: FileSystemWatcher -&gt; FileSystemWatcher -&gt; Ordering
+$ccompare :: FileSystemWatcher -&gt; FileSystemWatcher -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall x. Rep FileSystemWatcher x -&gt; FileSystemWatcher
+forall x. FileSystemWatcher -&gt; Rep FileSystemWatcher x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cto :: forall x. Rep FileSystemWatcher x -&gt; FileSystemWatcher
+$cfrom :: forall x. FileSystemWatcher -&gt; Rep FileSystemWatcher x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-38"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">anyclass</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682179771"><span class="annot"><span class="annottext">FileSystemWatcher -&gt; ()
+forall a. (a -&gt; ()) -&gt; NFData a
+rnf :: FileSystemWatcher -&gt; ()
+$crnf :: FileSystemWatcher -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682179764"><span id="local-6989586621682179766"><span class="annot"><span class="annottext">Eq FileSystemWatcher
+Int -&gt; FileSystemWatcher -&gt; Int
+FileSystemWatcher -&gt; Int
+forall a. Eq a -&gt; (Int -&gt; a -&gt; Int) -&gt; (a -&gt; Int) -&gt; Hashable a
+hash :: FileSystemWatcher -&gt; Int
+$chash :: FileSystemWatcher -&gt; Int
+hashWithSalt :: Int -&gt; FileSystemWatcher -&gt; Int
+$chashWithSalt :: Int -&gt; FileSystemWatcher -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Hashable</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-39"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621682179755"><span id="local-6989586621682179761"><span class="annot"><span class="annottext">forall ann. [FileSystemWatcher] -&gt; Doc ann
+forall ann. FileSystemWatcher -&gt; Doc ann
+forall a.
+(forall ann. a -&gt; Doc ann)
+-&gt; (forall ann. [a] -&gt; Doc ann) -&gt; Pretty a
+prettyList :: forall ann. [FileSystemWatcher] -&gt; Doc ann
+$cprettyList :: forall ann. [FileSystemWatcher] -&gt; Doc ann
+pretty :: forall ann. FileSystemWatcher -&gt; Doc ann
+$cpretty :: forall ann. FileSystemWatcher -&gt; Doc ann
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Pretty</span></span></span></span><span> </span><span class="hs-keyword">via</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html#ViaJSON"><span class="hs-identifier hs-type">ViaJSON</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.FileSystemWatcher.html#FileSystemWatcher"><span class="hs-identifier hs-type">FileSystemWatcher</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682179743"><span id="local-6989586621682179745"><span id="local-6989586621682179747"><span class="annot"><span class="hs-identifier hs-type">Aeson.ToJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.FileSystemWatcher.html#FileSystemWatcher"><span class="hs-identifier hs-type">FileSystemWatcher</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-42"></span><span>  </span><span id="local-6989586621682179730"><span class="annot"><span class="annottext">toJSON :: FileSystemWatcher -&gt; Value
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">toJSON</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.FileSystemWatcher.html#FileSystemWatcher"><span class="hs-identifier hs-type">FileSystemWatcher</span></a></span><span> </span><span id="local-6989586621682179728"><span class="annot"><span class="annottext">GlobPattern
+</span><a href="#local-6989586621682179728"><span class="hs-identifier hs-var">arg0</span></a></span></span><span> </span><span id="local-6989586621682179727"><span class="annot"><span class="annottext">Maybe WatchKind
+</span><a href="#local-6989586621682179727"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">Aeson.object</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">concat</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>  </span><span class="hs-special">[</span><span class="hs-special">[</span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;globPattern&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">Aeson..=</span></span><span> </span><span class="annot"><span class="annottext">GlobPattern
+</span><a href="#local-6989586621682179728"><span class="hs-identifier hs-var">arg0</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-43"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;kind&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe WatchKind
+</span><a href="#local-6989586621682179727"><span class="hs-identifier hs-var">arg1</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682179720"><span class="annot"><span class="hs-identifier hs-type">Aeson.FromJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.FileSystemWatcher.html#FileSystemWatcher"><span class="hs-identifier hs-type">FileSystemWatcher</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-46"></span><span>  </span><span id="local-6989586621682179708"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser FileSystemWatcher
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">Aeson.withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;FileSystemWatcher&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621682179705"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682179705"><span class="hs-identifier hs-var">arg</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">GlobPattern -&gt; Maybe WatchKind -&gt; FileSystemWatcher
+</span><a href="Language.LSP.Protocol.Internal.Types.FileSystemWatcher.html#FileSystemWatcher"><span class="hs-identifier hs-var">FileSystemWatcher</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682179705"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">Aeson..:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;globPattern&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682179705"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">Aeson..:!</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;kind&quot;</span></span><span>
+</span><span id="line-47"></span></pre></body></html>

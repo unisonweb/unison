@@ -1,0 +1,179 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- THIS IS A GENERATED FILE, DO NOT EDIT</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-imports #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-matches #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-deprecations #-}</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.DocumentDiagnosticReportPartialResult</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Hashable</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html"><span class="hs-identifier">Language.LSP.Protocol.Utils.Misc</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prettyprinter</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Map</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Aeson.html"><span class="hs-identifier">Data.Row.Aeson</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Hashable.html"><span class="hs-identifier">Data.Row.Hashable</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Hashable</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.FullDocumentDiagnosticReport.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.FullDocumentDiagnosticReport</span></a></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.UnchangedDocumentDiagnosticReport.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.UnchangedDocumentDiagnosticReport</span></a></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html"><span class="hs-identifier">Language.LSP.Protocol.Types.Common</span></a></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Uri.html"><span class="hs-identifier">Language.LSP.Protocol.Types.Uri</span></a></span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="hs-comment">{-|
+A partial result for a document diagnostic report.
+
+@since 3.17.0
+-}</span><span>
+</span><span id="line-27"></span><span id="local-6989586621682226869"><span id="local-6989586621682226870"></span></span><span class="hs-keyword">data</span><span> </span><span id="DocumentDiagnosticReportPartialResult"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.DocumentDiagnosticReportPartialResult.html#DocumentDiagnosticReportPartialResult"><span class="hs-identifier hs-var">DocumentDiagnosticReportPartialResult</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="DocumentDiagnosticReportPartialResult"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.DocumentDiagnosticReportPartialResult.html#DocumentDiagnosticReportPartialResult"><span class="hs-identifier hs-var">DocumentDiagnosticReportPartialResult</span></a></span></span><span> </span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-special">{</span><span> </span><span class="hs-comment">{-|
+
+  -}</span><span>
+</span><span id="line-31"></span><span>  </span><span id="%24sel%3A_relatedDocuments%3ADocumentDiagnosticReportPartialResult"><span class="annot"><span class="annottext">DocumentDiagnosticReportPartialResult
+-&gt; Map
+     Uri
+     (FullDocumentDiagnosticReport |? UnchangedDocumentDiagnosticReport)
+</span><a href="Language.LSP.Protocol.Internal.Types.DocumentDiagnosticReportPartialResult.html#%24sel%3A_relatedDocuments%3ADocumentDiagnosticReportPartialResult"><span class="hs-identifier hs-var hs-var">_relatedDocuments</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Data.Map.Map</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Uri.html#Uri"><span class="hs-identifier hs-type">Language.LSP.Protocol.Types.Uri.Uri</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.FullDocumentDiagnosticReport.html#FullDocumentDiagnosticReport"><span class="hs-identifier hs-type">Language.LSP.Protocol.Internal.Types.FullDocumentDiagnosticReport.FullDocumentDiagnosticReport</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#%7C%3F"><span class="hs-operator hs-type">Language.LSP.Protocol.Types.Common.|?</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.UnchangedDocumentDiagnosticReport.html#UnchangedDocumentDiagnosticReport"><span class="hs-identifier hs-type">Language.LSP.Protocol.Internal.Types.UnchangedDocumentDiagnosticReport.UnchangedDocumentDiagnosticReport</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-33"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682226855"><span id="local-6989586621682226857"><span id="local-6989586621682226865"><span class="annot"><span class="annottext">Int -&gt; DocumentDiagnosticReportPartialResult -&gt; ShowS
+[DocumentDiagnosticReportPartialResult] -&gt; ShowS
+DocumentDiagnosticReportPartialResult -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [DocumentDiagnosticReportPartialResult] -&gt; ShowS
+$cshowList :: [DocumentDiagnosticReportPartialResult] -&gt; ShowS
+show :: DocumentDiagnosticReportPartialResult -&gt; String
+$cshow :: DocumentDiagnosticReportPartialResult -&gt; String
+showsPrec :: Int -&gt; DocumentDiagnosticReportPartialResult -&gt; ShowS
+$cshowsPrec :: Int -&gt; DocumentDiagnosticReportPartialResult -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682226840"><span id="local-6989586621682226846"><span class="annot"><span class="annottext">DocumentDiagnosticReportPartialResult
+-&gt; DocumentDiagnosticReportPartialResult -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: DocumentDiagnosticReportPartialResult
+-&gt; DocumentDiagnosticReportPartialResult -&gt; Bool
+$c/= :: DocumentDiagnosticReportPartialResult
+-&gt; DocumentDiagnosticReportPartialResult -&gt; Bool
+== :: DocumentDiagnosticReportPartialResult
+-&gt; DocumentDiagnosticReportPartialResult -&gt; Bool
+$c== :: DocumentDiagnosticReportPartialResult
+-&gt; DocumentDiagnosticReportPartialResult -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682226807"><span id="local-6989586621682226809"><span id="local-6989586621682226812"><span id="local-6989586621682226815"><span id="local-6989586621682226818"><span id="local-6989586621682226823"><span id="local-6989586621682226829"><span class="annot"><span class="annottext">Eq DocumentDiagnosticReportPartialResult
+DocumentDiagnosticReportPartialResult
+-&gt; DocumentDiagnosticReportPartialResult -&gt; Bool
+DocumentDiagnosticReportPartialResult
+-&gt; DocumentDiagnosticReportPartialResult -&gt; Ordering
+DocumentDiagnosticReportPartialResult
+-&gt; DocumentDiagnosticReportPartialResult
+-&gt; DocumentDiagnosticReportPartialResult
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: DocumentDiagnosticReportPartialResult
+-&gt; DocumentDiagnosticReportPartialResult
+-&gt; DocumentDiagnosticReportPartialResult
+$cmin :: DocumentDiagnosticReportPartialResult
+-&gt; DocumentDiagnosticReportPartialResult
+-&gt; DocumentDiagnosticReportPartialResult
+max :: DocumentDiagnosticReportPartialResult
+-&gt; DocumentDiagnosticReportPartialResult
+-&gt; DocumentDiagnosticReportPartialResult
+$cmax :: DocumentDiagnosticReportPartialResult
+-&gt; DocumentDiagnosticReportPartialResult
+-&gt; DocumentDiagnosticReportPartialResult
+&gt;= :: DocumentDiagnosticReportPartialResult
+-&gt; DocumentDiagnosticReportPartialResult -&gt; Bool
+$c&gt;= :: DocumentDiagnosticReportPartialResult
+-&gt; DocumentDiagnosticReportPartialResult -&gt; Bool
+&gt; :: DocumentDiagnosticReportPartialResult
+-&gt; DocumentDiagnosticReportPartialResult -&gt; Bool
+$c&gt; :: DocumentDiagnosticReportPartialResult
+-&gt; DocumentDiagnosticReportPartialResult -&gt; Bool
+&lt;= :: DocumentDiagnosticReportPartialResult
+-&gt; DocumentDiagnosticReportPartialResult -&gt; Bool
+$c&lt;= :: DocumentDiagnosticReportPartialResult
+-&gt; DocumentDiagnosticReportPartialResult -&gt; Bool
+&lt; :: DocumentDiagnosticReportPartialResult
+-&gt; DocumentDiagnosticReportPartialResult -&gt; Bool
+$c&lt; :: DocumentDiagnosticReportPartialResult
+-&gt; DocumentDiagnosticReportPartialResult -&gt; Bool
+compare :: DocumentDiagnosticReportPartialResult
+-&gt; DocumentDiagnosticReportPartialResult -&gt; Ordering
+$ccompare :: DocumentDiagnosticReportPartialResult
+-&gt; DocumentDiagnosticReportPartialResult -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall x.
+Rep DocumentDiagnosticReportPartialResult x
+-&gt; DocumentDiagnosticReportPartialResult
+forall x.
+DocumentDiagnosticReportPartialResult
+-&gt; Rep DocumentDiagnosticReportPartialResult x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cto :: forall x.
+Rep DocumentDiagnosticReportPartialResult x
+-&gt; DocumentDiagnosticReportPartialResult
+$cfrom :: forall x.
+DocumentDiagnosticReportPartialResult
+-&gt; Rep DocumentDiagnosticReportPartialResult x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-34"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">anyclass</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682226793"><span class="annot"><span class="annottext">DocumentDiagnosticReportPartialResult -&gt; ()
+forall a. (a -&gt; ()) -&gt; NFData a
+rnf :: DocumentDiagnosticReportPartialResult -&gt; ()
+$crnf :: DocumentDiagnosticReportPartialResult -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682226786"><span id="local-6989586621682226788"><span class="annot"><span class="annottext">Eq DocumentDiagnosticReportPartialResult
+Int -&gt; DocumentDiagnosticReportPartialResult -&gt; Int
+DocumentDiagnosticReportPartialResult -&gt; Int
+forall a. Eq a -&gt; (Int -&gt; a -&gt; Int) -&gt; (a -&gt; Int) -&gt; Hashable a
+hash :: DocumentDiagnosticReportPartialResult -&gt; Int
+$chash :: DocumentDiagnosticReportPartialResult -&gt; Int
+hashWithSalt :: Int -&gt; DocumentDiagnosticReportPartialResult -&gt; Int
+$chashWithSalt :: Int -&gt; DocumentDiagnosticReportPartialResult -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Hashable</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621682226777"><span id="local-6989586621682226783"><span class="annot"><span class="annottext">forall ann. [DocumentDiagnosticReportPartialResult] -&gt; Doc ann
+forall ann. DocumentDiagnosticReportPartialResult -&gt; Doc ann
+forall a.
+(forall ann. a -&gt; Doc ann)
+-&gt; (forall ann. [a] -&gt; Doc ann) -&gt; Pretty a
+prettyList :: forall ann. [DocumentDiagnosticReportPartialResult] -&gt; Doc ann
+$cprettyList :: forall ann. [DocumentDiagnosticReportPartialResult] -&gt; Doc ann
+pretty :: forall ann. DocumentDiagnosticReportPartialResult -&gt; Doc ann
+$cpretty :: forall ann. DocumentDiagnosticReportPartialResult -&gt; Doc ann
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Pretty</span></span></span></span><span> </span><span class="hs-keyword">via</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html#ViaJSON"><span class="hs-identifier hs-type">ViaJSON</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.DocumentDiagnosticReportPartialResult.html#DocumentDiagnosticReportPartialResult"><span class="hs-identifier hs-type">DocumentDiagnosticReportPartialResult</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682226765"><span id="local-6989586621682226767"><span id="local-6989586621682226769"><span class="annot"><span class="hs-identifier hs-type">Aeson.ToJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.DocumentDiagnosticReportPartialResult.html#DocumentDiagnosticReportPartialResult"><span class="hs-identifier hs-type">DocumentDiagnosticReportPartialResult</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-38"></span><span>  </span><span id="local-6989586621682226747"><span class="annot"><span class="annottext">toJSON :: DocumentDiagnosticReportPartialResult -&gt; Value
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">toJSON</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.DocumentDiagnosticReportPartialResult.html#DocumentDiagnosticReportPartialResult"><span class="hs-identifier hs-type">DocumentDiagnosticReportPartialResult</span></a></span><span> </span><span id="local-6989586621682226745"><span class="annot"><span class="annottext">Map
+  Uri
+  (FullDocumentDiagnosticReport |? UnchangedDocumentDiagnosticReport)
+</span><a href="#local-6989586621682226745"><span class="hs-identifier hs-var">arg0</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">Aeson.object</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">concat</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>  </span><span class="hs-special">[</span><span class="hs-special">[</span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;relatedDocuments&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">Aeson..=</span></span><span> </span><span class="annot"><span class="annottext">Map
+  Uri
+  (FullDocumentDiagnosticReport |? UnchangedDocumentDiagnosticReport)
+</span><a href="#local-6989586621682226745"><span class="hs-identifier hs-var">arg0</span></a></span><span class="hs-special">]</span><span class="hs-special">]</span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682226739"><span class="annot"><span class="hs-identifier hs-type">Aeson.FromJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.DocumentDiagnosticReportPartialResult.html#DocumentDiagnosticReportPartialResult"><span class="hs-identifier hs-type">DocumentDiagnosticReportPartialResult</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-41"></span><span>  </span><span id="local-6989586621682226721"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser DocumentDiagnosticReportPartialResult
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">Aeson.withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;DocumentDiagnosticReportPartialResult&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621682226718"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682226718"><span class="hs-identifier hs-var">arg</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Map
+  Uri
+  (FullDocumentDiagnosticReport |? UnchangedDocumentDiagnosticReport)
+-&gt; DocumentDiagnosticReportPartialResult
+</span><a href="Language.LSP.Protocol.Internal.Types.DocumentDiagnosticReportPartialResult.html#DocumentDiagnosticReportPartialResult"><span class="hs-identifier hs-var">DocumentDiagnosticReportPartialResult</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682226718"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">Aeson..:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;relatedDocuments&quot;</span></span><span>
+</span><span id="line-42"></span></pre></body></html>

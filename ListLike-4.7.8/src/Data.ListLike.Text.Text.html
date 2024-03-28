@@ -1,0 +1,336 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE MultiParamTypeClasses
+            ,FlexibleInstances #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# OPTIONS -fno-warn-orphans #-}</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Data.ListLike.Text.Text</span><span>
+</span><span id="line-6"></span><span>
+</span><span id="line-7"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">P</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">T</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text.IO</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">TI</span></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text.Lazy</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Lazy</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">toStrict</span></span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Text.Encoding</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">decodeUtf8</span></span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Data.ListLike.Base.html"><span class="hs-identifier">Data.ListLike.Base</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">LL</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Data.ListLike.FoldableLL.html"><span class="hs-identifier">Data.ListLike.FoldableLL</span></a></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Data.ListLike.IO.html"><span class="hs-identifier">Data.ListLike.IO</span></a></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Data.ListLike.String.html"><span class="hs-identifier">Data.ListLike.String</span></a></span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">BS</span></span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679100284"><span class="annot"><a href="Data.ListLike.FoldableLL.html#FoldableLL"><span class="hs-identifier hs-type">FoldableLL</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">T.Text</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Char</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-22"></span><span>    </span><span id="local-6989586621679100281"><span class="annot"><span class="annottext">foldl :: forall a. (a -&gt; Char -&gt; a) -&gt; a -&gt; Text -&gt; a
+</span><a href="Data.ListLike.FoldableLL.html#foldl"><span class="hs-identifier hs-var hs-var hs-var hs-var">foldl</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. (a -&gt; Char -&gt; a) -&gt; a -&gt; Text -&gt; a
+</span><span class="hs-identifier hs-var">T.foldl</span></span><span>
+</span><span id="line-23"></span><span>    </span><span id="local-6989586621679100278"><span class="annot"><span class="annottext">foldl' :: forall a. (a -&gt; Char -&gt; a) -&gt; a -&gt; Text -&gt; a
+</span><a href="Data.ListLike.FoldableLL.html#foldl%27"><span class="hs-identifier hs-var hs-var hs-var hs-var">foldl'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. (a -&gt; Char -&gt; a) -&gt; a -&gt; Text -&gt; a
+</span><span class="hs-identifier hs-var">T.foldl'</span></span><span>
+</span><span id="line-24"></span><span>    </span><span id="local-6989586621679100275"><span class="annot"><span class="annottext">foldl1 :: (Char -&gt; Char -&gt; Char) -&gt; Text -&gt; Char
+</span><a href="Data.ListLike.FoldableLL.html#foldl1"><span class="hs-identifier hs-var hs-var hs-var hs-var">foldl1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Char -&gt; Char -&gt; Char) -&gt; Text -&gt; Char
+</span><span class="hs-identifier hs-var">T.foldl1</span></span><span>
+</span><span id="line-25"></span><span>    </span><span id="local-6989586621679100272"><span class="annot"><span class="annottext">foldr :: forall b. (Char -&gt; b -&gt; b) -&gt; b -&gt; Text -&gt; b
+</span><a href="Data.ListLike.FoldableLL.html#foldr"><span class="hs-identifier hs-var hs-var hs-var hs-var">foldr</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall b. (Char -&gt; b -&gt; b) -&gt; b -&gt; Text -&gt; b
+</span><span class="hs-identifier hs-var">T.foldr</span></span><span>
+</span><span id="line-26"></span><span>    </span><span class="hs-comment">--foldr' = T.foldr'</span><span>
+</span><span id="line-27"></span><span>    </span><span id="local-6989586621679100269"><span class="annot"><span class="annottext">foldr1 :: (Char -&gt; Char -&gt; Char) -&gt; Text -&gt; Char
+</span><a href="Data.ListLike.FoldableLL.html#foldr1"><span class="hs-identifier hs-var hs-var hs-var hs-var">foldr1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Char -&gt; Char -&gt; Char) -&gt; Text -&gt; Char
+</span><span class="hs-identifier hs-var">T.foldr1</span></span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679100157"><span id="local-6989586621679100159"><span id="local-6989586621679100162"><span id="local-6989586621679100164"><span id="local-6989586621679100166"><span id="local-6989586621679100168"><span id="local-6989586621679100170"><span id="local-6989586621679100172"><span id="local-6989586621679100174"><span id="local-6989586621679100176"><span id="local-6989586621679100178"><span id="local-6989586621679100180"><span id="local-6989586621679100182"><span id="local-6989586621679100184"><span id="local-6989586621679100186"><span id="local-6989586621679100188"><span id="local-6989586621679100190"><span id="local-6989586621679100192"><span id="local-6989586621679100196"><span id="local-6989586621679100199"><span id="local-6989586621679100201"><span id="local-6989586621679100204"><span id="local-6989586621679100208"><span id="local-6989586621679100213"><span id="local-6989586621679100222"><span id="local-6989586621679100235"><span id="local-6989586621679100241"><span id="local-6989586621679100248"><span class="annot"><a href="Data.ListLike.Base.html#ListLike"><span class="hs-identifier hs-type">ListLike</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">T.Text</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Char</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-30"></span><span>    </span><span id="local-6989586621679100150"><span class="annot"><span class="annottext">empty :: Text
+</span><a href="Data.ListLike.Base.html#empty"><span class="hs-identifier hs-var hs-var hs-var hs-var">empty</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-identifier hs-var">T.empty</span></span><span>
+</span><span id="line-31"></span><span>    </span><span id="local-6989586621679100147"><span class="annot"><span class="annottext">singleton :: Char -&gt; Text
+</span><a href="Data.ListLike.Base.html#singleton"><span class="hs-identifier hs-var hs-var hs-var hs-var">singleton</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Char -&gt; Text
+</span><span class="hs-identifier hs-var">T.singleton</span></span><span>
+</span><span id="line-32"></span><span>    </span><span id="local-6989586621679100144"><span class="annot"><span class="annottext">cons :: Char -&gt; Text -&gt; Text
+</span><a href="Data.ListLike.Base.html#cons"><span class="hs-identifier hs-var hs-var hs-var hs-var">cons</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Char -&gt; Text -&gt; Text
+</span><span class="hs-identifier hs-var">T.cons</span></span><span>
+</span><span id="line-33"></span><span>    </span><span id="local-6989586621679100141"><span class="annot"><span class="annottext">snoc :: Text -&gt; Char -&gt; Text
+</span><a href="Data.ListLike.Base.html#snoc"><span class="hs-identifier hs-var hs-var hs-var hs-var">snoc</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Char -&gt; Text
+</span><span class="hs-identifier hs-var">T.snoc</span></span><span>
+</span><span id="line-34"></span><span>    </span><span id="local-6989586621679100138"><span class="annot"><span class="annottext">append :: Text -&gt; Text -&gt; Text
+</span><a href="Data.ListLike.Base.html#append"><span class="hs-identifier hs-var hs-var hs-var hs-var">append</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+</span><span class="hs-identifier hs-var">T.append</span></span><span>
+</span><span id="line-35"></span><span>    </span><span id="local-6989586621679100135"><span class="annot"><span class="annottext">head :: Text -&gt; Char
+</span><a href="Data.ListLike.Base.html#head"><span class="hs-identifier hs-var hs-var hs-var hs-var">head</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Char
+</span><span class="hs-identifier hs-var">T.head</span></span><span>
+</span><span id="line-36"></span><span>    </span><span id="local-6989586621679100132"><span class="annot"><span class="annottext">last :: Text -&gt; Char
+</span><a href="Data.ListLike.Base.html#last"><span class="hs-identifier hs-var hs-var hs-var hs-var">last</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Char
+</span><span class="hs-identifier hs-var">T.last</span></span><span>
+</span><span id="line-37"></span><span>    </span><span id="local-6989586621679100129"><span class="annot"><span class="annottext">tail :: Text -&gt; Text
+</span><a href="Data.ListLike.Base.html#tail"><span class="hs-identifier hs-var hs-var hs-var hs-var">tail</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text
+</span><span class="hs-identifier hs-var">T.tail</span></span><span>
+</span><span id="line-38"></span><span>    </span><span id="local-6989586621679100126"><span class="annot"><span class="annottext">init :: Text -&gt; Text
+</span><a href="Data.ListLike.Base.html#init"><span class="hs-identifier hs-var hs-var hs-var hs-var">init</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text
+</span><span class="hs-identifier hs-var">T.init</span></span><span>
+</span><span id="line-39"></span><span>    </span><span id="local-6989586621679100123"><span class="annot"><span class="annottext">null :: Text -&gt; Bool
+</span><a href="Data.ListLike.Base.html#null"><span class="hs-identifier hs-var hs-var hs-var hs-var">null</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Bool
+</span><span class="hs-identifier hs-var">T.null</span></span><span>
+</span><span id="line-40"></span><span>    </span><span id="local-6989586621679100120"><span class="annot"><span class="annottext">length :: Text -&gt; Int
+</span><a href="Data.ListLike.Base.html#length"><span class="hs-identifier hs-var hs-var hs-var hs-var">length</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Int
+</span><span class="hs-identifier hs-var">T.length</span></span><span>
+</span><span id="line-41"></span><span>    </span><span id="local-6989586621679100117"><span class="annot"><span class="annottext">rigidMap :: (Char -&gt; Char) -&gt; Text -&gt; Text
+</span><a href="Data.ListLike.Base.html#rigidMap"><span class="hs-identifier hs-var hs-var hs-var hs-var">rigidMap</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Char -&gt; Char) -&gt; Text -&gt; Text
+</span><span class="hs-identifier hs-var">T.map</span></span><span>
+</span><span id="line-42"></span><span>    </span><span id="local-6989586621679100114"><span class="annot"><span class="annottext">reverse :: Text -&gt; Text
+</span><a href="Data.ListLike.Base.html#reverse"><span class="hs-identifier hs-var hs-var hs-var hs-var">reverse</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text
+</span><span class="hs-identifier hs-var">T.reverse</span></span><span>
+</span><span id="line-43"></span><span>    </span><span id="local-6989586621679100111"><span class="annot"><span class="annottext">intersperse :: Char -&gt; Text -&gt; Text
+</span><a href="Data.ListLike.Base.html#intersperse"><span class="hs-identifier hs-var hs-var hs-var hs-var">intersperse</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Char -&gt; Text -&gt; Text
+</span><span class="hs-identifier hs-var">T.intersperse</span></span><span>
+</span><span id="line-44"></span><span>    </span><span id="local-6989586621679100100"><span class="annot"><span class="annottext">concat :: forall full'. ListLike full' Text =&gt; full' -&gt; Text
+</span><a href="Data.ListLike.Base.html#concat"><span class="hs-identifier hs-var hs-var hs-var hs-var">concat</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Text] -&gt; Text
+</span><span class="hs-identifier hs-var">T.concat</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall l. IsList l =&gt; l -&gt; [Item l]
+</span><span class="hs-identifier hs-var">toList</span></span><span>
+</span><span id="line-45"></span><span>    </span><span id="local-6989586621679100096"><span class="annot"><span class="annottext">rigidConcatMap :: (Char -&gt; Text) -&gt; Text -&gt; Text
+</span><a href="Data.ListLike.Base.html#rigidConcatMap"><span class="hs-identifier hs-var hs-var hs-var hs-var">rigidConcatMap</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Char -&gt; Text) -&gt; Text -&gt; Text
+</span><span class="hs-identifier hs-var">T.concatMap</span></span><span>
+</span><span id="line-46"></span><span>    </span><span id="local-6989586621679100093"><span class="annot"><span class="annottext">any :: (Char -&gt; Bool) -&gt; Text -&gt; Bool
+</span><a href="Data.ListLike.Base.html#any"><span class="hs-identifier hs-var hs-var hs-var hs-var">any</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Char -&gt; Bool) -&gt; Text -&gt; Bool
+</span><span class="hs-identifier hs-var">T.any</span></span><span>
+</span><span id="line-47"></span><span>    </span><span id="local-6989586621679100090"><span class="annot"><span class="annottext">all :: (Char -&gt; Bool) -&gt; Text -&gt; Bool
+</span><a href="Data.ListLike.Base.html#all"><span class="hs-identifier hs-var hs-var hs-var hs-var">all</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Char -&gt; Bool) -&gt; Text -&gt; Bool
+</span><span class="hs-identifier hs-var">T.all</span></span><span>
+</span><span id="line-48"></span><span>    </span><span id="local-6989586621679100086"><span class="annot"><span class="annottext">maximum :: Ord Char =&gt; Text -&gt; Char
+</span><a href="Data.ListLike.Base.html#maximum"><span class="hs-identifier hs-var hs-var hs-var hs-var">maximum</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Char
+</span><span class="hs-identifier hs-var">T.maximum</span></span><span>
+</span><span id="line-49"></span><span>    </span><span id="local-6989586621679100082"><span class="annot"><span class="annottext">minimum :: Ord Char =&gt; Text -&gt; Char
+</span><a href="Data.ListLike.Base.html#minimum"><span class="hs-identifier hs-var hs-var hs-var hs-var">minimum</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Char
+</span><span class="hs-identifier hs-var">T.minimum</span></span><span>
+</span><span id="line-50"></span><span>    </span><span id="local-6989586621679100079"><span class="annot"><span class="annottext">replicate :: Int -&gt; Char -&gt; Text
+</span><a href="Data.ListLike.Base.html#replicate"><span class="hs-identifier hs-var hs-var hs-var hs-var">replicate</span></a></span></span><span> </span><span id="local-6989586621679100077"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679100077"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Text -&gt; Text
+</span><span class="hs-identifier hs-var">T.replicate</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679100077"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Text
+</span><span class="hs-identifier hs-var">T.singleton</span></span><span>
+</span><span id="line-51"></span><span>    </span><span id="local-6989586621679100075"><span class="annot"><span class="annottext">take :: Int -&gt; Text -&gt; Text
+</span><a href="Data.ListLike.Base.html#take"><span class="hs-identifier hs-var hs-var hs-var hs-var">take</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Text -&gt; Text
+</span><span class="hs-identifier hs-var">T.take</span></span><span>
+</span><span id="line-52"></span><span>    </span><span id="local-6989586621679100072"><span class="annot"><span class="annottext">drop :: Int -&gt; Text -&gt; Text
+</span><a href="Data.ListLike.Base.html#drop"><span class="hs-identifier hs-var hs-var hs-var hs-var">drop</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Text -&gt; Text
+</span><span class="hs-identifier hs-var">T.drop</span></span><span>
+</span><span id="line-53"></span><span>    </span><span id="local-6989586621679100069"><span class="annot"><span class="annottext">splitAt :: Int -&gt; Text -&gt; (Text, Text)
+</span><a href="Data.ListLike.Base.html#splitAt"><span class="hs-identifier hs-var hs-var hs-var hs-var">splitAt</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Text -&gt; (Text, Text)
+</span><span class="hs-identifier hs-var">T.splitAt</span></span><span>
+</span><span id="line-54"></span><span>    </span><span id="local-6989586621679100066"><span class="annot"><span class="annottext">takeWhile :: (Char -&gt; Bool) -&gt; Text -&gt; Text
+</span><a href="Data.ListLike.Base.html#takeWhile"><span class="hs-identifier hs-var hs-var hs-var hs-var">takeWhile</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Char -&gt; Bool) -&gt; Text -&gt; Text
+</span><span class="hs-identifier hs-var">T.takeWhile</span></span><span>
+</span><span id="line-55"></span><span>    </span><span id="local-6989586621679100063"><span class="annot"><span class="annottext">dropWhile :: (Char -&gt; Bool) -&gt; Text -&gt; Text
+</span><a href="Data.ListLike.Base.html#dropWhile"><span class="hs-identifier hs-var hs-var hs-var hs-var">dropWhile</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Char -&gt; Bool) -&gt; Text -&gt; Text
+</span><span class="hs-identifier hs-var">T.dropWhile</span></span><span>
+</span><span id="line-56"></span><span>    </span><span id="local-6989586621679100060"><span class="annot"><span class="annottext">span :: (Char -&gt; Bool) -&gt; Text -&gt; (Text, Text)
+</span><a href="Data.ListLike.Base.html#span"><span class="hs-identifier hs-var hs-var hs-var hs-var">span</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Char -&gt; Bool) -&gt; Text -&gt; (Text, Text)
+</span><span class="hs-identifier hs-var">T.span</span></span><span>
+</span><span id="line-57"></span><span>    </span><span id="local-6989586621679100057"><span class="annot"><span class="annottext">break :: (Char -&gt; Bool) -&gt; Text -&gt; (Text, Text)
+</span><a href="Data.ListLike.Base.html#break"><span class="hs-identifier hs-var hs-var hs-var hs-var">break</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Char -&gt; Bool) -&gt; Text -&gt; (Text, Text)
+</span><span class="hs-identifier hs-var">T.break</span></span><span>
+</span><span id="line-58"></span><span>    </span><span id="local-6989586621679100047"><span class="annot"><span class="annottext">group :: forall full'. (ListLike full' Text, Eq Char) =&gt; Text -&gt; full'
+</span><a href="Data.ListLike.Base.html#group"><span class="hs-identifier hs-var hs-var hs-var hs-var">group</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall l. IsList l =&gt; [Item l] -&gt; l
+</span><span class="hs-identifier hs-var">fromList</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; [Text]
+</span><span class="hs-identifier hs-var">T.group</span></span><span>
+</span><span id="line-59"></span><span>    </span><span id="local-6989586621679100038"><span class="annot"><span class="annottext">inits :: forall full'. ListLike full' Text =&gt; Text -&gt; full'
+</span><a href="Data.ListLike.Base.html#inits"><span class="hs-identifier hs-var hs-var hs-var hs-var">inits</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall l. IsList l =&gt; [Item l] -&gt; l
+</span><span class="hs-identifier hs-var">fromList</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; [Text]
+</span><span class="hs-identifier hs-var">T.inits</span></span><span>
+</span><span id="line-60"></span><span>    </span><span id="local-6989586621679100029"><span class="annot"><span class="annottext">tails :: forall full'. ListLike full' Text =&gt; Text -&gt; full'
+</span><a href="Data.ListLike.Base.html#tails"><span class="hs-identifier hs-var hs-var hs-var hs-var">tails</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall l. IsList l =&gt; [Item l] -&gt; l
+</span><span class="hs-identifier hs-var">fromList</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; [Text]
+</span><span class="hs-identifier hs-var">T.tails</span></span><span>
+</span><span id="line-61"></span><span>    </span><span id="local-6989586621679100025"><span class="annot"><span class="annottext">isPrefixOf :: Eq Char =&gt; Text -&gt; Text -&gt; Bool
+</span><a href="Data.ListLike.Base.html#isPrefixOf"><span class="hs-identifier hs-var hs-var hs-var hs-var">isPrefixOf</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Bool
+</span><span class="hs-identifier hs-var">T.isPrefixOf</span></span><span>
+</span><span id="line-62"></span><span>    </span><span id="local-6989586621679100021"><span class="annot"><span class="annottext">isSuffixOf :: Eq Char =&gt; Text -&gt; Text -&gt; Bool
+</span><a href="Data.ListLike.Base.html#isSuffixOf"><span class="hs-identifier hs-var hs-var hs-var hs-var">isSuffixOf</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Bool
+</span><span class="hs-identifier hs-var">T.isSuffixOf</span></span><span>
+</span><span id="line-63"></span><span>    </span><span id="local-6989586621679100017"><span class="annot"><span class="annottext">stripPrefix :: Eq Char =&gt; Text -&gt; Text -&gt; Maybe Text
+</span><a href="Data.ListLike.Base.html#stripPrefix"><span class="hs-identifier hs-var hs-var hs-var hs-var">stripPrefix</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Maybe Text
+</span><span class="hs-identifier hs-var">T.stripPrefix</span></span><span>
+</span><span id="line-64"></span><span>    </span><span id="local-6989586621679100013"><span class="annot"><span class="annottext">stripSuffix :: Eq Char =&gt; Text -&gt; Text -&gt; Maybe Text
+</span><a href="Data.ListLike.Base.html#stripSuffix"><span class="hs-identifier hs-var hs-var hs-var hs-var">stripSuffix</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Maybe Text
+</span><span class="hs-identifier hs-var">T.stripSuffix</span></span><span>
+</span><span id="line-65"></span><span>    </span><span id="local-6989586621679100009"><span class="annot"><span class="annottext">elem :: Eq Char =&gt; Char -&gt; Text -&gt; Bool
+</span><a href="Data.ListLike.Base.html#elem"><span class="hs-identifier hs-var hs-var hs-var hs-var">elem</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Bool
+</span><span class="hs-identifier hs-var">T.isInfixOf</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Text
+</span><span class="hs-identifier hs-var">T.singleton</span></span><span>
+</span><span id="line-66"></span><span>    </span><span id="local-6989586621679100006"><span class="annot"><span class="annottext">find :: (Char -&gt; Bool) -&gt; Text -&gt; Maybe Char
+</span><a href="Data.ListLike.Base.html#find"><span class="hs-identifier hs-var hs-var hs-var hs-var">find</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Char -&gt; Bool) -&gt; Text -&gt; Maybe Char
+</span><span class="hs-identifier hs-var">T.find</span></span><span>
+</span><span id="line-67"></span><span>    </span><span id="local-6989586621679100003"><span class="annot"><span class="annottext">filter :: (Char -&gt; Bool) -&gt; Text -&gt; Text
+</span><a href="Data.ListLike.Base.html#filter"><span class="hs-identifier hs-var hs-var hs-var hs-var">filter</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Char -&gt; Bool) -&gt; Text -&gt; Text
+</span><span class="hs-identifier hs-var">T.filter</span></span><span>
+</span><span id="line-68"></span><span>    </span><span id="local-6989586621679100000"><span class="annot"><span class="annottext">index :: Text -&gt; Int -&gt; Char
+</span><a href="Data.ListLike.Base.html#index"><span class="hs-identifier hs-var hs-var hs-var hs-var">index</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Int -&gt; Char
+</span><span class="hs-identifier hs-var">T.index</span></span><span>
+</span><span id="line-69"></span><span>    </span><span id="local-6989586621679099997"><span class="annot"><span class="annottext">findIndex :: (Char -&gt; Bool) -&gt; Text -&gt; Maybe Int
+</span><a href="Data.ListLike.Base.html#findIndex"><span class="hs-identifier hs-var hs-var hs-var hs-var">findIndex</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Char -&gt; Bool) -&gt; Text -&gt; Maybe Int
+</span><span class="hs-identifier hs-var">T.findIndex</span></span><span>
+</span><span id="line-70"></span><span>    </span><span class="hs-comment">--toList = T.unpack</span><span>
+</span><span id="line-71"></span><span>    </span><span class="hs-comment">--fromList = T.pack</span><span>
+</span><span id="line-72"></span><span>    </span><span class="hs-comment">--fromListLike = fromList . toList</span><span>
+</span><span id="line-73"></span><span>    </span><span id="local-6989586621679099987"><span class="annot"><span class="annottext">groupBy :: forall full'.
+(ListLike full' Text, Eq Char) =&gt;
+(Char -&gt; Char -&gt; Bool) -&gt; Text -&gt; full'
+</span><a href="Data.ListLike.Base.html#groupBy"><span class="hs-identifier hs-var hs-var hs-var hs-var">groupBy</span></a></span></span><span> </span><span id="local-6989586621679099985"><span class="annot"><span class="annottext">Char -&gt; Char -&gt; Bool
+</span><a href="#local-6989586621679099985"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall l. IsList l =&gt; [Item l] -&gt; l
+</span><span class="hs-identifier hs-var">fromList</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Char -&gt; Char -&gt; Bool) -&gt; Text -&gt; [Text]
+</span><span class="hs-identifier hs-var">T.groupBy</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Char -&gt; Bool
+</span><a href="#local-6989586621679099985"><span class="hs-identifier hs-var">f</span></a></span><span>
+</span><span id="line-74"></span><span>    </span><span id="local-6989586621679099977"><span class="annot"><span class="annottext">genericLength :: forall a. Num a =&gt; Text -&gt; a
+</span><a href="Data.ListLike.Base.html#genericLength"><span class="hs-identifier hs-var hs-var hs-var hs-var">genericLength</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; Integer -&gt; a
+</span><span class="hs-identifier hs-var">fromInteger</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Int
+</span><span class="hs-identifier hs-var">T.length</span></span><span>
+</span><span id="line-75"></span><span>    </span><span id="local-6989586621679099971"><span class="annot"><span class="annottext">genericTake :: forall a. Integral a =&gt; a -&gt; Text -&gt; Text
+</span><a href="Data.ListLike.Base.html#genericTake"><span class="hs-identifier hs-var hs-var hs-var hs-var">genericTake</span></a></span></span><span> </span><span id="local-6989586621679099969"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679099969"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Text -&gt; Text
+</span><span class="hs-identifier hs-var">T.take</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679099969"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-76"></span><span>    </span><span id="local-6989586621679099965"><span class="annot"><span class="annottext">genericDrop :: forall a. Integral a =&gt; a -&gt; Text -&gt; Text
+</span><a href="Data.ListLike.Base.html#genericDrop"><span class="hs-identifier hs-var hs-var hs-var hs-var">genericDrop</span></a></span></span><span> </span><span id="local-6989586621679099963"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679099963"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Text -&gt; Text
+</span><span class="hs-identifier hs-var">T.drop</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679099963"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-77"></span><span>    </span><span id="local-6989586621679099959"><span class="annot"><span class="annottext">genericSplitAt :: forall a. Integral a =&gt; a -&gt; Text -&gt; (Text, Text)
+</span><a href="Data.ListLike.Base.html#genericSplitAt"><span class="hs-identifier hs-var hs-var hs-var hs-var">genericSplitAt</span></a></span></span><span> </span><span id="local-6989586621679099957"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679099957"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Text -&gt; (Text, Text)
+</span><span class="hs-identifier hs-var">T.splitAt</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679099957"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-78"></span><span>    </span><span id="local-6989586621679099952"><span class="annot"><span class="annottext">genericReplicate :: forall a. Integral a =&gt; a -&gt; Char -&gt; Text
+</span><a href="Data.ListLike.Base.html#genericReplicate"><span class="hs-identifier hs-var hs-var hs-var hs-var">genericReplicate</span></a></span></span><span> </span><span id="local-6989586621679099950"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679099950"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall full item. ListLike full item =&gt; Int -&gt; item -&gt; full
+</span><a href="Data.ListLike.Base.html#replicate"><span class="hs-identifier hs-var">LL.replicate</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679099950"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-79"></span><span>
+</span><span id="line-80"></span><span>    </span><span id="local-6989586621679099935"><span class="annot"><span class="annottext">sequence :: forall (m :: * -&gt; *) fullinp.
+(Applicative m, ListLike fullinp (m Char)) =&gt;
+fullinp -&gt; m Text
+</span><a href="Data.ListLike.Base.html#sequence"><span class="hs-identifier hs-var hs-var hs-var hs-var">sequence</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">forall l. IsList l =&gt; [Item l] -&gt; l
+</span><span class="hs-identifier hs-var">fromList</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) (f :: * -&gt; *) a.
+(Traversable t, Applicative f) =&gt;
+t (f a) -&gt; f (t a)
+</span><span class="hs-identifier hs-var">P.sequenceA</span></span><span>  </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall l. IsList l =&gt; l -&gt; [Item l]
+</span><span class="hs-identifier hs-var">toList</span></span><span>
+</span><span id="line-81"></span><span>    </span><span id="local-6989586621679099920"><span class="annot"><span class="annottext">mapM :: forall (m :: * -&gt; *) full' item'.
+(Applicative m, ListLike full' item') =&gt;
+(Char -&gt; m item') -&gt; Text -&gt; m full'
+</span><a href="Data.ListLike.Base.html#mapM"><span class="hs-identifier hs-var hs-var hs-var hs-var">mapM</span></a></span></span><span> </span><span id="local-6989586621679099918"><span class="annot"><span class="annottext">Char -&gt; m item'
+</span><a href="#local-6989586621679099918"><span class="hs-identifier hs-var">func</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">forall l. IsList l =&gt; [Item l] -&gt; l
+</span><span class="hs-identifier hs-var">fromList</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) (f :: * -&gt; *) a b.
+(Traversable t, Applicative f) =&gt;
+(a -&gt; f b) -&gt; t a -&gt; f (t b)
+</span><span class="hs-identifier hs-var">P.traverse</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; m item'
+</span><a href="#local-6989586621679099918"><span class="hs-identifier hs-var">func</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall l. IsList l =&gt; l -&gt; [Item l]
+</span><span class="hs-identifier hs-var">toList</span></span><span>
+</span><span id="line-82"></span><span>
+</span><span id="line-83"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.ListLike.IO.html#ListLikeIO"><span class="hs-identifier hs-type">ListLikeIO</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">T.Text</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Char</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-84"></span><span>    </span><span id="local-6989586621679099898"><span class="annot"><span class="annottext">hGetLine :: Handle -&gt; IO Text
+</span><a href="Data.ListLike.IO.html#hGetLine"><span class="hs-identifier hs-var hs-var hs-var hs-var">hGetLine</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Handle -&gt; IO Text
+</span><span class="hs-identifier hs-var">TI.hGetLine</span></span><span>
+</span><span id="line-85"></span><span>    </span><span id="local-6989586621679099895"><span class="annot"><span class="annottext">hGetContents :: Handle -&gt; IO Text
+</span><a href="Data.ListLike.IO.html#hGetContents"><span class="hs-identifier hs-var hs-var hs-var hs-var">hGetContents</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Handle -&gt; IO Text
+</span><span class="hs-identifier hs-var">TI.hGetContents</span></span><span>
+</span><span id="line-86"></span><span>    </span><span id="local-6989586621679099889"><span class="annot"><span class="annottext">hGet :: Handle -&gt; Int -&gt; IO Text
+</span><a href="Data.ListLike.IO.html#hGet"><span class="hs-identifier hs-var hs-var hs-var hs-var">hGet</span></a></span></span><span> </span><span id="local-6989586621679099887"><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621679099887"><span class="hs-identifier hs-var">h</span></a></span></span><span> </span><span id="local-6989586621679099886"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679099886"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Handle -&gt; Int -&gt; IO ByteString
+</span><span class="hs-identifier hs-var">BS.hGet</span></span><span> </span><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621679099887"><span class="hs-identifier hs-var">h</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679099886"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Text
+</span><span class="hs-identifier hs-var">decodeUtf8</span></span><span>
+</span><span id="line-87"></span><span>    </span><span id="local-6989586621679099882"><span class="annot"><span class="annottext">hGetNonBlocking :: Handle -&gt; Int -&gt; IO Text
+</span><a href="Data.ListLike.IO.html#hGetNonBlocking"><span class="hs-identifier hs-var hs-var hs-var hs-var">hGetNonBlocking</span></a></span></span><span> </span><span id="local-6989586621679099880"><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621679099880"><span class="hs-identifier hs-var">h</span></a></span></span><span> </span><span id="local-6989586621679099879"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679099879"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Handle -&gt; Int -&gt; IO ByteString
+</span><span class="hs-identifier hs-var">BS.hGetNonBlocking</span></span><span> </span><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621679099880"><span class="hs-identifier hs-var">h</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679099879"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Text
+</span><span class="hs-identifier hs-var">decodeUtf8</span></span><span>
+</span><span id="line-88"></span><span>    </span><span id="local-6989586621679099877"><span class="annot"><span class="annottext">hPutStr :: Handle -&gt; Text -&gt; IO ()
+</span><a href="Data.ListLike.IO.html#hPutStr"><span class="hs-identifier hs-var hs-var hs-var hs-var">hPutStr</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Handle -&gt; Text -&gt; IO ()
+</span><span class="hs-identifier hs-var">TI.hPutStr</span></span><span>
+</span><span id="line-89"></span><span>    </span><span id="local-6989586621679099874"><span class="annot"><span class="annottext">hPutStrLn :: Handle -&gt; Text -&gt; IO ()
+</span><a href="Data.ListLike.IO.html#hPutStrLn"><span class="hs-identifier hs-var hs-var hs-var hs-var">hPutStrLn</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Handle -&gt; Text -&gt; IO ()
+</span><span class="hs-identifier hs-var">TI.hPutStrLn</span></span><span>
+</span><span id="line-90"></span><span>    </span><span id="local-6989586621679099871"><span class="annot"><span class="annottext">getLine :: IO Text
+</span><a href="Data.ListLike.IO.html#getLine"><span class="hs-identifier hs-var hs-var hs-var hs-var">getLine</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO Text
+</span><span class="hs-identifier hs-var">TI.getLine</span></span><span>
+</span><span id="line-91"></span><span>    </span><span id="local-6989586621679099868"><span class="annot"><span class="annottext">getContents :: IO Text
+</span><a href="Data.ListLike.IO.html#getContents"><span class="hs-identifier hs-var hs-var hs-var hs-var">getContents</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO Text
+</span><span class="hs-identifier hs-var">TI.getContents</span></span><span>
+</span><span id="line-92"></span><span>    </span><span id="local-6989586621679099865"><span class="annot"><span class="annottext">putStr :: Text -&gt; IO ()
+</span><a href="Data.ListLike.IO.html#putStr"><span class="hs-identifier hs-var hs-var hs-var hs-var">putStr</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; IO ()
+</span><span class="hs-identifier hs-var">TI.putStr</span></span><span>
+</span><span id="line-93"></span><span>    </span><span id="local-6989586621679099862"><span class="annot"><span class="annottext">putStrLn :: Text -&gt; IO ()
+</span><a href="Data.ListLike.IO.html#putStrLn"><span class="hs-identifier hs-var hs-var hs-var hs-var">putStrLn</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; IO ()
+</span><span class="hs-identifier hs-var">TI.putStrLn</span></span><span>
+</span><span id="line-94"></span><span>    </span><span id="local-6989586621679099859"><span class="annot"><span class="annottext">interact :: (Text -&gt; Text) -&gt; IO ()
+</span><a href="Data.ListLike.IO.html#interact"><span class="hs-identifier hs-var hs-var hs-var hs-var">interact</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Text -&gt; Text) -&gt; IO ()
+</span><span class="hs-identifier hs-var">TI.interact</span></span><span>
+</span><span id="line-95"></span><span>    </span><span id="local-6989586621679099856"><span class="annot"><span class="annottext">readFile :: [Char] -&gt; IO Text
+</span><a href="Data.ListLike.IO.html#readFile"><span class="hs-identifier hs-var hs-var hs-var hs-var">readFile</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; IO Text
+</span><span class="hs-identifier hs-var">TI.readFile</span></span><span>
+</span><span id="line-96"></span><span>    </span><span id="local-6989586621679099853"><span class="annot"><span class="annottext">writeFile :: [Char] -&gt; Text -&gt; IO ()
+</span><a href="Data.ListLike.IO.html#writeFile"><span class="hs-identifier hs-var hs-var hs-var hs-var">writeFile</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; Text -&gt; IO ()
+</span><span class="hs-identifier hs-var">TI.writeFile</span></span><span>
+</span><span id="line-97"></span><span>    </span><span id="local-6989586621679099850"><span class="annot"><span class="annottext">appendFile :: [Char] -&gt; Text -&gt; IO ()
+</span><a href="Data.ListLike.IO.html#appendFile"><span class="hs-identifier hs-var hs-var hs-var hs-var">appendFile</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; Text -&gt; IO ()
+</span><span class="hs-identifier hs-var">TI.appendFile</span></span><span>
+</span><span id="line-98"></span><span>
+</span><span id="line-99"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679099836"><span id="local-6989586621679099838"><span class="annot"><a href="Data.ListLike.String.html#StringLike"><span class="hs-identifier hs-type">StringLike</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">T.Text</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-100"></span><span>    </span><span id="local-6989586621679099832"><span class="annot"><span class="annottext">toString :: Text -&gt; [Char]
+</span><a href="Data.ListLike.String.html#toString"><span class="hs-identifier hs-var hs-var hs-var hs-var">toString</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; [Char]
+</span><span class="hs-identifier hs-var">T.unpack</span></span><span>
+</span><span id="line-101"></span><span>    </span><span id="local-6989586621679099823"><span class="annot"><span class="annottext">words :: forall full'. ListLike full' Text =&gt; Text -&gt; full'
+</span><a href="Data.ListLike.String.html#words"><span class="hs-identifier hs-var hs-var hs-var hs-var">words</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall l. IsList l =&gt; [Item l] -&gt; l
+</span><span class="hs-identifier hs-var">fromList</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; [Text]
+</span><span class="hs-identifier hs-var">T.words</span></span><span>
+</span><span id="line-102"></span><span>    </span><span id="local-6989586621679099814"><span class="annot"><span class="annottext">lines :: forall full'. ListLike full' Text =&gt; Text -&gt; full'
+</span><a href="Data.ListLike.String.html#lines"><span class="hs-identifier hs-var hs-var hs-var hs-var">lines</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall l. IsList l =&gt; [Item l] -&gt; l
+</span><span class="hs-identifier hs-var">fromList</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; [Text]
+</span><span class="hs-identifier hs-var">T.lines</span></span><span>
+</span><span id="line-103"></span><span>    </span><span id="local-6989586621679099805"><span class="annot"><span class="annottext">unwords :: forall full'. ListLike full' Text =&gt; full' -&gt; Text
+</span><a href="Data.ListLike.String.html#unwords"><span class="hs-identifier hs-var hs-var hs-var hs-var">unwords</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Text] -&gt; Text
+</span><span class="hs-identifier hs-var">T.unwords</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall l. IsList l =&gt; l -&gt; [Item l]
+</span><span class="hs-identifier hs-var">toList</span></span><span>
+</span><span id="line-104"></span><span>    </span><span id="local-6989586621679099796"><span class="annot"><span class="annottext">unlines :: forall full'. ListLike full' Text =&gt; full' -&gt; Text
+</span><a href="Data.ListLike.String.html#unlines"><span class="hs-identifier hs-var hs-var hs-var hs-var">unlines</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Text] -&gt; Text
+</span><span class="hs-identifier hs-var">T.unlines</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall l. IsList l =&gt; l -&gt; [Item l]
+</span><span class="hs-identifier hs-var">toList</span></span><span>
+</span><span id="line-105"></span><span>
+</span><span id="line-106"></span><span>    </span><span id="local-6989586621679099792"><span class="annot"><span class="annottext">fromText :: StringLike Text =&gt; Text -&gt; Text
+</span><a href="Data.ListLike.String.html#fromText"><span class="hs-identifier hs-var hs-var hs-var hs-var">fromText</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span>
+</span><span id="line-107"></span><span>    </span><span id="local-6989586621679099788"><span class="annot"><span class="annottext">fromLazyText :: StringLike Text =&gt; Text -&gt; Text
+</span><a href="Data.ListLike.String.html#fromLazyText"><span class="hs-identifier hs-var hs-var hs-var hs-var">fromLazyText</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text
+</span><span class="hs-identifier hs-var">Lazy.toStrict</span></span><span>
+</span><span id="line-108"></span></pre></body></html>

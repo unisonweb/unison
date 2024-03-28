@@ -1,0 +1,195 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- THIS IS A GENERATED FILE, DO NOT EDIT</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-imports #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-matches #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-deprecations #-}</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.FormattingOptions</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Hashable</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html"><span class="hs-identifier">Language.LSP.Protocol.Utils.Misc</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prettyprinter</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Aeson.html"><span class="hs-identifier">Data.Row.Aeson</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Hashable.html"><span class="hs-identifier">Data.Row.Hashable</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Hashable</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html"><span class="hs-identifier">Language.LSP.Protocol.Types.Common</span></a></span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="hs-comment">{-|
+Value-object describing what options formatting should use.
+-}</span><span>
+</span><span id="line-21"></span><span id="local-6989586621682177905"><span id="local-6989586621682177906"></span></span><span class="hs-keyword">data</span><span> </span><span id="FormattingOptions"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.FormattingOptions.html#FormattingOptions"><span class="hs-identifier hs-var">FormattingOptions</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="FormattingOptions"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.FormattingOptions.html#FormattingOptions"><span class="hs-identifier hs-var">FormattingOptions</span></a></span></span><span> </span><span>
+</span><span id="line-22"></span><span>  </span><span class="hs-special">{</span><span> </span><span class="hs-comment">{-|
+  Size of a tab in spaces.
+  -}</span><span>
+</span><span id="line-25"></span><span>  </span><span id="%24sel%3A_tabSize%3AFormattingOptions"><span class="annot"><span class="annottext">FormattingOptions -&gt; UInt
+</span><a href="Language.LSP.Protocol.Internal.Types.FormattingOptions.html#%24sel%3A_tabSize%3AFormattingOptions"><span class="hs-identifier hs-var hs-var">_tabSize</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#UInt"><span class="hs-identifier hs-type">Language.LSP.Protocol.Types.Common.UInt</span></a></span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-comment">{-|
+  Prefer spaces over tabs.
+  -}</span><span>
+</span><span id="line-29"></span><span>  </span><span id="%24sel%3A_insertSpaces%3AFormattingOptions"><span class="annot"><span class="annottext">FormattingOptions -&gt; Bool
+</span><a href="Language.LSP.Protocol.Internal.Types.FormattingOptions.html#%24sel%3A_insertSpaces%3AFormattingOptions"><span class="hs-identifier hs-var hs-var">_insertSpaces</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-comment">{-|
+  Trim trailing whitespace on a line.
+
+  @since 3.15.0
+  -}</span><span>
+</span><span id="line-35"></span><span>  </span><span id="%24sel%3A_trimTrailingWhitespace%3AFormattingOptions"><span class="annot"><span class="annottext">FormattingOptions -&gt; Maybe Bool
+</span><a href="Language.LSP.Protocol.Internal.Types.FormattingOptions.html#%24sel%3A_trimTrailingWhitespace%3AFormattingOptions"><span class="hs-identifier hs-var hs-var">_trimTrailingWhitespace</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-comment">{-|
+  Insert a newline character at the end of the file if one does not exist.
+
+  @since 3.15.0
+  -}</span><span>
+</span><span id="line-41"></span><span>  </span><span id="%24sel%3A_insertFinalNewline%3AFormattingOptions"><span class="annot"><span class="annottext">FormattingOptions -&gt; Maybe Bool
+</span><a href="Language.LSP.Protocol.Internal.Types.FormattingOptions.html#%24sel%3A_insertFinalNewline%3AFormattingOptions"><span class="hs-identifier hs-var hs-var">_insertFinalNewline</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-comment">{-|
+  Trim all newlines after the final newline at the end of the file.
+
+  @since 3.15.0
+  -}</span><span>
+</span><span id="line-47"></span><span>  </span><span id="%24sel%3A_trimFinalNewlines%3AFormattingOptions"><span class="annot"><span class="annottext">FormattingOptions -&gt; Maybe Bool
+</span><a href="Language.LSP.Protocol.Internal.Types.FormattingOptions.html#%24sel%3A_trimFinalNewlines%3AFormattingOptions"><span class="hs-identifier hs-var hs-var">_trimFinalNewlines</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span>
+</span><span id="line-48"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-49"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682177883"><span id="local-6989586621682177885"><span id="local-6989586621682177897"><span class="annot"><span class="annottext">Int -&gt; FormattingOptions -&gt; ShowS
+[FormattingOptions] -&gt; ShowS
+FormattingOptions -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [FormattingOptions] -&gt; ShowS
+$cshowList :: [FormattingOptions] -&gt; ShowS
+show :: FormattingOptions -&gt; String
+$cshow :: FormattingOptions -&gt; String
+showsPrec :: Int -&gt; FormattingOptions -&gt; ShowS
+$cshowsPrec :: Int -&gt; FormattingOptions -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682177870"><span id="local-6989586621682177880"><span class="annot"><span class="annottext">FormattingOptions -&gt; FormattingOptions -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: FormattingOptions -&gt; FormattingOptions -&gt; Bool
+$c/= :: FormattingOptions -&gt; FormattingOptions -&gt; Bool
+== :: FormattingOptions -&gt; FormattingOptions -&gt; Bool
+$c== :: FormattingOptions -&gt; FormattingOptions -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682177837"><span id="local-6989586621682177839"><span id="local-6989586621682177842"><span id="local-6989586621682177845"><span id="local-6989586621682177848"><span id="local-6989586621682177855"><span id="local-6989586621682177865"><span class="annot"><span class="annottext">Eq FormattingOptions
+FormattingOptions -&gt; FormattingOptions -&gt; Bool
+FormattingOptions -&gt; FormattingOptions -&gt; Ordering
+FormattingOptions -&gt; FormattingOptions -&gt; FormattingOptions
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: FormattingOptions -&gt; FormattingOptions -&gt; FormattingOptions
+$cmin :: FormattingOptions -&gt; FormattingOptions -&gt; FormattingOptions
+max :: FormattingOptions -&gt; FormattingOptions -&gt; FormattingOptions
+$cmax :: FormattingOptions -&gt; FormattingOptions -&gt; FormattingOptions
+&gt;= :: FormattingOptions -&gt; FormattingOptions -&gt; Bool
+$c&gt;= :: FormattingOptions -&gt; FormattingOptions -&gt; Bool
+&gt; :: FormattingOptions -&gt; FormattingOptions -&gt; Bool
+$c&gt; :: FormattingOptions -&gt; FormattingOptions -&gt; Bool
+&lt;= :: FormattingOptions -&gt; FormattingOptions -&gt; Bool
+$c&lt;= :: FormattingOptions -&gt; FormattingOptions -&gt; Bool
+&lt; :: FormattingOptions -&gt; FormattingOptions -&gt; Bool
+$c&lt; :: FormattingOptions -&gt; FormattingOptions -&gt; Bool
+compare :: FormattingOptions -&gt; FormattingOptions -&gt; Ordering
+$ccompare :: FormattingOptions -&gt; FormattingOptions -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall x. Rep FormattingOptions x -&gt; FormattingOptions
+forall x. FormattingOptions -&gt; Rep FormattingOptions x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cto :: forall x. Rep FormattingOptions x -&gt; FormattingOptions
+$cfrom :: forall x. FormattingOptions -&gt; Rep FormattingOptions x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-50"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">anyclass</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682177831"><span class="annot"><span class="annottext">FormattingOptions -&gt; ()
+forall a. (a -&gt; ()) -&gt; NFData a
+rnf :: FormattingOptions -&gt; ()
+$crnf :: FormattingOptions -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682177824"><span id="local-6989586621682177826"><span class="annot"><span class="annottext">Eq FormattingOptions
+Int -&gt; FormattingOptions -&gt; Int
+FormattingOptions -&gt; Int
+forall a. Eq a -&gt; (Int -&gt; a -&gt; Int) -&gt; (a -&gt; Int) -&gt; Hashable a
+hash :: FormattingOptions -&gt; Int
+$chash :: FormattingOptions -&gt; Int
+hashWithSalt :: Int -&gt; FormattingOptions -&gt; Int
+$chashWithSalt :: Int -&gt; FormattingOptions -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Hashable</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-51"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621682177815"><span id="local-6989586621682177821"><span class="annot"><span class="annottext">forall ann. [FormattingOptions] -&gt; Doc ann
+forall ann. FormattingOptions -&gt; Doc ann
+forall a.
+(forall ann. a -&gt; Doc ann)
+-&gt; (forall ann. [a] -&gt; Doc ann) -&gt; Pretty a
+prettyList :: forall ann. [FormattingOptions] -&gt; Doc ann
+$cprettyList :: forall ann. [FormattingOptions] -&gt; Doc ann
+pretty :: forall ann. FormattingOptions -&gt; Doc ann
+$cpretty :: forall ann. FormattingOptions -&gt; Doc ann
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Pretty</span></span></span></span><span> </span><span class="hs-keyword">via</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html#ViaJSON"><span class="hs-identifier hs-type">ViaJSON</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.FormattingOptions.html#FormattingOptions"><span class="hs-identifier hs-type">FormattingOptions</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-52"></span><span>
+</span><span id="line-53"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682177803"><span id="local-6989586621682177805"><span id="local-6989586621682177807"><span class="annot"><span class="hs-identifier hs-type">Aeson.ToJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.FormattingOptions.html#FormattingOptions"><span class="hs-identifier hs-type">FormattingOptions</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-54"></span><span>  </span><span id="local-6989586621682177783"><span class="annot"><span class="annottext">toJSON :: FormattingOptions -&gt; Value
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">toJSON</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.FormattingOptions.html#FormattingOptions"><span class="hs-identifier hs-type">FormattingOptions</span></a></span><span> </span><span id="local-6989586621682177781"><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621682177781"><span class="hs-identifier hs-var">arg0</span></a></span></span><span> </span><span id="local-6989586621682177780"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682177780"><span class="hs-identifier hs-var">arg1</span></a></span></span><span> </span><span id="local-6989586621682177779"><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682177779"><span class="hs-identifier hs-var">arg2</span></a></span></span><span> </span><span id="local-6989586621682177778"><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682177778"><span class="hs-identifier hs-var">arg3</span></a></span></span><span> </span><span id="local-6989586621682177777"><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682177777"><span class="hs-identifier hs-var">arg4</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">Aeson.object</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">concat</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>  </span><span class="hs-special">[</span><span class="hs-special">[</span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;tabSize&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">Aeson..=</span></span><span> </span><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621682177781"><span class="hs-identifier hs-var">arg0</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-55"></span><span>    </span><span class="hs-special">,</span><span class="hs-special">[</span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;insertSpaces&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">Aeson..=</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682177780"><span class="hs-identifier hs-var">arg1</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-56"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;trimTrailingWhitespace&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682177779"><span class="hs-identifier hs-var">arg2</span></a></span><span>
+</span><span id="line-57"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;insertFinalNewline&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682177778"><span class="hs-identifier hs-var">arg3</span></a></span><span>
+</span><span id="line-58"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;trimFinalNewlines&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682177777"><span class="hs-identifier hs-var">arg4</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682177770"><span class="annot"><span class="hs-identifier hs-type">Aeson.FromJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.FormattingOptions.html#FormattingOptions"><span class="hs-identifier hs-type">FormattingOptions</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-61"></span><span>  </span><span id="local-6989586621682177749"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser FormattingOptions
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">Aeson.withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;FormattingOptions&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621682177746"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682177746"><span class="hs-identifier hs-var">arg</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">UInt
+-&gt; Bool
+-&gt; Maybe Bool
+-&gt; Maybe Bool
+-&gt; Maybe Bool
+-&gt; FormattingOptions
+</span><a href="Language.LSP.Protocol.Internal.Types.FormattingOptions.html#FormattingOptions"><span class="hs-identifier hs-var">FormattingOptions</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682177746"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">Aeson..:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;tabSize&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682177746"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">Aeson..:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;insertSpaces&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682177746"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">Aeson..:!</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;trimTrailingWhitespace&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682177746"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">Aeson..:!</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;insertFinalNewline&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682177746"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">Aeson..:!</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;trimFinalNewlines&quot;</span></span><span>
+</span><span id="line-62"></span></pre></body></html>

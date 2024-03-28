@@ -1,0 +1,189 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE MultiParamTypeClasses, FlexibleInstances, TypeFamilies #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# OPTIONS -fno-warn-orphans #-}</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- | 'Data.ListLike.ListLike' instances for 'Data.FMList.FMList'</span><span>
+</span><span id="line-4"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Data.ListLike.FMList</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">cycle</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">map</span></span><span class="hs-special">)</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.ListLike.Base.html"><span class="hs-identifier">Data.ListLike.Base</span></a></span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.ListLike.FoldableLL.html"><span class="hs-identifier">Data.ListLike.FoldableLL</span></a></span><span>
+</span><span id="line-8"></span><span class="hs-comment">--import Data.ListLike.IO</span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.ListLike.String.html"><span class="hs-identifier">Data.ListLike.String</span></a></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.FMList</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">FMList</span></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.FMList</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">FM</span></span><span>
+</span><span id="line-12"></span><span class="hs-comment">--import Data.Foldable (Foldable)</span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Foldable</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">F</span></span><span>
+</span><span id="line-14"></span><span class="hs-comment">--import Data.Traversable (Traversable)</span><span>
+</span><span id="line-15"></span><span class="hs-comment">--import qualified Data.Traversable as T</span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.String</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">IsString</span></span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.String</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">S</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Zip</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">MonadZip</span></span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Zip</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Z</span></span><span>
+</span><span id="line-20"></span><span class="hs-comment">--import Data.Function</span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Exts</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">IsList</span></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679097607"><span class="annot"><a href="Data.ListLike.FoldableLL.html#FoldableLL"><span class="hs-identifier hs-type">FoldableLL</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">FMList</span></span><span> </span><span class="annot"><a href="#local-6989586621679097607"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679097607"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-24"></span><span>  </span><span id="local-6989586621679097367"><span class="annot"><span class="annottext">foldl :: forall a. (a -&gt; a -&gt; a) -&gt; a -&gt; FMList a -&gt; a
+</span><a href="Data.ListLike.FoldableLL.html#foldl"><span class="hs-identifier hs-var hs-var hs-var hs-var">foldl</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) b a.
+Foldable t =&gt;
+(b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><span class="hs-identifier hs-var">F.foldl</span></span><span>
+</span><span id="line-25"></span><span>  </span><span id="local-6989586621679097363"><span class="annot"><span class="annottext">foldr :: forall b. (a -&gt; b -&gt; b) -&gt; b -&gt; FMList a -&gt; b
+</span><a href="Data.ListLike.FoldableLL.html#foldr"><span class="hs-identifier hs-var hs-var hs-var hs-var">foldr</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a b.
+Foldable t =&gt;
+(a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><span class="hs-identifier hs-var">F.foldr</span></span><span>
+</span><span id="line-26"></span><span>  </span><span id="local-6989586621679097359"><span class="annot"><span class="annottext">foldl1 :: (a -&gt; a -&gt; a) -&gt; FMList a -&gt; a
+</span><a href="Data.ListLike.FoldableLL.html#foldl1"><span class="hs-identifier hs-var hs-var hs-var hs-var">foldl1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; (a -&gt; a -&gt; a) -&gt; t a -&gt; a
+</span><span class="hs-identifier hs-var">F.foldl1</span></span><span>
+</span><span id="line-27"></span><span>  </span><span id="local-6989586621679097355"><span class="annot"><span class="annottext">foldr1 :: (a -&gt; a -&gt; a) -&gt; FMList a -&gt; a
+</span><a href="Data.ListLike.FoldableLL.html#foldr1"><span class="hs-identifier hs-var hs-var hs-var hs-var">foldr1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; (a -&gt; a -&gt; a) -&gt; t a -&gt; a
+</span><span class="hs-identifier hs-var">F.foldr1</span></span><span>
+</span><span id="line-28"></span><span>  </span><span id="local-6989586621679097351"><span class="annot"><span class="annottext">foldl' :: forall a. (a -&gt; a -&gt; a) -&gt; a -&gt; FMList a -&gt; a
+</span><a href="Data.ListLike.FoldableLL.html#foldl%27"><span class="hs-identifier hs-var hs-var hs-var hs-var">foldl'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) b a.
+Foldable t =&gt;
+(b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><span class="hs-identifier hs-var">F.foldl'</span></span><span>
+</span><span id="line-29"></span><span>  </span><span id="local-6989586621679097347"><span class="annot"><span class="annottext">foldr' :: forall b. (a -&gt; b -&gt; b) -&gt; b -&gt; FMList a -&gt; b
+</span><a href="Data.ListLike.FoldableLL.html#foldr%27"><span class="hs-identifier hs-var hs-var hs-var hs-var">foldr'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a b.
+Foldable t =&gt;
+(a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><span class="hs-identifier hs-var">F.foldr'</span></span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679097342"><span id="local-6989586621679097598"><span class="annot"><span class="hs-identifier hs-type">IsList</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">FMList</span></span><span> </span><span class="annot"><a href="#local-6989586621679097598"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-32"></span><span>  </span><span class="hs-keyword">type</span><span> </span><span id="Item"><span class="annot"><span class="hs-identifier hs-var">Item</span></span></span><span> </span><span id="local-6989586621679097598"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">FMList</span></span><span> </span><span class="annot"><a href="#local-6989586621679097598"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621679097598"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-33"></span><span>  </span><span id="local-6989586621679097339"><span class="annot"><span class="annottext">fromList :: [Item (FMList a)] -&gt; FMList a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">fromList</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; FMList a
+</span><span class="hs-identifier hs-var">FM.fromList</span></span><span>
+</span><span id="line-34"></span><span>  </span><span id="local-6989586621679097336"><span class="annot"><span class="annottext">toList :: FMList a -&gt; [Item (FMList a)]
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">toList</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; [a]
+</span><span class="hs-identifier hs-var">FM.toList</span></span><span>
+</span><span id="line-35"></span><span>
+</span><span id="line-36"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679097191"><span id="local-6989586621679097193"><span id="local-6989586621679097195"><span id="local-6989586621679097197"><span id="local-6989586621679097200"><span id="local-6989586621679097202"><span id="local-6989586621679097204"><span id="local-6989586621679097206"><span id="local-6989586621679097208"><span id="local-6989586621679097210"><span id="local-6989586621679097212"><span id="local-6989586621679097214"><span id="local-6989586621679097216"><span id="local-6989586621679097218"><span id="local-6989586621679097220"><span id="local-6989586621679097222"><span id="local-6989586621679097224"><span id="local-6989586621679097226"><span id="local-6989586621679097228"><span id="local-6989586621679097230"><span id="local-6989586621679097232"><span id="local-6989586621679097234"><span id="local-6989586621679097236"><span id="local-6989586621679097238"><span id="local-6989586621679097240"><span id="local-6989586621679097242"><span id="local-6989586621679097244"><span id="local-6989586621679097246"><span id="local-6989586621679097248"><span id="local-6989586621679097250"><span id="local-6989586621679097252"><span id="local-6989586621679097255"><span id="local-6989586621679097257"><span id="local-6989586621679097259"><span id="local-6989586621679097261"><span id="local-6989586621679097263"><span id="local-6989586621679097265"><span id="local-6989586621679097267"><span id="local-6989586621679097269"><span id="local-6989586621679097271"><span id="local-6989586621679097273"><span id="local-6989586621679097275"><span id="local-6989586621679097277"><span id="local-6989586621679097279"><span id="local-6989586621679097281"><span id="local-6989586621679097285"><span id="local-6989586621679097289"><span id="local-6989586621679097291"><span id="local-6989586621679097293"><span id="local-6989586621679097295"><span id="local-6989586621679097297"><span id="local-6989586621679097299"><span id="local-6989586621679097301"><span id="local-6989586621679097303"><span id="local-6989586621679097305"><span id="local-6989586621679097308"><span id="local-6989586621679097310"><span id="local-6989586621679097317"><span id="local-6989586621679097571"><span class="annot"><a href="Data.ListLike.Base.html#ListLike"><span class="hs-identifier hs-type">ListLike</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">FMList</span></span><span> </span><span class="annot"><a href="#local-6989586621679097571"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679097571"><span class="hs-identifier hs-type">a</span></a></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-37"></span><span>  </span><span id="local-6989586621679097187"><span class="annot"><span class="annottext">empty :: FMList a
+</span><a href="Data.ListLike.Base.html#empty"><span class="hs-identifier hs-var hs-var hs-var hs-var">empty</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Alternative f =&gt; f a
+</span><span class="hs-identifier hs-var">FM.empty</span></span><span>
+</span><span id="line-38"></span><span>  </span><span id="local-6989586621679097184"><span class="annot"><span class="annottext">singleton :: a -&gt; FMList a
+</span><a href="Data.ListLike.Base.html#singleton"><span class="hs-identifier hs-var hs-var hs-var hs-var">singleton</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; FMList a
+</span><span class="hs-identifier hs-var">FM.singleton</span></span><span>
+</span><span id="line-39"></span><span>  </span><span id="local-6989586621679097181"><span class="annot"><span class="annottext">cons :: a -&gt; FMList a -&gt; FMList a
+</span><a href="Data.ListLike.Base.html#cons"><span class="hs-identifier hs-var hs-var hs-var hs-var">cons</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; FMList a -&gt; FMList a
+</span><span class="hs-identifier hs-var">FM.cons</span></span><span>
+</span><span id="line-40"></span><span>  </span><span id="local-6989586621679097178"><span class="annot"><span class="annottext">snoc :: FMList a -&gt; a -&gt; FMList a
+</span><a href="Data.ListLike.Base.html#snoc"><span class="hs-identifier hs-var hs-var hs-var hs-var">snoc</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. FMList a -&gt; a -&gt; FMList a
+</span><span class="hs-identifier hs-var">FM.snoc</span></span><span>
+</span><span id="line-41"></span><span>  </span><span id="local-6989586621679097175"><span class="annot"><span class="annottext">append :: FMList a -&gt; FMList a -&gt; FMList a
+</span><a href="Data.ListLike.Base.html#append"><span class="hs-identifier hs-var hs-var hs-var hs-var">append</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. FMList a -&gt; FMList a -&gt; FMList a
+</span><span class="hs-identifier hs-var">FM.append</span></span><span>
+</span><span id="line-42"></span><span>  </span><span id="local-6989586621679097172"><span class="annot"><span class="annottext">head :: FMList a -&gt; a
+</span><a href="Data.ListLike.Base.html#head"><span class="hs-identifier hs-var hs-var hs-var hs-var">head</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. FMList a -&gt; a
+</span><span class="hs-identifier hs-var">FM.head</span></span><span>
+</span><span id="line-43"></span><span>  </span><span id="local-6989586621679097169"><span class="annot"><span class="annottext">tail :: FMList a -&gt; FMList a
+</span><a href="Data.ListLike.Base.html#tail"><span class="hs-identifier hs-var hs-var hs-var hs-var">tail</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. FMList a -&gt; FMList a
+</span><span class="hs-identifier hs-var">FM.tail</span></span><span>
+</span><span id="line-44"></span><span>  </span><span id="local-6989586621679097166"><span class="annot"><span class="annottext">last :: FMList a -&gt; a
+</span><a href="Data.ListLike.Base.html#last"><span class="hs-identifier hs-var hs-var hs-var hs-var">last</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. FMList a -&gt; a
+</span><span class="hs-identifier hs-var">FM.last</span></span><span>
+</span><span id="line-45"></span><span>  </span><span id="local-6989586621679097163"><span class="annot"><span class="annottext">init :: FMList a -&gt; FMList a
+</span><a href="Data.ListLike.Base.html#init"><span class="hs-identifier hs-var hs-var hs-var hs-var">init</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. FMList a -&gt; FMList a
+</span><span class="hs-identifier hs-var">FM.init</span></span><span>
+</span><span id="line-46"></span><span>  </span><span class="hs-comment">--fromList = FM.fromList</span><span>
+</span><span id="line-47"></span><span>  </span><span class="hs-comment">--toList = FM.toList</span><span>
+</span><span id="line-48"></span><span>  </span><span id="local-6989586621679097160"><span class="annot"><span class="annottext">null :: FMList a -&gt; Bool
+</span><a href="Data.ListLike.Base.html#null"><span class="hs-identifier hs-var hs-var hs-var hs-var">null</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. FMList a -&gt; Bool
+</span><span class="hs-identifier hs-var">FM.null</span></span><span>
+</span><span id="line-49"></span><span>  </span><span id="local-6989586621679097155"><span class="annot"><span class="annottext">genericLength :: forall a. Num a =&gt; FMList a -&gt; a
+</span><a href="Data.ListLike.Base.html#genericLength"><span class="hs-identifier hs-var hs-var hs-var hs-var">genericLength</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall b a. Num b =&gt; FMList a -&gt; b
+</span><span class="hs-identifier hs-var">FM.genericLength</span></span><span>
+</span><span id="line-50"></span><span>  </span><span id="local-6989586621679097152"><span class="annot"><span class="annottext">length :: FMList a -&gt; Int
+</span><a href="Data.ListLike.Base.html#length"><span class="hs-identifier hs-var hs-var hs-var hs-var">length</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. FMList a -&gt; Int
+</span><span class="hs-identifier hs-var">FM.length</span></span><span>
+</span><span id="line-51"></span><span>  </span><span id="local-6989586621679097149"><span class="annot"><span class="annottext">reverse :: FMList a -&gt; FMList a
+</span><a href="Data.ListLike.Base.html#reverse"><span class="hs-identifier hs-var hs-var hs-var hs-var">reverse</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. FMList a -&gt; FMList a
+</span><span class="hs-identifier hs-var">FM.reverse</span></span><span>
+</span><span id="line-52"></span><span>  </span><span id="local-6989586621679097146"><span class="annot"><span class="annottext">filter :: (a -&gt; Bool) -&gt; FMList a -&gt; FMList a
+</span><a href="Data.ListLike.Base.html#filter"><span class="hs-identifier hs-var hs-var hs-var hs-var">filter</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. (a -&gt; Bool) -&gt; FMList a -&gt; FMList a
+</span><span class="hs-identifier hs-var">FM.filter</span></span><span>
+</span><span id="line-53"></span><span>  </span><span id="local-6989586621679097139"><span class="annot"><span class="annottext">take :: Int -&gt; FMList a -&gt; FMList a
+</span><a href="Data.ListLike.Base.html#take"><span class="hs-identifier hs-var hs-var hs-var hs-var">take</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall n a. (Ord n, Num n) =&gt; n -&gt; FMList a -&gt; FMList a
+</span><span class="hs-identifier hs-var">FM.take</span></span><span>
+</span><span id="line-54"></span><span>  </span><span id="local-6989586621679097136"><span class="annot"><span class="annottext">takeWhile :: (a -&gt; Bool) -&gt; FMList a -&gt; FMList a
+</span><a href="Data.ListLike.Base.html#takeWhile"><span class="hs-identifier hs-var hs-var hs-var hs-var">takeWhile</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. (a -&gt; Bool) -&gt; FMList a -&gt; FMList a
+</span><span class="hs-identifier hs-var">FM.takeWhile</span></span><span>
+</span><span id="line-55"></span><span>  </span><span id="local-6989586621679097131"><span class="annot"><span class="annottext">drop :: Int -&gt; FMList a -&gt; FMList a
+</span><a href="Data.ListLike.Base.html#drop"><span class="hs-identifier hs-var hs-var hs-var hs-var">drop</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall n a. (Ord n, Num n) =&gt; n -&gt; FMList a -&gt; FMList a
+</span><span class="hs-identifier hs-var">FM.drop</span></span><span>
+</span><span id="line-56"></span><span>  </span><span id="local-6989586621679097128"><span class="annot"><span class="annottext">dropWhile :: (a -&gt; Bool) -&gt; FMList a -&gt; FMList a
+</span><a href="Data.ListLike.Base.html#dropWhile"><span class="hs-identifier hs-var hs-var hs-var hs-var">dropWhile</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. (a -&gt; Bool) -&gt; FMList a -&gt; FMList a
+</span><span class="hs-identifier hs-var">FM.dropWhile</span></span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679097558"><span class="annot"><a href="Data.ListLike.Base.html#InfiniteListLike"><span class="hs-identifier hs-type">InfiniteListLike</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">FMList</span></span><span> </span><span class="annot"><a href="#local-6989586621679097558"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679097558"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-59"></span><span>  </span><span id="local-6989586621679097118"><span class="annot"><span class="annottext">iterate :: (a -&gt; a) -&gt; a -&gt; FMList a
+</span><a href="Data.ListLike.Base.html#iterate"><span class="hs-identifier hs-var hs-var hs-var hs-var">iterate</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. (a -&gt; a) -&gt; a -&gt; FMList a
+</span><span class="hs-identifier hs-var">FM.iterate</span></span><span>
+</span><span id="line-60"></span><span>  </span><span id="local-6989586621679097115"><span class="annot"><span class="annottext">repeat :: a -&gt; FMList a
+</span><a href="Data.ListLike.Base.html#repeat"><span class="hs-identifier hs-var hs-var hs-var hs-var">repeat</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; FMList a
+</span><span class="hs-identifier hs-var">FM.repeat</span></span><span>
+</span><span id="line-61"></span><span>  </span><span id="local-6989586621679097111"><span class="annot"><span class="annottext">cycle :: FMList a -&gt; FMList a
+</span><a href="Data.ListLike.Base.html#cycle"><span class="hs-identifier hs-var hs-var hs-var hs-var">cycle</span></a></span></span><span> </span><span id="local-6989586621679097109"><span class="annot"><span class="annottext">FMList a
+</span><a href="#local-6989586621679097109"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FMList a
+</span><a href="#local-6989586621679097109"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FMList a -&gt; FMList a -&gt; FMList a
+</span><span class="hs-operator hs-var">`FM.append`</span></span><span> </span><span class="annot"><span class="annottext">forall full item. InfiniteListLike full item =&gt; full -&gt; full
+</span><a href="Data.ListLike.Base.html#cycle"><span class="hs-identifier hs-var">cycle</span></a></span><span> </span><span class="annot"><span class="annottext">FMList a
+</span><a href="#local-6989586621679097109"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. FMList a -&gt; FMList a -&gt; FMList a
+</span><span class="hs-operator hs-var">`FM.append`</span></span><span> </span><span class="annot"><span class="annottext">FMList a
+</span><a href="#local-6989586621679097109"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-62"></span><span>
+</span><span id="line-63"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IsString</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">FMList</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Char</span></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-64"></span><span>  </span><span id="local-6989586621679097105"><span class="annot"><span class="annottext">fromString :: String -&gt; FMList Char
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">fromString</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; FMList a
+</span><span class="hs-identifier hs-var">FM.fromList</span></span><span>
+</span><span id="line-65"></span><span>
+</span><span id="line-66"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679097090"><span id="local-6989586621679097092"><span id="local-6989586621679097094"><span id="local-6989586621679097096"><span class="annot"><a href="Data.ListLike.String.html#StringLike"><span class="hs-identifier hs-type">StringLike</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">FMList</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Char</span></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-67"></span><span>  </span><span id="local-6989586621679097087"><span class="annot"><span class="annottext">toString :: FMList Char -&gt; String
+</span><a href="Data.ListLike.String.html#toString"><span class="hs-identifier hs-var hs-var hs-var hs-var">toString</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; [a]
+</span><span class="hs-identifier hs-var">FM.toList</span></span><span>
+</span><span id="line-68"></span><span>  </span><span id="local-6989586621679097080"><span class="annot"><span class="annottext">lines :: forall full. ListLike full (FMList Char) =&gt; FMList Char -&gt; full
+</span><a href="Data.ListLike.String.html#lines"><span class="hs-identifier hs-var hs-var hs-var hs-var">lines</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall full item full' item'.
+(ListLike full item, ListLike full' item') =&gt;
+(item -&gt; item') -&gt; full -&gt; full'
+</span><a href="Data.ListLike.Base.html#map"><span class="hs-identifier hs-var">map</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; FMList a
+</span><span class="hs-identifier hs-var">FM.fromList</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; [String]
+</span><span class="hs-identifier hs-var">S.lines</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; [a]
+</span><span class="hs-identifier hs-var">FM.toList</span></span><span>
+</span><span id="line-69"></span><span>  </span><span id="local-6989586621679097071"><span class="annot"><span class="annottext">words :: forall full. ListLike full (FMList Char) =&gt; FMList Char -&gt; full
+</span><a href="Data.ListLike.String.html#words"><span class="hs-identifier hs-var hs-var hs-var hs-var">words</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall full item full' item'.
+(ListLike full item, ListLike full' item') =&gt;
+(item -&gt; item') -&gt; full -&gt; full'
+</span><a href="Data.ListLike.Base.html#map"><span class="hs-identifier hs-var">map</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; FMList a
+</span><span class="hs-identifier hs-var">FM.fromList</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; [String]
+</span><span class="hs-identifier hs-var">S.words</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; [a]
+</span><span class="hs-identifier hs-var">FM.toList</span></span><span>
+</span><span id="line-70"></span><span>  </span><span id="local-6989586621679097064"><span class="annot"><span class="annottext">unlines :: forall full. ListLike full (FMList Char) =&gt; full -&gt; FMList Char
+</span><a href="Data.ListLike.String.html#unlines"><span class="hs-identifier hs-var hs-var hs-var hs-var">unlines</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; FMList a
+</span><span class="hs-identifier hs-var">FM.fromList</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">[String] -&gt; String
+</span><span class="hs-identifier hs-var">S.unlines</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall full item full' item'.
+(ListLike full item, ListLike full' item') =&gt;
+(item -&gt; item') -&gt; full -&gt; full'
+</span><a href="Data.ListLike.Base.html#map"><span class="hs-identifier hs-var">map</span></a></span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; [a]
+</span><span class="hs-identifier hs-var">FM.toList</span></span><span>
+</span><span id="line-71"></span><span>  </span><span id="local-6989586621679097057"><span class="annot"><span class="annottext">unwords :: forall full. ListLike full (FMList Char) =&gt; full -&gt; FMList Char
+</span><a href="Data.ListLike.String.html#unwords"><span class="hs-identifier hs-var hs-var hs-var hs-var">unwords</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; FMList a
+</span><span class="hs-identifier hs-var">FM.fromList</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">[String] -&gt; String
+</span><span class="hs-identifier hs-var">S.unwords</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall full item full' item'.
+(ListLike full item, ListLike full' item') =&gt;
+(item -&gt; item') -&gt; full -&gt; full'
+</span><a href="Data.ListLike.Base.html#map"><span class="hs-identifier hs-var">map</span></a></span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; [a]
+</span><span class="hs-identifier hs-var">FM.toList</span></span><span>
+</span><span id="line-72"></span><span>
+</span><span id="line-73"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679097047"><span id="local-6989586621679097050"><span class="annot"><span class="hs-identifier hs-type">MonadZip</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">FMList</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-74"></span><span>  </span><span id="local-6989586621679097045"><span class="annot"><span class="annottext">mzipWith :: forall a b c. (a -&gt; b -&gt; c) -&gt; FMList a -&gt; FMList b -&gt; FMList c
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">mzipWith</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b c. (a -&gt; b -&gt; c) -&gt; FMList a -&gt; FMList b -&gt; FMList c
+</span><span class="hs-identifier hs-var">FM.zipWith</span></span><span>
+</span><span id="line-75"></span></pre></body></html>

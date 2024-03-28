@@ -1,0 +1,548 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE LambdaCase      #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE RecordWildCards #-}</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">GHC.Unit.Module.Graph</span><span>
+</span><span id="line-5"></span><span>   </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Graph.html#ModuleGraph"><span class="hs-identifier">ModuleGraph</span></a></span><span>
+</span><span id="line-6"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Graph.html#ModuleGraphNode"><span class="hs-identifier">ModuleGraphNode</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Graph.html#emptyMG"><span class="hs-identifier">emptyMG</span></a></span><span>
+</span><span id="line-8"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Graph.html#mkModuleGraph"><span class="hs-identifier">mkModuleGraph</span></a></span><span>
+</span><span id="line-9"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Graph.html#mkModuleGraph%27"><span class="hs-identifier">mkModuleGraph'</span></a></span><span>
+</span><span id="line-10"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Graph.html#extendMG"><span class="hs-identifier">extendMG</span></a></span><span>
+</span><span id="line-11"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Graph.html#extendMGInst"><span class="hs-identifier">extendMGInst</span></a></span><span>
+</span><span id="line-12"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Graph.html#extendMG%27"><span class="hs-identifier">extendMG'</span></a></span><span>
+</span><span id="line-13"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Graph.html#filterToposortToModules"><span class="hs-identifier">filterToposortToModules</span></a></span><span>
+</span><span id="line-14"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Graph.html#mapMG"><span class="hs-identifier">mapMG</span></a></span><span>
+</span><span id="line-15"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Graph.html#mgModSummaries"><span class="hs-identifier">mgModSummaries</span></a></span><span>
+</span><span id="line-16"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Graph.html#mgModSummaries%27"><span class="hs-identifier">mgModSummaries'</span></a></span><span>
+</span><span id="line-17"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Graph.html#mgExtendedModSummaries"><span class="hs-identifier">mgExtendedModSummaries</span></a></span><span>
+</span><span id="line-18"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Graph.html#mgElemModule"><span class="hs-identifier">mgElemModule</span></a></span><span>
+</span><span id="line-19"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Graph.html#mgLookupModule"><span class="hs-identifier">mgLookupModule</span></a></span><span>
+</span><span id="line-20"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Graph.html#mgBootModules"><span class="hs-identifier">mgBootModules</span></a></span><span>
+</span><span id="line-21"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Graph.html#needsTemplateHaskellOrQQ"><span class="hs-identifier">needsTemplateHaskellOrQQ</span></a></span><span>
+</span><span id="line-22"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Graph.html#isTemplateHaskellOrQQNonBoot"><span class="hs-identifier">isTemplateHaskellOrQQNonBoot</span></a></span><span>
+</span><span id="line-23"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Graph.html#showModMsg"><span class="hs-identifier">showModMsg</span></a></span><span>
+</span><span id="line-24"></span><span>   </span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Prelude.html"><span class="hs-identifier">GHC.Prelude</span></a></span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="../../ghc-boot-9.2.8/src/GHC-LanguageExtensions.html#"><span class="hs-identifier">GHC.LanguageExtensions</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">LangExt</span></span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Data.Maybe.html"><span class="hs-identifier">GHC.Data.Maybe</span></a></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Data.Graph.Directed.html"><span class="hs-identifier">GHC.Data.Graph.Directed</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="../../containers-0.6.5.1/src/Data-Graph.html#SCC"><span class="hs-identifier">SCC</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Driver.Backend.html"><span class="hs-identifier">GHC.Driver.Backend</span></a></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Driver.Ppr.html"><span class="hs-identifier">GHC.Driver.Ppr</span></a></span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Driver.Session.html"><span class="hs-identifier">GHC.Driver.Session</span></a></span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.SourceFile.html"><span class="hs-identifier">GHC.Types.SourceFile</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Types.SourceFile.html#hscSourceString"><span class="hs-identifier">hscSourceString</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Unit.Module.ModSummary.html"><span class="hs-identifier">GHC.Unit.Module.ModSummary</span></a></span><span>
+</span><span id="line-41"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Env.html"><span class="hs-identifier">GHC.Unit.Module.Env</span></a></span><span>
+</span><span id="line-42"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Unit.Types.html"><span class="hs-identifier">GHC.Unit.Types</span></a></span><span>
+</span><span id="line-43"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html"><span class="hs-identifier">GHC.Utils.Outputable</span></a></span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../filepath-1.4.2.2/src/System-FilePath.html#"><span class="hs-identifier">System.FilePath</span></a></span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span class="hs-comment">-- | A '@ModuleGraphNode@' is a node in the '@ModuleGraph@'.</span><span>
+</span><span id="line-48"></span><span class="hs-comment">-- Edges between nodes mark dependencies arising from module imports</span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- and dependencies arising from backpack instantiations.</span><span>
+</span><span id="line-50"></span><span class="hs-keyword">data</span><span> </span><span id="ModuleGraphNode"><span class="annot"><a href="GHC.Unit.Module.Graph.html#ModuleGraphNode"><span class="hs-identifier hs-var">ModuleGraphNode</span></a></span></span><span>
+</span><span id="line-51"></span><span>  </span><span class="hs-comment">-- | Instantiation nodes track the instantiation of other units</span><span>
+</span><span id="line-52"></span><span>  </span><span class="hs-comment">-- (backpack dependencies) with the holes (signatures) of the current package.</span><span>
+</span><span id="line-53"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="InstantiationNode"><span class="annot"><a href="GHC.Unit.Module.Graph.html#InstantiationNode"><span class="hs-identifier hs-var">InstantiationNode</span></a></span></span><span> </span><span class="annot"><a href="GHC.Unit.Types.html#InstantiatedUnit"><span class="hs-identifier hs-type">InstantiatedUnit</span></a></span><span>
+</span><span id="line-54"></span><span>  </span><span class="hs-comment">-- | There is a module summary node for each module, signature, and boot module being built.</span><span>
+</span><span id="line-55"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ModuleNode"><span class="annot"><a href="GHC.Unit.Module.Graph.html#ModuleNode"><span class="hs-identifier hs-var">ModuleNode</span></a></span></span><span> </span><span class="annot"><a href="GHC.Unit.Module.ModSummary.html#ExtendedModSummary"><span class="hs-identifier hs-type">ExtendedModSummary</span></a></span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#Outputable"><span class="hs-identifier hs-type">Outputable</span></a></span><span> </span><span class="annot"><a href="GHC.Unit.Module.Graph.html#ModuleGraphNode"><span class="hs-identifier hs-type">ModuleGraphNode</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-58"></span><span>  </span><span id="local-6989586621681146524"><span class="annot"><span class="annottext">ppr :: ModuleGraphNode -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var hs-var hs-var hs-var">ppr</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-59"></span><span>    </span><span class="annot"><a href="GHC.Unit.Module.Graph.html#InstantiationNode"><span class="hs-identifier hs-type">InstantiationNode</span></a></span><span> </span><span id="local-6989586621681146522"><span class="annot"><span class="annottext">InstantiatedUnit
+</span><a href="#local-6989586621681146522"><span class="hs-identifier hs-var">iuid</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">InstantiatedUnit
+</span><a href="#local-6989586621681146522"><span class="hs-identifier hs-var">iuid</span></a></span><span>
+</span><span id="line-60"></span><span>    </span><span class="annot"><a href="GHC.Unit.Module.Graph.html#ModuleNode"><span class="hs-identifier hs-type">ModuleNode</span></a></span><span> </span><span id="local-6989586621681146521"><span class="annot"><span class="annottext">ExtendedModSummary
+</span><a href="#local-6989586621681146521"><span class="hs-identifier hs-var">ems</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">ExtendedModSummary
+</span><a href="#local-6989586621681146521"><span class="hs-identifier hs-var">ems</span></a></span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span><span class="hs-comment">-- | A '@ModuleGraph@' contains all the nodes from the home package (only). See</span><span>
+</span><span id="line-63"></span><span class="hs-comment">-- '@ModuleGraphNode@' for information about the nodes.</span><span>
+</span><span id="line-64"></span><span class="hs-comment">--</span><span>
+</span><span id="line-65"></span><span class="hs-comment">-- Modules need to be compiled. hs-boots need to be typechecked before</span><span>
+</span><span id="line-66"></span><span class="hs-comment">-- the associated &quot;real&quot; module so modules with {-# SOURCE #-} imports can be</span><span>
+</span><span id="line-67"></span><span class="hs-comment">-- built. Instantiations also need to be typechecked to ensure that the module</span><span>
+</span><span id="line-68"></span><span class="hs-comment">-- fits the signature. Substantiation typechecking is roughly comparable to the</span><span>
+</span><span id="line-69"></span><span class="hs-comment">-- check that the module and its hs-boot agree.</span><span>
+</span><span id="line-70"></span><span class="hs-comment">--</span><span>
+</span><span id="line-71"></span><span class="hs-comment">-- The graph is not necessarily stored in topologically-sorted order.  Use</span><span>
+</span><span id="line-72"></span><span class="hs-comment">-- 'GHC.topSortModuleGraph' and 'GHC.Data.Graph.Directed.flattenSCC' to achieve this.</span><span>
+</span><span id="line-73"></span><span class="hs-keyword">data</span><span> </span><span id="ModuleGraph"><span class="annot"><a href="GHC.Unit.Module.Graph.html#ModuleGraph"><span class="hs-identifier hs-var">ModuleGraph</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="ModuleGraph"><span class="annot"><a href="GHC.Unit.Module.Graph.html#ModuleGraph"><span class="hs-identifier hs-var">ModuleGraph</span></a></span></span><span>
+</span><span id="line-74"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="mg_mss"><span class="annot"><span class="annottext">ModuleGraph -&gt; [ModuleGraphNode]
+</span><a href="GHC.Unit.Module.Graph.html#mg_mss"><span class="hs-identifier hs-var hs-var">mg_mss</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Unit.Module.Graph.html#ModuleGraphNode"><span class="hs-identifier hs-type">ModuleGraphNode</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-75"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="mg_non_boot"><span class="annot"><span class="annottext">ModuleGraph -&gt; ModuleEnv ModSummary
+</span><a href="GHC.Unit.Module.Graph.html#mg_non_boot"><span class="hs-identifier hs-var hs-var">mg_non_boot</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><a href="GHC.Unit.Module.Env.html#ModuleEnv"><span class="hs-identifier hs-type">ModuleEnv</span></a></span><span> </span><span class="annot"><a href="GHC.Unit.Module.ModSummary.html#ModSummary"><span class="hs-identifier hs-type">ModSummary</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-76"></span><span>    </span><span class="hs-comment">-- a map of all non-boot ModSummaries keyed by Modules</span><span>
+</span><span id="line-77"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="mg_boot"><span class="annot"><span class="annottext">ModuleGraph -&gt; ModuleSet
+</span><a href="GHC.Unit.Module.Graph.html#mg_boot"><span class="hs-identifier hs-var hs-var">mg_boot</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GHC.Unit.Module.Env.html#ModuleSet"><span class="hs-identifier hs-type">ModuleSet</span></a></span><span>
+</span><span id="line-78"></span><span>    </span><span class="hs-comment">-- a set of boot Modules</span><span>
+</span><span id="line-79"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="mg_needs_th_or_qq"><span class="annot"><span class="annottext">ModuleGraph -&gt; Bool
+</span><a href="GHC.Unit.Module.Graph.html#mg_needs_th_or_qq"><span class="hs-identifier hs-var hs-var">mg_needs_th_or_qq</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-80"></span><span>    </span><span class="hs-comment">-- does any of the modules in mg_mss require TemplateHaskell or</span><span>
+</span><span id="line-81"></span><span>    </span><span class="hs-comment">-- QuasiQuotes?</span><span>
+</span><span id="line-82"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-83"></span><span>
+</span><span id="line-84"></span><span class="hs-comment">-- | Determines whether a set of modules requires Template Haskell or</span><span>
+</span><span id="line-85"></span><span class="hs-comment">-- Quasi Quotes</span><span>
+</span><span id="line-86"></span><span class="hs-comment">--</span><span>
+</span><span id="line-87"></span><span class="hs-comment">-- Note that if the session's 'DynFlags' enabled Template Haskell when</span><span>
+</span><span id="line-88"></span><span class="hs-comment">-- 'depanal' was called, then each module in the returned module graph will</span><span>
+</span><span id="line-89"></span><span class="hs-comment">-- have Template Haskell enabled whether it is actually needed or not.</span><span>
+</span><span id="line-90"></span><span class="annot"><a href="GHC.Unit.Module.Graph.html#needsTemplateHaskellOrQQ"><span class="hs-identifier hs-type">needsTemplateHaskellOrQQ</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Graph.html#ModuleGraph"><span class="hs-identifier hs-type">ModuleGraph</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-91"></span><span id="needsTemplateHaskellOrQQ"><span class="annot"><span class="annottext">needsTemplateHaskellOrQQ :: ModuleGraph -&gt; Bool
+</span><a href="GHC.Unit.Module.Graph.html#needsTemplateHaskellOrQQ"><span class="hs-identifier hs-var hs-var">needsTemplateHaskellOrQQ</span></a></span></span><span> </span><span id="local-6989586621681146515"><span class="annot"><span class="annottext">ModuleGraph
+</span><a href="#local-6989586621681146515"><span class="hs-identifier hs-var">mg</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ModuleGraph -&gt; Bool
+</span><a href="GHC.Unit.Module.Graph.html#mg_needs_th_or_qq"><span class="hs-identifier hs-var">mg_needs_th_or_qq</span></a></span><span> </span><span class="annot"><span class="annottext">ModuleGraph
+</span><a href="#local-6989586621681146515"><span class="hs-identifier hs-var">mg</span></a></span><span>
+</span><span id="line-92"></span><span>
+</span><span id="line-93"></span><span class="hs-comment">-- | Map a function 'f' over all the 'ModSummaries'.</span><span>
+</span><span id="line-94"></span><span class="hs-comment">-- To preserve invariants 'f' can't change the isBoot status.</span><span>
+</span><span id="line-95"></span><span class="annot"><a href="GHC.Unit.Module.Graph.html#mapMG"><span class="hs-identifier hs-type">mapMG</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Unit.Module.ModSummary.html#ModSummary"><span class="hs-identifier hs-type">ModSummary</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Unit.Module.ModSummary.html#ModSummary"><span class="hs-identifier hs-type">ModSummary</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Graph.html#ModuleGraph"><span class="hs-identifier hs-type">ModuleGraph</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Graph.html#ModuleGraph"><span class="hs-identifier hs-type">ModuleGraph</span></a></span><span>
+</span><span id="line-96"></span><span id="mapMG"><span class="annot"><span class="annottext">mapMG :: (ModSummary -&gt; ModSummary) -&gt; ModuleGraph -&gt; ModuleGraph
+</span><a href="GHC.Unit.Module.Graph.html#mapMG"><span class="hs-identifier hs-var hs-var">mapMG</span></a></span></span><span> </span><span id="local-6989586621681146514"><span class="annot"><span class="annottext">ModSummary -&gt; ModSummary
+</span><a href="#local-6989586621681146514"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621681146513"><span class="annot"><span class="annottext">mg :: ModuleGraph
+</span><a href="#local-6989586621681146513"><span class="hs-identifier hs-var">mg</span></a></span></span><span class="hs-glyph">@</span><span class="annot"><a href="GHC.Unit.Module.Graph.html#ModuleGraph"><span class="hs-identifier hs-type">ModuleGraph</span></a></span><span class="hs-special">{</span><span id="local-6989586621681146509"><span id="local-6989586621681146510"><span id="local-6989586621681146511"><span id="local-6989586621681146512"><span class="annot"><span class="annottext">Bool
+[ModuleGraphNode]
+ModuleSet
+ModuleEnv ModSummary
+mg_needs_th_or_qq :: Bool
+mg_boot :: ModuleSet
+mg_non_boot :: ModuleEnv ModSummary
+mg_mss :: [ModuleGraphNode]
+mg_needs_th_or_qq :: ModuleGraph -&gt; Bool
+mg_boot :: ModuleGraph -&gt; ModuleSet
+mg_non_boot :: ModuleGraph -&gt; ModuleEnv ModSummary
+mg_mss :: ModuleGraph -&gt; [ModuleGraphNode]
+</span><a href="#local-6989586621681146509"><span class="hs-glyph hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">..</span></a></span></span></span></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ModuleGraph
+</span><a href="#local-6989586621681146513"><span class="hs-identifier hs-var">mg</span></a></span><span>
+</span><span id="line-97"></span><span>  </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">mg_mss :: [ModuleGraphNode]
+</span><a href="GHC.Unit.Module.Graph.html#mg_mss"><span class="hs-identifier hs-var">mg_mss</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b c. (a -&gt; b -&gt; c) -&gt; b -&gt; a -&gt; c
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#flip"><span class="hs-identifier hs-var">flip</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#fmap"><span class="hs-identifier hs-var">fmap</span></a></span><span> </span><span class="annot"><span class="annottext">[ModuleGraphNode]
+</span><a href="#local-6989586621681146512"><span class="hs-identifier hs-var">mg_mss</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-98"></span><span>      </span><span class="annot"><a href="GHC.Unit.Module.Graph.html#InstantiationNode"><span class="hs-identifier hs-type">InstantiationNode</span></a></span><span> </span><span id="local-6989586621681146507"><span class="annot"><span class="annottext">InstantiatedUnit
+</span><a href="#local-6989586621681146507"><span class="hs-identifier hs-var">iuid</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">InstantiatedUnit -&gt; ModuleGraphNode
+</span><a href="GHC.Unit.Module.Graph.html#InstantiationNode"><span class="hs-identifier hs-var">InstantiationNode</span></a></span><span> </span><span class="annot"><span class="annottext">InstantiatedUnit
+</span><a href="#local-6989586621681146507"><span class="hs-identifier hs-var">iuid</span></a></span><span>
+</span><span id="line-99"></span><span>      </span><span class="annot"><a href="GHC.Unit.Module.Graph.html#ModuleNode"><span class="hs-identifier hs-type">ModuleNode</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Unit.Module.ModSummary.html#ExtendedModSummary"><span class="hs-identifier hs-type">ExtendedModSummary</span></a></span><span> </span><span id="local-6989586621681146505"><span class="annot"><span class="annottext">ModSummary
+</span><a href="#local-6989586621681146505"><span class="hs-identifier hs-var">ms</span></a></span></span><span> </span><span id="local-6989586621681146504"><span class="annot"><span class="annottext">[InstantiatedUnit]
+</span><a href="#local-6989586621681146504"><span class="hs-identifier hs-var">bds</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ExtendedModSummary -&gt; ModuleGraphNode
+</span><a href="GHC.Unit.Module.Graph.html#ModuleNode"><span class="hs-identifier hs-var">ModuleNode</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ModSummary -&gt; [InstantiatedUnit] -&gt; ExtendedModSummary
+</span><a href="GHC.Unit.Module.ModSummary.html#ExtendedModSummary"><span class="hs-identifier hs-var">ExtendedModSummary</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ModSummary -&gt; ModSummary
+</span><a href="#local-6989586621681146514"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">ModSummary
+</span><a href="#local-6989586621681146505"><span class="hs-identifier hs-var">ms</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[InstantiatedUnit]
+</span><a href="#local-6989586621681146504"><span class="hs-identifier hs-var">bds</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-100"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">mg_non_boot :: ModuleEnv ModSummary
+</span><a href="GHC.Unit.Module.Graph.html#mg_non_boot"><span class="hs-identifier hs-var">mg_non_boot</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; ModuleEnv a -&gt; ModuleEnv b
+</span><a href="GHC.Unit.Module.Env.html#mapModuleEnv"><span class="hs-identifier hs-var">mapModuleEnv</span></a></span><span> </span><span class="annot"><span class="annottext">ModSummary -&gt; ModSummary
+</span><a href="#local-6989586621681146514"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">ModuleEnv ModSummary
+</span><a href="#local-6989586621681146511"><span class="hs-identifier hs-var">mg_non_boot</span></a></span><span>
+</span><span id="line-101"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-102"></span><span>
+</span><span id="line-103"></span><span class="annot"><a href="GHC.Unit.Module.Graph.html#mgBootModules"><span class="hs-identifier hs-type">mgBootModules</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Graph.html#ModuleGraph"><span class="hs-identifier hs-type">ModuleGraph</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Env.html#ModuleSet"><span class="hs-identifier hs-type">ModuleSet</span></a></span><span>
+</span><span id="line-104"></span><span id="mgBootModules"><span class="annot"><span class="annottext">mgBootModules :: ModuleGraph -&gt; ModuleSet
+</span><a href="GHC.Unit.Module.Graph.html#mgBootModules"><span class="hs-identifier hs-var hs-var">mgBootModules</span></a></span></span><span> </span><span class="annot"><a href="GHC.Unit.Module.Graph.html#ModuleGraph"><span class="hs-identifier hs-type">ModuleGraph</span></a></span><span class="hs-special">{</span><span id="local-6989586621681146499"><span id="local-6989586621681146500"><span id="local-6989586621681146501"><span id="local-6989586621681146502"><span class="annot"><span class="annottext">Bool
+[ModuleGraphNode]
+ModuleSet
+ModuleEnv ModSummary
+mg_needs_th_or_qq :: Bool
+mg_boot :: ModuleSet
+mg_non_boot :: ModuleEnv ModSummary
+mg_mss :: [ModuleGraphNode]
+mg_needs_th_or_qq :: ModuleGraph -&gt; Bool
+mg_boot :: ModuleGraph -&gt; ModuleSet
+mg_non_boot :: ModuleGraph -&gt; ModuleEnv ModSummary
+mg_mss :: ModuleGraph -&gt; [ModuleGraphNode]
+</span><a href="#local-6989586621681146499"><span class="hs-glyph hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">..</span></a></span></span></span></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ModuleSet
+</span><a href="#local-6989586621681146500"><span class="hs-identifier hs-var">mg_boot</span></a></span><span>
+</span><span id="line-105"></span><span>
+</span><span id="line-106"></span><span class="annot"><a href="GHC.Unit.Module.Graph.html#mgModSummaries"><span class="hs-identifier hs-type">mgModSummaries</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Graph.html#ModuleGraph"><span class="hs-identifier hs-type">ModuleGraph</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Unit.Module.ModSummary.html#ModSummary"><span class="hs-identifier hs-type">ModSummary</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-107"></span><span id="mgModSummaries"><span class="annot"><span class="annottext">mgModSummaries :: ModuleGraph -&gt; [ModSummary]
+</span><a href="GHC.Unit.Module.Graph.html#mgModSummaries"><span class="hs-identifier hs-var hs-var">mgModSummaries</span></a></span></span><span> </span><span id="local-6989586621681146498"><span class="annot"><span class="annottext">ModuleGraph
+</span><a href="#local-6989586621681146498"><span class="hs-identifier hs-var">mg</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">ModSummary
+</span><a href="#local-6989586621681146497"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Graph.html#ModuleNode"><span class="hs-identifier hs-type">ModuleNode</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Unit.Module.ModSummary.html#ExtendedModSummary"><span class="hs-identifier hs-type">ExtendedModSummary</span></a></span><span> </span><span id="local-6989586621681146497"><span class="annot"><span class="annottext">ModSummary
+</span><a href="#local-6989586621681146497"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="annot"><span class="annottext">[InstantiatedUnit]
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ModuleGraph -&gt; [ModuleGraphNode]
+</span><a href="GHC.Unit.Module.Graph.html#mgModSummaries%27"><span class="hs-identifier hs-var">mgModSummaries'</span></a></span><span> </span><span class="annot"><span class="annottext">ModuleGraph
+</span><a href="#local-6989586621681146498"><span class="hs-identifier hs-var">mg</span></a></span><span> </span><span class="hs-special">]</span><span>
+</span><span id="line-108"></span><span>
+</span><span id="line-109"></span><span class="annot"><a href="GHC.Unit.Module.Graph.html#mgExtendedModSummaries"><span class="hs-identifier hs-type">mgExtendedModSummaries</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Graph.html#ModuleGraph"><span class="hs-identifier hs-type">ModuleGraph</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Unit.Module.ModSummary.html#ExtendedModSummary"><span class="hs-identifier hs-type">ExtendedModSummary</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-110"></span><span id="mgExtendedModSummaries"><span class="annot"><span class="annottext">mgExtendedModSummaries :: ModuleGraph -&gt; [ExtendedModSummary]
+</span><a href="GHC.Unit.Module.Graph.html#mgExtendedModSummaries"><span class="hs-identifier hs-var hs-var">mgExtendedModSummaries</span></a></span></span><span> </span><span id="local-6989586621681146496"><span class="annot"><span class="annottext">ModuleGraph
+</span><a href="#local-6989586621681146496"><span class="hs-identifier hs-var">mg</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">ExtendedModSummary
+</span><a href="#local-6989586621681146495"><span class="hs-identifier hs-var">ems</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Graph.html#ModuleNode"><span class="hs-identifier hs-type">ModuleNode</span></a></span><span> </span><span id="local-6989586621681146495"><span class="annot"><span class="annottext">ExtendedModSummary
+</span><a href="#local-6989586621681146495"><span class="hs-identifier hs-var">ems</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ModuleGraph -&gt; [ModuleGraphNode]
+</span><a href="GHC.Unit.Module.Graph.html#mgModSummaries%27"><span class="hs-identifier hs-var">mgModSummaries'</span></a></span><span> </span><span class="annot"><span class="annottext">ModuleGraph
+</span><a href="#local-6989586621681146496"><span class="hs-identifier hs-var">mg</span></a></span><span> </span><span class="hs-special">]</span><span>
+</span><span id="line-111"></span><span>
+</span><span id="line-112"></span><span class="annot"><a href="GHC.Unit.Module.Graph.html#mgModSummaries%27"><span class="hs-identifier hs-type">mgModSummaries'</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Graph.html#ModuleGraph"><span class="hs-identifier hs-type">ModuleGraph</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Unit.Module.Graph.html#ModuleGraphNode"><span class="hs-identifier hs-type">ModuleGraphNode</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-113"></span><span id="mgModSummaries%27"><span class="annot"><span class="annottext">mgModSummaries' :: ModuleGraph -&gt; [ModuleGraphNode]
+</span><a href="GHC.Unit.Module.Graph.html#mgModSummaries%27"><span class="hs-identifier hs-var hs-var">mgModSummaries'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ModuleGraph -&gt; [ModuleGraphNode]
+</span><a href="GHC.Unit.Module.Graph.html#mg_mss"><span class="hs-identifier hs-var">mg_mss</span></a></span><span>
+</span><span id="line-114"></span><span>
+</span><span id="line-115"></span><span class="annot"><a href="GHC.Unit.Module.Graph.html#mgElemModule"><span class="hs-identifier hs-type">mgElemModule</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Graph.html#ModuleGraph"><span class="hs-identifier hs-type">ModuleGraph</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Unit.Types.html#Module"><span class="hs-identifier hs-type">Module</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-116"></span><span id="mgElemModule"><span class="annot"><span class="annottext">mgElemModule :: ModuleGraph -&gt; Module -&gt; Bool
+</span><a href="GHC.Unit.Module.Graph.html#mgElemModule"><span class="hs-identifier hs-var hs-var">mgElemModule</span></a></span></span><span> </span><span class="annot"><a href="GHC.Unit.Module.Graph.html#ModuleGraph"><span class="hs-identifier hs-type">ModuleGraph</span></a></span><span class="hs-special">{</span><span id="local-6989586621681146491"><span id="local-6989586621681146492"><span id="local-6989586621681146493"><span id="local-6989586621681146494"><span class="annot"><span class="annottext">Bool
+[ModuleGraphNode]
+ModuleSet
+ModuleEnv ModSummary
+mg_needs_th_or_qq :: Bool
+mg_boot :: ModuleSet
+mg_non_boot :: ModuleEnv ModSummary
+mg_mss :: [ModuleGraphNode]
+mg_needs_th_or_qq :: ModuleGraph -&gt; Bool
+mg_boot :: ModuleGraph -&gt; ModuleSet
+mg_non_boot :: ModuleGraph -&gt; ModuleEnv ModSummary
+mg_mss :: ModuleGraph -&gt; [ModuleGraphNode]
+</span><a href="#local-6989586621681146491"><span class="hs-glyph hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">..</span></a></span></span></span></span></span><span class="hs-special">}</span><span> </span><span id="local-6989586621681146490"><span class="annot"><span class="annottext">Module
+</span><a href="#local-6989586621681146490"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Module -&gt; ModuleEnv a -&gt; Bool
+</span><a href="GHC.Unit.Module.Env.html#elemModuleEnv"><span class="hs-identifier hs-var">elemModuleEnv</span></a></span><span> </span><span class="annot"><span class="annottext">Module
+</span><a href="#local-6989586621681146490"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">ModuleEnv ModSummary
+</span><a href="#local-6989586621681146493"><span class="hs-identifier hs-var">mg_non_boot</span></a></span><span>
+</span><span id="line-117"></span><span>
+</span><span id="line-118"></span><span class="hs-comment">-- | Look up a ModSummary in the ModuleGraph</span><span>
+</span><span id="line-119"></span><span class="annot"><a href="GHC.Unit.Module.Graph.html#mgLookupModule"><span class="hs-identifier hs-type">mgLookupModule</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Graph.html#ModuleGraph"><span class="hs-identifier hs-type">ModuleGraph</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Unit.Types.html#Module"><span class="hs-identifier hs-type">Module</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Maybe"><span class="hs-identifier hs-type">Maybe</span></a></span><span> </span><span class="annot"><a href="GHC.Unit.Module.ModSummary.html#ModSummary"><span class="hs-identifier hs-type">ModSummary</span></a></span><span>
+</span><span id="line-120"></span><span id="mgLookupModule"><span class="annot"><span class="annottext">mgLookupModule :: ModuleGraph -&gt; Module -&gt; Maybe ModSummary
+</span><a href="GHC.Unit.Module.Graph.html#mgLookupModule"><span class="hs-identifier hs-var hs-var">mgLookupModule</span></a></span></span><span> </span><span class="annot"><a href="GHC.Unit.Module.Graph.html#ModuleGraph"><span class="hs-identifier hs-type">ModuleGraph</span></a></span><span class="hs-special">{</span><span id="local-6989586621681146485"><span id="local-6989586621681146486"><span id="local-6989586621681146487"><span id="local-6989586621681146488"><span class="annot"><span class="annottext">Bool
+[ModuleGraphNode]
+ModuleSet
+ModuleEnv ModSummary
+mg_needs_th_or_qq :: Bool
+mg_boot :: ModuleSet
+mg_non_boot :: ModuleEnv ModSummary
+mg_mss :: [ModuleGraphNode]
+mg_needs_th_or_qq :: ModuleGraph -&gt; Bool
+mg_boot :: ModuleGraph -&gt; ModuleSet
+mg_non_boot :: ModuleGraph -&gt; ModuleEnv ModSummary
+mg_mss :: ModuleGraph -&gt; [ModuleGraphNode]
+</span><a href="#local-6989586621681146485"><span class="hs-glyph hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">..</span></a></span></span></span></span></span><span class="hs-special">}</span><span> </span><span id="local-6989586621681146484"><span class="annot"><span class="annottext">Module
+</span><a href="#local-6989586621681146484"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. ModuleEnv a -&gt; Module -&gt; Maybe a
+</span><a href="GHC.Unit.Module.Env.html#lookupModuleEnv"><span class="hs-identifier hs-var">lookupModuleEnv</span></a></span><span> </span><span class="annot"><span class="annottext">ModuleEnv ModSummary
+</span><a href="#local-6989586621681146487"><span class="hs-identifier hs-var">mg_non_boot</span></a></span><span> </span><span class="annot"><span class="annottext">Module
+</span><a href="#local-6989586621681146484"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-121"></span><span>
+</span><span id="line-122"></span><span class="annot"><a href="GHC.Unit.Module.Graph.html#emptyMG"><span class="hs-identifier hs-type">emptyMG</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Graph.html#ModuleGraph"><span class="hs-identifier hs-type">ModuleGraph</span></a></span><span>
+</span><span id="line-123"></span><span id="emptyMG"><span class="annot"><span class="annottext">emptyMG :: ModuleGraph
+</span><a href="GHC.Unit.Module.Graph.html#emptyMG"><span class="hs-identifier hs-var hs-var">emptyMG</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[ModuleGraphNode]
+-&gt; ModuleEnv ModSummary -&gt; ModuleSet -&gt; Bool -&gt; ModuleGraph
+</span><a href="GHC.Unit.Module.Graph.html#ModuleGraph"><span class="hs-identifier hs-var">ModuleGraph</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">forall a. ModuleEnv a
+</span><a href="GHC.Unit.Module.Env.html#emptyModuleEnv"><span class="hs-identifier hs-var">emptyModuleEnv</span></a></span><span> </span><span class="annot"><span class="annottext">ModuleSet
+</span><a href="GHC.Unit.Module.Env.html#emptyModuleSet"><span class="hs-identifier hs-var">emptyModuleSet</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-124"></span><span>
+</span><span id="line-125"></span><span class="annot"><a href="GHC.Unit.Module.Graph.html#isTemplateHaskellOrQQNonBoot"><span class="hs-identifier hs-type">isTemplateHaskellOrQQNonBoot</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Unit.Module.ModSummary.html#ModSummary"><span class="hs-identifier hs-type">ModSummary</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-126"></span><span id="isTemplateHaskellOrQQNonBoot"><span class="annot"><span class="annottext">isTemplateHaskellOrQQNonBoot :: ModSummary -&gt; Bool
+</span><a href="GHC.Unit.Module.Graph.html#isTemplateHaskellOrQQNonBoot"><span class="hs-identifier hs-var hs-var">isTemplateHaskellOrQQNonBoot</span></a></span></span><span> </span><span id="local-6989586621681146480"><span class="annot"><span class="annottext">ModSummary
+</span><a href="#local-6989586621681146480"><span class="hs-identifier hs-var">ms</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-127"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Extension -&gt; DynFlags -&gt; Bool
+</span><a href="GHC.Driver.Session.html#xopt"><span class="hs-identifier hs-var">xopt</span></a></span><span> </span><span class="annot"><span class="annottext">Extension
+</span><span class="hs-identifier hs-var">LangExt.TemplateHaskell</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ModSummary -&gt; DynFlags
+</span><a href="GHC.Unit.Module.ModSummary.html#ms_hspp_opts"><span class="hs-identifier hs-var">ms_hspp_opts</span></a></span><span> </span><span class="annot"><span class="annottext">ModSummary
+</span><a href="#local-6989586621681146480"><span class="hs-identifier hs-var">ms</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-128"></span><span>    </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">Extension -&gt; DynFlags -&gt; Bool
+</span><a href="GHC.Driver.Session.html#xopt"><span class="hs-identifier hs-var">xopt</span></a></span><span> </span><span class="annot"><span class="annottext">Extension
+</span><span class="hs-identifier hs-var">LangExt.QuasiQuotes</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ModSummary -&gt; DynFlags
+</span><a href="GHC.Unit.Module.ModSummary.html#ms_hspp_opts"><span class="hs-identifier hs-var">ms_hspp_opts</span></a></span><span> </span><span class="annot"><span class="annottext">ModSummary
+</span><a href="#local-6989586621681146480"><span class="hs-identifier hs-var">ms</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span>
+</span><span id="line-129"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ModSummary -&gt; IsBootInterface
+</span><a href="GHC.Unit.Module.ModSummary.html#isBootSummary"><span class="hs-identifier hs-var">isBootSummary</span></a></span><span> </span><span class="annot"><span class="annottext">ModSummary
+</span><a href="#local-6989586621681146480"><span class="hs-identifier hs-var">ms</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">IsBootInterface
+</span><a href="GHC.Unit.Types.html#NotBoot"><span class="hs-identifier hs-var">NotBoot</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-130"></span><span>
+</span><span id="line-131"></span><span class="hs-comment">-- | Add an ExtendedModSummary to ModuleGraph. Assumes that the new ModSummary is</span><span>
+</span><span id="line-132"></span><span class="hs-comment">-- not an element of the ModuleGraph.</span><span>
+</span><span id="line-133"></span><span class="annot"><a href="GHC.Unit.Module.Graph.html#extendMG"><span class="hs-identifier hs-type">extendMG</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Graph.html#ModuleGraph"><span class="hs-identifier hs-type">ModuleGraph</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Unit.Module.ModSummary.html#ExtendedModSummary"><span class="hs-identifier hs-type">ExtendedModSummary</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Graph.html#ModuleGraph"><span class="hs-identifier hs-type">ModuleGraph</span></a></span><span>
+</span><span id="line-134"></span><span id="extendMG"><span class="annot"><span class="annottext">extendMG :: ModuleGraph -&gt; ExtendedModSummary -&gt; ModuleGraph
+</span><a href="GHC.Unit.Module.Graph.html#extendMG"><span class="hs-identifier hs-var hs-var">extendMG</span></a></span></span><span> </span><span class="annot"><a href="GHC.Unit.Module.Graph.html#ModuleGraph"><span class="hs-identifier hs-type">ModuleGraph</span></a></span><span class="hs-special">{</span><span id="local-6989586621681146468"><span id="local-6989586621681146469"><span id="local-6989586621681146470"><span id="local-6989586621681146471"><span class="annot"><span class="annottext">Bool
+[ModuleGraphNode]
+ModuleSet
+ModuleEnv ModSummary
+mg_needs_th_or_qq :: Bool
+mg_boot :: ModuleSet
+mg_non_boot :: ModuleEnv ModSummary
+mg_mss :: [ModuleGraphNode]
+mg_needs_th_or_qq :: ModuleGraph -&gt; Bool
+mg_boot :: ModuleGraph -&gt; ModuleSet
+mg_non_boot :: ModuleGraph -&gt; ModuleEnv ModSummary
+mg_mss :: ModuleGraph -&gt; [ModuleGraphNode]
+</span><a href="#local-6989586621681146468"><span class="hs-glyph hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">..</span></a></span></span></span></span></span><span class="hs-special">}</span><span> </span><span id="local-6989586621681146467"><span class="annot"><span class="annottext">ems :: ExtendedModSummary
+</span><a href="#local-6989586621681146467"><span class="hs-identifier hs-var">ems</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="GHC.Unit.Module.ModSummary.html#ExtendedModSummary"><span class="hs-identifier hs-type">ExtendedModSummary</span></a></span><span> </span><span id="local-6989586621681146466"><span class="annot"><span class="annottext">ModSummary
+</span><a href="#local-6989586621681146466"><span class="hs-identifier hs-var">ms</span></a></span></span><span> </span><span class="annot"><span class="annottext">[InstantiatedUnit]
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Graph.html#ModuleGraph"><span class="hs-identifier hs-type">ModuleGraph</span></a></span><span>
+</span><span id="line-135"></span><span>  </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">mg_mss :: [ModuleGraphNode]
+</span><a href="GHC.Unit.Module.Graph.html#mg_mss"><span class="hs-identifier hs-var">mg_mss</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ExtendedModSummary -&gt; ModuleGraphNode
+</span><a href="GHC.Unit.Module.Graph.html#ModuleNode"><span class="hs-identifier hs-var">ModuleNode</span></a></span><span> </span><span class="annot"><span class="annottext">ExtendedModSummary
+</span><a href="#local-6989586621681146467"><span class="hs-identifier hs-var">ems</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[ModuleGraphNode]
+</span><a href="#local-6989586621681146471"><span class="hs-identifier hs-var">mg_mss</span></a></span><span>
+</span><span id="line-136"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">mg_non_boot :: ModuleEnv ModSummary
+</span><a href="GHC.Unit.Module.Graph.html#mg_non_boot"><span class="hs-identifier hs-var">mg_non_boot</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">ModSummary -&gt; IsBootInterface
+</span><a href="GHC.Unit.Module.ModSummary.html#isBootSummary"><span class="hs-identifier hs-var">isBootSummary</span></a></span><span> </span><span class="annot"><span class="annottext">ModSummary
+</span><a href="#local-6989586621681146466"><span class="hs-identifier hs-var">ms</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-137"></span><span>      </span><span class="annot"><span class="annottext">IsBootInterface
+</span><a href="GHC.Unit.Types.html#IsBoot"><span class="hs-identifier hs-var">IsBoot</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ModuleEnv ModSummary
+</span><a href="#local-6989586621681146470"><span class="hs-identifier hs-var">mg_non_boot</span></a></span><span>
+</span><span id="line-138"></span><span>      </span><span class="annot"><span class="annottext">IsBootInterface
+</span><a href="GHC.Unit.Types.html#NotBoot"><span class="hs-identifier hs-var">NotBoot</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. ModuleEnv a -&gt; Module -&gt; a -&gt; ModuleEnv a
+</span><a href="GHC.Unit.Module.Env.html#extendModuleEnv"><span class="hs-identifier hs-var">extendModuleEnv</span></a></span><span> </span><span class="annot"><span class="annottext">ModuleEnv ModSummary
+</span><a href="#local-6989586621681146470"><span class="hs-identifier hs-var">mg_non_boot</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ModSummary -&gt; Module
+</span><a href="GHC.Unit.Module.ModSummary.html#ms_mod"><span class="hs-identifier hs-var">ms_mod</span></a></span><span> </span><span class="annot"><span class="annottext">ModSummary
+</span><a href="#local-6989586621681146466"><span class="hs-identifier hs-var">ms</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ModSummary
+</span><a href="#local-6989586621681146466"><span class="hs-identifier hs-var">ms</span></a></span><span>
+</span><span id="line-139"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">mg_boot :: ModuleSet
+</span><a href="GHC.Unit.Module.Graph.html#mg_boot"><span class="hs-identifier hs-var">mg_boot</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">ModSummary -&gt; IsBootInterface
+</span><a href="GHC.Unit.Module.ModSummary.html#isBootSummary"><span class="hs-identifier hs-var">isBootSummary</span></a></span><span> </span><span class="annot"><span class="annottext">ModSummary
+</span><a href="#local-6989586621681146466"><span class="hs-identifier hs-var">ms</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-140"></span><span>      </span><span class="annot"><span class="annottext">IsBootInterface
+</span><a href="GHC.Unit.Types.html#NotBoot"><span class="hs-identifier hs-var">NotBoot</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ModuleSet
+</span><a href="#local-6989586621681146469"><span class="hs-identifier hs-var">mg_boot</span></a></span><span>
+</span><span id="line-141"></span><span>      </span><span class="annot"><span class="annottext">IsBootInterface
+</span><a href="GHC.Unit.Types.html#IsBoot"><span class="hs-identifier hs-var">IsBoot</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ModuleSet -&gt; Module -&gt; ModuleSet
+</span><a href="GHC.Unit.Module.Env.html#extendModuleSet"><span class="hs-identifier hs-var">extendModuleSet</span></a></span><span> </span><span class="annot"><span class="annottext">ModuleSet
+</span><a href="#local-6989586621681146469"><span class="hs-identifier hs-var">mg_boot</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ModSummary -&gt; Module
+</span><a href="GHC.Unit.Module.ModSummary.html#ms_mod"><span class="hs-identifier hs-var">ms_mod</span></a></span><span> </span><span class="annot"><span class="annottext">ModSummary
+</span><a href="#local-6989586621681146466"><span class="hs-identifier hs-var">ms</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-142"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">mg_needs_th_or_qq :: Bool
+</span><a href="GHC.Unit.Module.Graph.html#mg_needs_th_or_qq"><span class="hs-identifier hs-var">mg_needs_th_or_qq</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681146468"><span class="hs-identifier hs-var">mg_needs_th_or_qq</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">ModSummary -&gt; Bool
+</span><a href="GHC.Unit.Module.Graph.html#isTemplateHaskellOrQQNonBoot"><span class="hs-identifier hs-var">isTemplateHaskellOrQQNonBoot</span></a></span><span> </span><span class="annot"><span class="annottext">ModSummary
+</span><a href="#local-6989586621681146466"><span class="hs-identifier hs-var">ms</span></a></span><span>
+</span><span id="line-143"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-144"></span><span>
+</span><span id="line-145"></span><span class="annot"><a href="GHC.Unit.Module.Graph.html#extendMGInst"><span class="hs-identifier hs-type">extendMGInst</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Graph.html#ModuleGraph"><span class="hs-identifier hs-type">ModuleGraph</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Unit.Types.html#InstantiatedUnit"><span class="hs-identifier hs-type">InstantiatedUnit</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Graph.html#ModuleGraph"><span class="hs-identifier hs-type">ModuleGraph</span></a></span><span>
+</span><span id="line-146"></span><span id="extendMGInst"><span class="annot"><span class="annottext">extendMGInst :: ModuleGraph -&gt; InstantiatedUnit -&gt; ModuleGraph
+</span><a href="GHC.Unit.Module.Graph.html#extendMGInst"><span class="hs-identifier hs-var hs-var">extendMGInst</span></a></span></span><span> </span><span id="local-6989586621681146461"><span class="annot"><span class="annottext">ModuleGraph
+</span><a href="#local-6989586621681146461"><span class="hs-identifier hs-var">mg</span></a></span></span><span> </span><span id="local-6989586621681146460"><span class="annot"><span class="annottext">InstantiatedUnit
+</span><a href="#local-6989586621681146460"><span class="hs-identifier hs-var">depUnitId</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ModuleGraph
+</span><a href="#local-6989586621681146461"><span class="hs-identifier hs-var">mg</span></a></span><span>
+</span><span id="line-147"></span><span>  </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">mg_mss :: [ModuleGraphNode]
+</span><a href="GHC.Unit.Module.Graph.html#mg_mss"><span class="hs-identifier hs-var">mg_mss</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">InstantiatedUnit -&gt; ModuleGraphNode
+</span><a href="GHC.Unit.Module.Graph.html#InstantiationNode"><span class="hs-identifier hs-var">InstantiationNode</span></a></span><span> </span><span class="annot"><span class="annottext">InstantiatedUnit
+</span><a href="#local-6989586621681146460"><span class="hs-identifier hs-var">depUnitId</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">ModuleGraph -&gt; [ModuleGraphNode]
+</span><a href="GHC.Unit.Module.Graph.html#mg_mss"><span class="hs-identifier hs-var">mg_mss</span></a></span><span> </span><span class="annot"><span class="annottext">ModuleGraph
+</span><a href="#local-6989586621681146461"><span class="hs-identifier hs-var">mg</span></a></span><span>
+</span><span id="line-148"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-149"></span><span>
+</span><span id="line-150"></span><span class="annot"><a href="GHC.Unit.Module.Graph.html#extendMG%27"><span class="hs-identifier hs-type">extendMG'</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Graph.html#ModuleGraph"><span class="hs-identifier hs-type">ModuleGraph</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Graph.html#ModuleGraphNode"><span class="hs-identifier hs-type">ModuleGraphNode</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Graph.html#ModuleGraph"><span class="hs-identifier hs-type">ModuleGraph</span></a></span><span>
+</span><span id="line-151"></span><span id="extendMG%27"><span class="annot"><span class="annottext">extendMG' :: ModuleGraph -&gt; ModuleGraphNode -&gt; ModuleGraph
+</span><a href="GHC.Unit.Module.Graph.html#extendMG%27"><span class="hs-identifier hs-var hs-var">extendMG'</span></a></span></span><span> </span><span id="local-6989586621681146459"><span class="annot"><span class="annottext">ModuleGraph
+</span><a href="#local-6989586621681146459"><span class="hs-identifier hs-var">mg</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-152"></span><span>  </span><span class="annot"><a href="GHC.Unit.Module.Graph.html#InstantiationNode"><span class="hs-identifier hs-type">InstantiationNode</span></a></span><span> </span><span id="local-6989586621681146458"><span class="annot"><span class="annottext">InstantiatedUnit
+</span><a href="#local-6989586621681146458"><span class="hs-identifier hs-var">depUnitId</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ModuleGraph -&gt; InstantiatedUnit -&gt; ModuleGraph
+</span><a href="GHC.Unit.Module.Graph.html#extendMGInst"><span class="hs-identifier hs-var">extendMGInst</span></a></span><span> </span><span class="annot"><span class="annottext">ModuleGraph
+</span><a href="#local-6989586621681146459"><span class="hs-identifier hs-var">mg</span></a></span><span> </span><span class="annot"><span class="annottext">InstantiatedUnit
+</span><a href="#local-6989586621681146458"><span class="hs-identifier hs-var">depUnitId</span></a></span><span>
+</span><span id="line-153"></span><span>  </span><span class="annot"><a href="GHC.Unit.Module.Graph.html#ModuleNode"><span class="hs-identifier hs-type">ModuleNode</span></a></span><span> </span><span id="local-6989586621681146457"><span class="annot"><span class="annottext">ExtendedModSummary
+</span><a href="#local-6989586621681146457"><span class="hs-identifier hs-var">ems</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ModuleGraph -&gt; ExtendedModSummary -&gt; ModuleGraph
+</span><a href="GHC.Unit.Module.Graph.html#extendMG"><span class="hs-identifier hs-var">extendMG</span></a></span><span> </span><span class="annot"><span class="annottext">ModuleGraph
+</span><a href="#local-6989586621681146459"><span class="hs-identifier hs-var">mg</span></a></span><span> </span><span class="annot"><span class="annottext">ExtendedModSummary
+</span><a href="#local-6989586621681146457"><span class="hs-identifier hs-var">ems</span></a></span><span>
+</span><span id="line-154"></span><span>
+</span><span id="line-155"></span><span class="annot"><a href="GHC.Unit.Module.Graph.html#mkModuleGraph"><span class="hs-identifier hs-type">mkModuleGraph</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Unit.Module.ModSummary.html#ExtendedModSummary"><span class="hs-identifier hs-type">ExtendedModSummary</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Graph.html#ModuleGraph"><span class="hs-identifier hs-type">ModuleGraph</span></a></span><span>
+</span><span id="line-156"></span><span id="mkModuleGraph"><span class="annot"><span class="annottext">mkModuleGraph :: [ExtendedModSummary] -&gt; ModuleGraph
+</span><a href="GHC.Unit.Module.Graph.html#mkModuleGraph"><span class="hs-identifier hs-var hs-var">mkModuleGraph</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a b.
+Foldable t =&gt;
+(a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><a href="../../base-4.16.4.0/src/Data-Foldable.html#foldr"><span class="hs-identifier hs-var">foldr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b c. (a -&gt; b -&gt; c) -&gt; b -&gt; a -&gt; c
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#flip"><span class="hs-identifier hs-var">flip</span></a></span><span> </span><span class="annot"><span class="annottext">ModuleGraph -&gt; ExtendedModSummary -&gt; ModuleGraph
+</span><a href="GHC.Unit.Module.Graph.html#extendMG"><span class="hs-identifier hs-var">extendMG</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ModuleGraph
+</span><a href="GHC.Unit.Module.Graph.html#emptyMG"><span class="hs-identifier hs-var">emptyMG</span></a></span><span>
+</span><span id="line-157"></span><span>
+</span><span id="line-158"></span><span class="annot"><a href="GHC.Unit.Module.Graph.html#mkModuleGraph%27"><span class="hs-identifier hs-type">mkModuleGraph'</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Unit.Module.Graph.html#ModuleGraphNode"><span class="hs-identifier hs-type">ModuleGraphNode</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Graph.html#ModuleGraph"><span class="hs-identifier hs-type">ModuleGraph</span></a></span><span>
+</span><span id="line-159"></span><span id="mkModuleGraph%27"><span class="annot"><span class="annottext">mkModuleGraph' :: [ModuleGraphNode] -&gt; ModuleGraph
+</span><a href="GHC.Unit.Module.Graph.html#mkModuleGraph%27"><span class="hs-identifier hs-var hs-var">mkModuleGraph'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a b.
+Foldable t =&gt;
+(a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><a href="../../base-4.16.4.0/src/Data-Foldable.html#foldr"><span class="hs-identifier hs-var">foldr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b c. (a -&gt; b -&gt; c) -&gt; b -&gt; a -&gt; c
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#flip"><span class="hs-identifier hs-var">flip</span></a></span><span> </span><span class="annot"><span class="annottext">ModuleGraph -&gt; ModuleGraphNode -&gt; ModuleGraph
+</span><a href="GHC.Unit.Module.Graph.html#extendMG%27"><span class="hs-identifier hs-var">extendMG'</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ModuleGraph
+</span><a href="GHC.Unit.Module.Graph.html#emptyMG"><span class="hs-identifier hs-var">emptyMG</span></a></span><span>
+</span><span id="line-160"></span><span>
+</span><span id="line-161"></span><span class="hs-comment">-- | This function filters out all the instantiation nodes from each SCC of a</span><span>
+</span><span id="line-162"></span><span class="hs-comment">-- topological sort. Use this with care, as the resulting &quot;strongly connected components&quot;</span><span>
+</span><span id="line-163"></span><span class="hs-comment">-- may not really be strongly connected in a direct way, as instantiations have been</span><span>
+</span><span id="line-164"></span><span class="hs-comment">-- removed. It would probably be best to eliminate uses of this function where possible.</span><span>
+</span><span id="line-165"></span><span class="annot"><a href="GHC.Unit.Module.Graph.html#filterToposortToModules"><span class="hs-identifier hs-type">filterToposortToModules</span></a></span><span>
+</span><span id="line-166"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="../../containers-0.6.5.1/src/Data-Graph.html#SCC"><span class="hs-identifier hs-type">SCC</span></a></span><span> </span><span class="annot"><a href="GHC.Unit.Module.Graph.html#ModuleGraphNode"><span class="hs-identifier hs-type">ModuleGraphNode</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="../../containers-0.6.5.1/src/Data-Graph.html#SCC"><span class="hs-identifier hs-type">SCC</span></a></span><span> </span><span class="annot"><a href="GHC.Unit.Module.ModSummary.html#ModSummary"><span class="hs-identifier hs-type">ModSummary</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-167"></span><span id="filterToposortToModules"><span class="annot"><span class="annottext">filterToposortToModules :: [SCC ModuleGraphNode] -&gt; [SCC ModSummary]
+</span><a href="GHC.Unit.Module.Graph.html#filterToposortToModules"><span class="hs-identifier hs-var hs-var">filterToposortToModules</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; Maybe b) -&gt; [a] -&gt; [b]
+</span><a href="../../base-4.16.4.0/src/Data-Maybe.html#mapMaybe"><span class="hs-identifier hs-var">mapMaybe</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; Maybe b) -&gt; SCC a -&gt; Maybe (SCC b)
+</span><a href="#local-6989586621681146454"><span class="hs-identifier hs-var">mapMaybeSCC</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-168"></span><span>  </span><span class="annot"><a href="GHC.Unit.Module.Graph.html#InstantiationNode"><span class="hs-identifier hs-type">InstantiationNode</span></a></span><span> </span><span class="annot"><span class="annottext">InstantiatedUnit
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Nothing"><span class="hs-identifier hs-var">Nothing</span></a></span><span>
+</span><span id="line-169"></span><span>  </span><span class="annot"><a href="GHC.Unit.Module.Graph.html#ModuleNode"><span class="hs-identifier hs-type">ModuleNode</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Unit.Module.ModSummary.html#ExtendedModSummary"><span class="hs-identifier hs-type">ExtendedModSummary</span></a></span><span> </span><span id="local-6989586621681146453"><span class="annot"><span class="annottext">ModSummary
+</span><a href="#local-6989586621681146453"><span class="hs-identifier hs-var">node</span></a></span></span><span> </span><span class="annot"><span class="annottext">[InstantiatedUnit]
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Just"><span class="hs-identifier hs-var">Just</span></a></span><span> </span><span class="annot"><span class="annottext">ModSummary
+</span><a href="#local-6989586621681146453"><span class="hs-identifier hs-var">node</span></a></span><span>
+</span><span id="line-170"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-171"></span><span>    </span><span class="hs-comment">-- This higher order function is somewhat bogus,</span><span>
+</span><span id="line-172"></span><span>    </span><span class="hs-comment">-- as the definition of &quot;strongly connected component&quot;</span><span>
+</span><span id="line-173"></span><span>    </span><span class="hs-comment">-- is not necessarily respected.</span><span>
+</span><span id="line-174"></span><span>    </span><span id="local-6989586621681146591"><span id="local-6989586621681146592"><span class="annot"><a href="#local-6989586621681146454"><span class="hs-identifier hs-type">mapMaybeSCC</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621681146592"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Maybe"><span class="hs-identifier hs-type">Maybe</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681146591"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../containers-0.6.5.1/src/Data-Graph.html#SCC"><span class="hs-identifier hs-type">SCC</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681146592"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Maybe"><span class="hs-identifier hs-type">Maybe</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../containers-0.6.5.1/src/Data-Graph.html#SCC"><span class="hs-identifier hs-type">SCC</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681146591"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-175"></span><span>    </span><span id="local-6989586621681146454"><span class="annot"><span class="annottext">mapMaybeSCC :: forall a b. (a -&gt; Maybe b) -&gt; SCC a -&gt; Maybe (SCC b)
+</span><a href="#local-6989586621681146454"><span class="hs-identifier hs-var hs-var">mapMaybeSCC</span></a></span></span><span> </span><span id="local-6989586621681146450"><span class="annot"><span class="annottext">a -&gt; Maybe b
+</span><a href="#local-6989586621681146450"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-176"></span><span>      </span><span class="annot"><a href="../../containers-0.6.5.1/src/Data-Graph.html#AcyclicSCC"><span class="hs-identifier hs-type">AcyclicSCC</span></a></span><span> </span><span id="local-6989586621681146448"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681146448"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall vertex. vertex -&gt; SCC vertex
+</span><a href="../../containers-0.6.5.1/src/Data-Graph.html#AcyclicSCC"><span class="hs-identifier hs-var">AcyclicSCC</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="../../base-4.16.4.0/src/Data-Functor.html#%3C%24%3E"><span class="hs-operator hs-var">&lt;$&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; Maybe b
+</span><a href="#local-6989586621681146450"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681146448"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-177"></span><span>      </span><span class="annot"><a href="../../containers-0.6.5.1/src/Data-Graph.html#CyclicSCC"><span class="hs-identifier hs-type">CyclicSCC</span></a></span><span> </span><span id="local-6989586621681146445"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621681146445"><span class="hs-keyword hs-var">as</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; Maybe b) -&gt; [a] -&gt; [b]
+</span><a href="../../base-4.16.4.0/src/Data-Maybe.html#mapMaybe"><span class="hs-identifier hs-var">mapMaybe</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; Maybe b
+</span><a href="#local-6989586621681146450"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621681146445"><span class="hs-keyword hs-var">as</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-178"></span><span>        </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Nothing"><span class="hs-identifier hs-var">Nothing</span></a></span><span>
+</span><span id="line-179"></span><span>        </span><span class="hs-special">[</span><span id="local-6989586621681146444"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621681146444"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Just"><span class="hs-identifier hs-var">Just</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">forall vertex. vertex -&gt; SCC vertex
+</span><a href="../../containers-0.6.5.1/src/Data-Graph.html#AcyclicSCC"><span class="hs-identifier hs-var">AcyclicSCC</span></a></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621681146444"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-180"></span><span>        </span><span id="local-6989586621681146443"><span class="annot"><span class="annottext">[b]
+</span><a href="#local-6989586621681146443"><span class="hs-keyword hs-var">as</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Just"><span class="hs-identifier hs-var">Just</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">forall vertex. [vertex] -&gt; SCC vertex
+</span><a href="../../containers-0.6.5.1/src/Data-Graph.html#CyclicSCC"><span class="hs-identifier hs-var">CyclicSCC</span></a></span><span> </span><span class="annot"><span class="annottext">[b]
+</span><a href="#local-6989586621681146443"><span class="hs-keyword hs-var">as</span></a></span><span>
+</span><span id="line-181"></span><span>
+</span><span id="line-182"></span><span class="annot"><a href="GHC.Unit.Module.Graph.html#showModMsg"><span class="hs-identifier hs-type">showModMsg</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Driver.Session.html#DynFlags"><span class="hs-identifier hs-type">DynFlags</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Graph.html#ModuleGraphNode"><span class="hs-identifier hs-type">ModuleGraphNode</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#SDoc"><span class="hs-identifier hs-type">SDoc</span></a></span><span>
+</span><span id="line-183"></span><span id="showModMsg"><span class="annot"><span class="annottext">showModMsg :: DynFlags -&gt; Bool -&gt; ModuleGraphNode -&gt; SDoc
+</span><a href="GHC.Unit.Module.Graph.html#showModMsg"><span class="hs-identifier hs-var hs-var">showModMsg</span></a></span></span><span> </span><span class="annot"><span class="annottext">DynFlags
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Unit.Module.Graph.html#InstantiationNode"><span class="hs-identifier hs-type">InstantiationNode</span></a></span><span> </span><span id="local-6989586621681146442"><span class="annot"><span class="annottext">InstantiatedUnit
+</span><a href="#local-6989586621681146442"><span class="hs-identifier hs-var">indef_unit</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-184"></span><span>  </span><span class="annot"><span class="annottext">forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">forall unit. GenInstantiatedUnit unit -&gt; Indefinite unit
+</span><a href="GHC.Unit.Types.html#instUnitInstanceOf"><span class="hs-identifier hs-var">instUnitInstanceOf</span></a></span><span> </span><span class="annot"><span class="annottext">InstantiatedUnit
+</span><a href="#local-6989586621681146442"><span class="hs-identifier hs-var">indef_unit</span></a></span><span>
+</span><span id="line-185"></span><span class="annot"><a href="GHC.Unit.Module.Graph.html#showModMsg"><span class="hs-identifier hs-var">showModMsg</span></a></span><span> </span><span id="local-6989586621681146440"><span class="annot"><span class="annottext">DynFlags
+</span><a href="#local-6989586621681146440"><span class="hs-identifier hs-var">dflags</span></a></span></span><span> </span><span id="local-6989586621681146439"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681146439"><span class="hs-identifier hs-var">recomp</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Unit.Module.Graph.html#ModuleNode"><span class="hs-identifier hs-type">ModuleNode</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Unit.Module.ModSummary.html#ExtendedModSummary"><span class="hs-identifier hs-type">ExtendedModSummary</span></a></span><span> </span><span id="local-6989586621681146438"><span class="annot"><span class="annottext">ModSummary
+</span><a href="#local-6989586621681146438"><span class="hs-identifier hs-var">mod_summary</span></a></span></span><span> </span><span class="annot"><span class="annottext">[InstantiatedUnit]
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-186"></span><span>  </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">GeneralFlag -&gt; DynFlags -&gt; Bool
+</span><a href="GHC.Driver.Session.html#gopt"><span class="hs-identifier hs-var">gopt</span></a></span><span> </span><span class="annot"><span class="annottext">GeneralFlag
+</span><a href="GHC.Driver.Flags.html#Opt_HideSourcePaths"><span class="hs-identifier hs-var">Opt_HideSourcePaths</span></a></span><span> </span><span class="annot"><span class="annottext">DynFlags
+</span><a href="#local-6989586621681146440"><span class="hs-identifier hs-var">dflags</span></a></span><span>
+</span><span id="line-187"></span><span>      </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621681146434"><span class="hs-identifier hs-var">mod_str</span></a></span><span>
+</span><span id="line-188"></span><span>      </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">[SDoc] -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#hsep"><span class="hs-identifier hs-var">hsep</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span>
+</span><span id="line-189"></span><span>         </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621681146434"><span class="hs-identifier hs-var">mod_str</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%2B%2B"><span class="hs-operator hs-var">++</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Int -&gt; a -&gt; [a]
+</span><a href="../../base-4.16.4.0/src/GHC-List.html#replicate"><span class="hs-identifier hs-var">replicate</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">max</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">16</span></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#-"><span class="hs-glyph hs-var">-</span></a></span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><a href="../../base-4.16.4.0/src/Data-Foldable.html#length"><span class="hs-identifier hs-var">length</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621681146434"><span class="hs-identifier hs-var">mod_str</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">' '</span></span><span class="hs-special">)</span><span>
+</span><span id="line-190"></span><span>         </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Char -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#char"><span class="hs-identifier hs-var">char</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'('</span></span><span>
+</span><span id="line-191"></span><span>         </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; String
+</span><a href="#local-6989586621681146428"><span class="hs-identifier hs-var">op</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">ModSummary -&gt; String
+</span><a href="GHC.Unit.Module.ModSummary.html#msHsFilePath"><span class="hs-identifier hs-var">msHsFilePath</span></a></span><span> </span><span class="annot"><span class="annottext">ModSummary
+</span><a href="#local-6989586621681146438"><span class="hs-identifier hs-var">mod_summary</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#%3C%3E"><span class="hs-operator hs-var">&lt;&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Char -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#char"><span class="hs-identifier hs-var">char</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">','</span></span><span>
+</span><span id="line-192"></span><span>         </span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%2B%2B"><span class="hs-operator hs-var">++</span></a></span><span>
+</span><span id="line-193"></span><span>         </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">GeneralFlag -&gt; DynFlags -&gt; Bool
+</span><a href="GHC.Driver.Session.html#gopt"><span class="hs-identifier hs-var">gopt</span></a></span><span> </span><span class="annot"><span class="annottext">GeneralFlag
+</span><a href="GHC.Driver.Flags.html#Opt_BuildDynamicToo"><span class="hs-identifier hs-var">Opt_BuildDynamicToo</span></a></span><span> </span><span class="annot"><span class="annottext">DynFlags
+</span><a href="#local-6989586621681146440"><span class="hs-identifier hs-var">dflags</span></a></span><span>
+</span><span id="line-194"></span><span>            </span><span class="hs-keyword">then</span><span> </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621681146424"><span class="hs-identifier hs-var">obj_file</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#%3C%3E"><span class="hs-operator hs-var">&lt;&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Char -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#char"><span class="hs-identifier hs-var">char</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">','</span></span><span>
+</span><span id="line-195"></span><span>                 </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621681146423"><span class="hs-identifier hs-var">dyn_file</span></a></span><span>
+</span><span id="line-196"></span><span>                 </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Char -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#char"><span class="hs-identifier hs-var">char</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">')'</span></span><span>
+</span><span id="line-197"></span><span>                 </span><span class="hs-special">]</span><span>
+</span><span id="line-198"></span><span>            </span><span class="hs-keyword">else</span><span> </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621681146424"><span class="hs-identifier hs-var">obj_file</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Char -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#char"><span class="hs-identifier hs-var">char</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">')'</span></span><span> </span><span class="hs-special">]</span><span>
+</span><span id="line-199"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-200"></span><span>    </span><span id="local-6989586621681146428"><span class="annot"><span class="annottext">op :: String -&gt; String
+</span><a href="#local-6989586621681146428"><span class="hs-identifier hs-var hs-var">op</span></a></span></span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; String
+</span><a href="../../filepath-1.4.2.2/src/System-FilePath-Posix.html#normalise"><span class="hs-identifier hs-var">normalise</span></a></span><span>
+</span><span id="line-201"></span><span>    </span><span id="local-6989586621681146421"><span class="annot"><span class="annottext">mod :: ModuleName
+</span><a href="#local-6989586621681146421"><span class="hs-identifier hs-var hs-var">mod</span></a></span></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall unit. GenModule unit -&gt; ModuleName
+</span><a href="GHC.Unit.Types.html#moduleName"><span class="hs-identifier hs-var">moduleName</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ModSummary -&gt; Module
+</span><a href="GHC.Unit.Module.ModSummary.html#ms_mod"><span class="hs-identifier hs-var">ms_mod</span></a></span><span> </span><span class="annot"><span class="annottext">ModSummary
+</span><a href="#local-6989586621681146438"><span class="hs-identifier hs-var">mod_summary</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-202"></span><span>    </span><span id="local-6989586621681146434"><span class="annot"><span class="annottext">mod_str :: String
+</span><a href="#local-6989586621681146434"><span class="hs-identifier hs-var hs-var">mod_str</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Outputable a =&gt; DynFlags -&gt; a -&gt; String
+</span><a href="GHC.Driver.Ppr.html#showPpr"><span class="hs-identifier hs-var">showPpr</span></a></span><span> </span><span class="annot"><span class="annottext">DynFlags
+</span><a href="#local-6989586621681146440"><span class="hs-identifier hs-var">dflags</span></a></span><span> </span><span class="annot"><span class="annottext">ModuleName
+</span><a href="#local-6989586621681146421"><span class="hs-identifier hs-var">mod</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%2B%2B"><span class="hs-operator hs-var">++</span></a></span><span> </span><span class="annot"><span class="annottext">HscSource -&gt; String
+</span><a href="GHC.Types.SourceFile.html#hscSourceString"><span class="hs-identifier hs-var">hscSourceString</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ModSummary -&gt; HscSource
+</span><a href="GHC.Unit.Module.ModSummary.html#ms_hsc_src"><span class="hs-identifier hs-var">ms_hsc_src</span></a></span><span> </span><span class="annot"><span class="annottext">ModSummary
+</span><a href="#local-6989586621681146438"><span class="hs-identifier hs-var">mod_summary</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-203"></span><span>    </span><span id="local-6989586621681146423"><span class="annot"><span class="annottext">dyn_file :: String
+</span><a href="#local-6989586621681146423"><span class="hs-identifier hs-var hs-var">dyn_file</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; String
+</span><a href="#local-6989586621681146428"><span class="hs-identifier hs-var">op</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">ModSummary -&gt; DynFlags -&gt; String
+</span><a href="GHC.Unit.Module.ModSummary.html#msDynObjFilePath"><span class="hs-identifier hs-var">msDynObjFilePath</span></a></span><span> </span><span class="annot"><span class="annottext">ModSummary
+</span><a href="#local-6989586621681146438"><span class="hs-identifier hs-var">mod_summary</span></a></span><span> </span><span class="annot"><span class="annottext">DynFlags
+</span><a href="#local-6989586621681146440"><span class="hs-identifier hs-var">dflags</span></a></span><span>
+</span><span id="line-204"></span><span>    </span><span id="local-6989586621681146424"><span class="annot"><span class="annottext">obj_file :: String
+</span><a href="#local-6989586621681146424"><span class="hs-identifier hs-var hs-var">obj_file</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">DynFlags -&gt; Backend
+</span><a href="GHC.Driver.Session.html#backend"><span class="hs-identifier hs-var">backend</span></a></span><span> </span><span class="annot"><span class="annottext">DynFlags
+</span><a href="#local-6989586621681146440"><span class="hs-identifier hs-var">dflags</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-205"></span><span>                </span><span class="annot"><span class="annottext">Backend
+</span><a href="GHC.Driver.Backend.html#Interpreter"><span class="hs-identifier hs-var">Interpreter</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681146439"><span class="hs-identifier hs-var">recomp</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;interpreted&quot;</span></span><span>
+</span><span id="line-206"></span><span>                </span><span class="annot"><span class="annottext">Backend
+</span><a href="GHC.Driver.Backend.html#NoBackend"><span class="hs-identifier hs-var">NoBackend</span></a></span><span>            </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;nothing&quot;</span></span><span>
+</span><span id="line-207"></span><span>                </span><span class="annot"><span class="annottext">Backend
+</span><span class="hs-identifier">_</span></span><span>                    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; String
+</span><a href="#local-6989586621681146428"><span class="hs-identifier hs-var">op</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">ModSummary -&gt; String
+</span><a href="GHC.Unit.Module.ModSummary.html#msObjFilePath"><span class="hs-identifier hs-var">msObjFilePath</span></a></span><span> </span><span class="annot"><span class="annottext">ModSummary
+</span><a href="#local-6989586621681146438"><span class="hs-identifier hs-var">mod_summary</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-208"></span><span>
+</span><span id="line-209"></span></pre></body></html>

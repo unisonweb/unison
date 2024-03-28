@@ -1,0 +1,138 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- THIS IS A GENERATED FILE, DO NOT EDIT</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-imports #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-matches #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-deprecations #-}</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.DidOpenTextDocumentParams</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Hashable</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html"><span class="hs-identifier">Language.LSP.Protocol.Utils.Misc</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prettyprinter</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Aeson.html"><span class="hs-identifier">Data.Row.Aeson</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Hashable.html"><span class="hs-identifier">Data.Row.Hashable</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Hashable</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.TextDocumentItem.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.TextDocumentItem</span></a></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html"><span class="hs-identifier">Language.LSP.Protocol.Types.Common</span></a></span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-comment">{-|
+The parameters sent in an open text document notification
+-}</span><span>
+</span><span id="line-22"></span><span id="local-6989586621682203286"><span id="local-6989586621682203287"></span></span><span class="hs-keyword">data</span><span> </span><span id="DidOpenTextDocumentParams"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.DidOpenTextDocumentParams.html#DidOpenTextDocumentParams"><span class="hs-identifier hs-var">DidOpenTextDocumentParams</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="DidOpenTextDocumentParams"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.DidOpenTextDocumentParams.html#DidOpenTextDocumentParams"><span class="hs-identifier hs-var">DidOpenTextDocumentParams</span></a></span></span><span> </span><span>
+</span><span id="line-23"></span><span>  </span><span class="hs-special">{</span><span> </span><span class="hs-comment">{-|
+  The document that was opened.
+  -}</span><span>
+</span><span id="line-26"></span><span>  </span><span id="%24sel%3A_textDocument%3ADidOpenTextDocumentParams"><span class="annot"><span class="annottext">DidOpenTextDocumentParams -&gt; TextDocumentItem
+</span><a href="Language.LSP.Protocol.Internal.Types.DidOpenTextDocumentParams.html#%24sel%3A_textDocument%3ADidOpenTextDocumentParams"><span class="hs-identifier hs-var hs-var">_textDocument</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.TextDocumentItem.html#TextDocumentItem"><span class="hs-identifier hs-type">Language.LSP.Protocol.Internal.Types.TextDocumentItem.TextDocumentItem</span></a></span><span>
+</span><span id="line-27"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682203274"><span id="local-6989586621682203276"><span id="local-6989586621682203282"><span class="annot"><span class="annottext">Int -&gt; DidOpenTextDocumentParams -&gt; ShowS
+[DidOpenTextDocumentParams] -&gt; ShowS
+DidOpenTextDocumentParams -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [DidOpenTextDocumentParams] -&gt; ShowS
+$cshowList :: [DidOpenTextDocumentParams] -&gt; ShowS
+show :: DidOpenTextDocumentParams -&gt; String
+$cshow :: DidOpenTextDocumentParams -&gt; String
+showsPrec :: Int -&gt; DidOpenTextDocumentParams -&gt; ShowS
+$cshowsPrec :: Int -&gt; DidOpenTextDocumentParams -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682203267"><span id="local-6989586621682203271"><span class="annot"><span class="annottext">DidOpenTextDocumentParams -&gt; DidOpenTextDocumentParams -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: DidOpenTextDocumentParams -&gt; DidOpenTextDocumentParams -&gt; Bool
+$c/= :: DidOpenTextDocumentParams -&gt; DidOpenTextDocumentParams -&gt; Bool
+== :: DidOpenTextDocumentParams -&gt; DidOpenTextDocumentParams -&gt; Bool
+$c== :: DidOpenTextDocumentParams -&gt; DidOpenTextDocumentParams -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682203244"><span id="local-6989586621682203246"><span id="local-6989586621682203249"><span id="local-6989586621682203252"><span id="local-6989586621682203255"><span id="local-6989586621682203258"><span id="local-6989586621682203262"><span class="annot"><span class="annottext">Eq DidOpenTextDocumentParams
+DidOpenTextDocumentParams -&gt; DidOpenTextDocumentParams -&gt; Bool
+DidOpenTextDocumentParams -&gt; DidOpenTextDocumentParams -&gt; Ordering
+DidOpenTextDocumentParams
+-&gt; DidOpenTextDocumentParams -&gt; DidOpenTextDocumentParams
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: DidOpenTextDocumentParams
+-&gt; DidOpenTextDocumentParams -&gt; DidOpenTextDocumentParams
+$cmin :: DidOpenTextDocumentParams
+-&gt; DidOpenTextDocumentParams -&gt; DidOpenTextDocumentParams
+max :: DidOpenTextDocumentParams
+-&gt; DidOpenTextDocumentParams -&gt; DidOpenTextDocumentParams
+$cmax :: DidOpenTextDocumentParams
+-&gt; DidOpenTextDocumentParams -&gt; DidOpenTextDocumentParams
+&gt;= :: DidOpenTextDocumentParams -&gt; DidOpenTextDocumentParams -&gt; Bool
+$c&gt;= :: DidOpenTextDocumentParams -&gt; DidOpenTextDocumentParams -&gt; Bool
+&gt; :: DidOpenTextDocumentParams -&gt; DidOpenTextDocumentParams -&gt; Bool
+$c&gt; :: DidOpenTextDocumentParams -&gt; DidOpenTextDocumentParams -&gt; Bool
+&lt;= :: DidOpenTextDocumentParams -&gt; DidOpenTextDocumentParams -&gt; Bool
+$c&lt;= :: DidOpenTextDocumentParams -&gt; DidOpenTextDocumentParams -&gt; Bool
+&lt; :: DidOpenTextDocumentParams -&gt; DidOpenTextDocumentParams -&gt; Bool
+$c&lt; :: DidOpenTextDocumentParams -&gt; DidOpenTextDocumentParams -&gt; Bool
+compare :: DidOpenTextDocumentParams -&gt; DidOpenTextDocumentParams -&gt; Ordering
+$ccompare :: DidOpenTextDocumentParams -&gt; DidOpenTextDocumentParams -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall x.
+Rep DidOpenTextDocumentParams x -&gt; DidOpenTextDocumentParams
+forall x.
+DidOpenTextDocumentParams -&gt; Rep DidOpenTextDocumentParams x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cto :: forall x.
+Rep DidOpenTextDocumentParams x -&gt; DidOpenTextDocumentParams
+$cfrom :: forall x.
+DidOpenTextDocumentParams -&gt; Rep DidOpenTextDocumentParams x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">anyclass</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682203238"><span class="annot"><span class="annottext">DidOpenTextDocumentParams -&gt; ()
+forall a. (a -&gt; ()) -&gt; NFData a
+rnf :: DidOpenTextDocumentParams -&gt; ()
+$crnf :: DidOpenTextDocumentParams -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682203231"><span id="local-6989586621682203233"><span class="annot"><span class="annottext">Eq DidOpenTextDocumentParams
+Int -&gt; DidOpenTextDocumentParams -&gt; Int
+DidOpenTextDocumentParams -&gt; Int
+forall a. Eq a -&gt; (Int -&gt; a -&gt; Int) -&gt; (a -&gt; Int) -&gt; Hashable a
+hash :: DidOpenTextDocumentParams -&gt; Int
+$chash :: DidOpenTextDocumentParams -&gt; Int
+hashWithSalt :: Int -&gt; DidOpenTextDocumentParams -&gt; Int
+$chashWithSalt :: Int -&gt; DidOpenTextDocumentParams -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Hashable</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621682203222"><span id="local-6989586621682203228"><span class="annot"><span class="annottext">forall ann. [DidOpenTextDocumentParams] -&gt; Doc ann
+forall ann. DidOpenTextDocumentParams -&gt; Doc ann
+forall a.
+(forall ann. a -&gt; Doc ann)
+-&gt; (forall ann. [a] -&gt; Doc ann) -&gt; Pretty a
+prettyList :: forall ann. [DidOpenTextDocumentParams] -&gt; Doc ann
+$cprettyList :: forall ann. [DidOpenTextDocumentParams] -&gt; Doc ann
+pretty :: forall ann. DidOpenTextDocumentParams -&gt; Doc ann
+$cpretty :: forall ann. DidOpenTextDocumentParams -&gt; Doc ann
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Pretty</span></span></span></span><span> </span><span class="hs-keyword">via</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html#ViaJSON"><span class="hs-identifier hs-type">ViaJSON</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.DidOpenTextDocumentParams.html#DidOpenTextDocumentParams"><span class="hs-identifier hs-type">DidOpenTextDocumentParams</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682203210"><span id="local-6989586621682203212"><span id="local-6989586621682203214"><span class="annot"><span class="hs-identifier hs-type">Aeson.ToJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.DidOpenTextDocumentParams.html#DidOpenTextDocumentParams"><span class="hs-identifier hs-type">DidOpenTextDocumentParams</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-33"></span><span>  </span><span id="local-6989586621682203200"><span class="annot"><span class="annottext">toJSON :: DidOpenTextDocumentParams -&gt; Value
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">toJSON</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.DidOpenTextDocumentParams.html#DidOpenTextDocumentParams"><span class="hs-identifier hs-type">DidOpenTextDocumentParams</span></a></span><span> </span><span id="local-6989586621682203198"><span class="annot"><span class="annottext">TextDocumentItem
+</span><a href="#local-6989586621682203198"><span class="hs-identifier hs-var">arg0</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">Aeson.object</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">concat</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>  </span><span class="hs-special">[</span><span class="hs-special">[</span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;textDocument&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">Aeson..=</span></span><span> </span><span class="annot"><span class="annottext">TextDocumentItem
+</span><a href="#local-6989586621682203198"><span class="hs-identifier hs-var">arg0</span></a></span><span class="hs-special">]</span><span class="hs-special">]</span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682203192"><span class="annot"><span class="hs-identifier hs-type">Aeson.FromJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.DidOpenTextDocumentParams.html#DidOpenTextDocumentParams"><span class="hs-identifier hs-type">DidOpenTextDocumentParams</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-36"></span><span>  </span><span id="local-6989586621682203185"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser DidOpenTextDocumentParams
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">Aeson.withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;DidOpenTextDocumentParams&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621682203182"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682203182"><span class="hs-identifier hs-var">arg</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">TextDocumentItem -&gt; DidOpenTextDocumentParams
+</span><a href="Language.LSP.Protocol.Internal.Types.DidOpenTextDocumentParams.html#DidOpenTextDocumentParams"><span class="hs-identifier hs-var">DidOpenTextDocumentParams</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682203182"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">Aeson..:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;textDocument&quot;</span></span><span>
+</span><span id="line-37"></span></pre></body></html>

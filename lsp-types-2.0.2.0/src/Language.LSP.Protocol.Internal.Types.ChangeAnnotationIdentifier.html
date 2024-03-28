@@ -1,0 +1,155 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- THIS IS A GENERATED FILE, DO NOT EDIT</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-imports #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-matches #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-deprecations #-}</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.ChangeAnnotationIdentifier</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Hashable</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html"><span class="hs-identifier">Language.LSP.Protocol.Utils.Misc</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prettyprinter</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Aeson.html"><span class="hs-identifier">Data.Row.Aeson</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Hashable.html"><span class="hs-identifier">Data.Row.Hashable</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Hashable</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="hs-comment">{-|
+An identifier to refer to a change annotation stored with a workspace edit.
+-}</span><span>
+</span><span id="line-21"></span><span id="local-6989586621682229653"><span id="local-6989586621682229654"></span></span><span class="hs-keyword">newtype</span><span> </span><span id="ChangeAnnotationIdentifier"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ChangeAnnotationIdentifier.html#ChangeAnnotationIdentifier"><span class="hs-identifier hs-var">ChangeAnnotationIdentifier</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="ChangeAnnotationIdentifier"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ChangeAnnotationIdentifier.html#ChangeAnnotationIdentifier"><span class="hs-identifier hs-var">ChangeAnnotationIdentifier</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Data.Text.Text</span></span><span>
+</span><span id="line-22"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">newtype</span></span><span> </span><span class="hs-special">(</span><span> </span><span id="local-6989586621682229637"><span id="local-6989586621682229641"><span id="local-6989586621682229645"><span id="local-6989586621682229650"><span class="annot"><span class="annottext">[ChangeAnnotationIdentifier] -&gt; Encoding
+[ChangeAnnotationIdentifier] -&gt; Value
+ChangeAnnotationIdentifier -&gt; Encoding
+ChangeAnnotationIdentifier -&gt; Value
+forall a.
+(a -&gt; Value)
+-&gt; (a -&gt; Encoding)
+-&gt; ([a] -&gt; Value)
+-&gt; ([a] -&gt; Encoding)
+-&gt; ToJSON a
+toEncodingList :: [ChangeAnnotationIdentifier] -&gt; Encoding
+$ctoEncodingList :: [ChangeAnnotationIdentifier] -&gt; Encoding
+toJSONList :: [ChangeAnnotationIdentifier] -&gt; Value
+$ctoJSONList :: [ChangeAnnotationIdentifier] -&gt; Value
+toEncoding :: ChangeAnnotationIdentifier -&gt; Encoding
+$ctoEncoding :: ChangeAnnotationIdentifier -&gt; Encoding
+toJSON :: ChangeAnnotationIdentifier -&gt; Value
+$ctoJSON :: ChangeAnnotationIdentifier -&gt; Value
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Aeson.ToJSON</span></span></span></span></span></span><span>
+</span><span id="line-23"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="local-6989586621682229626"><span id="local-6989586621682229631"><span class="annot"><span class="annottext">Value -&gt; Parser [ChangeAnnotationIdentifier]
+Value -&gt; Parser ChangeAnnotationIdentifier
+forall a.
+(Value -&gt; Parser a) -&gt; (Value -&gt; Parser [a]) -&gt; FromJSON a
+parseJSONList :: Value -&gt; Parser [ChangeAnnotationIdentifier]
+$cparseJSONList :: Value -&gt; Parser [ChangeAnnotationIdentifier]
+parseJSON :: Value -&gt; Parser ChangeAnnotationIdentifier
+$cparseJSON :: Value -&gt; Parser ChangeAnnotationIdentifier
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Aeson.FromJSON</span></span></span></span><span>
+</span><span id="line-24"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="local-6989586621682229615"><span id="local-6989586621682229620"><span class="annot"><span class="annottext">ToJSONKeyFunction [ChangeAnnotationIdentifier]
+ToJSONKeyFunction ChangeAnnotationIdentifier
+forall a.
+ToJSONKeyFunction a -&gt; ToJSONKeyFunction [a] -&gt; ToJSONKey a
+toJSONKeyList :: ToJSONKeyFunction [ChangeAnnotationIdentifier]
+$ctoJSONKeyList :: ToJSONKeyFunction [ChangeAnnotationIdentifier]
+toJSONKey :: ToJSONKeyFunction ChangeAnnotationIdentifier
+$ctoJSONKey :: ToJSONKeyFunction ChangeAnnotationIdentifier
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Aeson.ToJSONKey</span></span></span></span><span>
+</span><span id="line-25"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="local-6989586621682229604"><span id="local-6989586621682229609"><span class="annot"><span class="annottext">FromJSONKeyFunction [ChangeAnnotationIdentifier]
+FromJSONKeyFunction ChangeAnnotationIdentifier
+forall a.
+FromJSONKeyFunction a -&gt; FromJSONKeyFunction [a] -&gt; FromJSONKey a
+fromJSONKeyList :: FromJSONKeyFunction [ChangeAnnotationIdentifier]
+$cfromJSONKeyList :: FromJSONKeyFunction [ChangeAnnotationIdentifier]
+fromJSONKey :: FromJSONKeyFunction ChangeAnnotationIdentifier
+$cfromJSONKey :: FromJSONKeyFunction ChangeAnnotationIdentifier
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Aeson.FromJSONKey</span></span></span></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682229590"><span id="local-6989586621682229592"><span id="local-6989586621682229598"><span class="annot"><span class="annottext">Int -&gt; ChangeAnnotationIdentifier -&gt; ShowS
+[ChangeAnnotationIdentifier] -&gt; ShowS
+ChangeAnnotationIdentifier -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [ChangeAnnotationIdentifier] -&gt; ShowS
+$cshowList :: [ChangeAnnotationIdentifier] -&gt; ShowS
+show :: ChangeAnnotationIdentifier -&gt; String
+$cshow :: ChangeAnnotationIdentifier -&gt; String
+showsPrec :: Int -&gt; ChangeAnnotationIdentifier -&gt; ShowS
+$cshowsPrec :: Int -&gt; ChangeAnnotationIdentifier -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682229583"><span id="local-6989586621682229587"><span class="annot"><span class="annottext">ChangeAnnotationIdentifier -&gt; ChangeAnnotationIdentifier -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: ChangeAnnotationIdentifier -&gt; ChangeAnnotationIdentifier -&gt; Bool
+$c/= :: ChangeAnnotationIdentifier -&gt; ChangeAnnotationIdentifier -&gt; Bool
+== :: ChangeAnnotationIdentifier -&gt; ChangeAnnotationIdentifier -&gt; Bool
+$c== :: ChangeAnnotationIdentifier -&gt; ChangeAnnotationIdentifier -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682229560"><span id="local-6989586621682229562"><span id="local-6989586621682229565"><span id="local-6989586621682229568"><span id="local-6989586621682229571"><span id="local-6989586621682229574"><span id="local-6989586621682229578"><span class="annot"><span class="annottext">Eq ChangeAnnotationIdentifier
+ChangeAnnotationIdentifier -&gt; ChangeAnnotationIdentifier -&gt; Bool
+ChangeAnnotationIdentifier
+-&gt; ChangeAnnotationIdentifier -&gt; Ordering
+ChangeAnnotationIdentifier
+-&gt; ChangeAnnotationIdentifier -&gt; ChangeAnnotationIdentifier
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: ChangeAnnotationIdentifier
+-&gt; ChangeAnnotationIdentifier -&gt; ChangeAnnotationIdentifier
+$cmin :: ChangeAnnotationIdentifier
+-&gt; ChangeAnnotationIdentifier -&gt; ChangeAnnotationIdentifier
+max :: ChangeAnnotationIdentifier
+-&gt; ChangeAnnotationIdentifier -&gt; ChangeAnnotationIdentifier
+$cmax :: ChangeAnnotationIdentifier
+-&gt; ChangeAnnotationIdentifier -&gt; ChangeAnnotationIdentifier
+&gt;= :: ChangeAnnotationIdentifier -&gt; ChangeAnnotationIdentifier -&gt; Bool
+$c&gt;= :: ChangeAnnotationIdentifier -&gt; ChangeAnnotationIdentifier -&gt; Bool
+&gt; :: ChangeAnnotationIdentifier -&gt; ChangeAnnotationIdentifier -&gt; Bool
+$c&gt; :: ChangeAnnotationIdentifier -&gt; ChangeAnnotationIdentifier -&gt; Bool
+&lt;= :: ChangeAnnotationIdentifier -&gt; ChangeAnnotationIdentifier -&gt; Bool
+$c&lt;= :: ChangeAnnotationIdentifier -&gt; ChangeAnnotationIdentifier -&gt; Bool
+&lt; :: ChangeAnnotationIdentifier -&gt; ChangeAnnotationIdentifier -&gt; Bool
+$c&lt; :: ChangeAnnotationIdentifier -&gt; ChangeAnnotationIdentifier -&gt; Bool
+compare :: ChangeAnnotationIdentifier
+-&gt; ChangeAnnotationIdentifier -&gt; Ordering
+$ccompare :: ChangeAnnotationIdentifier
+-&gt; ChangeAnnotationIdentifier -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall x.
+Rep ChangeAnnotationIdentifier x -&gt; ChangeAnnotationIdentifier
+forall x.
+ChangeAnnotationIdentifier -&gt; Rep ChangeAnnotationIdentifier x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cto :: forall x.
+Rep ChangeAnnotationIdentifier x -&gt; ChangeAnnotationIdentifier
+$cfrom :: forall x.
+ChangeAnnotationIdentifier -&gt; Rep ChangeAnnotationIdentifier x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">anyclass</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682229554"><span class="annot"><span class="annottext">ChangeAnnotationIdentifier -&gt; ()
+forall a. (a -&gt; ()) -&gt; NFData a
+rnf :: ChangeAnnotationIdentifier -&gt; ()
+$crnf :: ChangeAnnotationIdentifier -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682229547"><span id="local-6989586621682229549"><span class="annot"><span class="annottext">Eq ChangeAnnotationIdentifier
+Int -&gt; ChangeAnnotationIdentifier -&gt; Int
+ChangeAnnotationIdentifier -&gt; Int
+forall a. Eq a -&gt; (Int -&gt; a -&gt; Int) -&gt; (a -&gt; Int) -&gt; Hashable a
+hash :: ChangeAnnotationIdentifier -&gt; Int
+$chash :: ChangeAnnotationIdentifier -&gt; Int
+hashWithSalt :: Int -&gt; ChangeAnnotationIdentifier -&gt; Int
+$chashWithSalt :: Int -&gt; ChangeAnnotationIdentifier -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Hashable</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621682229538"><span id="local-6989586621682229544"><span class="annot"><span class="annottext">forall ann. [ChangeAnnotationIdentifier] -&gt; Doc ann
+forall ann. ChangeAnnotationIdentifier -&gt; Doc ann
+forall a.
+(forall ann. a -&gt; Doc ann)
+-&gt; (forall ann. [a] -&gt; Doc ann) -&gt; Pretty a
+prettyList :: forall ann. [ChangeAnnotationIdentifier] -&gt; Doc ann
+$cprettyList :: forall ann. [ChangeAnnotationIdentifier] -&gt; Doc ann
+pretty :: forall ann. ChangeAnnotationIdentifier -&gt; Doc ann
+$cpretty :: forall ann. ChangeAnnotationIdentifier -&gt; Doc ann
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Pretty</span></span></span></span><span> </span><span class="hs-keyword">via</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html#ViaJSON"><span class="hs-identifier hs-type">ViaJSON</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ChangeAnnotationIdentifier.html#ChangeAnnotationIdentifier"><span class="hs-identifier hs-type">ChangeAnnotationIdentifier</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span></pre></body></html>

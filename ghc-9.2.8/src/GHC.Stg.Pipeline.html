@@ -1,0 +1,427 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">{-
+(c) The GRASP/AQUA Project, Glasgow University, 1993-1998
+
+\section[SimplStg]{Driver for simplifying @STG@ programs}
+-}</span><span>
+</span><span id="line-6"></span><span>
+</span><span id="line-7"></span><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-8"></span><span class="hs-pragma">{-# LANGUAGE GeneralizedNewtypeDeriving #-}</span><span>
+</span><span id="line-9"></span><span class="hs-pragma">{-# LANGUAGE FlexibleContexts #-}</span><span>
+</span><span id="line-10"></span><span class="hs-pragma">{-# LANGUAGE TypeFamilies #-}</span><span>
+</span><span id="line-11"></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">GHC.Stg.Pipeline</span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Stg.Pipeline.html#stg2stg"><span class="hs-identifier">stg2stg</span></a></span><span> </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span class="hs-cpp">
+
+#include &quot;HsVersions.h&quot;
+</span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Prelude.html"><span class="hs-identifier">GHC.Prelude</span></a></span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Stg.Syntax.html"><span class="hs-identifier">GHC.Stg.Syntax</span></a></span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Stg.Lint.html"><span class="hs-identifier">GHC.Stg.Lint</span></a></span><span>     </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Stg.Lint.html#lintStgTopBindings"><span class="hs-identifier">lintStgTopBindings</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Stg.Stats.html"><span class="hs-identifier">GHC.Stg.Stats</span></a></span><span>    </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Stg.Stats.html#showStgStats"><span class="hs-identifier">showStgStats</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Stg.DepAnal.html"><span class="hs-identifier">GHC.Stg.DepAnal</span></a></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Stg.DepAnal.html#depSortStgPgm"><span class="hs-identifier">depSortStgPgm</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Stg.Unarise.html"><span class="hs-identifier">GHC.Stg.Unarise</span></a></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Stg.Unarise.html#unarise"><span class="hs-identifier">unarise</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Stg.CSE.html"><span class="hs-identifier">GHC.Stg.CSE</span></a></span><span>      </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Stg.CSE.html#stgCse"><span class="hs-identifier">stgCse</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Stg.Lift.html"><span class="hs-identifier">GHC.Stg.Lift</span></a></span><span>     </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Stg.Lift.html#stgLiftLams"><span class="hs-identifier">stgLiftLams</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Unit.Module.html"><span class="hs-identifier">GHC.Unit.Module</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Unit.Types.html#Module"><span class="hs-identifier">Module</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Runtime.Context.html"><span class="hs-identifier">GHC.Runtime.Context</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Runtime.Context.html#InteractiveContext"><span class="hs-identifier">InteractiveContext</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Driver.Session.html"><span class="hs-identifier">GHC.Driver.Session</span></a></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Error.html"><span class="hs-identifier">GHC.Utils.Error</span></a></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Unique.Supply.html"><span class="hs-identifier">GHC.Types.Unique.Supply</span></a></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html"><span class="hs-identifier">GHC.Utils.Outputable</span></a></span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Panic.html"><span class="hs-identifier">GHC.Utils.Panic</span></a></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Logger.html"><span class="hs-identifier">GHC.Utils.Logger</span></a></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Control-Monad.html#"><span class="hs-identifier">Control.Monad</span></a></span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Control-Monad-IO-Class.html#"><span class="hs-identifier">Control.Monad.IO.Class</span></a></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../transformers-0.5.6.2/src/Control-Monad-Trans-State-Strict.html#"><span class="hs-identifier">Control.Monad.Trans.State.Strict</span></a></span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span class="hs-keyword">newtype</span><span> </span><span id="StgM"><span class="annot"><a href="GHC.Stg.Pipeline.html#StgM"><span class="hs-identifier hs-var">StgM</span></a></span></span><span> </span><span id="local-6989586621681289407"><span class="annot"><a href="#local-6989586621681289407"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="StgM"><span class="annot"><a href="GHC.Stg.Pipeline.html#StgM"><span class="hs-identifier hs-var">StgM</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="_unStgM"><span class="annot"><span class="annottext">forall a. StgM a -&gt; StateT Char IO a
+</span><a href="GHC.Stg.Pipeline.html#_unStgM"><span class="hs-identifier hs-var hs-var">_unStgM</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../transformers-0.5.6.2/src/Control-Monad-Trans-State-Strict.html#StateT"><span class="hs-identifier hs-type">StateT</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Char</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621681289407"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-40"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681289255"><span id="local-6989586621681289261"><span class="annot"><span class="annottext">forall a b. a -&gt; StgM b -&gt; StgM a
+forall a b. (a -&gt; b) -&gt; StgM a -&gt; StgM b
+forall (f :: * -&gt; *).
+(forall a b. (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b. a -&gt; f b -&gt; f a) -&gt; Functor f
+&lt;$ :: forall a b. a -&gt; StgM b -&gt; StgM a
+$c&lt;$ :: forall a b. a -&gt; StgM b -&gt; StgM a
+fmap :: forall a b. (a -&gt; b) -&gt; StgM a -&gt; StgM b
+$cfmap :: forall a b. (a -&gt; b) -&gt; StgM a -&gt; StgM b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#Functor"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Functor</span></a></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681289224"><span id="local-6989586621681289229"><span id="local-6989586621681289234"><span id="local-6989586621681289239"><span id="local-6989586621681289245"><span class="annot"><span class="annottext">Functor StgM
+forall a. a -&gt; StgM a
+forall a b. StgM a -&gt; StgM b -&gt; StgM a
+forall a b. StgM a -&gt; StgM b -&gt; StgM b
+forall a b. StgM (a -&gt; b) -&gt; StgM a -&gt; StgM b
+forall a b c. (a -&gt; b -&gt; c) -&gt; StgM a -&gt; StgM b -&gt; StgM c
+forall (f :: * -&gt; *).
+Functor f
+-&gt; (forall a. a -&gt; f a)
+-&gt; (forall a b. f (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b c. (a -&gt; b -&gt; c) -&gt; f a -&gt; f b -&gt; f c)
+-&gt; (forall a b. f a -&gt; f b -&gt; f b)
+-&gt; (forall a b. f a -&gt; f b -&gt; f a)
+-&gt; Applicative f
+&lt;* :: forall a b. StgM a -&gt; StgM b -&gt; StgM a
+$c&lt;* :: forall a b. StgM a -&gt; StgM b -&gt; StgM a
+*&gt; :: forall a b. StgM a -&gt; StgM b -&gt; StgM b
+$c*&gt; :: forall a b. StgM a -&gt; StgM b -&gt; StgM b
+liftA2 :: forall a b c. (a -&gt; b -&gt; c) -&gt; StgM a -&gt; StgM b -&gt; StgM c
+$cliftA2 :: forall a b c. (a -&gt; b -&gt; c) -&gt; StgM a -&gt; StgM b -&gt; StgM c
+&lt;*&gt; :: forall a b. StgM (a -&gt; b) -&gt; StgM a -&gt; StgM b
+$c&lt;*&gt; :: forall a b. StgM (a -&gt; b) -&gt; StgM a -&gt; StgM b
+pure :: forall a. a -&gt; StgM a
+$cpure :: forall a. a -&gt; StgM a
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#Applicative"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Applicative</span></a></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681289206"><span id="local-6989586621681289210"><span id="local-6989586621681289215"><span class="annot"><span class="annottext">Applicative StgM
+forall a. a -&gt; StgM a
+forall a b. StgM a -&gt; StgM b -&gt; StgM b
+forall a b. StgM a -&gt; (a -&gt; StgM b) -&gt; StgM b
+forall (m :: * -&gt; *).
+Applicative m
+-&gt; (forall a b. m a -&gt; (a -&gt; m b) -&gt; m b)
+-&gt; (forall a b. m a -&gt; m b -&gt; m b)
+-&gt; (forall a. a -&gt; m a)
+-&gt; Monad m
+return :: forall a. a -&gt; StgM a
+$creturn :: forall a. a -&gt; StgM a
+&gt;&gt; :: forall a b. StgM a -&gt; StgM b -&gt; StgM b
+$c&gt;&gt; :: forall a b. StgM a -&gt; StgM b -&gt; StgM b
+&gt;&gt;= :: forall a b. StgM a -&gt; (a -&gt; StgM b) -&gt; StgM b
+$c&gt;&gt;= :: forall a b. StgM a -&gt; (a -&gt; StgM b) -&gt; StgM b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#Monad"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Monad</span></a></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681289199"><span class="annot"><span class="annottext">Monad StgM
+forall a. IO a -&gt; StgM a
+forall (m :: * -&gt; *).
+Monad m -&gt; (forall a. IO a -&gt; m a) -&gt; MonadIO m
+liftIO :: forall a. IO a -&gt; StgM a
+$cliftIO :: forall a. IO a -&gt; StgM a
+</span><a href="../../base-4.16.4.0/src/Control-Monad-IO-Class.html#C%3AMonadIO"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var">MonadIO</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621681289187"><span class="annot"><a href="GHC.Types.Unique.Supply.html#MonadUnique"><span class="hs-identifier hs-type">MonadUnique</span></a></span><span> </span><span class="annot"><a href="GHC.Stg.Pipeline.html#StgM"><span class="hs-identifier hs-type">StgM</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-43"></span><span>  </span><span id="local-6989586621681289181"><span class="annot"><span class="annottext">getUniqueSupplyM :: StgM UniqSupply
+</span><a href="GHC.Types.Unique.Supply.html#getUniqueSupplyM"><span class="hs-identifier hs-var hs-var hs-var hs-var">getUniqueSupplyM</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. StateT Char IO a -&gt; StgM a
+</span><a href="GHC.Stg.Pipeline.html#StgM"><span class="hs-identifier hs-var">StgM</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="hs-keyword">do</span><span> </span><span class="hs-special">{</span><span> </span><span id="local-6989586621681289179"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621681289179"><span class="hs-identifier hs-var">mask</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) s. Monad m =&gt; StateT s m s
+</span><a href="../../transformers-0.5.6.2/src/Control-Monad-Trans-State-Strict.html#get"><span class="hs-identifier hs-var">get</span></a></span><span>
+</span><span id="line-44"></span><span>                               </span><span class="hs-special">;</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><a href="../../base-4.16.4.0/src/Control-Monad-IO-Class.html#liftIO"><span class="hs-identifier hs-var">liftIO</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24%21"><span class="hs-operator hs-var">$!</span></a></span><span> </span><span class="annot"><span class="annottext">Char -&gt; IO UniqSupply
+</span><a href="GHC.Types.Unique.Supply.html#mkSplitUniqSupply"><span class="hs-identifier hs-var">mkSplitUniqSupply</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621681289179"><span class="hs-identifier hs-var">mask</span></a></span><span class="hs-special">}</span><span>
+</span><span id="line-45"></span><span>  </span><span id="local-6989586621681289170"><span class="annot"><span class="annottext">getUniqueM :: StgM Unique
+</span><a href="GHC.Types.Unique.Supply.html#getUniqueM"><span class="hs-identifier hs-var hs-var hs-var hs-var">getUniqueM</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. StateT Char IO a -&gt; StgM a
+</span><a href="GHC.Stg.Pipeline.html#StgM"><span class="hs-identifier hs-var">StgM</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="hs-keyword">do</span><span> </span><span class="hs-special">{</span><span> </span><span id="local-6989586621681289168"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621681289168"><span class="hs-identifier hs-var">mask</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) s. Monad m =&gt; StateT s m s
+</span><a href="../../transformers-0.5.6.2/src/Control-Monad-Trans-State-Strict.html#get"><span class="hs-identifier hs-var">get</span></a></span><span>
+</span><span id="line-46"></span><span>                         </span><span class="hs-special">;</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><a href="../../base-4.16.4.0/src/Control-Monad-IO-Class.html#liftIO"><span class="hs-identifier hs-var">liftIO</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24%21"><span class="hs-operator hs-var">$!</span></a></span><span> </span><span class="annot"><span class="annottext">Char -&gt; IO Unique
+</span><a href="GHC.Types.Unique.Supply.html#uniqFromMask"><span class="hs-identifier hs-var">uniqFromMask</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621681289168"><span class="hs-identifier hs-var">mask</span></a></span><span class="hs-special">}</span><span>
+</span><span id="line-47"></span><span>
+</span><span id="line-48"></span><span id="local-6989586621681289344"><span class="annot"><a href="GHC.Stg.Pipeline.html#runStgM"><span class="hs-identifier hs-type">runStgM</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Char</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Stg.Pipeline.html#StgM"><span class="hs-identifier hs-type">StgM</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681289344"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621681289344"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-49"></span><span id="runStgM"><span class="annot"><span class="annottext">runStgM :: forall a. Char -&gt; StgM a -&gt; IO a
+</span><a href="GHC.Stg.Pipeline.html#runStgM"><span class="hs-identifier hs-var hs-var">runStgM</span></a></span></span><span> </span><span id="local-6989586621681289164"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621681289164"><span class="hs-identifier hs-var">mask</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Stg.Pipeline.html#StgM"><span class="hs-identifier hs-type">StgM</span></a></span><span> </span><span id="local-6989586621681289163"><span class="annot"><span class="annottext">StateT Char IO a
+</span><a href="#local-6989586621681289163"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) s a. Monad m =&gt; StateT s m a -&gt; s -&gt; m a
+</span><a href="../../transformers-0.5.6.2/src/Control-Monad-Trans-State-Strict.html#evalStateT"><span class="hs-identifier hs-var">evalStateT</span></a></span><span> </span><span class="annot"><span class="annottext">StateT Char IO a
+</span><a href="#local-6989586621681289163"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621681289164"><span class="hs-identifier hs-var">mask</span></a></span><span>
+</span><span id="line-50"></span><span>
+</span><span id="line-51"></span><span class="annot"><a href="GHC.Stg.Pipeline.html#stg2stg"><span class="hs-identifier hs-type">stg2stg</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Utils.Logger.html#Logger"><span class="hs-identifier hs-type">Logger</span></a></span><span>
+</span><span id="line-52"></span><span>        </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Driver.Session.html#DynFlags"><span class="hs-identifier hs-type">DynFlags</span></a></span><span>                  </span><span class="hs-comment">-- includes spec of what stg-to-stg passes to do</span><span>
+</span><span id="line-53"></span><span>        </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Runtime.Context.html#InteractiveContext"><span class="hs-identifier hs-type">InteractiveContext</span></a></span><span>
+</span><span id="line-54"></span><span>        </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Unit.Types.html#Module"><span class="hs-identifier hs-type">Module</span></a></span><span>                    </span><span class="hs-comment">-- module being compiled</span><span>
+</span><span id="line-55"></span><span>        </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Stg.Syntax.html#StgTopBinding"><span class="hs-identifier hs-type">StgTopBinding</span></a></span><span class="hs-special">]</span><span>           </span><span class="hs-comment">-- input program</span><span>
+</span><span id="line-56"></span><span>        </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Stg.Syntax.html#StgTopBinding"><span class="hs-identifier hs-type">StgTopBinding</span></a></span><span class="hs-special">]</span><span>        </span><span class="hs-comment">-- output program</span><span>
+</span><span id="line-57"></span><span id="stg2stg"><span class="annot"><span class="annottext">stg2stg :: Logger
+-&gt; DynFlags
+-&gt; InteractiveContext
+-&gt; Module
+-&gt; [StgTopBinding]
+-&gt; IO [StgTopBinding]
+</span><a href="GHC.Stg.Pipeline.html#stg2stg"><span class="hs-identifier hs-var hs-var">stg2stg</span></a></span></span><span> </span><span id="local-6989586621681289161"><span class="annot"><span class="annottext">Logger
+</span><a href="#local-6989586621681289161"><span class="hs-identifier hs-var">logger</span></a></span></span><span> </span><span id="local-6989586621681289160"><span class="annot"><span class="annottext">DynFlags
+</span><a href="#local-6989586621681289160"><span class="hs-identifier hs-var">dflags</span></a></span></span><span> </span><span id="local-6989586621681289159"><span class="annot"><span class="annottext">InteractiveContext
+</span><a href="#local-6989586621681289159"><span class="hs-identifier hs-var">ictxt</span></a></span></span><span> </span><span id="local-6989586621681289158"><span class="annot"><span class="annottext">Module
+</span><a href="#local-6989586621681289158"><span class="hs-identifier hs-var">this_mod</span></a></span></span><span> </span><span id="local-6989586621681289157"><span class="annot"><span class="annottext">[StgTopBinding]
+</span><a href="#local-6989586621681289157"><span class="hs-identifier hs-var">binds</span></a></span></span><span>
+</span><span id="line-58"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>  </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">DumpFlag -&gt; String -&gt; [StgTopBinding] -&gt; IO ()
+</span><a href="#local-6989586621681289156"><span class="hs-identifier hs-var">dump_when</span></a></span><span> </span><span class="annot"><span class="annottext">DumpFlag
+</span><a href="GHC.Driver.Flags.html#Opt_D_dump_stg_from_core"><span class="hs-identifier hs-var">Opt_D_dump_stg_from_core</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Initial STG:&quot;</span></span><span> </span><span class="annot"><span class="annottext">[StgTopBinding]
+</span><a href="#local-6989586621681289157"><span class="hs-identifier hs-var">binds</span></a></span><span>
+</span><span id="line-59"></span><span>        </span><span class="hs-special">;</span><span> </span><span class="annot"><span class="annottext">Logger -&gt; DynFlags -&gt; String -&gt; IO ()
+</span><a href="GHC.Utils.Error.html#showPass"><span class="hs-identifier hs-var">showPass</span></a></span><span> </span><span class="annot"><span class="annottext">Logger
+</span><a href="#local-6989586621681289161"><span class="hs-identifier hs-var">logger</span></a></span><span> </span><span class="annot"><span class="annottext">DynFlags
+</span><a href="#local-6989586621681289160"><span class="hs-identifier hs-var">dflags</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Stg2Stg&quot;</span></span><span>
+</span><span id="line-60"></span><span>        </span><span class="hs-comment">-- Do the main business!</span><span>
+</span><span id="line-61"></span><span>        </span><span class="hs-special">;</span><span> </span><span id="local-6989586621681289153"><span class="annot"><span class="annottext">[StgTopBinding]
+</span><a href="#local-6989586621681289153"><span class="hs-identifier hs-var">binds'</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a. Char -&gt; StgM a -&gt; IO a
+</span><a href="GHC.Stg.Pipeline.html#runStgM"><span class="hs-identifier hs-var">runStgM</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'g'</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span>
+</span><span id="line-62"></span><span>            </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) (m :: * -&gt; *) b a.
+(Foldable t, Monad m) =&gt;
+(b -&gt; a -&gt; m b) -&gt; b -&gt; t a -&gt; m b
+</span><a href="../../base-4.16.4.0/src/Control-Monad.html#foldM"><span class="hs-identifier hs-var">foldM</span></a></span><span> </span><span class="annot"><span class="annottext">[StgTopBinding] -&gt; StgToDo -&gt; StgM [StgTopBinding]
+</span><a href="#local-6989586621681289151"><span class="hs-identifier hs-var">do_stg_pass</span></a></span><span> </span><span class="annot"><span class="annottext">[StgTopBinding]
+</span><a href="#local-6989586621681289157"><span class="hs-identifier hs-var">binds</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">DynFlags -&gt; [StgToDo]
+</span><a href="GHC.Stg.Pipeline.html#getStgToDo"><span class="hs-identifier hs-var">getStgToDo</span></a></span><span> </span><span class="annot"><span class="annottext">DynFlags
+</span><a href="#local-6989586621681289160"><span class="hs-identifier hs-var">dflags</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-63"></span><span>
+</span><span id="line-64"></span><span>          </span><span class="hs-comment">-- Dependency sort the program as last thing. The program needs to be</span><span>
+</span><span id="line-65"></span><span>          </span><span class="hs-comment">-- in dependency order for the SRT algorithm to work (see</span><span>
+</span><span id="line-66"></span><span>          </span><span class="hs-comment">-- CmmBuildInfoTables, which also includes a detailed description of</span><span>
+</span><span id="line-67"></span><span>          </span><span class="hs-comment">-- the algorithm), and we don't guarantee that the program is already</span><span>
+</span><span id="line-68"></span><span>          </span><span class="hs-comment">-- sorted at this point. #16192 is for simplifier not preserving</span><span>
+</span><span id="line-69"></span><span>          </span><span class="hs-comment">-- dependency order. We also don't guarantee that StgLiftLams will</span><span>
+</span><span id="line-70"></span><span>          </span><span class="hs-comment">-- preserve the order or only create minimal recursive groups, so a</span><span>
+</span><span id="line-71"></span><span>          </span><span class="hs-comment">-- sorting pass is necessary.</span><span>
+</span><span id="line-72"></span><span>        </span><span class="hs-special">;</span><span> </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681289149"><span class="annot"><span class="annottext">binds_sorted :: [StgTopBinding]
+</span><a href="#local-6989586621681289149"><span class="hs-identifier hs-var hs-var">binds_sorted</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Module -&gt; [StgTopBinding] -&gt; [StgTopBinding]
+</span><a href="GHC.Stg.DepAnal.html#depSortStgPgm"><span class="hs-identifier hs-var">depSortStgPgm</span></a></span><span> </span><span class="annot"><span class="annottext">Module
+</span><a href="#local-6989586621681289158"><span class="hs-identifier hs-var">this_mod</span></a></span><span> </span><span class="annot"><span class="annottext">[StgTopBinding]
+</span><a href="#local-6989586621681289153"><span class="hs-identifier hs-var">binds'</span></a></span><span>
+</span><span id="line-73"></span><span>        </span><span class="hs-special">;</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#return"><span class="hs-identifier hs-var">return</span></a></span><span> </span><span class="annot"><span class="annottext">[StgTopBinding]
+</span><a href="#local-6989586621681289149"><span class="hs-identifier hs-var">binds_sorted</span></a></span><span>
+</span><span id="line-74"></span><span>   </span><span class="hs-special">}</span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-77"></span><span>    </span><span id="local-6989586621681289148"><span class="annot"><span class="annottext">stg_linter :: Bool -&gt; String -&gt; [StgTopBinding] -&gt; IO ()
+</span><a href="#local-6989586621681289148"><span class="hs-identifier hs-var hs-var">stg_linter</span></a></span></span><span> </span><span id="local-6989586621681289147"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681289147"><span class="hs-identifier hs-var">unarised</span></a></span></span><span>
+</span><span id="line-78"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">GeneralFlag -&gt; DynFlags -&gt; Bool
+</span><a href="GHC.Driver.Session.html#gopt"><span class="hs-identifier hs-var">gopt</span></a></span><span> </span><span class="annot"><span class="annottext">GeneralFlag
+</span><a href="GHC.Driver.Flags.html#Opt_DoStgLinting"><span class="hs-identifier hs-var">Opt_DoStgLinting</span></a></span><span> </span><span class="annot"><span class="annottext">DynFlags
+</span><a href="#local-6989586621681289160"><span class="hs-identifier hs-var">dflags</span></a></span><span>
+</span><span id="line-79"></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (a :: StgPass).
+(OutputablePass a, BinderP a ~ Id) =&gt;
+Logger
+-&gt; DynFlags
+-&gt; InteractiveContext
+-&gt; Module
+-&gt; Bool
+-&gt; String
+-&gt; [GenStgTopBinding a]
+-&gt; IO ()
+</span><a href="GHC.Stg.Lint.html#lintStgTopBindings"><span class="hs-identifier hs-var">lintStgTopBindings</span></a></span><span> </span><span class="annot"><span class="annottext">Logger
+</span><a href="#local-6989586621681289161"><span class="hs-identifier hs-var">logger</span></a></span><span> </span><span class="annot"><span class="annottext">DynFlags
+</span><a href="#local-6989586621681289160"><span class="hs-identifier hs-var">dflags</span></a></span><span> </span><span class="annot"><span class="annottext">InteractiveContext
+</span><a href="#local-6989586621681289159"><span class="hs-identifier hs-var">ictxt</span></a></span><span> </span><span class="annot"><span class="annottext">Module
+</span><a href="#local-6989586621681289158"><span class="hs-identifier hs-var">this_mod</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681289147"><span class="hs-identifier hs-var">unarised</span></a></span><span>
+</span><span id="line-80"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#otherwise"><span class="hs-identifier hs-var">otherwise</span></a></span><span>
+</span><span id="line-81"></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621681289144"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621681289144"><span class="hs-identifier hs-var">_whodunnit</span></a></span></span><span> </span><span id="local-6989586621681289143"><span class="annot"><span class="annottext">[StgTopBinding]
+</span><a href="#local-6989586621681289143"><span class="hs-identifier hs-var">_binds</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#return"><span class="hs-identifier hs-var">return</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-82"></span><span>
+</span><span id="line-83"></span><span>    </span><span class="hs-comment">-------------------------------------------</span><span>
+</span><span id="line-84"></span><span>    </span><span class="annot"><a href="#local-6989586621681289151"><span class="hs-identifier hs-type">do_stg_pass</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Stg.Syntax.html#StgTopBinding"><span class="hs-identifier hs-type">StgTopBinding</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Stg.Pipeline.html#StgToDo"><span class="hs-identifier hs-type">StgToDo</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Stg.Pipeline.html#StgM"><span class="hs-identifier hs-type">StgM</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Stg.Syntax.html#StgTopBinding"><span class="hs-identifier hs-type">StgTopBinding</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-85"></span><span>    </span><span id="local-6989586621681289151"><span class="annot"><span class="annottext">do_stg_pass :: [StgTopBinding] -&gt; StgToDo -&gt; StgM [StgTopBinding]
+</span><a href="#local-6989586621681289151"><span class="hs-identifier hs-var hs-var">do_stg_pass</span></a></span></span><span> </span><span id="local-6989586621681289142"><span class="annot"><span class="annottext">[StgTopBinding]
+</span><a href="#local-6989586621681289142"><span class="hs-identifier hs-var">binds</span></a></span></span><span> </span><span id="local-6989586621681289141"><span class="annot"><span class="annottext">StgToDo
+</span><a href="#local-6989586621681289141"><span class="hs-identifier hs-var">to_do</span></a></span></span><span>
+</span><span id="line-86"></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">StgToDo
+</span><a href="#local-6989586621681289141"><span class="hs-identifier hs-var">to_do</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-87"></span><span>          </span><span class="annot"><span class="annottext">StgToDo
+</span><a href="GHC.Stg.Pipeline.html#StgDoNothing"><span class="hs-identifier hs-var">StgDoNothing</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-88"></span><span>            </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#return"><span class="hs-identifier hs-var">return</span></a></span><span> </span><span class="annot"><span class="annottext">[StgTopBinding]
+</span><a href="#local-6989586621681289142"><span class="hs-identifier hs-var">binds</span></a></span><span>
+</span><span id="line-89"></span><span>
+</span><span id="line-90"></span><span>          </span><span class="annot"><span class="annottext">StgToDo
+</span><a href="GHC.Stg.Pipeline.html#StgStats"><span class="hs-identifier hs-var">StgStats</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-91"></span><span>            </span><span class="annot"><span class="annottext">forall a. String -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/Debug-Trace.html#trace"><span class="hs-identifier hs-var">trace</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[StgTopBinding] -&gt; String
+</span><a href="GHC.Stg.Stats.html#showStgStats"><span class="hs-identifier hs-var">showStgStats</span></a></span><span> </span><span class="annot"><span class="annottext">[StgTopBinding]
+</span><a href="#local-6989586621681289142"><span class="hs-identifier hs-var">binds</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#return"><span class="hs-identifier hs-var">return</span></a></span><span> </span><span class="annot"><span class="annottext">[StgTopBinding]
+</span><a href="#local-6989586621681289142"><span class="hs-identifier hs-var">binds</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-92"></span><span>
+</span><span id="line-93"></span><span>          </span><span class="annot"><span class="annottext">StgToDo
+</span><a href="GHC.Stg.Pipeline.html#StgCSE"><span class="hs-identifier hs-var">StgCSE</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-94"></span><span>            </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681289137"><span class="annot"><span class="annottext">binds' :: [StgTopBinding]
+</span><a href="#local-6989586621681289137"><span class="hs-identifier hs-var hs-var">binds'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-pragma">{-# SCC</span><span> </span><span class="hs-pragma">&quot;StgCse&quot;</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="annot"><span class="annottext">[StgTopBinding] -&gt; [StgTopBinding]
+</span><a href="GHC.Stg.CSE.html#stgCse"><span class="hs-identifier hs-var">stgCse</span></a></span><span> </span><span class="annot"><span class="annottext">[StgTopBinding]
+</span><a href="#local-6989586621681289142"><span class="hs-identifier hs-var">binds</span></a></span><span>
+</span><span id="line-95"></span><span>            </span><span class="annot"><span class="annottext">String -&gt; [StgTopBinding] -&gt; StgM [StgTopBinding]
+</span><a href="#local-6989586621681289136"><span class="hs-identifier hs-var">end_pass</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;StgCse&quot;</span></span><span> </span><span class="annot"><span class="annottext">[StgTopBinding]
+</span><a href="#local-6989586621681289137"><span class="hs-identifier hs-var">binds'</span></a></span><span>
+</span><span id="line-96"></span><span>
+</span><span id="line-97"></span><span>          </span><span class="annot"><span class="annottext">StgToDo
+</span><a href="GHC.Stg.Pipeline.html#StgLiftLams"><span class="hs-identifier hs-var">StgLiftLams</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-98"></span><span>            </span><span id="local-6989586621681289134"><span class="annot"><span class="annottext">UniqSupply
+</span><a href="#local-6989586621681289134"><span class="hs-identifier hs-var">us</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *). MonadUnique m =&gt; m UniqSupply
+</span><a href="GHC.Types.Unique.Supply.html#getUniqueSupplyM"><span class="hs-identifier hs-var">getUniqueSupplyM</span></a></span><span>
+</span><span id="line-99"></span><span>            </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681289133"><span class="annot"><span class="annottext">binds' :: [StgTopBinding]
+</span><a href="#local-6989586621681289133"><span class="hs-identifier hs-var hs-var">binds'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-pragma">{-# SCC</span><span> </span><span class="hs-pragma">&quot;StgLiftLams&quot;</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="annot"><span class="annottext">DynFlags -&gt; UniqSupply -&gt; [StgTopBinding] -&gt; [StgTopBinding]
+</span><a href="GHC.Stg.Lift.html#stgLiftLams"><span class="hs-identifier hs-var">stgLiftLams</span></a></span><span> </span><span class="annot"><span class="annottext">DynFlags
+</span><a href="#local-6989586621681289160"><span class="hs-identifier hs-var">dflags</span></a></span><span> </span><span class="annot"><span class="annottext">UniqSupply
+</span><a href="#local-6989586621681289134"><span class="hs-identifier hs-var">us</span></a></span><span> </span><span class="annot"><span class="annottext">[StgTopBinding]
+</span><a href="#local-6989586621681289142"><span class="hs-identifier hs-var">binds</span></a></span><span>
+</span><span id="line-100"></span><span>            </span><span class="annot"><span class="annottext">String -&gt; [StgTopBinding] -&gt; StgM [StgTopBinding]
+</span><a href="#local-6989586621681289136"><span class="hs-identifier hs-var">end_pass</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;StgLiftLams&quot;</span></span><span> </span><span class="annot"><span class="annottext">[StgTopBinding]
+</span><a href="#local-6989586621681289133"><span class="hs-identifier hs-var">binds'</span></a></span><span>
+</span><span id="line-101"></span><span>
+</span><span id="line-102"></span><span>          </span><span class="annot"><span class="annottext">StgToDo
+</span><a href="GHC.Stg.Pipeline.html#StgUnarise"><span class="hs-identifier hs-var">StgUnarise</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-103"></span><span>            </span><span id="local-6989586621681289131"><span class="annot"><span class="annottext">UniqSupply
+</span><a href="#local-6989586621681289131"><span class="hs-identifier hs-var">us</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *). MonadUnique m =&gt; m UniqSupply
+</span><a href="GHC.Types.Unique.Supply.html#getUniqueSupplyM"><span class="hs-identifier hs-var">getUniqueSupplyM</span></a></span><span>
+</span><span id="line-104"></span><span>            </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><a href="../../base-4.16.4.0/src/Control-Monad-IO-Class.html#liftIO"><span class="hs-identifier hs-var">liftIO</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; String -&gt; [StgTopBinding] -&gt; IO ()
+</span><a href="#local-6989586621681289148"><span class="hs-identifier hs-var">stg_linter</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Pre-unarise&quot;</span></span><span> </span><span class="annot"><span class="annottext">[StgTopBinding]
+</span><a href="#local-6989586621681289142"><span class="hs-identifier hs-var">binds</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-105"></span><span>            </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681289130"><span class="annot"><span class="annottext">binds' :: [StgTopBinding]
+</span><a href="#local-6989586621681289130"><span class="hs-identifier hs-var hs-var">binds'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UniqSupply -&gt; [StgTopBinding] -&gt; [StgTopBinding]
+</span><a href="GHC.Stg.Unarise.html#unarise"><span class="hs-identifier hs-var">unarise</span></a></span><span> </span><span class="annot"><span class="annottext">UniqSupply
+</span><a href="#local-6989586621681289131"><span class="hs-identifier hs-var">us</span></a></span><span> </span><span class="annot"><span class="annottext">[StgTopBinding]
+</span><a href="#local-6989586621681289142"><span class="hs-identifier hs-var">binds</span></a></span><span>
+</span><span id="line-106"></span><span>            </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><a href="../../base-4.16.4.0/src/Control-Monad-IO-Class.html#liftIO"><span class="hs-identifier hs-var">liftIO</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">DumpFlag -&gt; String -&gt; [StgTopBinding] -&gt; IO ()
+</span><a href="#local-6989586621681289156"><span class="hs-identifier hs-var">dump_when</span></a></span><span> </span><span class="annot"><span class="annottext">DumpFlag
+</span><a href="GHC.Driver.Flags.html#Opt_D_dump_stg_unarised"><span class="hs-identifier hs-var">Opt_D_dump_stg_unarised</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Unarised STG:&quot;</span></span><span> </span><span class="annot"><span class="annottext">[StgTopBinding]
+</span><a href="#local-6989586621681289130"><span class="hs-identifier hs-var">binds'</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-107"></span><span>            </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><a href="../../base-4.16.4.0/src/Control-Monad-IO-Class.html#liftIO"><span class="hs-identifier hs-var">liftIO</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; String -&gt; [StgTopBinding] -&gt; IO ()
+</span><a href="#local-6989586621681289148"><span class="hs-identifier hs-var">stg_linter</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Unarise&quot;</span></span><span> </span><span class="annot"><span class="annottext">[StgTopBinding]
+</span><a href="#local-6989586621681289130"><span class="hs-identifier hs-var">binds'</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-108"></span><span>            </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#return"><span class="hs-identifier hs-var">return</span></a></span><span> </span><span class="annot"><span class="annottext">[StgTopBinding]
+</span><a href="#local-6989586621681289130"><span class="hs-identifier hs-var">binds'</span></a></span><span>
+</span><span id="line-109"></span><span>
+</span><span id="line-110"></span><span>    </span><span id="local-6989586621681289128"><span class="annot"><span class="annottext">opts :: StgPprOpts
+</span><a href="#local-6989586621681289128"><span class="hs-identifier hs-var hs-var">opts</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">DynFlags -&gt; StgPprOpts
+</span><a href="GHC.Stg.Syntax.html#initStgPprOpts"><span class="hs-identifier hs-var">initStgPprOpts</span></a></span><span> </span><span class="annot"><span class="annottext">DynFlags
+</span><a href="#local-6989586621681289160"><span class="hs-identifier hs-var">dflags</span></a></span><span>
+</span><span id="line-111"></span><span>    </span><span id="local-6989586621681289156"><span class="annot"><span class="annottext">dump_when :: DumpFlag -&gt; String -&gt; [StgTopBinding] -&gt; IO ()
+</span><a href="#local-6989586621681289156"><span class="hs-identifier hs-var hs-var">dump_when</span></a></span></span><span> </span><span id="local-6989586621681289126"><span class="annot"><span class="annottext">DumpFlag
+</span><a href="#local-6989586621681289126"><span class="hs-identifier hs-var">flag</span></a></span></span><span> </span><span id="local-6989586621681289125"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621681289125"><span class="hs-identifier hs-var">header</span></a></span></span><span> </span><span id="local-6989586621681289124"><span class="annot"><span class="annottext">[StgTopBinding]
+</span><a href="#local-6989586621681289124"><span class="hs-identifier hs-var">binds</span></a></span></span><span>
+</span><span id="line-112"></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Logger
+-&gt; DynFlags -&gt; DumpFlag -&gt; String -&gt; DumpFormat -&gt; SDoc -&gt; IO ()
+</span><a href="GHC.Utils.Logger.html#dumpIfSet_dyn"><span class="hs-identifier hs-var">dumpIfSet_dyn</span></a></span><span> </span><span class="annot"><span class="annottext">Logger
+</span><a href="#local-6989586621681289161"><span class="hs-identifier hs-var">logger</span></a></span><span> </span><span class="annot"><span class="annottext">DynFlags
+</span><a href="#local-6989586621681289160"><span class="hs-identifier hs-var">dflags</span></a></span><span> </span><span class="annot"><span class="annottext">DumpFlag
+</span><a href="#local-6989586621681289126"><span class="hs-identifier hs-var">flag</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621681289125"><span class="hs-identifier hs-var">header</span></a></span><span> </span><span class="annot"><span class="annottext">DumpFormat
+</span><a href="GHC.Utils.Logger.html#FormatSTG"><span class="hs-identifier hs-var">FormatSTG</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">StgPprOpts -&gt; [StgTopBinding] -&gt; SDoc
+</span><a href="GHC.Stg.Syntax.html#pprStgTopBindings"><span class="hs-identifier hs-var">pprStgTopBindings</span></a></span><span> </span><span class="annot"><span class="annottext">StgPprOpts
+</span><a href="#local-6989586621681289128"><span class="hs-identifier hs-var">opts</span></a></span><span> </span><span class="annot"><span class="annottext">[StgTopBinding]
+</span><a href="#local-6989586621681289124"><span class="hs-identifier hs-var">binds</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-113"></span><span>
+</span><span id="line-114"></span><span>    </span><span id="local-6989586621681289136"><span class="annot"><span class="annottext">end_pass :: String -&gt; [StgTopBinding] -&gt; StgM [StgTopBinding]
+</span><a href="#local-6989586621681289136"><span class="hs-identifier hs-var hs-var">end_pass</span></a></span></span><span> </span><span id="local-6989586621681289120"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621681289120"><span class="hs-identifier hs-var">what</span></a></span></span><span> </span><span id="local-6989586621681289119"><span class="annot"><span class="annottext">[StgTopBinding]
+</span><a href="#local-6989586621681289119"><span class="hs-identifier hs-var">binds2</span></a></span></span><span>
+</span><span id="line-115"></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><a href="../../base-4.16.4.0/src/Control-Monad-IO-Class.html#liftIO"><span class="hs-identifier hs-var">liftIO</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="hs-keyword">do</span><span> </span><span class="hs-comment">-- report verbosely, if required</span><span>
+</span><span id="line-116"></span><span>          </span><span class="annot"><span class="annottext">Logger
+-&gt; DynFlags -&gt; DumpFlag -&gt; String -&gt; DumpFormat -&gt; SDoc -&gt; IO ()
+</span><a href="GHC.Utils.Logger.html#dumpIfSet_dyn"><span class="hs-identifier hs-var">dumpIfSet_dyn</span></a></span><span> </span><span class="annot"><span class="annottext">Logger
+</span><a href="#local-6989586621681289161"><span class="hs-identifier hs-var">logger</span></a></span><span> </span><span class="annot"><span class="annottext">DynFlags
+</span><a href="#local-6989586621681289160"><span class="hs-identifier hs-var">dflags</span></a></span><span> </span><span class="annot"><span class="annottext">DumpFlag
+</span><a href="GHC.Driver.Flags.html#Opt_D_verbose_stg2stg"><span class="hs-identifier hs-var">Opt_D_verbose_stg2stg</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621681289120"><span class="hs-identifier hs-var">what</span></a></span><span>
+</span><span id="line-117"></span><span>            </span><span class="annot"><span class="annottext">DumpFormat
+</span><a href="GHC.Utils.Logger.html#FormatSTG"><span class="hs-identifier hs-var">FormatSTG</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[SDoc] -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#vcat"><span class="hs-identifier hs-var">vcat</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#map"><span class="hs-identifier hs-var">map</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">StgPprOpts -&gt; StgTopBinding -&gt; SDoc
+</span><a href="GHC.Stg.Syntax.html#pprStgTopBinding"><span class="hs-identifier hs-var">pprStgTopBinding</span></a></span><span> </span><span class="annot"><span class="annottext">StgPprOpts
+</span><a href="#local-6989586621681289128"><span class="hs-identifier hs-var">opts</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[StgTopBinding]
+</span><a href="#local-6989586621681289119"><span class="hs-identifier hs-var">binds2</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-118"></span><span>          </span><span class="annot"><span class="annottext">Bool -&gt; String -&gt; [StgTopBinding] -&gt; IO ()
+</span><a href="#local-6989586621681289148"><span class="hs-identifier hs-var">stg_linter</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621681289120"><span class="hs-identifier hs-var">what</span></a></span><span> </span><span class="annot"><span class="annottext">[StgTopBinding]
+</span><a href="#local-6989586621681289119"><span class="hs-identifier hs-var">binds2</span></a></span><span>
+</span><span id="line-119"></span><span>          </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#return"><span class="hs-identifier hs-var">return</span></a></span><span> </span><span class="annot"><span class="annottext">[StgTopBinding]
+</span><a href="#local-6989586621681289119"><span class="hs-identifier hs-var">binds2</span></a></span><span>
+</span><span id="line-120"></span><span>
+</span><span id="line-121"></span><span class="hs-comment">-- -----------------------------------------------------------------------------</span><span>
+</span><span id="line-122"></span><span class="hs-comment">-- StgToDo:  abstraction of stg-to-stg passes to run.</span><span>
+</span><span id="line-123"></span><span>
+</span><span id="line-124"></span><span class="hs-comment">-- | Optional Stg-to-Stg passes.</span><span>
+</span><span id="line-125"></span><span class="hs-keyword">data</span><span> </span><span id="StgToDo"><span class="annot"><a href="GHC.Stg.Pipeline.html#StgToDo"><span class="hs-identifier hs-var">StgToDo</span></a></span></span><span>
+</span><span id="line-126"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="StgCSE"><span class="annot"><a href="GHC.Stg.Pipeline.html#StgCSE"><span class="hs-identifier hs-var">StgCSE</span></a></span></span><span>
+</span><span id="line-127"></span><span>  </span><span class="hs-comment">-- ^ Common subexpression elimination</span><span>
+</span><span id="line-128"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="StgLiftLams"><span class="annot"><a href="GHC.Stg.Pipeline.html#StgLiftLams"><span class="hs-identifier hs-var">StgLiftLams</span></a></span></span><span>
+</span><span id="line-129"></span><span>  </span><span class="hs-comment">-- ^ Lambda lifting closure variables, trading stack/register allocation for</span><span>
+</span><span id="line-130"></span><span>  </span><span class="hs-comment">-- heap allocation</span><span>
+</span><span id="line-131"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="StgStats"><span class="annot"><a href="GHC.Stg.Pipeline.html#StgStats"><span class="hs-identifier hs-var">StgStats</span></a></span></span><span>
+</span><span id="line-132"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="StgUnarise"><span class="annot"><a href="GHC.Stg.Pipeline.html#StgUnarise"><span class="hs-identifier hs-var">StgUnarise</span></a></span></span><span>
+</span><span id="line-133"></span><span>  </span><span class="hs-comment">-- ^ Mandatory unarise pass, desugaring unboxed tuple and sum binders</span><span>
+</span><span id="line-134"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="StgDoNothing"><span class="annot"><a href="GHC.Stg.Pipeline.html#StgDoNothing"><span class="hs-identifier hs-var">StgDoNothing</span></a></span></span><span>
+</span><span id="line-135"></span><span>  </span><span class="hs-comment">-- ^ Useful for building up 'getStgToDo'</span><span>
+</span><span id="line-136"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621681289112"><span id="local-6989586621681289114"><span class="annot"><span class="annottext">StgToDo -&gt; StgToDo -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: StgToDo -&gt; StgToDo -&gt; Bool
+$c/= :: StgToDo -&gt; StgToDo -&gt; Bool
+== :: StgToDo -&gt; StgToDo -&gt; Bool
+$c== :: StgToDo -&gt; StgToDo -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span>
+</span><span id="line-137"></span><span>
+</span><span id="line-138"></span><span class="hs-comment">-- | Which Stg-to-Stg passes to run. Depends on flags, ways etc.</span><span>
+</span><span id="line-139"></span><span class="annot"><a href="GHC.Stg.Pipeline.html#getStgToDo"><span class="hs-identifier hs-type">getStgToDo</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Driver.Session.html#DynFlags"><span class="hs-identifier hs-type">DynFlags</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Stg.Pipeline.html#StgToDo"><span class="hs-identifier hs-type">StgToDo</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-140"></span><span id="getStgToDo"><span class="annot"><span class="annottext">getStgToDo :: DynFlags -&gt; [StgToDo]
+</span><a href="GHC.Stg.Pipeline.html#getStgToDo"><span class="hs-identifier hs-var hs-var">getStgToDo</span></a></span></span><span> </span><span id="local-6989586621681289110"><span class="annot"><span class="annottext">DynFlags
+</span><a href="#local-6989586621681289110"><span class="hs-identifier hs-var">dflags</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-141"></span><span>  </span><span class="annot"><span class="annottext">forall a. (a -&gt; Bool) -&gt; [a] -&gt; [a]
+</span><a href="../../base-4.16.4.0/src/GHC-List.html#filter"><span class="hs-identifier hs-var">filter</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">StgToDo
+</span><a href="GHC.Stg.Pipeline.html#StgDoNothing"><span class="hs-identifier hs-var">StgDoNothing</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-142"></span><span>    </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">forall {a}. a -&gt; a
+</span><a href="#local-6989586621681289108"><span class="hs-identifier hs-var">mandatory</span></a></span><span> </span><span class="annot"><span class="annottext">StgToDo
+</span><a href="GHC.Stg.Pipeline.html#StgUnarise"><span class="hs-identifier hs-var">StgUnarise</span></a></span><span>
+</span><span id="line-143"></span><span>    </span><span class="hs-comment">-- Important that unarisation comes first</span><span>
+</span><span id="line-144"></span><span>    </span><span class="hs-comment">-- See Note [StgCse after unarisation] in GHC.Stg.CSE</span><span>
+</span><span id="line-145"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">GeneralFlag -&gt; StgToDo -&gt; StgToDo
+</span><a href="#local-6989586621681289107"><span class="hs-identifier hs-var">optional</span></a></span><span> </span><span class="annot"><span class="annottext">GeneralFlag
+</span><a href="GHC.Driver.Flags.html#Opt_StgCSE"><span class="hs-identifier hs-var">Opt_StgCSE</span></a></span><span> </span><span class="annot"><span class="annottext">StgToDo
+</span><a href="GHC.Stg.Pipeline.html#StgCSE"><span class="hs-identifier hs-var">StgCSE</span></a></span><span>
+</span><span id="line-146"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">GeneralFlag -&gt; StgToDo -&gt; StgToDo
+</span><a href="#local-6989586621681289107"><span class="hs-identifier hs-var">optional</span></a></span><span> </span><span class="annot"><span class="annottext">GeneralFlag
+</span><a href="GHC.Driver.Flags.html#Opt_StgLiftLams"><span class="hs-identifier hs-var">Opt_StgLiftLams</span></a></span><span> </span><span class="annot"><span class="annottext">StgToDo
+</span><a href="GHC.Stg.Pipeline.html#StgLiftLams"><span class="hs-identifier hs-var">StgLiftLams</span></a></span><span>
+</span><span id="line-147"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">GeneralFlag -&gt; StgToDo -&gt; StgToDo
+</span><a href="#local-6989586621681289107"><span class="hs-identifier hs-var">optional</span></a></span><span> </span><span class="annot"><span class="annottext">GeneralFlag
+</span><a href="GHC.Driver.Flags.html#Opt_StgStats"><span class="hs-identifier hs-var">Opt_StgStats</span></a></span><span> </span><span class="annot"><span class="annottext">StgToDo
+</span><a href="GHC.Stg.Pipeline.html#StgStats"><span class="hs-identifier hs-var">StgStats</span></a></span><span>
+</span><span id="line-148"></span><span>    </span><span class="hs-special">]</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-149"></span><span>      </span><span id="local-6989586621681289107"><span class="annot"><span class="annottext">optional :: GeneralFlag -&gt; StgToDo -&gt; StgToDo
+</span><a href="#local-6989586621681289107"><span class="hs-identifier hs-var hs-var">optional</span></a></span></span><span> </span><span id="local-6989586621681289103"><span class="annot"><span class="annottext">GeneralFlag
+</span><a href="#local-6989586621681289103"><span class="hs-identifier hs-var">opt</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; StgToDo -&gt; StgToDo
+</span><a href="GHC.Stg.Pipeline.html#runWhen"><span class="hs-identifier hs-var">runWhen</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">GeneralFlag -&gt; DynFlags -&gt; Bool
+</span><a href="GHC.Driver.Session.html#gopt"><span class="hs-identifier hs-var">gopt</span></a></span><span> </span><span class="annot"><span class="annottext">GeneralFlag
+</span><a href="#local-6989586621681289103"><span class="hs-identifier hs-var">opt</span></a></span><span> </span><span class="annot"><span class="annottext">DynFlags
+</span><a href="#local-6989586621681289110"><span class="hs-identifier hs-var">dflags</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-150"></span><span>      </span><span id="local-6989586621681289108"><span class="annot"><span class="annottext">mandatory :: a -&gt; a
+</span><a href="#local-6989586621681289108"><span class="hs-identifier hs-var hs-var">mandatory</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {a}. a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#id"><span class="hs-identifier hs-var">id</span></a></span><span>
+</span><span id="line-151"></span><span>
+</span><span id="line-152"></span><span class="annot"><a href="GHC.Stg.Pipeline.html#runWhen"><span class="hs-identifier hs-type">runWhen</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Stg.Pipeline.html#StgToDo"><span class="hs-identifier hs-type">StgToDo</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Stg.Pipeline.html#StgToDo"><span class="hs-identifier hs-type">StgToDo</span></a></span><span>
+</span><span id="line-153"></span><span id="runWhen"><span class="annot"><span class="annottext">runWhen :: Bool -&gt; StgToDo -&gt; StgToDo
+</span><a href="GHC.Stg.Pipeline.html#runWhen"><span class="hs-identifier hs-var hs-var">runWhen</span></a></span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span> </span><span id="local-6989586621681289100"><span class="annot"><span class="annottext">StgToDo
+</span><a href="#local-6989586621681289100"><span class="hs-identifier hs-var">todo</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">StgToDo
+</span><a href="#local-6989586621681289100"><span class="hs-identifier hs-var">todo</span></a></span><span>
+</span><span id="line-154"></span><span class="annot"><a href="GHC.Stg.Pipeline.html#runWhen"><span class="hs-identifier hs-var">runWhen</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier">_</span></span><span>    </span><span class="annot"><span class="annottext">StgToDo
+</span><span class="hs-identifier">_</span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">StgToDo
+</span><a href="GHC.Stg.Pipeline.html#StgDoNothing"><span class="hs-identifier hs-var">StgDoNothing</span></a></span><span>
+</span><span id="line-155"></span></pre></body></html>

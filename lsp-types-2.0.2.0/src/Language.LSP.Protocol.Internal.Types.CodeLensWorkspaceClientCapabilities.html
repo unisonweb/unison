@@ -1,0 +1,169 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- THIS IS A GENERATED FILE, DO NOT EDIT</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-imports #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-matches #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-deprecations #-}</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.CodeLensWorkspaceClientCapabilities</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Hashable</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html"><span class="hs-identifier">Language.LSP.Protocol.Utils.Misc</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prettyprinter</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Aeson.html"><span class="hs-identifier">Data.Row.Aeson</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Hashable.html"><span class="hs-identifier">Data.Row.Hashable</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Hashable</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html"><span class="hs-identifier">Language.LSP.Protocol.Types.Common</span></a></span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="hs-comment">{-|
+@since 3.16.0
+-}</span><span>
+</span><span id="line-21"></span><span id="local-6989586621682221328"><span id="local-6989586621682221329"></span></span><span class="hs-keyword">data</span><span> </span><span id="CodeLensWorkspaceClientCapabilities"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.CodeLensWorkspaceClientCapabilities.html#CodeLensWorkspaceClientCapabilities"><span class="hs-identifier hs-var">CodeLensWorkspaceClientCapabilities</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="CodeLensWorkspaceClientCapabilities"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.CodeLensWorkspaceClientCapabilities.html#CodeLensWorkspaceClientCapabilities"><span class="hs-identifier hs-var">CodeLensWorkspaceClientCapabilities</span></a></span></span><span> </span><span>
+</span><span id="line-22"></span><span>  </span><span class="hs-special">{</span><span> </span><span class="hs-comment">{-|
+  Whether the client implementation supports a refresh request sent from the
+  server to the client.
+
+  Note that this event is global and will force the client to refresh all
+  code lenses currently shown. It should be used with absolute care and is
+  useful for situation where a server for example detect a project wide
+  change that requires such a calculation.
+  -}</span><span>
+</span><span id="line-31"></span><span>  </span><span id="%24sel%3A_refreshSupport%3ACodeLensWorkspaceClientCapabilities"><span class="annot"><span class="annottext">CodeLensWorkspaceClientCapabilities -&gt; Maybe Bool
+</span><a href="Language.LSP.Protocol.Internal.Types.CodeLensWorkspaceClientCapabilities.html#%24sel%3A_refreshSupport%3ACodeLensWorkspaceClientCapabilities"><span class="hs-identifier hs-var hs-var">_refreshSupport</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-33"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682221315"><span id="local-6989586621682221317"><span id="local-6989586621682221324"><span class="annot"><span class="annottext">Int -&gt; CodeLensWorkspaceClientCapabilities -&gt; ShowS
+[CodeLensWorkspaceClientCapabilities] -&gt; ShowS
+CodeLensWorkspaceClientCapabilities -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [CodeLensWorkspaceClientCapabilities] -&gt; ShowS
+$cshowList :: [CodeLensWorkspaceClientCapabilities] -&gt; ShowS
+show :: CodeLensWorkspaceClientCapabilities -&gt; String
+$cshow :: CodeLensWorkspaceClientCapabilities -&gt; String
+showsPrec :: Int -&gt; CodeLensWorkspaceClientCapabilities -&gt; ShowS
+$cshowsPrec :: Int -&gt; CodeLensWorkspaceClientCapabilities -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682221306"><span id="local-6989586621682221311"><span class="annot"><span class="annottext">CodeLensWorkspaceClientCapabilities
+-&gt; CodeLensWorkspaceClientCapabilities -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: CodeLensWorkspaceClientCapabilities
+-&gt; CodeLensWorkspaceClientCapabilities -&gt; Bool
+$c/= :: CodeLensWorkspaceClientCapabilities
+-&gt; CodeLensWorkspaceClientCapabilities -&gt; Bool
+== :: CodeLensWorkspaceClientCapabilities
+-&gt; CodeLensWorkspaceClientCapabilities -&gt; Bool
+$c== :: CodeLensWorkspaceClientCapabilities
+-&gt; CodeLensWorkspaceClientCapabilities -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682221280"><span id="local-6989586621682221282"><span id="local-6989586621682221285"><span id="local-6989586621682221288"><span id="local-6989586621682221291"><span id="local-6989586621682221295"><span id="local-6989586621682221300"><span class="annot"><span class="annottext">Eq CodeLensWorkspaceClientCapabilities
+CodeLensWorkspaceClientCapabilities
+-&gt; CodeLensWorkspaceClientCapabilities -&gt; Bool
+CodeLensWorkspaceClientCapabilities
+-&gt; CodeLensWorkspaceClientCapabilities -&gt; Ordering
+CodeLensWorkspaceClientCapabilities
+-&gt; CodeLensWorkspaceClientCapabilities
+-&gt; CodeLensWorkspaceClientCapabilities
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: CodeLensWorkspaceClientCapabilities
+-&gt; CodeLensWorkspaceClientCapabilities
+-&gt; CodeLensWorkspaceClientCapabilities
+$cmin :: CodeLensWorkspaceClientCapabilities
+-&gt; CodeLensWorkspaceClientCapabilities
+-&gt; CodeLensWorkspaceClientCapabilities
+max :: CodeLensWorkspaceClientCapabilities
+-&gt; CodeLensWorkspaceClientCapabilities
+-&gt; CodeLensWorkspaceClientCapabilities
+$cmax :: CodeLensWorkspaceClientCapabilities
+-&gt; CodeLensWorkspaceClientCapabilities
+-&gt; CodeLensWorkspaceClientCapabilities
+&gt;= :: CodeLensWorkspaceClientCapabilities
+-&gt; CodeLensWorkspaceClientCapabilities -&gt; Bool
+$c&gt;= :: CodeLensWorkspaceClientCapabilities
+-&gt; CodeLensWorkspaceClientCapabilities -&gt; Bool
+&gt; :: CodeLensWorkspaceClientCapabilities
+-&gt; CodeLensWorkspaceClientCapabilities -&gt; Bool
+$c&gt; :: CodeLensWorkspaceClientCapabilities
+-&gt; CodeLensWorkspaceClientCapabilities -&gt; Bool
+&lt;= :: CodeLensWorkspaceClientCapabilities
+-&gt; CodeLensWorkspaceClientCapabilities -&gt; Bool
+$c&lt;= :: CodeLensWorkspaceClientCapabilities
+-&gt; CodeLensWorkspaceClientCapabilities -&gt; Bool
+&lt; :: CodeLensWorkspaceClientCapabilities
+-&gt; CodeLensWorkspaceClientCapabilities -&gt; Bool
+$c&lt; :: CodeLensWorkspaceClientCapabilities
+-&gt; CodeLensWorkspaceClientCapabilities -&gt; Bool
+compare :: CodeLensWorkspaceClientCapabilities
+-&gt; CodeLensWorkspaceClientCapabilities -&gt; Ordering
+$ccompare :: CodeLensWorkspaceClientCapabilities
+-&gt; CodeLensWorkspaceClientCapabilities -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall x.
+Rep CodeLensWorkspaceClientCapabilities x
+-&gt; CodeLensWorkspaceClientCapabilities
+forall x.
+CodeLensWorkspaceClientCapabilities
+-&gt; Rep CodeLensWorkspaceClientCapabilities x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cto :: forall x.
+Rep CodeLensWorkspaceClientCapabilities x
+-&gt; CodeLensWorkspaceClientCapabilities
+$cfrom :: forall x.
+CodeLensWorkspaceClientCapabilities
+-&gt; Rep CodeLensWorkspaceClientCapabilities x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-34"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">anyclass</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682221273"><span class="annot"><span class="annottext">CodeLensWorkspaceClientCapabilities -&gt; ()
+forall a. (a -&gt; ()) -&gt; NFData a
+rnf :: CodeLensWorkspaceClientCapabilities -&gt; ()
+$crnf :: CodeLensWorkspaceClientCapabilities -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682221266"><span id="local-6989586621682221268"><span class="annot"><span class="annottext">Eq CodeLensWorkspaceClientCapabilities
+Int -&gt; CodeLensWorkspaceClientCapabilities -&gt; Int
+CodeLensWorkspaceClientCapabilities -&gt; Int
+forall a. Eq a -&gt; (Int -&gt; a -&gt; Int) -&gt; (a -&gt; Int) -&gt; Hashable a
+hash :: CodeLensWorkspaceClientCapabilities -&gt; Int
+$chash :: CodeLensWorkspaceClientCapabilities -&gt; Int
+hashWithSalt :: Int -&gt; CodeLensWorkspaceClientCapabilities -&gt; Int
+$chashWithSalt :: Int -&gt; CodeLensWorkspaceClientCapabilities -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Hashable</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621682221257"><span id="local-6989586621682221263"><span class="annot"><span class="annottext">forall ann. [CodeLensWorkspaceClientCapabilities] -&gt; Doc ann
+forall ann. CodeLensWorkspaceClientCapabilities -&gt; Doc ann
+forall a.
+(forall ann. a -&gt; Doc ann)
+-&gt; (forall ann. [a] -&gt; Doc ann) -&gt; Pretty a
+prettyList :: forall ann. [CodeLensWorkspaceClientCapabilities] -&gt; Doc ann
+$cprettyList :: forall ann. [CodeLensWorkspaceClientCapabilities] -&gt; Doc ann
+pretty :: forall ann. CodeLensWorkspaceClientCapabilities -&gt; Doc ann
+$cpretty :: forall ann. CodeLensWorkspaceClientCapabilities -&gt; Doc ann
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Pretty</span></span></span></span><span> </span><span class="hs-keyword">via</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html#ViaJSON"><span class="hs-identifier hs-type">ViaJSON</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.CodeLensWorkspaceClientCapabilities.html#CodeLensWorkspaceClientCapabilities"><span class="hs-identifier hs-type">CodeLensWorkspaceClientCapabilities</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682221245"><span id="local-6989586621682221247"><span id="local-6989586621682221249"><span class="annot"><span class="hs-identifier hs-type">Aeson.ToJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.CodeLensWorkspaceClientCapabilities.html#CodeLensWorkspaceClientCapabilities"><span class="hs-identifier hs-type">CodeLensWorkspaceClientCapabilities</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-38"></span><span>  </span><span id="local-6989586621682221237"><span class="annot"><span class="annottext">toJSON :: CodeLensWorkspaceClientCapabilities -&gt; Value
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">toJSON</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.CodeLensWorkspaceClientCapabilities.html#CodeLensWorkspaceClientCapabilities"><span class="hs-identifier hs-type">CodeLensWorkspaceClientCapabilities</span></a></span><span> </span><span id="local-6989586621682221235"><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682221235"><span class="hs-identifier hs-var">arg0</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">Aeson.object</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">concat</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>  </span><span class="hs-special">[</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;refreshSupport&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682221235"><span class="hs-identifier hs-var">arg0</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682221229"><span class="annot"><span class="hs-identifier hs-type">Aeson.FromJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.CodeLensWorkspaceClientCapabilities.html#CodeLensWorkspaceClientCapabilities"><span class="hs-identifier hs-type">CodeLensWorkspaceClientCapabilities</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-41"></span><span>  </span><span id="local-6989586621682221221"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser CodeLensWorkspaceClientCapabilities
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">Aeson.withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;CodeLensWorkspaceClientCapabilities&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621682221218"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682221218"><span class="hs-identifier hs-var">arg</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Bool -&gt; CodeLensWorkspaceClientCapabilities
+</span><a href="Language.LSP.Protocol.Internal.Types.CodeLensWorkspaceClientCapabilities.html#CodeLensWorkspaceClientCapabilities"><span class="hs-identifier hs-var">CodeLensWorkspaceClientCapabilities</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682221218"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">Aeson..:!</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;refreshSupport&quot;</span></span><span>
+</span><span id="line-42"></span></pre></body></html>

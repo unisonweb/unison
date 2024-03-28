@@ -1,0 +1,190 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">--</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- Copyright (c) 2012 Mark Dittmer - http://www.markdittmer.org</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- Developed for a Google Summer of Code project - http://gsoc2012.markdittmer.org</span><span>
+</span><span id="line-4"></span><span class="hs-comment">--</span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">System.FSNotify.Types</span><span>
+</span><span id="line-7"></span><span>       </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="System.FSNotify.Types.html#act"><span class="hs-identifier">act</span></a></span><span>
+</span><span id="line-8"></span><span>       </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FSNotify.Types.html#ActionPredicate"><span class="hs-identifier">ActionPredicate</span></a></span><span>
+</span><span id="line-9"></span><span>       </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FSNotify.Types.html#Action"><span class="hs-identifier">Action</span></a></span><span>
+</span><span id="line-10"></span><span>       </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FSNotify.Types.html#WatchConfig"><span class="hs-identifier">WatchConfig</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span>       </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FSNotify.Types.html#Debounce"><span class="hs-identifier">Debounce</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span>       </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FSNotify.Types.html#DebounceData"><span class="hs-identifier">DebounceData</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span>       </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FSNotify.Types.html#DebouncePayload"><span class="hs-identifier">DebouncePayload</span></a></span><span>
+</span><span id="line-14"></span><span>       </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FSNotify.Types.html#Event"><span class="hs-identifier">Event</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span>       </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FSNotify.Types.html#EventChannel"><span class="hs-identifier">EventChannel</span></a></span><span>
+</span><span id="line-16"></span><span>       </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FSNotify.Types.html#eventPath"><span class="hs-identifier">eventPath</span></a></span><span>
+</span><span id="line-17"></span><span>       </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FSNotify.Types.html#eventTime"><span class="hs-identifier">eventTime</span></a></span><span>
+</span><span id="line-18"></span><span>       </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FSNotify.Types.html#eventIsDirectory"><span class="hs-identifier">eventIsDirectory</span></a></span><span>
+</span><span id="line-19"></span><span>       </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FSNotify.Types.html#IOEvent"><span class="hs-identifier">IOEvent</span></a></span><span>
+</span><span id="line-20"></span><span>       </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Concurrent.Chan</span></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.IORef</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">IORef</span></span><span class="hs-special">)</span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Time</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">NominalDiffTime</span></span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Time.Clock</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">UTCTime</span></span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">FilePath</span></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.FilePath</span></span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- | A file event reported by a file watcher. Each event contains the</span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- canonical path for the file and a timestamp guaranteed to be after the</span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- event occurred (timestamps represent current time when FSEvents receives</span><span>
+</span><span id="line-32"></span><span class="hs-comment">-- it from the OS and/or platform-specific Haskell modules).</span><span>
+</span><span id="line-33"></span><span class="hs-keyword">data</span><span> </span><span id="Event"><span class="annot"><a href="System.FSNotify.Types.html#Event"><span class="hs-identifier hs-var">Event</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-34"></span><span>    </span><span id="Added"><span class="annot"><a href="System.FSNotify.Types.html#Added"><span class="hs-identifier hs-var">Added</span></a></span></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">UTCTime</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-35"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Modified"><span class="annot"><a href="System.FSNotify.Types.html#Modified"><span class="hs-identifier hs-var">Modified</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">UTCTime</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Removed"><span class="annot"><a href="System.FSNotify.Types.html#Removed"><span class="hs-identifier hs-var">Removed</span></a></span></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">UTCTime</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-37"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Unknown"><span class="annot"><a href="System.FSNotify.Types.html#Unknown"><span class="hs-identifier hs-var">Unknown</span></a></span></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">UTCTime</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-38"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679053892"><span id="local-6989586621679053910"><span class="annot"><span class="annottext">Event -&gt; Event -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: Event -&gt; Event -&gt; Bool
+$c/= :: Event -&gt; Event -&gt; Bool
+== :: Event -&gt; Event -&gt; Bool
+$c== :: Event -&gt; Event -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679053863"><span id="local-6989586621679053865"><span id="local-6989586621679053888"><span class="annot"><span class="annottext">Int -&gt; Event -&gt; ShowS
+[Event] -&gt; ShowS
+Event -&gt; FilePath
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; FilePath) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [Event] -&gt; ShowS
+$cshowList :: [Event] -&gt; ShowS
+show :: Event -&gt; FilePath
+$cshow :: Event -&gt; FilePath
+showsPrec :: Int -&gt; Event -&gt; ShowS
+$cshowsPrec :: Int -&gt; Event -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- | Helper for extracting the path associated with an event.</span><span>
+</span><span id="line-41"></span><span class="annot"><a href="System.FSNotify.Types.html#eventPath"><span class="hs-identifier hs-type">eventPath</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.FSNotify.Types.html#Event"><span class="hs-identifier hs-type">Event</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span>
+</span><span id="line-42"></span><span id="eventPath"><span class="annot"><span class="annottext">eventPath :: Event -&gt; FilePath
+</span><a href="System.FSNotify.Types.html#eventPath"><span class="hs-identifier hs-var hs-var">eventPath</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.FSNotify.Types.html#Added"><span class="hs-identifier hs-type">Added</span></a></span><span>    </span><span id="local-6989586621679053860"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679053860"><span class="hs-identifier hs-var">path</span></a></span></span><span> </span><span class="annot"><span class="annottext">UTCTime
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679053860"><span class="hs-identifier hs-var">path</span></a></span><span>
+</span><span id="line-43"></span><span class="annot"><a href="System.FSNotify.Types.html#eventPath"><span class="hs-identifier hs-var">eventPath</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.FSNotify.Types.html#Modified"><span class="hs-identifier hs-type">Modified</span></a></span><span> </span><span id="local-6989586621679053859"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679053859"><span class="hs-identifier hs-var">path</span></a></span></span><span> </span><span class="annot"><span class="annottext">UTCTime
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679053859"><span class="hs-identifier hs-var">path</span></a></span><span>
+</span><span id="line-44"></span><span class="annot"><a href="System.FSNotify.Types.html#eventPath"><span class="hs-identifier hs-var">eventPath</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.FSNotify.Types.html#Removed"><span class="hs-identifier hs-type">Removed</span></a></span><span>  </span><span id="local-6989586621679053858"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679053858"><span class="hs-identifier hs-var">path</span></a></span></span><span> </span><span class="annot"><span class="annottext">UTCTime
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679053858"><span class="hs-identifier hs-var">path</span></a></span><span>
+</span><span id="line-45"></span><span class="annot"><a href="System.FSNotify.Types.html#eventPath"><span class="hs-identifier hs-var">eventPath</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.FSNotify.Types.html#Unknown"><span class="hs-identifier hs-type">Unknown</span></a></span><span>  </span><span id="local-6989586621679053857"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679053857"><span class="hs-identifier hs-var">path</span></a></span></span><span> </span><span class="annot"><span class="annottext">UTCTime
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679053857"><span class="hs-identifier hs-var">path</span></a></span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span class="hs-comment">-- | Helper for extracting the time associated with an event.</span><span>
+</span><span id="line-48"></span><span class="annot"><a href="System.FSNotify.Types.html#eventTime"><span class="hs-identifier hs-type">eventTime</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.FSNotify.Types.html#Event"><span class="hs-identifier hs-type">Event</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">UTCTime</span></span><span>
+</span><span id="line-49"></span><span id="eventTime"><span class="annot"><span class="annottext">eventTime :: Event -&gt; UTCTime
+</span><a href="System.FSNotify.Types.html#eventTime"><span class="hs-identifier hs-var hs-var">eventTime</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.FSNotify.Types.html#Added"><span class="hs-identifier hs-type">Added</span></a></span><span>    </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679053856"><span class="annot"><span class="annottext">UTCTime
+</span><a href="#local-6989586621679053856"><span class="hs-identifier hs-var">timestamp</span></a></span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UTCTime
+</span><a href="#local-6989586621679053856"><span class="hs-identifier hs-var">timestamp</span></a></span><span>
+</span><span id="line-50"></span><span class="annot"><a href="System.FSNotify.Types.html#eventTime"><span class="hs-identifier hs-var">eventTime</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.FSNotify.Types.html#Modified"><span class="hs-identifier hs-type">Modified</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679053855"><span class="annot"><span class="annottext">UTCTime
+</span><a href="#local-6989586621679053855"><span class="hs-identifier hs-var">timestamp</span></a></span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UTCTime
+</span><a href="#local-6989586621679053855"><span class="hs-identifier hs-var">timestamp</span></a></span><span>
+</span><span id="line-51"></span><span class="annot"><a href="System.FSNotify.Types.html#eventTime"><span class="hs-identifier hs-var">eventTime</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.FSNotify.Types.html#Removed"><span class="hs-identifier hs-type">Removed</span></a></span><span>  </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679053854"><span class="annot"><span class="annottext">UTCTime
+</span><a href="#local-6989586621679053854"><span class="hs-identifier hs-var">timestamp</span></a></span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UTCTime
+</span><a href="#local-6989586621679053854"><span class="hs-identifier hs-var">timestamp</span></a></span><span>
+</span><span id="line-52"></span><span class="annot"><a href="System.FSNotify.Types.html#eventTime"><span class="hs-identifier hs-var">eventTime</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.FSNotify.Types.html#Unknown"><span class="hs-identifier hs-type">Unknown</span></a></span><span>  </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679053853"><span class="annot"><span class="annottext">UTCTime
+</span><a href="#local-6989586621679053853"><span class="hs-identifier hs-var">timestamp</span></a></span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UTCTime
+</span><a href="#local-6989586621679053853"><span class="hs-identifier hs-var">timestamp</span></a></span><span>
+</span><span id="line-53"></span><span>
+</span><span id="line-54"></span><span class="annot"><a href="System.FSNotify.Types.html#eventIsDirectory"><span class="hs-identifier hs-type">eventIsDirectory</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.FSNotify.Types.html#Event"><span class="hs-identifier hs-type">Event</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-55"></span><span id="eventIsDirectory"><span class="annot"><span class="annottext">eventIsDirectory :: Event -&gt; Bool
+</span><a href="System.FSNotify.Types.html#eventIsDirectory"><span class="hs-identifier hs-var hs-var">eventIsDirectory</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.FSNotify.Types.html#Added"><span class="hs-identifier hs-type">Added</span></a></span><span>    </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">UTCTime
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679053852"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679053852"><span class="hs-identifier hs-var">isDir</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679053852"><span class="hs-identifier hs-var">isDir</span></a></span><span>
+</span><span id="line-56"></span><span class="annot"><a href="System.FSNotify.Types.html#eventIsDirectory"><span class="hs-identifier hs-var">eventIsDirectory</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.FSNotify.Types.html#Modified"><span class="hs-identifier hs-type">Modified</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">UTCTime
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679053851"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679053851"><span class="hs-identifier hs-var">isDir</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679053851"><span class="hs-identifier hs-var">isDir</span></a></span><span>
+</span><span id="line-57"></span><span class="annot"><a href="System.FSNotify.Types.html#eventIsDirectory"><span class="hs-identifier hs-var">eventIsDirectory</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.FSNotify.Types.html#Removed"><span class="hs-identifier hs-type">Removed</span></a></span><span>  </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">UTCTime
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679053850"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679053850"><span class="hs-identifier hs-var">isDir</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679053850"><span class="hs-identifier hs-var">isDir</span></a></span><span>
+</span><span id="line-58"></span><span class="annot"><a href="System.FSNotify.Types.html#eventIsDirectory"><span class="hs-identifier hs-var">eventIsDirectory</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.FSNotify.Types.html#Unknown"><span class="hs-identifier hs-type">Unknown</span></a></span><span>  </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">UTCTime
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span>
+</span><span id="line-61"></span><span class="hs-keyword">type</span><span> </span><span id="EventChannel"><span class="annot"><a href="System.FSNotify.Types.html#EventChannel"><span class="hs-identifier hs-var">EventChannel</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Chan</span></span><span> </span><span class="annot"><a href="System.FSNotify.Types.html#Event"><span class="hs-identifier hs-type">Event</span></a></span><span>
+</span><span id="line-62"></span><span>
+</span><span id="line-63"></span><span class="hs-comment">-- | Watch configuration</span><span>
+</span><span id="line-64"></span><span class="hs-keyword">data</span><span> </span><span id="WatchConfig"><span class="annot"><a href="System.FSNotify.Types.html#WatchConfig"><span class="hs-identifier hs-var">WatchConfig</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="WatchConfig"><span class="annot"><a href="System.FSNotify.Types.html#WatchConfig"><span class="hs-identifier hs-var">WatchConfig</span></a></span></span><span>
+</span><span id="line-65"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="confDebounce"><span class="annot"><span class="annottext">WatchConfig -&gt; Debounce
+</span><a href="System.FSNotify.Types.html#confDebounce"><span class="hs-identifier hs-var hs-var">confDebounce</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.FSNotify.Types.html#Debounce"><span class="hs-identifier hs-type">Debounce</span></a></span><span>
+</span><span id="line-66"></span><span>    </span><span class="hs-comment">-- ^ Debounce configuration</span><span>
+</span><span id="line-67"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="confPollInterval"><span class="annot"><span class="annottext">WatchConfig -&gt; Int
+</span><a href="System.FSNotify.Types.html#confPollInterval"><span class="hs-identifier hs-var hs-var">confPollInterval</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-68"></span><span>    </span><span class="hs-comment">-- ^ Polling interval if polling is used (microseconds)</span><span>
+</span><span id="line-69"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="confUsePolling"><span class="annot"><span class="annottext">WatchConfig -&gt; Bool
+</span><a href="System.FSNotify.Types.html#confUsePolling"><span class="hs-identifier hs-var hs-var">confUsePolling</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-70"></span><span>    </span><span class="hs-comment">-- ^ Force use of polling, even if a more effective method may be</span><span>
+</span><span id="line-71"></span><span>    </span><span class="hs-comment">-- available. This is mostly for testing purposes.</span><span>
+</span><span id="line-72"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-73"></span><span>
+</span><span id="line-74"></span><span class="hs-comment">-- | This specifies whether multiple events from the same file should be</span><span>
+</span><span id="line-75"></span><span class="hs-comment">-- collapsed together, and how close is close enough.</span><span>
+</span><span id="line-76"></span><span class="hs-comment">--</span><span>
+</span><span id="line-77"></span><span class="hs-comment">-- This is performed by ignoring any event that occurs to the same file</span><span>
+</span><span id="line-78"></span><span class="hs-comment">-- until the specified time interval has elapsed.</span><span>
+</span><span id="line-79"></span><span class="hs-comment">--</span><span>
+</span><span id="line-80"></span><span class="hs-comment">-- Note that the current debouncing logic may fail to report certain changes</span><span>
+</span><span id="line-81"></span><span class="hs-comment">-- to a file, potentially leaving your program in a state that is not</span><span>
+</span><span id="line-82"></span><span class="hs-comment">-- consistent with the filesystem.</span><span>
+</span><span id="line-83"></span><span class="hs-comment">--</span><span>
+</span><span id="line-84"></span><span class="hs-comment">-- Make sure that if you are using this feature, all changes you make as a</span><span>
+</span><span id="line-85"></span><span class="hs-comment">-- result of an 'Event' notification are both non-essential and idempotent.</span><span>
+</span><span id="line-86"></span><span class="hs-keyword">data</span><span> </span><span id="Debounce"><span class="annot"><a href="System.FSNotify.Types.html#Debounce"><span class="hs-identifier hs-var">Debounce</span></a></span></span><span>
+</span><span id="line-87"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="DebounceDefault"><span class="annot"><a href="System.FSNotify.Types.html#DebounceDefault"><span class="hs-identifier hs-var">DebounceDefault</span></a></span></span><span>
+</span><span id="line-88"></span><span>    </span><span class="hs-comment">-- ^ perform debouncing based on the default time interval of 1 millisecond</span><span>
+</span><span id="line-89"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Debounce"><span class="annot"><a href="System.FSNotify.Types.html#Debounce"><span class="hs-identifier hs-var">Debounce</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">NominalDiffTime</span></span><span>
+</span><span id="line-90"></span><span>    </span><span class="hs-comment">-- ^ perform debouncing based on the specified time interval</span><span>
+</span><span id="line-91"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="NoDebounce"><span class="annot"><a href="System.FSNotify.Types.html#NoDebounce"><span class="hs-identifier hs-var">NoDebounce</span></a></span></span><span>
+</span><span id="line-92"></span><span>    </span><span class="hs-comment">-- ^ do not perform debouncing</span><span>
+</span><span id="line-93"></span><span>
+</span><span id="line-94"></span><span class="hs-keyword">type</span><span> </span><span id="IOEvent"><span class="annot"><a href="System.FSNotify.Types.html#IOEvent"><span class="hs-identifier hs-var">IOEvent</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IORef</span></span><span> </span><span class="annot"><a href="System.FSNotify.Types.html#Event"><span class="hs-identifier hs-type">Event</span></a></span><span>
+</span><span id="line-95"></span><span>
+</span><span id="line-96"></span><span class="hs-comment">-- | DebouncePayload contents. Contains epsilon value for debouncing</span><span>
+</span><span id="line-97"></span><span class="hs-comment">-- near-simultaneous events and an IORef of the latest Event. Difference in</span><span>
+</span><span id="line-98"></span><span class="hs-comment">-- arrival time is measured according to Event value timestamps.</span><span>
+</span><span id="line-99"></span><span class="hs-keyword">data</span><span> </span><span id="DebounceData"><span class="annot"><a href="System.FSNotify.Types.html#DebounceData"><span class="hs-identifier hs-var">DebounceData</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="DebounceData"><span class="annot"><a href="System.FSNotify.Types.html#DebounceData"><span class="hs-identifier hs-var">DebounceData</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">NominalDiffTime</span></span><span> </span><span class="annot"><a href="System.FSNotify.Types.html#IOEvent"><span class="hs-identifier hs-type">IOEvent</span></a></span><span>
+</span><span id="line-100"></span><span>
+</span><span id="line-101"></span><span class="hs-comment">-- | Data &quot;payload&quot; passed to event handlers to enable debouncing. This value</span><span>
+</span><span id="line-102"></span><span class="hs-comment">-- is automatically derived from a 'WatchConfig' value. A value of Just</span><span>
+</span><span id="line-103"></span><span class="hs-comment">-- DebounceData results in debouncing according to the given epsilon and</span><span>
+</span><span id="line-104"></span><span class="hs-comment">-- IOEvent. A value of Nothing results in no debouncing.</span><span>
+</span><span id="line-105"></span><span class="hs-keyword">type</span><span> </span><span id="DebouncePayload"><span class="annot"><a href="System.FSNotify.Types.html#DebouncePayload"><span class="hs-identifier hs-var">DebouncePayload</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="System.FSNotify.Types.html#DebounceData"><span class="hs-identifier hs-type">DebounceData</span></a></span><span>
+</span><span id="line-106"></span><span>
+</span><span id="line-107"></span><span class="hs-comment">-- | A predicate used to determine whether to act on an event.</span><span>
+</span><span id="line-108"></span><span class="hs-keyword">type</span><span> </span><span id="ActionPredicate"><span class="annot"><a href="System.FSNotify.Types.html#ActionPredicate"><span class="hs-identifier hs-var">ActionPredicate</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="System.FSNotify.Types.html#Event"><span class="hs-identifier hs-type">Event</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-109"></span><span>
+</span><span id="line-110"></span><span class="hs-comment">-- | An action to be performed in response to an event.</span><span>
+</span><span id="line-111"></span><span class="hs-keyword">type</span><span> </span><span id="Action"><span class="annot"><a href="System.FSNotify.Types.html#Action"><span class="hs-identifier hs-var">Action</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="System.FSNotify.Types.html#Event"><span class="hs-identifier hs-type">Event</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-112"></span><span>
+</span><span id="line-113"></span><span class="hs-comment">-- | Predicate to always act.</span><span>
+</span><span id="line-114"></span><span class="annot"><a href="System.FSNotify.Types.html#act"><span class="hs-identifier hs-type">act</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.FSNotify.Types.html#ActionPredicate"><span class="hs-identifier hs-type">ActionPredicate</span></a></span><span>
+</span><span id="line-115"></span><span id="act"><span class="annot"><span class="annottext">act :: Event -&gt; Bool
+</span><a href="System.FSNotify.Types.html#act"><span class="hs-identifier hs-var hs-var">act</span></a></span></span><span> </span><span class="annot"><span class="annottext">Event
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-116"></span></pre></body></html>

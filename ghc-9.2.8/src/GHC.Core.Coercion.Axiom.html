@@ -1,0 +1,1280 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span id="local-6989586621681048382"><span id="local-6989586621681048383"><span id="local-6989586621681048384"><span id="local-6989586621681048385"><span id="local-6989586621681048386"><span id="local-6989586621681048387"></span></span></span></span></span></span><span class="hs-pragma">{-# LANGUAGE CPP                 #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE DataKinds           #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE DeriveDataTypeable  #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE GADTs               #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LANGUAGE KindSignatures      #-}</span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# LANGUAGE RoleAnnotations     #-}</span><span>
+</span><span id="line-7"></span><span class="hs-pragma">{-# LANGUAGE ScopedTypeVariables #-}</span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- (c) The University of Glasgow 2012</span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- | Module for coercion axioms, used to represent type family instances</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- and newtypes</span><span>
+</span><span id="line-13"></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">GHC.Core.Coercion.Axiom</span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-15"></span><span>       </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#BranchFlag"><span class="hs-identifier">BranchFlag</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#Branched"><span class="hs-identifier">Branched</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#Unbranched"><span class="hs-identifier">Unbranched</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#BranchIndex"><span class="hs-identifier">BranchIndex</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#Branches"><span class="hs-identifier">Branches</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-16"></span><span>       </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#manyBranches"><span class="hs-identifier">manyBranches</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#unbranched"><span class="hs-identifier">unbranched</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-17"></span><span>       </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#fromBranches"><span class="hs-identifier">fromBranches</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#numBranches"><span class="hs-identifier">numBranches</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-18"></span><span>       </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#mapAccumBranches"><span class="hs-identifier">mapAccumBranches</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span>       </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxiom"><span class="hs-identifier">CoAxiom</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxBranch"><span class="hs-identifier">CoAxBranch</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span>       </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#toBranchedAxiom"><span class="hs-identifier">toBranchedAxiom</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#toUnbranchedAxiom"><span class="hs-identifier">toUnbranchedAxiom</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-23"></span><span>       </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#coAxiomName"><span class="hs-identifier">coAxiomName</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#coAxiomArity"><span class="hs-identifier">coAxiomArity</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#coAxiomBranches"><span class="hs-identifier">coAxiomBranches</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-24"></span><span>       </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#coAxiomTyCon"><span class="hs-identifier">coAxiomTyCon</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#isImplicitCoAxiom"><span class="hs-identifier">isImplicitCoAxiom</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#coAxiomNumPats"><span class="hs-identifier">coAxiomNumPats</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-25"></span><span>       </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#coAxiomNthBranch"><span class="hs-identifier">coAxiomNthBranch</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#coAxiomSingleBranch_maybe"><span class="hs-identifier">coAxiomSingleBranch_maybe</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#coAxiomRole"><span class="hs-identifier">coAxiomRole</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-26"></span><span>       </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#coAxiomSingleBranch"><span class="hs-identifier">coAxiomSingleBranch</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#coAxBranchTyVars"><span class="hs-identifier">coAxBranchTyVars</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#coAxBranchCoVars"><span class="hs-identifier">coAxBranchCoVars</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-27"></span><span>       </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#coAxBranchRoles"><span class="hs-identifier">coAxBranchRoles</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-28"></span><span>       </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#coAxBranchLHS"><span class="hs-identifier">coAxBranchLHS</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#coAxBranchRHS"><span class="hs-identifier">coAxBranchRHS</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#coAxBranchSpan"><span class="hs-identifier">coAxBranchSpan</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#coAxBranchIncomps"><span class="hs-identifier">coAxBranchIncomps</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-29"></span><span>       </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#placeHolderIncomps"><span class="hs-identifier">placeHolderIncomps</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span>       </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#Role"><span class="hs-identifier">Role</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#fsFromRole"><span class="hs-identifier">fsFromRole</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span>       </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxiomRule"><span class="hs-identifier">CoAxiomRule</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#TypeEqn"><span class="hs-identifier">TypeEqn</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-34"></span><span>       </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#BuiltInSynFamily"><span class="hs-identifier">BuiltInSynFamily</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#trivialBuiltInFamily"><span class="hs-identifier">trivialBuiltInFamily</span></a></span><span>
+</span><span id="line-35"></span><span>       </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Prelude.html"><span class="hs-identifier">GHC.Prelude</span></a></span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span class="hs-keyword">import</span><span> </span><span class="hs-pragma">{-# SOURCE</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="annot"><a href="GHC.Core.TyCo.Rep.html"><span class="hs-identifier">GHC.Core.TyCo.Rep</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Core.TyCo.Rep.html#Type"><span class="hs-identifier">Type</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-40"></span><span class="hs-keyword">import</span><span> </span><span class="hs-pragma">{-# SOURCE</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="annot"><a href="GHC.Core.TyCo.Ppr.html"><span class="hs-identifier">GHC.Core.TyCo.Ppr</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Core.TyCo.Ppr.html#pprType"><span class="hs-identifier">pprType</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-41"></span><span class="hs-keyword">import</span><span> </span><span class="hs-pragma">{-# SOURCE</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="annot"><a href="GHC.Core.TyCon.html"><span class="hs-identifier">GHC.Core.TyCon</span></a></span><span>    </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Core.TyCon.html#TyCon"><span class="hs-identifier">TyCon</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html"><span class="hs-identifier">GHC.Utils.Outputable</span></a></span><span>
+</span><span id="line-43"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Data.FastString.html"><span class="hs-identifier">GHC.Data.FastString</span></a></span><span>
+</span><span id="line-44"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Name.html"><span class="hs-identifier">GHC.Types.Name</span></a></span><span>
+</span><span id="line-45"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Unique.html"><span class="hs-identifier">GHC.Types.Unique</span></a></span><span>
+</span><span id="line-46"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Var.html"><span class="hs-identifier">GHC.Types.Var</span></a></span><span>
+</span><span id="line-47"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Misc.html"><span class="hs-identifier">GHC.Utils.Misc</span></a></span><span>
+</span><span id="line-48"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Binary.html"><span class="hs-identifier">GHC.Utils.Binary</span></a></span><span>
+</span><span id="line-49"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Panic.html"><span class="hs-identifier">GHC.Utils.Panic</span></a></span><span>
+</span><span id="line-50"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Data.Pair.html"><span class="hs-identifier">GHC.Data.Pair</span></a></span><span>
+</span><span id="line-51"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Basic.html"><span class="hs-identifier">GHC.Types.Basic</span></a></span><span>
+</span><span id="line-52"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Data-Typeable.html#"><span class="hs-identifier">Data.Typeable</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Data-Typeable-Internal.html#Typeable"><span class="hs-identifier">Typeable</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-53"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.SrcLoc.html"><span class="hs-identifier">GHC.Types.SrcLoc</span></a></span><span>
+</span><span id="line-54"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Data-Data.html#"><span class="hs-identifier">Data.Data</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Data</span></span><span>
+</span><span id="line-55"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../array-0.5.4.0/src/Data-Array.html#"><span class="hs-identifier">Data.Array</span></a></span><span>
+</span><span id="line-56"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Data-List.html#"><span class="hs-identifier">Data.List</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Data-Traversable.html#mapAccumL"><span class="hs-identifier">mapAccumL</span></a></span><span> </span><span class="hs-special">)</span><span class="hs-cpp">
+
+#include &quot;HsVersions.h&quot;
+</span><span>
+</span><span id="line-60"></span><span class="hs-comment">{-
+Note [Coercion axiom branches]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+In order to allow closed type families, an axiom needs to contain an
+ordered list of alternatives, called branches. The kind of the coercion built
+from an axiom is determined by which index is used when building the coercion
+from the axiom.
+
+For example, consider the axiom derived from the following declaration:
+
+type family F a where
+  F [Int] = Bool
+  F [a]   = Double
+  F (a b) = Char
+
+This will give rise to this axiom:
+
+axF :: {                                         F [Int] ~ Bool
+       ; forall (a :: *).                        F [a]   ~ Double
+       ; forall (k :: *) (a :: k -&gt; *) (b :: k). F (a b) ~ Char
+       }
+
+The axiom is used with the AxiomInstCo constructor of Coercion. If we wish
+to have a coercion showing that F (Maybe Int) ~ Char, it will look like
+
+axF[2] &lt;*&gt; &lt;Maybe&gt; &lt;Int&gt; :: F (Maybe Int) ~ Char
+-- or, written using concrete-ish syntax --
+AxiomInstCo axF 2 [Refl *, Refl Maybe, Refl Int]
+
+Note that the index is 0-based.
+
+For type-checking, it is also necessary to check that no previous pattern
+can unify with the supplied arguments. After all, it is possible that some
+of the type arguments are lambda-bound type variables whose instantiation may
+cause an earlier match among the branches. We wish to prohibit this behavior,
+so the type checker rules out the choice of a branch where a previous branch
+can unify. See also [Apartness] in GHC.Core.FamInstEnv.
+
+For example, the following is malformed, where 'a' is a lambda-bound type
+variable:
+
+axF[2] &lt;*&gt; &lt;a&gt; &lt;Bool&gt; :: F (a Bool) ~ Char
+
+Why? Because a might be instantiated with [], meaning that branch 1 should
+apply, not branch 2. This is a vital consistency check; without it, we could
+derive Int ~ Bool, and that is a Bad Thing.
+
+Note [Branched axioms]
+~~~~~~~~~~~~~~~~~~~~~~
+Although a CoAxiom has the capacity to store many branches, in certain cases,
+we want only one. These cases are in data/newtype family instances, newtype
+coercions, and type family instances.
+Furthermore, these unbranched axioms are used in a
+variety of places throughout GHC, and it would difficult to generalize all of
+that code to deal with branched axioms, especially when the code can be sure
+of the fact that an axiom is indeed a singleton. At the same time, it seems
+dangerous to assume singlehood in various places through GHC.
+
+The solution to this is to label a CoAxiom with a phantom type variable
+declaring whether it is known to be a singleton or not. The branches
+are stored using a special datatype, declared below, that ensures that the
+type variable is accurate.
+
+************************************************************************
+*                                                                      *
+                    Branches
+*                                                                      *
+************************************************************************
+-}</span><span>
+</span><span id="line-129"></span><span>
+</span><span id="line-130"></span><span class="hs-keyword">type</span><span> </span><span id="BranchIndex"><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#BranchIndex"><span class="hs-identifier hs-var">BranchIndex</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>  </span><span class="hs-comment">-- The index of the branch in the list of branches</span><span>
+</span><span id="line-131"></span><span>                        </span><span class="hs-comment">-- Counting from zero</span><span>
+</span><span id="line-132"></span><span>
+</span><span id="line-133"></span><span class="hs-comment">-- promoted data type</span><span>
+</span><span id="line-134"></span><span class="hs-keyword">data</span><span> </span><span id="BranchFlag"><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#BranchFlag"><span class="hs-identifier hs-var">BranchFlag</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Branched"><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#Branched"><span class="hs-identifier hs-var">Branched</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="Unbranched"><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#Unbranched"><span class="hs-identifier hs-var">Unbranched</span></a></span></span><span>
+</span><span id="line-135"></span><span class="hs-keyword">type</span><span> </span><span id="Branched"><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#Branched"><span class="hs-identifier hs-var">Branched</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#Branched"><span class="hs-identifier hs-type">Branched</span></a></span><span>
+</span><span id="line-136"></span><span class="hs-keyword">type</span><span> </span><span id="Unbranched"><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#Unbranched"><span class="hs-identifier hs-var">Unbranched</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#Unbranched"><span class="hs-identifier hs-type">Unbranched</span></a></span><span>
+</span><span id="line-137"></span><span class="hs-comment">-- By using type synonyms for the promoted constructors, we avoid needing</span><span>
+</span><span id="line-138"></span><span class="hs-comment">-- DataKinds and the promotion quote in client modules. This also means that</span><span>
+</span><span id="line-139"></span><span class="hs-comment">-- we don't need to export the term-level constructors, which should never be used.</span><span>
+</span><span id="line-140"></span><span>
+</span><span id="line-141"></span><span class="hs-keyword">newtype</span><span> </span><span id="Branches"><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#Branches"><span class="hs-identifier hs-var">Branches</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621681048728"><span class="annot"><a href="#local-6989586621681048728"><span class="hs-identifier hs-type">br</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#BranchFlag"><span class="hs-identifier hs-type">BranchFlag</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-142"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="MkBranches"><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#MkBranches"><span class="hs-identifier hs-var">MkBranches</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="unMkBranches"><span class="annot"><span class="annottext">forall (br :: BranchFlag).
+Branches br -&gt; Array BranchIndex CoAxBranch
+</span><a href="GHC.Core.Coercion.Axiom.html#unMkBranches"><span class="hs-identifier hs-var hs-var">unMkBranches</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Arr.html#Array"><span class="hs-identifier hs-type">Array</span></a></span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#BranchIndex"><span class="hs-identifier hs-type">BranchIndex</span></a></span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxBranch"><span class="hs-identifier hs-type">CoAxBranch</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-143"></span><span class="hs-keyword">type</span><span> </span><span class="hs-keyword">role</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#Branches"><span class="hs-identifier hs-type">Branches</span></a></span><span> </span><span class="annot"><span class="hs-identifier">nominal</span></span><span>
+</span><span id="line-144"></span><span>
+</span><span id="line-145"></span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#manyBranches"><span class="hs-identifier hs-type">manyBranches</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxBranch"><span class="hs-identifier hs-type">CoAxBranch</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#Branches"><span class="hs-identifier hs-type">Branches</span></a></span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#Branched"><span class="hs-identifier hs-type">Branched</span></a></span><span>
+</span><span id="line-146"></span><span id="manyBranches"><span class="annot"><span class="annottext">manyBranches :: [CoAxBranch] -&gt; Branches Branched
+</span><a href="GHC.Core.Coercion.Axiom.html#manyBranches"><span class="hs-identifier hs-var hs-var">manyBranches</span></a></span></span><span> </span><span id="local-6989586621681048333"><span class="annot"><span class="annottext">[CoAxBranch]
+</span><a href="#local-6989586621681048333"><span class="hs-identifier hs-var">brs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">ASSERT</span><span class="hs-special">(</span><span> </span><span class="hs-identifier">snd</span><span> </span><span class="hs-identifier">bnds</span><span> </span><span class="hs-operator">&gt;=</span><span> </span><span class="hs-identifier">fst</span><span> </span><span class="hs-identifier">bnds</span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-147"></span><span>                   </span><span class="annot"><span class="annottext">forall (br :: BranchFlag).
+Array BranchIndex CoAxBranch -&gt; Branches br
+</span><a href="GHC.Core.Coercion.Axiom.html#MkBranches"><span class="hs-identifier hs-var">MkBranches</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall i e. Ix i =&gt; (i, i) -&gt; [e] -&gt; Array i e
+</span><a href="../../base-4.16.4.0/src/GHC-Arr.html#listArray"><span class="hs-identifier hs-var">listArray</span></a></span><span> </span><span class="annot"><span class="annottext">(BranchIndex, BranchIndex)
+</span><a href="#local-6989586621681048329"><span class="hs-identifier hs-var">bnds</span></a></span><span> </span><span class="annot"><span class="annottext">[CoAxBranch]
+</span><a href="#local-6989586621681048333"><span class="hs-identifier hs-var">brs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-148"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-149"></span><span>    </span><span id="local-6989586621681048329"><span class="annot"><span class="annottext">bnds :: (BranchIndex, BranchIndex)
+</span><a href="#local-6989586621681048329"><span class="hs-identifier hs-var hs-var">bnds</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">BranchIndex
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; BranchIndex
+</span><a href="../../base-4.16.4.0/src/Data-Foldable.html#length"><span class="hs-identifier hs-var">length</span></a></span><span> </span><span class="annot"><span class="annottext">[CoAxBranch]
+</span><a href="#local-6989586621681048333"><span class="hs-identifier hs-var">brs</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#-"><span class="hs-glyph hs-var">-</span></a></span><span> </span><span class="annot"><span class="annottext">BranchIndex
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span>
+</span><span id="line-150"></span><span>
+</span><span id="line-151"></span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#unbranched"><span class="hs-identifier hs-type">unbranched</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxBranch"><span class="hs-identifier hs-type">CoAxBranch</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#Branches"><span class="hs-identifier hs-type">Branches</span></a></span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#Unbranched"><span class="hs-identifier hs-type">Unbranched</span></a></span><span>
+</span><span id="line-152"></span><span id="unbranched"><span class="annot"><span class="annottext">unbranched :: CoAxBranch -&gt; Branches Unbranched
+</span><a href="GHC.Core.Coercion.Axiom.html#unbranched"><span class="hs-identifier hs-var hs-var">unbranched</span></a></span></span><span> </span><span id="local-6989586621681048325"><span class="annot"><span class="annottext">CoAxBranch
+</span><a href="#local-6989586621681048325"><span class="hs-identifier hs-var">br</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (br :: BranchFlag).
+Array BranchIndex CoAxBranch -&gt; Branches br
+</span><a href="GHC.Core.Coercion.Axiom.html#MkBranches"><span class="hs-identifier hs-var">MkBranches</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall i e. Ix i =&gt; (i, i) -&gt; [e] -&gt; Array i e
+</span><a href="../../base-4.16.4.0/src/GHC-Arr.html#listArray"><span class="hs-identifier hs-var">listArray</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">BranchIndex
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">BranchIndex
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">CoAxBranch
+</span><a href="#local-6989586621681048325"><span class="hs-identifier hs-var">br</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-153"></span><span>
+</span><span id="line-154"></span><span id="local-6989586621681048711"><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#toBranched"><span class="hs-identifier hs-type">toBranched</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#Branches"><span class="hs-identifier hs-type">Branches</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681048711"><span class="hs-identifier hs-type">br</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#Branches"><span class="hs-identifier hs-type">Branches</span></a></span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#Branched"><span class="hs-identifier hs-type">Branched</span></a></span></span><span>
+</span><span id="line-155"></span><span id="toBranched"><span class="annot"><span class="annottext">toBranched :: forall (br :: BranchFlag). Branches br -&gt; Branches Branched
+</span><a href="GHC.Core.Coercion.Axiom.html#toBranched"><span class="hs-identifier hs-var hs-var">toBranched</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (br :: BranchFlag).
+Array BranchIndex CoAxBranch -&gt; Branches br
+</span><a href="GHC.Core.Coercion.Axiom.html#MkBranches"><span class="hs-identifier hs-var">MkBranches</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#."><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">forall (br :: BranchFlag).
+Branches br -&gt; Array BranchIndex CoAxBranch
+</span><a href="GHC.Core.Coercion.Axiom.html#unMkBranches"><span class="hs-identifier hs-var">unMkBranches</span></a></span><span>
+</span><span id="line-156"></span><span>
+</span><span id="line-157"></span><span id="local-6989586621681048706"><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#toUnbranched"><span class="hs-identifier hs-type">toUnbranched</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#Branches"><span class="hs-identifier hs-type">Branches</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681048706"><span class="hs-identifier hs-type">br</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#Branches"><span class="hs-identifier hs-type">Branches</span></a></span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#Unbranched"><span class="hs-identifier hs-type">Unbranched</span></a></span></span><span>
+</span><span id="line-158"></span><span id="toUnbranched"><span class="annot"><span class="annottext">toUnbranched :: forall (br :: BranchFlag). Branches br -&gt; Branches Unbranched
+</span><a href="GHC.Core.Coercion.Axiom.html#toUnbranched"><span class="hs-identifier hs-var hs-var">toUnbranched</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#MkBranches"><span class="hs-identifier hs-type">MkBranches</span></a></span><span> </span><span id="local-6989586621681048314"><span class="annot"><span class="annottext">Array BranchIndex CoAxBranch
+</span><a href="#local-6989586621681048314"><span class="hs-identifier hs-var">arr</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">ASSERT</span><span class="hs-special">(</span><span> </span><span class="hs-identifier">bounds</span><span> </span><span class="hs-identifier">arr</span><span> </span><span class="hs-operator">==</span><span> </span><span class="hs-special">(</span><span class="hs-number">0</span><span class="hs-special">,</span><span class="hs-number">0</span><span class="hs-special">)</span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-159"></span><span>                                </span><span class="annot"><span class="annottext">forall (br :: BranchFlag).
+Array BranchIndex CoAxBranch -&gt; Branches br
+</span><a href="GHC.Core.Coercion.Axiom.html#MkBranches"><span class="hs-identifier hs-var">MkBranches</span></a></span><span> </span><span class="annot"><span class="annottext">Array BranchIndex CoAxBranch
+</span><a href="#local-6989586621681048314"><span class="hs-identifier hs-var">arr</span></a></span><span>
+</span><span id="line-160"></span><span>
+</span><span id="line-161"></span><span id="local-6989586621681048699"><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#fromBranches"><span class="hs-identifier hs-type">fromBranches</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#Branches"><span class="hs-identifier hs-type">Branches</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681048699"><span class="hs-identifier hs-type">br</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxBranch"><span class="hs-identifier hs-type">CoAxBranch</span></a></span><span class="hs-special">]</span></span><span>
+</span><span id="line-162"></span><span id="fromBranches"><span class="annot"><span class="annottext">fromBranches :: forall (br :: BranchFlag). Branches br -&gt; [CoAxBranch]
+</span><a href="GHC.Core.Coercion.Axiom.html#fromBranches"><span class="hs-identifier hs-var hs-var">fromBranches</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall i e. Array i e -&gt; [e]
+</span><a href="../../base-4.16.4.0/src/GHC-Arr.html#elems"><span class="hs-identifier hs-var">elems</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#."><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">forall (br :: BranchFlag).
+Branches br -&gt; Array BranchIndex CoAxBranch
+</span><a href="GHC.Core.Coercion.Axiom.html#unMkBranches"><span class="hs-identifier hs-var">unMkBranches</span></a></span><span>
+</span><span id="line-163"></span><span>
+</span><span id="line-164"></span><span id="local-6989586621681048695"><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#branchesNth"><span class="hs-identifier hs-type">branchesNth</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#Branches"><span class="hs-identifier hs-type">Branches</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681048695"><span class="hs-identifier hs-type">br</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#BranchIndex"><span class="hs-identifier hs-type">BranchIndex</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxBranch"><span class="hs-identifier hs-type">CoAxBranch</span></a></span></span><span>
+</span><span id="line-165"></span><span id="branchesNth"><span class="annot"><span class="annottext">branchesNth :: forall (br :: BranchFlag). Branches br -&gt; BranchIndex -&gt; CoAxBranch
+</span><a href="GHC.Core.Coercion.Axiom.html#branchesNth"><span class="hs-identifier hs-var hs-var">branchesNth</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#MkBranches"><span class="hs-identifier hs-type">MkBranches</span></a></span><span> </span><span id="local-6989586621681048309"><span class="annot"><span class="annottext">Array BranchIndex CoAxBranch
+</span><a href="#local-6989586621681048309"><span class="hs-identifier hs-var">arr</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621681048308"><span class="annot"><span class="annottext">BranchIndex
+</span><a href="#local-6989586621681048308"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Array BranchIndex CoAxBranch
+</span><a href="#local-6989586621681048309"><span class="hs-identifier hs-var">arr</span></a></span><span> </span><span class="annot"><span class="annottext">forall i e. Ix i =&gt; Array i e -&gt; i -&gt; e
+</span><a href="../../base-4.16.4.0/src/GHC-Arr.html#%21"><span class="hs-operator hs-var">!</span></a></span><span> </span><span class="annot"><span class="annottext">BranchIndex
+</span><a href="#local-6989586621681048308"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-166"></span><span>
+</span><span id="line-167"></span><span id="local-6989586621681048691"><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#numBranches"><span class="hs-identifier hs-type">numBranches</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#Branches"><span class="hs-identifier hs-type">Branches</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681048691"><span class="hs-identifier hs-type">br</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span></span><span>
+</span><span id="line-168"></span><span id="numBranches"><span class="annot"><span class="annottext">numBranches :: forall (br :: BranchFlag). Branches br -&gt; BranchIndex
+</span><a href="GHC.Core.Coercion.Axiom.html#numBranches"><span class="hs-identifier hs-var hs-var">numBranches</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#MkBranches"><span class="hs-identifier hs-type">MkBranches</span></a></span><span> </span><span id="local-6989586621681048304"><span class="annot"><span class="annottext">Array BranchIndex CoAxBranch
+</span><a href="#local-6989586621681048304"><span class="hs-identifier hs-var">arr</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (a, b) -&gt; b
+</span><a href="../../base-4.16.4.0/src/Data-Tuple.html#snd"><span class="hs-identifier hs-var">snd</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall i e. Array i e -&gt; (i, i)
+</span><a href="../../base-4.16.4.0/src/GHC-Arr.html#bounds"><span class="hs-identifier hs-var">bounds</span></a></span><span> </span><span class="annot"><span class="annottext">Array BranchIndex CoAxBranch
+</span><a href="#local-6989586621681048304"><span class="hs-identifier hs-var">arr</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span> </span><span class="annot"><span class="annottext">BranchIndex
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-169"></span><span>
+</span><span id="line-170"></span><span class="hs-comment">-- | The @[CoAxBranch]@ passed into the mapping function is a list of</span><span>
+</span><span id="line-171"></span><span class="hs-comment">-- all previous branches, reversed</span><span>
+</span><span id="line-172"></span><span id="local-6989586621681048689"><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#mapAccumBranches"><span class="hs-identifier hs-type">mapAccumBranches</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">[</span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxBranch"><span class="hs-identifier hs-type">CoAxBranch</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxBranch"><span class="hs-identifier hs-type">CoAxBranch</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxBranch"><span class="hs-identifier hs-type">CoAxBranch</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-173"></span><span>                  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#Branches"><span class="hs-identifier hs-type">Branches</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681048689"><span class="hs-identifier hs-type">br</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#Branches"><span class="hs-identifier hs-type">Branches</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681048689"><span class="hs-identifier hs-type">br</span></a></span></span><span>
+</span><span id="line-174"></span><span id="mapAccumBranches"><span class="annot"><span class="annottext">mapAccumBranches :: forall (br :: BranchFlag).
+([CoAxBranch] -&gt; CoAxBranch -&gt; CoAxBranch)
+-&gt; Branches br -&gt; Branches br
+</span><a href="GHC.Core.Coercion.Axiom.html#mapAccumBranches"><span class="hs-identifier hs-var hs-var">mapAccumBranches</span></a></span></span><span> </span><span id="local-6989586621681048299"><span class="annot"><span class="annottext">[CoAxBranch] -&gt; CoAxBranch -&gt; CoAxBranch
+</span><a href="#local-6989586621681048299"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#MkBranches"><span class="hs-identifier hs-type">MkBranches</span></a></span><span> </span><span id="local-6989586621681048298"><span class="annot"><span class="annottext">Array BranchIndex CoAxBranch
+</span><a href="#local-6989586621681048298"><span class="hs-identifier hs-var">arr</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-175"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (br :: BranchFlag).
+Array BranchIndex CoAxBranch -&gt; Branches br
+</span><a href="GHC.Core.Coercion.Axiom.html#MkBranches"><span class="hs-identifier hs-var">MkBranches</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall i e. Ix i =&gt; (i, i) -&gt; [e] -&gt; Array i e
+</span><a href="../../base-4.16.4.0/src/GHC-Arr.html#listArray"><span class="hs-identifier hs-var">listArray</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall i e. Array i e -&gt; (i, i)
+</span><a href="../../base-4.16.4.0/src/GHC-Arr.html#bounds"><span class="hs-identifier hs-var">bounds</span></a></span><span> </span><span class="annot"><span class="annottext">Array BranchIndex CoAxBranch
+</span><a href="#local-6989586621681048298"><span class="hs-identifier hs-var">arr</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. (a, b) -&gt; b
+</span><a href="../../base-4.16.4.0/src/Data-Tuple.html#snd"><span class="hs-identifier hs-var">snd</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) s a b.
+Traversable t =&gt;
+(s -&gt; a -&gt; (s, b)) -&gt; s -&gt; t a -&gt; (s, t b)
+</span><a href="../../base-4.16.4.0/src/Data-Traversable.html#mapAccumL"><span class="hs-identifier hs-var">mapAccumL</span></a></span><span> </span><span class="annot"><span class="annottext">[CoAxBranch] -&gt; CoAxBranch -&gt; ([CoAxBranch], CoAxBranch)
+</span><a href="#local-6989586621681048297"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall i e. Array i e -&gt; [e]
+</span><a href="../../base-4.16.4.0/src/GHC-Arr.html#elems"><span class="hs-identifier hs-var">elems</span></a></span><span> </span><span class="annot"><span class="annottext">Array BranchIndex CoAxBranch
+</span><a href="#local-6989586621681048298"><span class="hs-identifier hs-var">arr</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-176"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-177"></span><span>    </span><span class="annot"><a href="#local-6989586621681048297"><span class="hs-identifier hs-type">go</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxBranch"><span class="hs-identifier hs-type">CoAxBranch</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxBranch"><span class="hs-identifier hs-type">CoAxBranch</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">[</span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxBranch"><span class="hs-identifier hs-type">CoAxBranch</span></a></span><span class="hs-special">]</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxBranch"><span class="hs-identifier hs-type">CoAxBranch</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-178"></span><span>    </span><span id="local-6989586621681048297"><span class="annot"><span class="annottext">go :: [CoAxBranch] -&gt; CoAxBranch -&gt; ([CoAxBranch], CoAxBranch)
+</span><a href="#local-6989586621681048297"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span id="local-6989586621681048296"><span class="annot"><span class="annottext">[CoAxBranch]
+</span><a href="#local-6989586621681048296"><span class="hs-identifier hs-var">prev_branches</span></a></span></span><span> </span><span id="local-6989586621681048295"><span class="annot"><span class="annottext">CoAxBranch
+</span><a href="#local-6989586621681048295"><span class="hs-identifier hs-var">cur_branch</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="annottext">CoAxBranch
+</span><a href="#local-6989586621681048295"><span class="hs-identifier hs-var">cur_branch</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[CoAxBranch]
+</span><a href="#local-6989586621681048296"><span class="hs-identifier hs-var">prev_branches</span></a></span><span>
+</span><span id="line-179"></span><span>                                  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[CoAxBranch] -&gt; CoAxBranch -&gt; CoAxBranch
+</span><a href="#local-6989586621681048299"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">[CoAxBranch]
+</span><a href="#local-6989586621681048296"><span class="hs-identifier hs-var">prev_branches</span></a></span><span> </span><span class="annot"><span class="annottext">CoAxBranch
+</span><a href="#local-6989586621681048295"><span class="hs-identifier hs-var">cur_branch</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-180"></span><span>
+</span><span id="line-181"></span><span>
+</span><span id="line-182"></span><span class="hs-comment">{-
+************************************************************************
+*                                                                      *
+                    Coercion axioms
+*                                                                      *
+************************************************************************
+
+Note [Storing compatibility]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+During axiom application, we need to be aware of which branches are compatible
+with which others. The full explanation is in Note [Compatibility] in
+GHc.Core.FamInstEnv. (The code is placed there to avoid a dependency from
+GHC.Core.Coercion.Axiom on the unification algorithm.) Although we could
+theoretically compute compatibility on the fly, this is silly, so we store it
+in a CoAxiom.
+
+Specifically, each branch refers to all other branches with which it is
+incompatible. This list might well be empty, and it will always be for the
+first branch of any axiom.
+
+CoAxBranches that do not (yet) belong to a CoAxiom should have a panic thunk
+stored in cab_incomps. The incompatibilities are properly a property of the
+axiom as a whole, and they are computed only when the final axiom is built.
+
+During serialization, the list is converted into a list of the indices
+of the branches.
+
+Note [CoAxioms are homogeneous]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+All axioms must be *homogeneous*, meaning that the kind of the LHS must
+match the kind of the RHS. In practice, this means:
+
+  Given a CoAxiom { co_ax_tc = ax_tc },
+  for every branch CoAxBranch { cab_lhs = lhs, cab_rhs = rhs }:
+    typeKind (mkTyConApp ax_tc lhs) `eqType` typeKind rhs
+
+This is checked in FamInstEnv.mkCoAxBranch.
+-}</span><span>
+</span><span id="line-220"></span><span>
+</span><span id="line-221"></span><span class="hs-comment">-- | A 'CoAxiom' is a \&quot;coercion constructor\&quot;, i.e. a named equality axiom.</span><span>
+</span><span id="line-222"></span><span>
+</span><span id="line-223"></span><span class="hs-comment">-- If you edit this type, you may need to update the GHC formalism</span><span>
+</span><span id="line-224"></span><span class="hs-comment">-- See Note [GHC Formalism] in GHC.Core.Lint</span><span>
+</span><span id="line-225"></span><span class="hs-keyword">data</span><span> </span><span id="CoAxiom"><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxiom"><span class="hs-identifier hs-var">CoAxiom</span></a></span></span><span> </span><span id="local-6989586621681048679"><span class="annot"><a href="#local-6989586621681048679"><span class="hs-identifier hs-type">br</span></a></span></span><span>
+</span><span id="line-226"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="CoAxiom"><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxiom"><span class="hs-identifier hs-var">CoAxiom</span></a></span></span><span>                   </span><span class="hs-comment">-- Type equality axiom.</span><span>
+</span><span id="line-227"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="co_ax_unique"><span class="annot"><span class="annottext">forall (br :: BranchFlag). CoAxiom br -&gt; Unique
+</span><a href="GHC.Core.Coercion.Axiom.html#co_ax_unique"><span class="hs-identifier hs-var hs-var">co_ax_unique</span></a></span></span><span>   </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Types.Unique.html#Unique"><span class="hs-identifier hs-type">Unique</span></a></span><span>        </span><span class="hs-comment">-- Unique identifier</span><span>
+</span><span id="line-228"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="co_ax_name"><span class="annot"><span class="annottext">forall (br :: BranchFlag). CoAxiom br -&gt; Name
+</span><a href="GHC.Core.Coercion.Axiom.html#co_ax_name"><span class="hs-identifier hs-var hs-var">co_ax_name</span></a></span></span><span>     </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Types.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span>          </span><span class="hs-comment">-- Name for pretty-printing</span><span>
+</span><span id="line-229"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="co_ax_role"><span class="annot"><span class="annottext">forall (br :: BranchFlag). CoAxiom br -&gt; Role
+</span><a href="GHC.Core.Coercion.Axiom.html#co_ax_role"><span class="hs-identifier hs-var hs-var">co_ax_role</span></a></span></span><span>     </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#Role"><span class="hs-identifier hs-type">Role</span></a></span><span>          </span><span class="hs-comment">-- Role of the axiom's equality</span><span>
+</span><span id="line-230"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="co_ax_tc"><span class="annot"><span class="annottext">forall (br :: BranchFlag). CoAxiom br -&gt; TyCon
+</span><a href="GHC.Core.Coercion.Axiom.html#co_ax_tc"><span class="hs-identifier hs-var hs-var">co_ax_tc</span></a></span></span><span>       </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Core.TyCon.html#TyCon"><span class="hs-identifier hs-type">TyCon</span></a></span><span>         </span><span class="hs-comment">-- The head of the LHS patterns</span><span>
+</span><span id="line-231"></span><span>                                      </span><span class="hs-comment">-- e.g.  the newtype or family tycon</span><span>
+</span><span id="line-232"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="co_ax_branches"><span class="annot"><span class="annottext">forall (br :: BranchFlag). CoAxiom br -&gt; Branches br
+</span><a href="GHC.Core.Coercion.Axiom.html#co_ax_branches"><span class="hs-identifier hs-var hs-var">co_ax_branches</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#Branches"><span class="hs-identifier hs-type">Branches</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681048679"><span class="hs-identifier hs-type">br</span></a></span><span>   </span><span class="hs-comment">-- The branches that form this axiom</span><span>
+</span><span id="line-233"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="co_ax_implicit"><span class="annot"><span class="annottext">forall (br :: BranchFlag). CoAxiom br -&gt; Bool
+</span><a href="GHC.Core.Coercion.Axiom.html#co_ax_implicit"><span class="hs-identifier hs-var hs-var">co_ax_implicit</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>          </span><span class="hs-comment">-- True &lt;=&gt; the axiom is &quot;implicit&quot;</span><span>
+</span><span id="line-234"></span><span>                                      </span><span class="hs-comment">-- See Note [Implicit axioms]</span><span>
+</span><span id="line-235"></span><span>         </span><span class="hs-comment">-- INVARIANT: co_ax_implicit == True implies length co_ax_branches == 1.</span><span>
+</span><span id="line-236"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-237"></span><span>
+</span><span id="line-238"></span><span class="hs-keyword">data</span><span> </span><span id="CoAxBranch"><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxBranch"><span class="hs-identifier hs-var">CoAxBranch</span></a></span></span><span>
+</span><span id="line-239"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="CoAxBranch"><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxBranch"><span class="hs-identifier hs-var">CoAxBranch</span></a></span></span><span>
+</span><span id="line-240"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="cab_loc"><span class="annot"><span class="annottext">CoAxBranch -&gt; SrcSpan
+</span><a href="GHC.Core.Coercion.Axiom.html#cab_loc"><span class="hs-identifier hs-var hs-var">cab_loc</span></a></span></span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Types.SrcLoc.html#SrcSpan"><span class="hs-identifier hs-type">SrcSpan</span></a></span><span>       </span><span class="hs-comment">-- Location of the defining equation</span><span>
+</span><span id="line-241"></span><span>                                    </span><span class="hs-comment">-- See Note [CoAxiom locations]</span><span>
+</span><span id="line-242"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="cab_tvs"><span class="annot"><span class="annottext">CoAxBranch -&gt; [TyVar]
+</span><a href="GHC.Core.Coercion.Axiom.html#cab_tvs"><span class="hs-identifier hs-var hs-var">cab_tvs</span></a></span></span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Types.Var.html#TyVar"><span class="hs-identifier hs-type">TyVar</span></a></span><span class="hs-special">]</span><span>       </span><span class="hs-comment">-- Bound type variables; not necessarily fresh</span><span>
+</span><span id="line-243"></span><span>                                    </span><span class="hs-comment">-- See Note [CoAxBranch type variables]</span><span>
+</span><span id="line-244"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="cab_eta_tvs"><span class="annot"><span class="annottext">CoAxBranch -&gt; [TyVar]
+</span><a href="GHC.Core.Coercion.Axiom.html#cab_eta_tvs"><span class="hs-identifier hs-var hs-var">cab_eta_tvs</span></a></span></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Types.Var.html#TyVar"><span class="hs-identifier hs-type">TyVar</span></a></span><span class="hs-special">]</span><span>       </span><span class="hs-comment">-- Eta-reduced tyvars</span><span>
+</span><span id="line-245"></span><span>                                    </span><span class="hs-comment">-- cab_tvs and cab_lhs may be eta-reduced; see</span><span>
+</span><span id="line-246"></span><span>                                    </span><span class="hs-comment">-- Note [Eta reduction for data families]</span><span>
+</span><span id="line-247"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="cab_cvs"><span class="annot"><span class="annottext">CoAxBranch -&gt; [TyVar]
+</span><a href="GHC.Core.Coercion.Axiom.html#cab_cvs"><span class="hs-identifier hs-var hs-var">cab_cvs</span></a></span></span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Types.Var.html#CoVar"><span class="hs-identifier hs-type">CoVar</span></a></span><span class="hs-special">]</span><span>       </span><span class="hs-comment">-- Bound coercion variables</span><span>
+</span><span id="line-248"></span><span>                                    </span><span class="hs-comment">-- Always empty, for now.</span><span>
+</span><span id="line-249"></span><span>                                    </span><span class="hs-comment">-- See Note [Constraints in patterns]</span><span>
+</span><span id="line-250"></span><span>                                    </span><span class="hs-comment">-- in GHC.Tc.TyCl</span><span>
+</span><span id="line-251"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="cab_roles"><span class="annot"><span class="annottext">CoAxBranch -&gt; [Role]
+</span><a href="GHC.Core.Coercion.Axiom.html#cab_roles"><span class="hs-identifier hs-var hs-var">cab_roles</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#Role"><span class="hs-identifier hs-type">Role</span></a></span><span class="hs-special">]</span><span>        </span><span class="hs-comment">-- See Note [CoAxBranch roles]</span><span>
+</span><span id="line-252"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="cab_lhs"><span class="annot"><span class="annottext">CoAxBranch -&gt; [Type]
+</span><a href="GHC.Core.Coercion.Axiom.html#cab_lhs"><span class="hs-identifier hs-var hs-var">cab_lhs</span></a></span></span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Core.TyCo.Rep.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span class="hs-special">]</span><span>        </span><span class="hs-comment">-- Type patterns to match against</span><span>
+</span><span id="line-253"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="cab_rhs"><span class="annot"><span class="annottext">CoAxBranch -&gt; Type
+</span><a href="GHC.Core.Coercion.Axiom.html#cab_rhs"><span class="hs-identifier hs-var hs-var">cab_rhs</span></a></span></span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Core.TyCo.Rep.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span>          </span><span class="hs-comment">-- Right-hand side of the equality</span><span>
+</span><span id="line-254"></span><span>                                    </span><span class="hs-comment">-- See Note [CoAxioms are homogeneous]</span><span>
+</span><span id="line-255"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="cab_incomps"><span class="annot"><span class="annottext">CoAxBranch -&gt; [CoAxBranch]
+</span><a href="GHC.Core.Coercion.Axiom.html#cab_incomps"><span class="hs-identifier hs-var hs-var">cab_incomps</span></a></span></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxBranch"><span class="hs-identifier hs-type">CoAxBranch</span></a></span><span class="hs-special">]</span><span>  </span><span class="hs-comment">-- The previous incompatible branches</span><span>
+</span><span id="line-256"></span><span>                                    </span><span class="hs-comment">-- See Note [Storing compatibility]</span><span>
+</span><span id="line-257"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-258"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621681048223"><span id="local-6989586621681048225"><span id="local-6989586621681048227"><span id="local-6989586621681048229"><span id="local-6989586621681048231"><span id="local-6989586621681048233"><span id="local-6989586621681048235"><span id="local-6989586621681048237"><span id="local-6989586621681048239"><span id="local-6989586621681048241"><span id="local-6989586621681048243"><span id="local-6989586621681048245"><span id="local-6989586621681048258"><span id="local-6989586621681048274"><span class="annot"><span class="annottext">Typeable CoAxBranch
+CoAxBranch -&gt; DataType
+CoAxBranch -&gt; Constr
+(forall b. Data b =&gt; b -&gt; b) -&gt; CoAxBranch -&gt; CoAxBranch
+forall a.
+Typeable a
+-&gt; (forall (c :: * -&gt; *).
+    (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+    -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u.
+    BranchIndex -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall u.
+BranchIndex -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; CoAxBranch -&gt; u
+forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; CoAxBranch -&gt; [u]
+forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; CoAxBranch -&gt; r
+forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; CoAxBranch -&gt; r
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; CoAxBranch -&gt; m CoAxBranch
+forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; CoAxBranch -&gt; m CoAxBranch
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c CoAxBranch
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; CoAxBranch -&gt; c CoAxBranch
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c CoAxBranch)
+forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c CoAxBranch)
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; CoAxBranch -&gt; m CoAxBranch
+$cgmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; CoAxBranch -&gt; m CoAxBranch
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; CoAxBranch -&gt; m CoAxBranch
+$cgmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; CoAxBranch -&gt; m CoAxBranch
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; CoAxBranch -&gt; m CoAxBranch
+$cgmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; CoAxBranch -&gt; m CoAxBranch
+gmapQi :: forall u.
+BranchIndex -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; CoAxBranch -&gt; u
+$cgmapQi :: forall u.
+BranchIndex -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; CoAxBranch -&gt; u
+gmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; CoAxBranch -&gt; [u]
+$cgmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; CoAxBranch -&gt; [u]
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; CoAxBranch -&gt; r
+$cgmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; CoAxBranch -&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; CoAxBranch -&gt; r
+$cgmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; CoAxBranch -&gt; r
+gmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; CoAxBranch -&gt; CoAxBranch
+$cgmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; CoAxBranch -&gt; CoAxBranch
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c CoAxBranch)
+$cdataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c CoAxBranch)
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c CoAxBranch)
+$cdataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c CoAxBranch)
+dataTypeOf :: CoAxBranch -&gt; DataType
+$cdataTypeOf :: CoAxBranch -&gt; DataType
+toConstr :: CoAxBranch -&gt; Constr
+$ctoConstr :: CoAxBranch -&gt; Constr
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c CoAxBranch
+$cgunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c CoAxBranch
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; CoAxBranch -&gt; c CoAxBranch
+$cgfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; CoAxBranch -&gt; c CoAxBranch
+</span><a href="../../base-4.16.4.0/src/Data-Data.html#Data"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data.Data</span></a></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span>
+</span><span id="line-259"></span><span>
+</span><span id="line-260"></span><span id="local-6989586621681048632"><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#toBranchedAxiom"><span class="hs-identifier hs-type">toBranchedAxiom</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxiom"><span class="hs-identifier hs-type">CoAxiom</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681048632"><span class="hs-identifier hs-type">br</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxiom"><span class="hs-identifier hs-type">CoAxiom</span></a></span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#Branched"><span class="hs-identifier hs-type">Branched</span></a></span></span><span>
+</span><span id="line-261"></span><span id="toBranchedAxiom"><span class="annot"><span class="annottext">toBranchedAxiom :: forall (br :: BranchFlag). CoAxiom br -&gt; CoAxiom Branched
+</span><a href="GHC.Core.Coercion.Axiom.html#toBranchedAxiom"><span class="hs-identifier hs-var hs-var">toBranchedAxiom</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxiom"><span class="hs-identifier hs-type">CoAxiom</span></a></span><span> </span><span id="local-6989586621681048220"><span class="annot"><span class="annottext">Unique
+</span><a href="#local-6989586621681048220"><span class="hs-identifier hs-var">unique</span></a></span></span><span> </span><span id="local-6989586621681048219"><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621681048219"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span id="local-6989586621681048218"><span class="annot"><span class="annottext">Role
+</span><a href="#local-6989586621681048218"><span class="hs-keyword hs-var">role</span></a></span></span><span> </span><span id="local-6989586621681048217"><span class="annot"><span class="annottext">TyCon
+</span><a href="#local-6989586621681048217"><span class="hs-identifier hs-var">tc</span></a></span></span><span> </span><span id="local-6989586621681048216"><span class="annot"><span class="annottext">Branches br
+</span><a href="#local-6989586621681048216"><span class="hs-identifier hs-var">branches</span></a></span></span><span> </span><span id="local-6989586621681048215"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681048215"><span class="hs-identifier hs-var">implicit</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-262"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (br :: BranchFlag).
+Unique
+-&gt; Name -&gt; Role -&gt; TyCon -&gt; Branches br -&gt; Bool -&gt; CoAxiom br
+</span><a href="GHC.Core.Coercion.Axiom.html#CoAxiom"><span class="hs-identifier hs-var">CoAxiom</span></a></span><span> </span><span class="annot"><span class="annottext">Unique
+</span><a href="#local-6989586621681048220"><span class="hs-identifier hs-var">unique</span></a></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621681048219"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="annot"><span class="annottext">Role
+</span><a href="#local-6989586621681048218"><span class="hs-keyword hs-var">role</span></a></span><span> </span><span class="annot"><span class="annottext">TyCon
+</span><a href="#local-6989586621681048217"><span class="hs-identifier hs-var">tc</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (br :: BranchFlag). Branches br -&gt; Branches Branched
+</span><a href="GHC.Core.Coercion.Axiom.html#toBranched"><span class="hs-identifier hs-var">toBranched</span></a></span><span> </span><span class="annot"><span class="annottext">Branches br
+</span><a href="#local-6989586621681048216"><span class="hs-identifier hs-var">branches</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681048215"><span class="hs-identifier hs-var">implicit</span></a></span><span>
+</span><span id="line-263"></span><span>
+</span><span id="line-264"></span><span id="local-6989586621681048630"><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#toUnbranchedAxiom"><span class="hs-identifier hs-type">toUnbranchedAxiom</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxiom"><span class="hs-identifier hs-type">CoAxiom</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681048630"><span class="hs-identifier hs-type">br</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxiom"><span class="hs-identifier hs-type">CoAxiom</span></a></span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#Unbranched"><span class="hs-identifier hs-type">Unbranched</span></a></span></span><span>
+</span><span id="line-265"></span><span id="toUnbranchedAxiom"><span class="annot"><span class="annottext">toUnbranchedAxiom :: forall (br :: BranchFlag). CoAxiom br -&gt; CoAxiom Unbranched
+</span><a href="GHC.Core.Coercion.Axiom.html#toUnbranchedAxiom"><span class="hs-identifier hs-var hs-var">toUnbranchedAxiom</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxiom"><span class="hs-identifier hs-type">CoAxiom</span></a></span><span> </span><span id="local-6989586621681048214"><span class="annot"><span class="annottext">Unique
+</span><a href="#local-6989586621681048214"><span class="hs-identifier hs-var">unique</span></a></span></span><span> </span><span id="local-6989586621681048213"><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621681048213"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span id="local-6989586621681048212"><span class="annot"><span class="annottext">Role
+</span><a href="#local-6989586621681048212"><span class="hs-keyword hs-var">role</span></a></span></span><span> </span><span id="local-6989586621681048211"><span class="annot"><span class="annottext">TyCon
+</span><a href="#local-6989586621681048211"><span class="hs-identifier hs-var">tc</span></a></span></span><span> </span><span id="local-6989586621681048210"><span class="annot"><span class="annottext">Branches br
+</span><a href="#local-6989586621681048210"><span class="hs-identifier hs-var">branches</span></a></span></span><span> </span><span id="local-6989586621681048209"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681048209"><span class="hs-identifier hs-var">implicit</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-266"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (br :: BranchFlag).
+Unique
+-&gt; Name -&gt; Role -&gt; TyCon -&gt; Branches br -&gt; Bool -&gt; CoAxiom br
+</span><a href="GHC.Core.Coercion.Axiom.html#CoAxiom"><span class="hs-identifier hs-var">CoAxiom</span></a></span><span> </span><span class="annot"><span class="annottext">Unique
+</span><a href="#local-6989586621681048214"><span class="hs-identifier hs-var">unique</span></a></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621681048213"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="annot"><span class="annottext">Role
+</span><a href="#local-6989586621681048212"><span class="hs-keyword hs-var">role</span></a></span><span> </span><span class="annot"><span class="annottext">TyCon
+</span><a href="#local-6989586621681048211"><span class="hs-identifier hs-var">tc</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (br :: BranchFlag). Branches br -&gt; Branches Unbranched
+</span><a href="GHC.Core.Coercion.Axiom.html#toUnbranched"><span class="hs-identifier hs-var">toUnbranched</span></a></span><span> </span><span class="annot"><span class="annottext">Branches br
+</span><a href="#local-6989586621681048210"><span class="hs-identifier hs-var">branches</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681048209"><span class="hs-identifier hs-var">implicit</span></a></span><span>
+</span><span id="line-267"></span><span>
+</span><span id="line-268"></span><span id="local-6989586621681048628"><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#coAxiomNumPats"><span class="hs-identifier hs-type">coAxiomNumPats</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxiom"><span class="hs-identifier hs-type">CoAxiom</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681048628"><span class="hs-identifier hs-type">br</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span></span><span>
+</span><span id="line-269"></span><span id="coAxiomNumPats"><span class="annot"><span class="annottext">coAxiomNumPats :: forall (br :: BranchFlag). CoAxiom br -&gt; BranchIndex
+</span><a href="GHC.Core.Coercion.Axiom.html#coAxiomNumPats"><span class="hs-identifier hs-var hs-var">coAxiomNumPats</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; BranchIndex
+</span><a href="../../base-4.16.4.0/src/Data-Foldable.html#length"><span class="hs-identifier hs-var">length</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#."><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">CoAxBranch -&gt; [Type]
+</span><a href="GHC.Core.Coercion.Axiom.html#coAxBranchLHS"><span class="hs-identifier hs-var">coAxBranchLHS</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#."><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b c. (a -&gt; b -&gt; c) -&gt; b -&gt; a -&gt; c
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#flip"><span class="hs-identifier hs-var">flip</span></a></span><span> </span><span class="annot"><span class="annottext">forall (br :: BranchFlag). CoAxiom br -&gt; BranchIndex -&gt; CoAxBranch
+</span><a href="GHC.Core.Coercion.Axiom.html#coAxiomNthBranch"><span class="hs-identifier hs-var">coAxiomNthBranch</span></a></span><span> </span><span class="annot"><span class="annottext">BranchIndex
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span>
+</span><span id="line-270"></span><span>
+</span><span id="line-271"></span><span id="local-6989586621681048623"><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#coAxiomNthBranch"><span class="hs-identifier hs-type">coAxiomNthBranch</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxiom"><span class="hs-identifier hs-type">CoAxiom</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681048623"><span class="hs-identifier hs-type">br</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#BranchIndex"><span class="hs-identifier hs-type">BranchIndex</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxBranch"><span class="hs-identifier hs-type">CoAxBranch</span></a></span></span><span>
+</span><span id="line-272"></span><span id="coAxiomNthBranch"><span class="annot"><span class="annottext">coAxiomNthBranch :: forall (br :: BranchFlag). CoAxiom br -&gt; BranchIndex -&gt; CoAxBranch
+</span><a href="GHC.Core.Coercion.Axiom.html#coAxiomNthBranch"><span class="hs-identifier hs-var hs-var">coAxiomNthBranch</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxiom"><span class="hs-identifier hs-type">CoAxiom</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">co_ax_branches :: forall (br :: BranchFlag). CoAxiom br -&gt; Branches br
+</span><a href="GHC.Core.Coercion.Axiom.html#co_ax_branches"><span class="hs-identifier hs-var">co_ax_branches</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621681048205"><span class="annot"><span class="annottext">Branches br
+</span><a href="#local-6989586621681048205"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span id="local-6989586621681048204"><span class="annot"><span class="annottext">BranchIndex
+</span><a href="#local-6989586621681048204"><span class="hs-identifier hs-var">index</span></a></span></span><span>
+</span><span id="line-273"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (br :: BranchFlag). Branches br -&gt; BranchIndex -&gt; CoAxBranch
+</span><a href="GHC.Core.Coercion.Axiom.html#branchesNth"><span class="hs-identifier hs-var">branchesNth</span></a></span><span> </span><span class="annot"><span class="annottext">Branches br
+</span><a href="#local-6989586621681048205"><span class="hs-identifier hs-var">bs</span></a></span><span> </span><span class="annot"><span class="annottext">BranchIndex
+</span><a href="#local-6989586621681048204"><span class="hs-identifier hs-var">index</span></a></span><span>
+</span><span id="line-274"></span><span>
+</span><span id="line-275"></span><span id="local-6989586621681048621"><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#coAxiomArity"><span class="hs-identifier hs-type">coAxiomArity</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxiom"><span class="hs-identifier hs-type">CoAxiom</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681048621"><span class="hs-identifier hs-type">br</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#BranchIndex"><span class="hs-identifier hs-type">BranchIndex</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Types.Basic.html#Arity"><span class="hs-identifier hs-type">Arity</span></a></span></span><span>
+</span><span id="line-276"></span><span id="coAxiomArity"><span class="annot"><span class="annottext">coAxiomArity :: forall (br :: BranchFlag). CoAxiom br -&gt; BranchIndex -&gt; BranchIndex
+</span><a href="GHC.Core.Coercion.Axiom.html#coAxiomArity"><span class="hs-identifier hs-var hs-var">coAxiomArity</span></a></span></span><span> </span><span id="local-6989586621681048199"><span class="annot"><span class="annottext">CoAxiom br
+</span><a href="#local-6989586621681048199"><span class="hs-identifier hs-var">ax</span></a></span></span><span> </span><span id="local-6989586621681048198"><span class="annot"><span class="annottext">BranchIndex
+</span><a href="#local-6989586621681048198"><span class="hs-identifier hs-var">index</span></a></span></span><span>
+</span><span id="line-277"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; BranchIndex
+</span><a href="../../base-4.16.4.0/src/Data-Foldable.html#length"><span class="hs-identifier hs-var">length</span></a></span><span> </span><span class="annot"><span class="annottext">[TyVar]
+</span><a href="#local-6989586621681048197"><span class="hs-identifier hs-var">tvs</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; BranchIndex
+</span><a href="../../base-4.16.4.0/src/Data-Foldable.html#length"><span class="hs-identifier hs-var">length</span></a></span><span> </span><span class="annot"><span class="annottext">[TyVar]
+</span><a href="#local-6989586621681048196"><span class="hs-identifier hs-var">cvs</span></a></span><span>
+</span><span id="line-278"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-279"></span><span>    </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxBranch"><span class="hs-identifier hs-type">CoAxBranch</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">cab_tvs :: CoAxBranch -&gt; [TyVar]
+</span><a href="GHC.Core.Coercion.Axiom.html#cab_tvs"><span class="hs-identifier hs-var">cab_tvs</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621681048197"><span class="annot"><span class="annottext">[TyVar]
+</span><a href="#local-6989586621681048197"><span class="hs-identifier hs-var">tvs</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">cab_cvs :: CoAxBranch -&gt; [TyVar]
+</span><a href="GHC.Core.Coercion.Axiom.html#cab_cvs"><span class="hs-identifier hs-var">cab_cvs</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621681048196"><span class="annot"><span class="annottext">[TyVar]
+</span><a href="#local-6989586621681048196"><span class="hs-identifier hs-var">cvs</span></a></span></span><span> </span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (br :: BranchFlag). CoAxiom br -&gt; BranchIndex -&gt; CoAxBranch
+</span><a href="GHC.Core.Coercion.Axiom.html#coAxiomNthBranch"><span class="hs-identifier hs-var">coAxiomNthBranch</span></a></span><span> </span><span class="annot"><span class="annottext">CoAxiom br
+</span><a href="#local-6989586621681048199"><span class="hs-identifier hs-var">ax</span></a></span><span> </span><span class="annot"><span class="annottext">BranchIndex
+</span><a href="#local-6989586621681048198"><span class="hs-identifier hs-var">index</span></a></span><span>
+</span><span id="line-280"></span><span>
+</span><span id="line-281"></span><span id="local-6989586621681048195"><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#coAxiomName"><span class="hs-identifier hs-type">coAxiomName</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxiom"><span class="hs-identifier hs-type">CoAxiom</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681048195"><span class="hs-identifier hs-type">br</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Types.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span></span><span>
+</span><span id="line-282"></span><span id="coAxiomName"><span class="annot"><span class="annottext">coAxiomName :: forall (br :: BranchFlag). CoAxiom br -&gt; Name
+</span><a href="GHC.Core.Coercion.Axiom.html#coAxiomName"><span class="hs-identifier hs-var hs-var">coAxiomName</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (br :: BranchFlag). CoAxiom br -&gt; Name
+</span><a href="GHC.Core.Coercion.Axiom.html#co_ax_name"><span class="hs-identifier hs-var">co_ax_name</span></a></span><span>
+</span><span id="line-283"></span><span>
+</span><span id="line-284"></span><span id="local-6989586621681048194"><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#coAxiomRole"><span class="hs-identifier hs-type">coAxiomRole</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxiom"><span class="hs-identifier hs-type">CoAxiom</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681048194"><span class="hs-identifier hs-type">br</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#Role"><span class="hs-identifier hs-type">Role</span></a></span></span><span>
+</span><span id="line-285"></span><span id="coAxiomRole"><span class="annot"><span class="annottext">coAxiomRole :: forall (br :: BranchFlag). CoAxiom br -&gt; Role
+</span><a href="GHC.Core.Coercion.Axiom.html#coAxiomRole"><span class="hs-identifier hs-var hs-var">coAxiomRole</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (br :: BranchFlag). CoAxiom br -&gt; Role
+</span><a href="GHC.Core.Coercion.Axiom.html#co_ax_role"><span class="hs-identifier hs-var">co_ax_role</span></a></span><span>
+</span><span id="line-286"></span><span>
+</span><span id="line-287"></span><span id="local-6989586621681048193"><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#coAxiomBranches"><span class="hs-identifier hs-type">coAxiomBranches</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxiom"><span class="hs-identifier hs-type">CoAxiom</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681048193"><span class="hs-identifier hs-type">br</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#Branches"><span class="hs-identifier hs-type">Branches</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681048193"><span class="hs-identifier hs-type">br</span></a></span></span><span>
+</span><span id="line-288"></span><span id="coAxiomBranches"><span class="annot"><span class="annottext">coAxiomBranches :: forall (br :: BranchFlag). CoAxiom br -&gt; Branches br
+</span><a href="GHC.Core.Coercion.Axiom.html#coAxiomBranches"><span class="hs-identifier hs-var hs-var">coAxiomBranches</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (br :: BranchFlag). CoAxiom br -&gt; Branches br
+</span><a href="GHC.Core.Coercion.Axiom.html#co_ax_branches"><span class="hs-identifier hs-var">co_ax_branches</span></a></span><span>
+</span><span id="line-289"></span><span>
+</span><span id="line-290"></span><span id="local-6989586621681048619"><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#coAxiomSingleBranch_maybe"><span class="hs-identifier hs-type">coAxiomSingleBranch_maybe</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxiom"><span class="hs-identifier hs-type">CoAxiom</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681048619"><span class="hs-identifier hs-type">br</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Maybe"><span class="hs-identifier hs-type">Maybe</span></a></span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxBranch"><span class="hs-identifier hs-type">CoAxBranch</span></a></span></span><span>
+</span><span id="line-291"></span><span id="coAxiomSingleBranch_maybe"><span class="annot"><span class="annottext">coAxiomSingleBranch_maybe :: forall (br :: BranchFlag). CoAxiom br -&gt; Maybe CoAxBranch
+</span><a href="GHC.Core.Coercion.Axiom.html#coAxiomSingleBranch_maybe"><span class="hs-identifier hs-var hs-var">coAxiomSingleBranch_maybe</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxiom"><span class="hs-identifier hs-type">CoAxiom</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">co_ax_branches :: forall (br :: BranchFlag). CoAxiom br -&gt; Branches br
+</span><a href="GHC.Core.Coercion.Axiom.html#co_ax_branches"><span class="hs-identifier hs-var">co_ax_branches</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#MkBranches"><span class="hs-identifier hs-type">MkBranches</span></a></span><span> </span><span id="local-6989586621681048188"><span class="annot"><span class="annottext">Array BranchIndex CoAxBranch
+</span><a href="#local-6989586621681048188"><span class="hs-identifier hs-var">arr</span></a></span></span><span> </span><span class="hs-special">}</span><span class="hs-special">)</span><span>
+</span><span id="line-292"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">forall a b. (a, b) -&gt; b
+</span><a href="../../base-4.16.4.0/src/Data-Tuple.html#snd"><span class="hs-identifier hs-var">snd</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall i e. Array i e -&gt; (i, i)
+</span><a href="../../base-4.16.4.0/src/GHC-Arr.html#bounds"><span class="hs-identifier hs-var">bounds</span></a></span><span> </span><span class="annot"><span class="annottext">Array BranchIndex CoAxBranch
+</span><a href="#local-6989586621681048188"><span class="hs-identifier hs-var">arr</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">BranchIndex
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-293"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Just"><span class="hs-identifier hs-var">Just</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">Array BranchIndex CoAxBranch
+</span><a href="#local-6989586621681048188"><span class="hs-identifier hs-var">arr</span></a></span><span> </span><span class="annot"><span class="annottext">forall i e. Ix i =&gt; Array i e -&gt; i -&gt; e
+</span><a href="../../base-4.16.4.0/src/GHC-Arr.html#%21"><span class="hs-operator hs-var">!</span></a></span><span> </span><span class="annot"><span class="annottext">BranchIndex
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-294"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#otherwise"><span class="hs-identifier hs-var">otherwise</span></a></span><span>
+</span><span id="line-295"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Nothing"><span class="hs-identifier hs-var">Nothing</span></a></span><span>
+</span><span id="line-296"></span><span>
+</span><span id="line-297"></span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#coAxiomSingleBranch"><span class="hs-identifier hs-type">coAxiomSingleBranch</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxiom"><span class="hs-identifier hs-type">CoAxiom</span></a></span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#Unbranched"><span class="hs-identifier hs-type">Unbranched</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxBranch"><span class="hs-identifier hs-type">CoAxBranch</span></a></span><span>
+</span><span id="line-298"></span><span id="coAxiomSingleBranch"><span class="annot"><span class="annottext">coAxiomSingleBranch :: CoAxiom Unbranched -&gt; CoAxBranch
+</span><a href="GHC.Core.Coercion.Axiom.html#coAxiomSingleBranch"><span class="hs-identifier hs-var hs-var">coAxiomSingleBranch</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxiom"><span class="hs-identifier hs-type">CoAxiom</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">co_ax_branches :: forall (br :: BranchFlag). CoAxiom br -&gt; Branches br
+</span><a href="GHC.Core.Coercion.Axiom.html#co_ax_branches"><span class="hs-identifier hs-var">co_ax_branches</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#MkBranches"><span class="hs-identifier hs-type">MkBranches</span></a></span><span> </span><span id="local-6989586621681048187"><span class="annot"><span class="annottext">Array BranchIndex CoAxBranch
+</span><a href="#local-6989586621681048187"><span class="hs-identifier hs-var">arr</span></a></span></span><span> </span><span class="hs-special">}</span><span class="hs-special">)</span><span>
+</span><span id="line-299"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Array BranchIndex CoAxBranch
+</span><a href="#local-6989586621681048187"><span class="hs-identifier hs-var">arr</span></a></span><span> </span><span class="annot"><span class="annottext">forall i e. Ix i =&gt; Array i e -&gt; i -&gt; e
+</span><a href="../../base-4.16.4.0/src/GHC-Arr.html#%21"><span class="hs-operator hs-var">!</span></a></span><span> </span><span class="annot"><span class="annottext">BranchIndex
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-300"></span><span>
+</span><span id="line-301"></span><span id="local-6989586621681048186"><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#coAxiomTyCon"><span class="hs-identifier hs-type">coAxiomTyCon</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxiom"><span class="hs-identifier hs-type">CoAxiom</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681048186"><span class="hs-identifier hs-type">br</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.TyCon.html#TyCon"><span class="hs-identifier hs-type">TyCon</span></a></span></span><span>
+</span><span id="line-302"></span><span id="coAxiomTyCon"><span class="annot"><span class="annottext">coAxiomTyCon :: forall (br :: BranchFlag). CoAxiom br -&gt; TyCon
+</span><a href="GHC.Core.Coercion.Axiom.html#coAxiomTyCon"><span class="hs-identifier hs-var hs-var">coAxiomTyCon</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (br :: BranchFlag). CoAxiom br -&gt; TyCon
+</span><a href="GHC.Core.Coercion.Axiom.html#co_ax_tc"><span class="hs-identifier hs-var">co_ax_tc</span></a></span><span>
+</span><span id="line-303"></span><span>
+</span><span id="line-304"></span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#coAxBranchTyVars"><span class="hs-identifier hs-type">coAxBranchTyVars</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxBranch"><span class="hs-identifier hs-type">CoAxBranch</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Types.Var.html#TyVar"><span class="hs-identifier hs-type">TyVar</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-305"></span><span id="coAxBranchTyVars"><span class="annot"><span class="annottext">coAxBranchTyVars :: CoAxBranch -&gt; [TyVar]
+</span><a href="GHC.Core.Coercion.Axiom.html#coAxBranchTyVars"><span class="hs-identifier hs-var hs-var">coAxBranchTyVars</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CoAxBranch -&gt; [TyVar]
+</span><a href="GHC.Core.Coercion.Axiom.html#cab_tvs"><span class="hs-identifier hs-var">cab_tvs</span></a></span><span>
+</span><span id="line-306"></span><span>
+</span><span id="line-307"></span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#coAxBranchCoVars"><span class="hs-identifier hs-type">coAxBranchCoVars</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxBranch"><span class="hs-identifier hs-type">CoAxBranch</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Types.Var.html#CoVar"><span class="hs-identifier hs-type">CoVar</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-308"></span><span id="coAxBranchCoVars"><span class="annot"><span class="annottext">coAxBranchCoVars :: CoAxBranch -&gt; [TyVar]
+</span><a href="GHC.Core.Coercion.Axiom.html#coAxBranchCoVars"><span class="hs-identifier hs-var hs-var">coAxBranchCoVars</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CoAxBranch -&gt; [TyVar]
+</span><a href="GHC.Core.Coercion.Axiom.html#cab_cvs"><span class="hs-identifier hs-var">cab_cvs</span></a></span><span>
+</span><span id="line-309"></span><span>
+</span><span id="line-310"></span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#coAxBranchLHS"><span class="hs-identifier hs-type">coAxBranchLHS</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxBranch"><span class="hs-identifier hs-type">CoAxBranch</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Core.TyCo.Rep.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-311"></span><span id="coAxBranchLHS"><span class="annot"><span class="annottext">coAxBranchLHS :: CoAxBranch -&gt; [Type]
+</span><a href="GHC.Core.Coercion.Axiom.html#coAxBranchLHS"><span class="hs-identifier hs-var hs-var">coAxBranchLHS</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CoAxBranch -&gt; [Type]
+</span><a href="GHC.Core.Coercion.Axiom.html#cab_lhs"><span class="hs-identifier hs-var">cab_lhs</span></a></span><span>
+</span><span id="line-312"></span><span>
+</span><span id="line-313"></span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#coAxBranchRHS"><span class="hs-identifier hs-type">coAxBranchRHS</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxBranch"><span class="hs-identifier hs-type">CoAxBranch</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.TyCo.Rep.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span>
+</span><span id="line-314"></span><span id="coAxBranchRHS"><span class="annot"><span class="annottext">coAxBranchRHS :: CoAxBranch -&gt; Type
+</span><a href="GHC.Core.Coercion.Axiom.html#coAxBranchRHS"><span class="hs-identifier hs-var hs-var">coAxBranchRHS</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CoAxBranch -&gt; Type
+</span><a href="GHC.Core.Coercion.Axiom.html#cab_rhs"><span class="hs-identifier hs-var">cab_rhs</span></a></span><span>
+</span><span id="line-315"></span><span>
+</span><span id="line-316"></span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#coAxBranchRoles"><span class="hs-identifier hs-type">coAxBranchRoles</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxBranch"><span class="hs-identifier hs-type">CoAxBranch</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#Role"><span class="hs-identifier hs-type">Role</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-317"></span><span id="coAxBranchRoles"><span class="annot"><span class="annottext">coAxBranchRoles :: CoAxBranch -&gt; [Role]
+</span><a href="GHC.Core.Coercion.Axiom.html#coAxBranchRoles"><span class="hs-identifier hs-var hs-var">coAxBranchRoles</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CoAxBranch -&gt; [Role]
+</span><a href="GHC.Core.Coercion.Axiom.html#cab_roles"><span class="hs-identifier hs-var">cab_roles</span></a></span><span>
+</span><span id="line-318"></span><span>
+</span><span id="line-319"></span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#coAxBranchSpan"><span class="hs-identifier hs-type">coAxBranchSpan</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxBranch"><span class="hs-identifier hs-type">CoAxBranch</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Types.SrcLoc.html#SrcSpan"><span class="hs-identifier hs-type">SrcSpan</span></a></span><span>
+</span><span id="line-320"></span><span id="coAxBranchSpan"><span class="annot"><span class="annottext">coAxBranchSpan :: CoAxBranch -&gt; SrcSpan
+</span><a href="GHC.Core.Coercion.Axiom.html#coAxBranchSpan"><span class="hs-identifier hs-var hs-var">coAxBranchSpan</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CoAxBranch -&gt; SrcSpan
+</span><a href="GHC.Core.Coercion.Axiom.html#cab_loc"><span class="hs-identifier hs-var">cab_loc</span></a></span><span>
+</span><span id="line-321"></span><span>
+</span><span id="line-322"></span><span id="local-6989586621681048185"><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#isImplicitCoAxiom"><span class="hs-identifier hs-type">isImplicitCoAxiom</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxiom"><span class="hs-identifier hs-type">CoAxiom</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681048185"><span class="hs-identifier hs-type">br</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span><span>
+</span><span id="line-323"></span><span id="isImplicitCoAxiom"><span class="annot"><span class="annottext">isImplicitCoAxiom :: forall (br :: BranchFlag). CoAxiom br -&gt; Bool
+</span><a href="GHC.Core.Coercion.Axiom.html#isImplicitCoAxiom"><span class="hs-identifier hs-var hs-var">isImplicitCoAxiom</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (br :: BranchFlag). CoAxiom br -&gt; Bool
+</span><a href="GHC.Core.Coercion.Axiom.html#co_ax_implicit"><span class="hs-identifier hs-var">co_ax_implicit</span></a></span><span>
+</span><span id="line-324"></span><span>
+</span><span id="line-325"></span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#coAxBranchIncomps"><span class="hs-identifier hs-type">coAxBranchIncomps</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxBranch"><span class="hs-identifier hs-type">CoAxBranch</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxBranch"><span class="hs-identifier hs-type">CoAxBranch</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-326"></span><span id="coAxBranchIncomps"><span class="annot"><span class="annottext">coAxBranchIncomps :: CoAxBranch -&gt; [CoAxBranch]
+</span><a href="GHC.Core.Coercion.Axiom.html#coAxBranchIncomps"><span class="hs-identifier hs-var hs-var">coAxBranchIncomps</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CoAxBranch -&gt; [CoAxBranch]
+</span><a href="GHC.Core.Coercion.Axiom.html#cab_incomps"><span class="hs-identifier hs-var">cab_incomps</span></a></span><span>
+</span><span id="line-327"></span><span>
+</span><span id="line-328"></span><span class="hs-comment">-- See Note [Compatibility checking] in GHC.Core.FamInstEnv</span><span>
+</span><span id="line-329"></span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#placeHolderIncomps"><span class="hs-identifier hs-type">placeHolderIncomps</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxBranch"><span class="hs-identifier hs-type">CoAxBranch</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-330"></span><span id="placeHolderIncomps"><span class="annot"><span class="annottext">placeHolderIncomps :: [CoAxBranch]
+</span><a href="GHC.Core.Coercion.Axiom.html#placeHolderIncomps"><span class="hs-identifier hs-var hs-var">placeHolderIncomps</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. String -&gt; a
+</span><a href="GHC.Utils.Panic.Plain.html#panic"><span class="hs-identifier hs-var">panic</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;placeHolderIncomps&quot;</span></span><span>
+</span><span id="line-331"></span><span>
+</span><span id="line-332"></span><span class="hs-comment">{-
+Note [CoAxBranch type variables]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+In the case of a CoAxBranch of an associated type-family instance,
+we use the *same* type variables (where possible) as the
+enclosing class or instance.  Consider
+
+  instance C Int [z] where
+     type F Int [z] = ...   -- Second param must be [z]
+
+In the CoAxBranch in the instance decl (F Int [z]) we use the
+same 'z', so that it's easy to check that that type is the same
+as that in the instance header.
+
+So, unlike FamInsts, there is no expectation that the cab_tvs
+are fresh wrt each other, or any other CoAxBranch.
+
+Note [CoAxBranch roles]
+~~~~~~~~~~~~~~~~~~~~~~~
+Consider this code:
+
+  newtype Age = MkAge Int
+  newtype Wrap a = MkWrap a
+
+  convert :: Wrap Age -&gt; Int
+  convert (MkWrap (MkAge i)) = i
+
+We want this to compile to:
+
+  NTCo:Wrap :: forall a. Wrap a ~R a
+  NTCo:Age  :: Age ~R Int
+  convert = \x -&gt; x |&gt; (NTCo:Wrap[0] NTCo:Age[0])
+
+But, note that NTCo:Age is at role R. Thus, we need to be able to pass
+coercions at role R into axioms. However, we don't *always* want to be able to
+do this, as it would be disastrous with type families. The solution is to
+annotate the arguments to the axiom with roles, much like we annotate tycon
+tyvars. Where do these roles get set? Newtype axioms inherit their roles from
+the newtype tycon; family axioms are all at role N.
+
+Note [CoAxiom locations]
+~~~~~~~~~~~~~~~~~~~~~~~~
+The source location of a CoAxiom is stored in two places in the
+datatype tree.
+  * The first is in the location info buried in the Name of the
+    CoAxiom. This span includes all of the branches of a branched
+    CoAxiom.
+  * The second is in the cab_loc fields of the CoAxBranches.
+
+In the case of a single branch, we can extract the source location of
+the branch from the name of the CoAxiom. In other cases, we need an
+explicit SrcSpan to correctly store the location of the equation
+giving rise to the FamInstBranch.
+
+Note [Implicit axioms]
+~~~~~~~~~~~~~~~~~~~~~~
+See also Note [Implicit TyThings] in GHC.Types.TyThing
+* A CoAxiom arising from data/type family instances is not &quot;implicit&quot;.
+  That is, it has its own IfaceAxiom declaration in an interface file
+
+* The CoAxiom arising from a newtype declaration *is* &quot;implicit&quot;.
+  That is, it does not have its own IfaceAxiom declaration in an
+  interface file; instead the CoAxiom is generated by type-checking
+  the newtype declaration
+
+Note [Eta reduction for data families]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Consider this
+   data family T a b :: *
+   newtype instance T Int a = MkT (IO a) deriving( Monad )
+We'd like this to work.
+
+From the 'newtype instance' you might think we'd get:
+   newtype TInt a = MkT (IO a)
+   axiom ax1 a :: T Int a ~ TInt a   -- The newtype-instance part
+   axiom ax2 a :: TInt a ~ IO a      -- The newtype part
+
+But now what can we do?  We have this problem
+   Given:   d  :: Monad IO
+   Wanted:  d' :: Monad (T Int) = d |&gt; ????
+What coercion can we use for the ???
+
+Solution: eta-reduce both axioms, thus:
+   axiom ax1 :: T Int ~ TInt
+   axiom ax2 :: TInt ~ IO
+Now
+   d' = d |&gt; Monad (sym (ax2 ; ax1))
+
+----- Bottom line ------
+
+For a CoAxBranch for a data family instance with representation
+TyCon rep_tc:
+
+  - cab_tvs (of its CoAxiom) may be shorter
+    than tyConTyVars of rep_tc.
+
+  - cab_lhs may be shorter than tyConArity of the family tycon
+       i.e. LHS is unsaturated
+
+  - cab_rhs will be (rep_tc cab_tvs)
+       i.e. RHS is un-saturated
+
+  - This eta reduction happens for data instances as well
+    as newtype instances. Here we want to eta-reduce the data family axiom.
+
+  - This eta-reduction is done in GHC.Tc.TyCl.Instance.tcDataFamInstDecl.
+
+But for a /type/ family
+  - cab_lhs has the exact arity of the family tycon
+
+There are certain situations (e.g., pretty-printing) where it is necessary to
+deal with eta-expanded data family instances. For these situations, the
+cab_eta_tvs field records the stuff that has been eta-reduced away.
+So if we have
+    axiom forall a b. F [a-&gt;b] = D b a
+and cab_eta_tvs is [p,q], then the original user-written definition
+looked like
+    axiom forall a b p q. F [a-&gt;b] p q = D b a p q
+(See #9692, #14179, and #15845 for examples of what can go wrong if
+we don't eta-expand when showing things to the user.)
+
+See also:
+
+* Note [Newtype eta] in GHC.Core.TyCon.  This is notionally separate
+  and deals with the axiom connecting a newtype with its representation
+  type; but it too is eta-reduced.
+* Note [Implementing eta reduction for data families] in &quot;GHC.Tc.TyCl.Instance&quot;. This
+  describes the implementation details of this eta reduction happen.
+-}</span><span>
+</span><span id="line-461"></span><span>
+</span><span id="line-462"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621681048615"><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxiom"><span class="hs-identifier hs-type">CoAxiom</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681048615"><span class="hs-identifier hs-type">br</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-463"></span><span>    </span><span id="local-6989586621681048174"><span class="annot"><span class="annottext">CoAxiom br
+</span><a href="#local-6989586621681048174"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621681048173"><span class="annot"><span class="annottext">== :: CoAxiom br -&gt; CoAxiom br -&gt; Bool
+</span><span class="hs-operator hs-var hs-var hs-var hs-var">==</span></span></span><span> </span><span id="local-6989586621681048172"><span class="annot"><span class="annottext">CoAxiom br
+</span><a href="#local-6989586621681048172"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Uniquable a =&gt; a -&gt; Unique
+</span><a href="GHC.Types.Unique.html#getUnique"><span class="hs-identifier hs-var">getUnique</span></a></span><span> </span><span class="annot"><span class="annottext">CoAxiom br
+</span><a href="#local-6989586621681048174"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">forall a. Uniquable a =&gt; a -&gt; Unique
+</span><a href="GHC.Types.Unique.html#getUnique"><span class="hs-identifier hs-var">getUnique</span></a></span><span> </span><span class="annot"><span class="annottext">CoAxiom br
+</span><a href="#local-6989586621681048172"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-464"></span><span>    </span><span id="local-6989586621681048167"><span class="annot"><span class="annottext">CoAxiom br
+</span><a href="#local-6989586621681048167"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621681048166"><span class="annot"><span class="annottext">/= :: CoAxiom br -&gt; CoAxiom br -&gt; Bool
+</span><span class="hs-operator hs-var hs-var hs-var hs-var">/=</span></span></span><span> </span><span id="local-6989586621681048164"><span class="annot"><span class="annottext">CoAxiom br
+</span><a href="#local-6989586621681048164"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Uniquable a =&gt; a -&gt; Unique
+</span><a href="GHC.Types.Unique.html#getUnique"><span class="hs-identifier hs-var">getUnique</span></a></span><span> </span><span class="annot"><span class="annottext">CoAxiom br
+</span><a href="#local-6989586621681048167"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">forall a. Uniquable a =&gt; a -&gt; Unique
+</span><a href="GHC.Types.Unique.html#getUnique"><span class="hs-identifier hs-var">getUnique</span></a></span><span> </span><span class="annot"><span class="annottext">CoAxiom br
+</span><a href="#local-6989586621681048164"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-465"></span><span>
+</span><span id="line-466"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621681048613"><span class="annot"><a href="GHC.Types.Unique.html#Uniquable"><span class="hs-identifier hs-type">Uniquable</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxiom"><span class="hs-identifier hs-type">CoAxiom</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681048613"><span class="hs-identifier hs-type">br</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-467"></span><span>    </span><span id="local-6989586621681048161"><span class="annot"><span class="annottext">getUnique :: CoAxiom br -&gt; Unique
+</span><a href="#local-6989586621681048161"><span class="hs-identifier hs-var hs-var hs-var hs-var">getUnique</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (br :: BranchFlag). CoAxiom br -&gt; Unique
+</span><a href="GHC.Core.Coercion.Axiom.html#co_ax_unique"><span class="hs-identifier hs-var">co_ax_unique</span></a></span><span>
+</span><span id="line-468"></span><span>
+</span><span id="line-469"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621681048606"><span class="annot"><a href="GHC.Utils.Outputable.html#Outputable"><span class="hs-identifier hs-type">Outputable</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxiom"><span class="hs-identifier hs-type">CoAxiom</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681048606"><span class="hs-identifier hs-type">br</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-470"></span><span>    </span><span id="local-6989586621681048154"><span class="annot"><span class="annottext">ppr :: CoAxiom br -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var hs-var hs-var hs-var">ppr</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#."><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. NamedThing a =&gt; a -&gt; Name
+</span><a href="GHC.Types.Name.html#getName"><span class="hs-identifier hs-var">getName</span></a></span><span>
+</span><span id="line-471"></span><span>
+</span><span id="line-472"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621681048150"><span id="local-6989586621681048605"><span class="annot"><a href="GHC.Types.Name.html#NamedThing"><span class="hs-identifier hs-type">NamedThing</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxiom"><span class="hs-identifier hs-type">CoAxiom</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681048605"><span class="hs-identifier hs-type">br</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-473"></span><span>    </span><span id="local-6989586621681048147"><span class="annot"><span class="annottext">getName :: CoAxiom br -&gt; Name
+</span><a href="#local-6989586621681048147"><span class="hs-identifier hs-var hs-var hs-var hs-var">getName</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (br :: BranchFlag). CoAxiom br -&gt; Name
+</span><a href="GHC.Core.Coercion.Axiom.html#co_ax_name"><span class="hs-identifier hs-var">co_ax_name</span></a></span><span>
+</span><span id="line-474"></span><span>
+</span><span id="line-475"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621681048119"><span id="local-6989586621681048121"><span id="local-6989586621681048123"><span id="local-6989586621681048125"><span id="local-6989586621681048127"><span id="local-6989586621681048129"><span id="local-6989586621681048131"><span id="local-6989586621681048133"><span id="local-6989586621681048135"><span id="local-6989586621681048137"><span id="local-6989586621681048142"><span id="local-6989586621681048602"><span class="annot"><a href="../../base-4.16.4.0/src/Data-Typeable-Internal.html#Typeable"><span class="hs-identifier hs-type">Typeable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681048602"><span class="hs-identifier hs-type">br</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Data-Data.html#Data"><span class="hs-identifier hs-type">Data.Data</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxiom"><span class="hs-identifier hs-type">CoAxiom</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681048602"><span class="hs-identifier hs-type">br</span></a></span><span class="hs-special">)</span></span></span></span></span></span></span></span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-476"></span><span>    </span><span class="hs-comment">-- don't traverse?</span><span>
+</span><span id="line-477"></span><span>    </span><span id="local-6989586621681048118"><span class="annot"><span class="annottext">toConstr :: CoAxiom br -&gt; Constr
+</span><a href="../../base-4.16.4.0/src/Data-Data.html#toConstr"><span class="hs-identifier hs-var hs-var hs-var hs-var">toConstr</span></a></span></span><span> </span><span class="annot"><span class="annottext">CoAxiom br
+</span><span class="hs-identifier">_</span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Constr
+</span><a href="GHC.Utils.Misc.html#abstractConstr"><span class="hs-identifier hs-var">abstractConstr</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;CoAxiom&quot;</span></span><span>
+</span><span id="line-478"></span><span>    </span><span id="local-6989586621681048113"><span class="annot"><span class="annottext">gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c (CoAxiom br)
+</span><a href="../../base-4.16.4.0/src/Data-Data.html#gunfold"><span class="hs-identifier hs-var hs-var hs-var hs-var">gunfold</span></a></span></span><span> </span><span class="annot"><span class="annottext">forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">forall r. r -&gt; c r
+</span><span class="hs-identifier">_</span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. HasCallStack =&gt; String -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Err.html#error"><span class="hs-identifier hs-var">error</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;gunfold&quot;</span></span><span>
+</span><span id="line-479"></span><span>    </span><span id="local-6989586621681048110"><span class="annot"><span class="annottext">dataTypeOf :: CoAxiom br -&gt; DataType
+</span><a href="../../base-4.16.4.0/src/Data-Data.html#dataTypeOf"><span class="hs-identifier hs-var hs-var hs-var hs-var">dataTypeOf</span></a></span></span><span> </span><span class="annot"><span class="annottext">CoAxiom br
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; DataType
+</span><a href="../../base-4.16.4.0/src/Data-Data.html#mkNoRepType"><span class="hs-identifier hs-var">mkNoRepType</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;CoAxiom&quot;</span></span><span>
+</span><span id="line-480"></span><span>
+</span><span id="line-481"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#Outputable"><span class="hs-identifier hs-type">Outputable</span></a></span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxBranch"><span class="hs-identifier hs-type">CoAxBranch</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-482"></span><span>  </span><span id="local-6989586621681048103"><span class="annot"><span class="annottext">ppr :: CoAxBranch -&gt; SDoc
+</span><a href="#local-6989586621681048103"><span class="hs-identifier hs-var hs-var hs-var hs-var">ppr</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxBranch"><span class="hs-identifier hs-type">CoAxBranch</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">cab_loc :: CoAxBranch -&gt; SrcSpan
+</span><a href="GHC.Core.Coercion.Axiom.html#cab_loc"><span class="hs-identifier hs-var">cab_loc</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621681048102"><span class="annot"><span class="annottext">SrcSpan
+</span><a href="#local-6989586621681048102"><span class="hs-identifier hs-var">loc</span></a></span></span><span>
+</span><span id="line-483"></span><span>                  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">cab_lhs :: CoAxBranch -&gt; [Type]
+</span><a href="GHC.Core.Coercion.Axiom.html#cab_lhs"><span class="hs-identifier hs-var">cab_lhs</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621681048101"><span class="annot"><span class="annottext">[Type]
+</span><a href="#local-6989586621681048101"><span class="hs-identifier hs-var">lhs</span></a></span></span><span>
+</span><span id="line-484"></span><span>                  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">cab_rhs :: CoAxBranch -&gt; Type
+</span><a href="GHC.Core.Coercion.Axiom.html#cab_rhs"><span class="hs-identifier hs-var">cab_rhs</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621681048100"><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621681048100"><span class="hs-identifier hs-var">rhs</span></a></span></span><span> </span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-485"></span><span>    </span><span class="annot"><span class="annottext">String -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;CoAxBranch&quot;</span></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#parens"><span class="hs-identifier hs-var">parens</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">SrcSpan
+</span><a href="#local-6989586621681048102"><span class="hs-identifier hs-var">loc</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#%3C%3E"><span class="hs-operator hs-var">&lt;&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc
+</span><a href="GHC.Utils.Outputable.html#colon"><span class="hs-identifier hs-var">colon</span></a></span><span>
+</span><span id="line-486"></span><span>      </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#brackets"><span class="hs-identifier hs-var">brackets</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[SDoc] -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#fsep"><span class="hs-identifier hs-var">fsep</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SDoc -&gt; [SDoc] -&gt; [SDoc]
+</span><a href="GHC.Utils.Outputable.html#punctuate"><span class="hs-identifier hs-var">punctuate</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc
+</span><a href="GHC.Utils.Outputable.html#comma"><span class="hs-identifier hs-var">comma</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#map"><span class="hs-identifier hs-var">map</span></a></span><span> </span><span class="annot"><span class="annottext">Type -&gt; SDoc
+</span><a href="GHC.Core.TyCo.Ppr.html#pprType"><span class="hs-identifier hs-var">pprType</span></a></span><span> </span><span class="annot"><span class="annottext">[Type]
+</span><a href="#local-6989586621681048101"><span class="hs-identifier hs-var">lhs</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-487"></span><span>      </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;=&gt;&quot;</span></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Type -&gt; SDoc
+</span><a href="GHC.Core.TyCo.Ppr.html#pprType"><span class="hs-identifier hs-var">pprType</span></a></span><span> </span><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621681048100"><span class="hs-identifier hs-var">rhs</span></a></span><span>
+</span><span id="line-488"></span><span>
+</span><span id="line-489"></span><span class="hs-comment">{-
+************************************************************************
+*                                                                      *
+                    Roles
+*                                                                      *
+************************************************************************
+
+Roles are defined here to avoid circular dependencies.
+-}</span><span>
+</span><span id="line-498"></span><span>
+</span><span id="line-499"></span><span class="hs-comment">-- See Note [Roles] in GHC.Core.Coercion</span><span>
+</span><span id="line-500"></span><span class="hs-comment">-- defined here to avoid cyclic dependency with GHC.Core.Coercion</span><span>
+</span><span id="line-501"></span><span class="hs-comment">--</span><span>
+</span><span id="line-502"></span><span class="hs-comment">-- Order of constructors matters: the Ord instance coincides with the *super*typing</span><span>
+</span><span id="line-503"></span><span class="hs-comment">-- relation on roles.</span><span>
+</span><span id="line-504"></span><span class="hs-keyword">data</span><span> </span><span id="Role"><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#Role"><span class="hs-identifier hs-var">Role</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Nominal"><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#Nominal"><span class="hs-identifier hs-var">Nominal</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="Representational"><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#Representational"><span class="hs-identifier hs-var">Representational</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="Phantom"><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#Phantom"><span class="hs-identifier hs-var">Phantom</span></a></span></span><span>
+</span><span id="line-505"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681048084"><span id="local-6989586621681048086"><span class="annot"><span class="annottext">Role -&gt; Role -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: Role -&gt; Role -&gt; Bool
+$c/= :: Role -&gt; Role -&gt; Bool
+== :: Role -&gt; Role -&gt; Bool
+$c== :: Role -&gt; Role -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681048065"><span id="local-6989586621681048067"><span id="local-6989586621681048070"><span id="local-6989586621681048073"><span id="local-6989586621681048076"><span id="local-6989586621681048078"><span id="local-6989586621681048080"><span class="annot"><span class="annottext">Eq Role
+Role -&gt; Role -&gt; Bool
+Role -&gt; Role -&gt; Ordering
+Role -&gt; Role -&gt; Role
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: Role -&gt; Role -&gt; Role
+$cmin :: Role -&gt; Role -&gt; Role
+max :: Role -&gt; Role -&gt; Role
+$cmax :: Role -&gt; Role -&gt; Role
+&gt;= :: Role -&gt; Role -&gt; Bool
+$c&gt;= :: Role -&gt; Role -&gt; Bool
+&gt; :: Role -&gt; Role -&gt; Bool
+$c&gt; :: Role -&gt; Role -&gt; Bool
+&lt;= :: Role -&gt; Role -&gt; Bool
+$c&lt;= :: Role -&gt; Role -&gt; Bool
+&lt; :: Role -&gt; Role -&gt; Bool
+$c&lt; :: Role -&gt; Role -&gt; Bool
+compare :: Role -&gt; Role -&gt; Ordering
+$ccompare :: Role -&gt; Role -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681048034"><span id="local-6989586621681048036"><span id="local-6989586621681048038"><span id="local-6989586621681048040"><span id="local-6989586621681048042"><span id="local-6989586621681048044"><span id="local-6989586621681048046"><span id="local-6989586621681048048"><span id="local-6989586621681048050"><span id="local-6989586621681048052"><span id="local-6989586621681048054"><span id="local-6989586621681048056"><span id="local-6989586621681048058"><span id="local-6989586621681048060"><span class="annot"><span class="annottext">Typeable Role
+Role -&gt; DataType
+Role -&gt; Constr
+(forall b. Data b =&gt; b -&gt; b) -&gt; Role -&gt; Role
+forall a.
+Typeable a
+-&gt; (forall (c :: * -&gt; *).
+    (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+    -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u.
+    BranchIndex -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall u. BranchIndex -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Role -&gt; u
+forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Role -&gt; [u]
+forall r r'.
+(r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Role -&gt; r
+forall r r'.
+(r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Role -&gt; r
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Role -&gt; m Role
+forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Role -&gt; m Role
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Role
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Role -&gt; c Role
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Role)
+forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Role)
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Role -&gt; m Role
+$cgmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Role -&gt; m Role
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Role -&gt; m Role
+$cgmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Role -&gt; m Role
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Role -&gt; m Role
+$cgmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Role -&gt; m Role
+gmapQi :: forall u. BranchIndex -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Role -&gt; u
+$cgmapQi :: forall u. BranchIndex -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Role -&gt; u
+gmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Role -&gt; [u]
+$cgmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Role -&gt; [u]
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Role -&gt; r
+$cgmapQr :: forall r r'.
+(r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Role -&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Role -&gt; r
+$cgmapQl :: forall r r'.
+(r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Role -&gt; r
+gmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; Role -&gt; Role
+$cgmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; Role -&gt; Role
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Role)
+$cdataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Role)
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Role)
+$cdataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Role)
+dataTypeOf :: Role -&gt; DataType
+$cdataTypeOf :: Role -&gt; DataType
+toConstr :: Role -&gt; Constr
+$ctoConstr :: Role -&gt; Constr
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Role
+$cgunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Role
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Role -&gt; c Role
+$cgfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Role -&gt; c Role
+</span><a href="../../base-4.16.4.0/src/Data-Data.html#Data"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data.Data</span></a></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-506"></span><span>
+</span><span id="line-507"></span><span class="hs-comment">-- These names are slurped into the parser code. Changing these strings</span><span>
+</span><span id="line-508"></span><span class="hs-comment">-- will change the **surface syntax** that GHC accepts! If you want to</span><span>
+</span><span id="line-509"></span><span class="hs-comment">-- change only the pretty-printing, do some replumbing. See</span><span>
+</span><span id="line-510"></span><span class="hs-comment">-- mkRoleAnnotDecl in GHC.Parser.PostProcess</span><span>
+</span><span id="line-511"></span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#fsFromRole"><span class="hs-identifier hs-type">fsFromRole</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#Role"><span class="hs-identifier hs-type">Role</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Data.FastString.html#FastString"><span class="hs-identifier hs-type">FastString</span></a></span><span>
+</span><span id="line-512"></span><span id="fsFromRole"><span class="annot"><span class="annottext">fsFromRole :: Role -&gt; FastString
+</span><a href="GHC.Core.Coercion.Axiom.html#fsFromRole"><span class="hs-identifier hs-var hs-var">fsFromRole</span></a></span></span><span> </span><span class="annot"><span class="annottext">Role
+</span><a href="GHC.Core.Coercion.Axiom.html#Nominal"><span class="hs-identifier hs-var">Nominal</span></a></span><span>          </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; FastString
+</span><a href="GHC.Data.FastString.html#fsLit"><span class="hs-identifier hs-var">fsLit</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;nominal&quot;</span></span><span>
+</span><span id="line-513"></span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#fsFromRole"><span class="hs-identifier hs-var">fsFromRole</span></a></span><span> </span><span class="annot"><span class="annottext">Role
+</span><a href="GHC.Core.Coercion.Axiom.html#Representational"><span class="hs-identifier hs-var">Representational</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; FastString
+</span><a href="GHC.Data.FastString.html#fsLit"><span class="hs-identifier hs-var">fsLit</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;representational&quot;</span></span><span>
+</span><span id="line-514"></span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#fsFromRole"><span class="hs-identifier hs-var">fsFromRole</span></a></span><span> </span><span class="annot"><span class="annottext">Role
+</span><a href="GHC.Core.Coercion.Axiom.html#Phantom"><span class="hs-identifier hs-var">Phantom</span></a></span><span>          </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; FastString
+</span><a href="GHC.Data.FastString.html#fsLit"><span class="hs-identifier hs-var">fsLit</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;phantom&quot;</span></span><span>
+</span><span id="line-515"></span><span>
+</span><span id="line-516"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#Outputable"><span class="hs-identifier hs-type">Outputable</span></a></span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#Role"><span class="hs-identifier hs-type">Role</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-517"></span><span>  </span><span id="local-6989586621681048030"><span class="annot"><span class="annottext">ppr :: Role -&gt; SDoc
+</span><a href="#local-6989586621681048030"><span class="hs-identifier hs-var hs-var hs-var hs-var">ppr</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FastString -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ftext"><span class="hs-identifier hs-var">ftext</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#."><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">Role -&gt; FastString
+</span><a href="GHC.Core.Coercion.Axiom.html#fsFromRole"><span class="hs-identifier hs-var">fsFromRole</span></a></span><span>
+</span><span id="line-518"></span><span>
+</span><span id="line-519"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621681048026"><span class="annot"><a href="GHC.Utils.Binary.html#Binary"><span class="hs-identifier hs-type">Binary</span></a></span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#Role"><span class="hs-identifier hs-type">Role</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-520"></span><span>  </span><span id="local-6989586621681048019"><span class="annot"><span class="annottext">put_ :: BinHandle -&gt; Role -&gt; IO ()
+</span><a href="GHC.Utils.Binary.html#put_"><span class="hs-identifier hs-var hs-var hs-var hs-var">put_</span></a></span></span><span> </span><span id="local-6989586621681048017"><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621681048017"><span class="hs-identifier hs-var">bh</span></a></span></span><span> </span><span class="annot"><span class="annottext">Role
+</span><a href="GHC.Core.Coercion.Axiom.html#Nominal"><span class="hs-identifier hs-var">Nominal</span></a></span><span>          </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">BinHandle -&gt; Word8 -&gt; IO ()
+</span><a href="GHC.Utils.Binary.html#putByte"><span class="hs-identifier hs-var">putByte</span></a></span><span> </span><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621681048017"><span class="hs-identifier hs-var">bh</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-521"></span><span>  </span><span class="annot"><a href="GHC.Utils.Binary.html#put_"><span class="hs-identifier hs-var">put_</span></a></span><span> </span><span id="local-6989586621681048015"><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621681048015"><span class="hs-identifier hs-var">bh</span></a></span></span><span> </span><span class="annot"><span class="annottext">Role
+</span><a href="GHC.Core.Coercion.Axiom.html#Representational"><span class="hs-identifier hs-var">Representational</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">BinHandle -&gt; Word8 -&gt; IO ()
+</span><a href="GHC.Utils.Binary.html#putByte"><span class="hs-identifier hs-var">putByte</span></a></span><span> </span><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621681048015"><span class="hs-identifier hs-var">bh</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">2</span></span><span>
+</span><span id="line-522"></span><span>  </span><span class="annot"><a href="GHC.Utils.Binary.html#put_"><span class="hs-identifier hs-var">put_</span></a></span><span> </span><span id="local-6989586621681048014"><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621681048014"><span class="hs-identifier hs-var">bh</span></a></span></span><span> </span><span class="annot"><span class="annottext">Role
+</span><a href="GHC.Core.Coercion.Axiom.html#Phantom"><span class="hs-identifier hs-var">Phantom</span></a></span><span>          </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">BinHandle -&gt; Word8 -&gt; IO ()
+</span><a href="GHC.Utils.Binary.html#putByte"><span class="hs-identifier hs-var">putByte</span></a></span><span> </span><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621681048014"><span class="hs-identifier hs-var">bh</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">3</span></span><span>
+</span><span id="line-523"></span><span>
+</span><span id="line-524"></span><span>  </span><span id="local-6989586621681047999"><span class="annot"><span class="annottext">get :: BinHandle -&gt; IO Role
+</span><a href="GHC.Utils.Binary.html#get"><span class="hs-identifier hs-var hs-var hs-var hs-var">get</span></a></span></span><span> </span><span id="local-6989586621681047997"><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621681047997"><span class="hs-identifier hs-var">bh</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span> </span><span id="local-6989586621681047996"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621681047996"><span class="hs-identifier hs-var">tag</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">BinHandle -&gt; IO Word8
+</span><a href="GHC.Utils.Binary.html#getByte"><span class="hs-identifier hs-var">getByte</span></a></span><span> </span><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621681047997"><span class="hs-identifier hs-var">bh</span></a></span><span>
+</span><span id="line-525"></span><span>              </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621681047996"><span class="hs-identifier hs-var">tag</span></a></span><span> </span><span class="hs-keyword">of</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#return"><span class="hs-identifier hs-var">return</span></a></span><span> </span><span class="annot"><span class="annottext">Role
+</span><a href="GHC.Core.Coercion.Axiom.html#Nominal"><span class="hs-identifier hs-var">Nominal</span></a></span><span>
+</span><span id="line-526"></span><span>                          </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">2</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#return"><span class="hs-identifier hs-var">return</span></a></span><span> </span><span class="annot"><span class="annottext">Role
+</span><a href="GHC.Core.Coercion.Axiom.html#Representational"><span class="hs-identifier hs-var">Representational</span></a></span><span>
+</span><span id="line-527"></span><span>                          </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">3</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#return"><span class="hs-identifier hs-var">return</span></a></span><span> </span><span class="annot"><span class="annottext">Role
+</span><a href="GHC.Core.Coercion.Axiom.html#Phantom"><span class="hs-identifier hs-var">Phantom</span></a></span><span>
+</span><span id="line-528"></span><span>                          </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. String -&gt; a
+</span><a href="GHC.Utils.Panic.Plain.html#panic"><span class="hs-identifier hs-var">panic</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;get Role &quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%2B%2B"><span class="hs-operator hs-var">++</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Show a =&gt; a -&gt; String
+</span><a href="../../base-4.16.4.0/src/GHC-Show.html#show"><span class="hs-identifier hs-var">show</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621681047996"><span class="hs-identifier hs-var">tag</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-529"></span><span>
+</span><span id="line-530"></span><span class="hs-comment">{-
+************************************************************************
+*                                                                      *
+                    CoAxiomRule
+              Rules for building Evidence
+*                                                                      *
+************************************************************************
+
+Conditional axioms.  The general idea is that a `CoAxiomRule` looks like this:
+
+    forall as. (r1 ~ r2, s1 ~ s2) =&gt; t1 ~ t2
+
+My intention is to reuse these for both (~) and (~#).
+The short-term plan is to use this datatype to represent the type-nat axioms.
+In the longer run, it may be good to unify this and `CoAxiom`,
+as `CoAxiom` is the special case when there are no assumptions.
+-}</span><span>
+</span><span id="line-547"></span><span>
+</span><span id="line-548"></span><span class="hs-comment">-- | A more explicit representation for `t1 ~ t2`.</span><span>
+</span><span id="line-549"></span><span class="hs-keyword">type</span><span> </span><span id="TypeEqn"><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#TypeEqn"><span class="hs-identifier hs-var">TypeEqn</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.Data.Pair.html#Pair"><span class="hs-identifier hs-type">Pair</span></a></span><span> </span><span class="annot"><a href="GHC.Core.TyCo.Rep.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span>
+</span><span id="line-550"></span><span>
+</span><span id="line-551"></span><span class="hs-comment">-- | For now, we work only with nominal equality.</span><span>
+</span><span id="line-552"></span><span class="hs-keyword">data</span><span> </span><span id="CoAxiomRule"><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxiomRule"><span class="hs-identifier hs-var">CoAxiomRule</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="CoAxiomRule"><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxiomRule"><span class="hs-identifier hs-var">CoAxiomRule</span></a></span></span><span>
+</span><span id="line-553"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="coaxrName"><span class="annot"><span class="annottext">CoAxiomRule -&gt; FastString
+</span><a href="GHC.Core.Coercion.Axiom.html#coaxrName"><span class="hs-identifier hs-var hs-var">coaxrName</span></a></span></span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Data.FastString.html#FastString"><span class="hs-identifier hs-type">FastString</span></a></span><span>
+</span><span id="line-554"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="coaxrAsmpRoles"><span class="annot"><span class="annottext">CoAxiomRule -&gt; [Role]
+</span><a href="GHC.Core.Coercion.Axiom.html#coaxrAsmpRoles"><span class="hs-identifier hs-var hs-var">coaxrAsmpRoles</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#Role"><span class="hs-identifier hs-type">Role</span></a></span><span class="hs-special">]</span><span>    </span><span class="hs-comment">-- roles of parameter equations</span><span>
+</span><span id="line-555"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="coaxrRole"><span class="annot"><span class="annottext">CoAxiomRule -&gt; Role
+</span><a href="GHC.Core.Coercion.Axiom.html#coaxrRole"><span class="hs-identifier hs-var hs-var">coaxrRole</span></a></span></span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#Role"><span class="hs-identifier hs-type">Role</span></a></span><span>      </span><span class="hs-comment">-- role of resulting equation</span><span>
+</span><span id="line-556"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="coaxrProves"><span class="annot"><span class="annottext">CoAxiomRule -&gt; [TypeEqn] -&gt; Maybe TypeEqn
+</span><a href="GHC.Core.Coercion.Axiom.html#coaxrProves"><span class="hs-identifier hs-var hs-var">coaxrProves</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#TypeEqn"><span class="hs-identifier hs-type">TypeEqn</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Maybe"><span class="hs-identifier hs-type">Maybe</span></a></span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#TypeEqn"><span class="hs-identifier hs-type">TypeEqn</span></a></span><span>
+</span><span id="line-557"></span><span>        </span><span class="hs-comment">-- ^ coaxrProves returns @Nothing@ when it doesn't like</span><span>
+</span><span id="line-558"></span><span>        </span><span class="hs-comment">-- the supplied arguments.  When this happens in a coercion</span><span>
+</span><span id="line-559"></span><span>        </span><span class="hs-comment">-- that means that the coercion is ill-formed, and Core Lint</span><span>
+</span><span id="line-560"></span><span>        </span><span class="hs-comment">-- checks for that.</span><span>
+</span><span id="line-561"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-562"></span><span>
+</span><span id="line-563"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621681047961"><span id="local-6989586621681047963"><span id="local-6989586621681047965"><span id="local-6989586621681047967"><span id="local-6989586621681047969"><span id="local-6989586621681047971"><span id="local-6989586621681047973"><span id="local-6989586621681047975"><span id="local-6989586621681047977"><span id="local-6989586621681047979"><span id="local-6989586621681047984"><span class="annot"><a href="../../base-4.16.4.0/src/Data-Data.html#Data"><span class="hs-identifier hs-type">Data.Data</span></a></span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxiomRule"><span class="hs-identifier hs-type">CoAxiomRule</span></a></span></span></span></span></span></span></span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-564"></span><span>  </span><span class="hs-comment">-- don't traverse?</span><span>
+</span><span id="line-565"></span><span>  </span><span id="local-6989586621681047960"><span class="annot"><span class="annottext">toConstr :: CoAxiomRule -&gt; Constr
+</span><a href="#local-6989586621681047960"><span class="hs-identifier hs-var hs-var hs-var hs-var">toConstr</span></a></span></span><span> </span><span class="annot"><span class="annottext">CoAxiomRule
+</span><span class="hs-identifier">_</span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Constr
+</span><a href="GHC.Utils.Misc.html#abstractConstr"><span class="hs-identifier hs-var">abstractConstr</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;CoAxiomRule&quot;</span></span><span>
+</span><span id="line-566"></span><span>  </span><span id="local-6989586621681047957"><span class="annot"><span class="annottext">gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c CoAxiomRule
+</span><a href="#local-6989586621681047957"><span class="hs-identifier hs-var hs-var hs-var hs-var">gunfold</span></a></span></span><span> </span><span class="annot"><span class="annottext">forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">forall r. r -&gt; c r
+</span><span class="hs-identifier">_</span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. HasCallStack =&gt; String -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Err.html#error"><span class="hs-identifier hs-var">error</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;gunfold&quot;</span></span><span>
+</span><span id="line-567"></span><span>  </span><span id="local-6989586621681047956"><span class="annot"><span class="annottext">dataTypeOf :: CoAxiomRule -&gt; DataType
+</span><a href="#local-6989586621681047956"><span class="hs-identifier hs-var hs-var hs-var hs-var">dataTypeOf</span></a></span></span><span> </span><span class="annot"><span class="annottext">CoAxiomRule
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; DataType
+</span><a href="../../base-4.16.4.0/src/Data-Data.html#mkNoRepType"><span class="hs-identifier hs-var">mkNoRepType</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;CoAxiomRule&quot;</span></span><span>
+</span><span id="line-568"></span><span>
+</span><span id="line-569"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="GHC.Types.Unique.html#Uniquable"><span class="hs-identifier hs-type">Uniquable</span></a></span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxiomRule"><span class="hs-identifier hs-type">CoAxiomRule</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-570"></span><span>  </span><span id="local-6989586621681047951"><span class="annot"><span class="annottext">getUnique :: CoAxiomRule -&gt; Unique
+</span><a href="#local-6989586621681047951"><span class="hs-identifier hs-var hs-var hs-var hs-var">getUnique</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Uniquable a =&gt; a -&gt; Unique
+</span><a href="GHC.Types.Unique.html#getUnique"><span class="hs-identifier hs-var">getUnique</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#."><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">CoAxiomRule -&gt; FastString
+</span><a href="GHC.Core.Coercion.Axiom.html#coaxrName"><span class="hs-identifier hs-var">coaxrName</span></a></span><span>
+</span><span id="line-571"></span><span>
+</span><span id="line-572"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621681047948"><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxiomRule"><span class="hs-identifier hs-type">CoAxiomRule</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-573"></span><span>  </span><span id="local-6989586621681047945"><span class="annot"><span class="annottext">CoAxiomRule
+</span><a href="#local-6989586621681047945"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621681047944"><span class="annot"><span class="annottext">== :: CoAxiomRule -&gt; CoAxiomRule -&gt; Bool
+</span><span class="hs-operator hs-var hs-var hs-var hs-var">==</span></span></span><span> </span><span id="local-6989586621681047943"><span class="annot"><span class="annottext">CoAxiomRule
+</span><a href="#local-6989586621681047943"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CoAxiomRule -&gt; FastString
+</span><a href="GHC.Core.Coercion.Axiom.html#coaxrName"><span class="hs-identifier hs-var">coaxrName</span></a></span><span> </span><span class="annot"><span class="annottext">CoAxiomRule
+</span><a href="#local-6989586621681047945"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">CoAxiomRule -&gt; FastString
+</span><a href="GHC.Core.Coercion.Axiom.html#coaxrName"><span class="hs-identifier hs-var">coaxrName</span></a></span><span> </span><span class="annot"><span class="annottext">CoAxiomRule
+</span><a href="#local-6989586621681047943"><span class="hs-identifier hs-var">y</span></a></span><span>
+</span><span id="line-574"></span><span>
+</span><span id="line-575"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621681047928"><span id="local-6989586621681047930"><span id="local-6989586621681047932"><span id="local-6989586621681047934"><span id="local-6989586621681047936"><span id="local-6989586621681047938"><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxiomRule"><span class="hs-identifier hs-type">CoAxiomRule</span></a></span></span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-576"></span><span>  </span><span class="hs-comment">-- we compare lexically to avoid non-deterministic output when sets of rules</span><span>
+</span><span id="line-577"></span><span>  </span><span class="hs-comment">-- are printed</span><span>
+</span><span id="line-578"></span><span>  </span><span id="local-6989586621681047927"><span class="annot"><span class="annottext">compare :: CoAxiomRule -&gt; CoAxiomRule -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">compare</span></span></span><span> </span><span id="local-6989586621681047925"><span class="annot"><span class="annottext">CoAxiomRule
+</span><a href="#local-6989586621681047925"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621681047924"><span class="annot"><span class="annottext">CoAxiomRule
+</span><a href="#local-6989586621681047924"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FastString -&gt; FastString -&gt; Ordering
+</span><a href="GHC.Data.FastString.html#lexicalCompareFS"><span class="hs-identifier hs-var">lexicalCompareFS</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CoAxiomRule -&gt; FastString
+</span><a href="GHC.Core.Coercion.Axiom.html#coaxrName"><span class="hs-identifier hs-var">coaxrName</span></a></span><span> </span><span class="annot"><span class="annottext">CoAxiomRule
+</span><a href="#local-6989586621681047925"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CoAxiomRule -&gt; FastString
+</span><a href="GHC.Core.Coercion.Axiom.html#coaxrName"><span class="hs-identifier hs-var">coaxrName</span></a></span><span> </span><span class="annot"><span class="annottext">CoAxiomRule
+</span><a href="#local-6989586621681047924"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-579"></span><span>
+</span><span id="line-580"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#Outputable"><span class="hs-identifier hs-type">Outputable</span></a></span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxiomRule"><span class="hs-identifier hs-type">CoAxiomRule</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-581"></span><span>  </span><span id="local-6989586621681047918"><span class="annot"><span class="annottext">ppr :: CoAxiomRule -&gt; SDoc
+</span><a href="#local-6989586621681047918"><span class="hs-identifier hs-var hs-var hs-var hs-var">ppr</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#."><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">CoAxiomRule -&gt; FastString
+</span><a href="GHC.Core.Coercion.Axiom.html#coaxrName"><span class="hs-identifier hs-var">coaxrName</span></a></span><span>
+</span><span id="line-582"></span><span>
+</span><span id="line-583"></span><span>
+</span><span id="line-584"></span><span class="hs-comment">-- Type checking of built-in families</span><span>
+</span><span id="line-585"></span><span class="hs-keyword">data</span><span> </span><span id="BuiltInSynFamily"><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#BuiltInSynFamily"><span class="hs-identifier hs-var">BuiltInSynFamily</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="BuiltInSynFamily"><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#BuiltInSynFamily"><span class="hs-identifier hs-var">BuiltInSynFamily</span></a></span></span><span>
+</span><span id="line-586"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="sfMatchFam"><span class="annot"><span class="annottext">BuiltInSynFamily -&gt; [Type] -&gt; Maybe (CoAxiomRule, [Type], Type)
+</span><a href="GHC.Core.Coercion.Axiom.html#sfMatchFam"><span class="hs-identifier hs-var hs-var">sfMatchFam</span></a></span></span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Core.TyCo.Rep.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Maybe"><span class="hs-identifier hs-type">Maybe</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#CoAxiomRule"><span class="hs-identifier hs-type">CoAxiomRule</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Core.TyCo.Rep.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span class="hs-special">]</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Core.TyCo.Rep.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-587"></span><span>    </span><span class="hs-comment">-- Does this reduce on the given arguments?</span><span>
+</span><span id="line-588"></span><span>    </span><span class="hs-comment">-- If it does, returns (CoAxiomRule, types to instantiate the rule at, rhs type)</span><span>
+</span><span id="line-589"></span><span>    </span><span class="hs-comment">-- That is: mkAxiomRuleCo coax (zipWith mkReflCo (coaxrAsmpRoles coax) ts)</span><span>
+</span><span id="line-590"></span><span>    </span><span class="hs-comment">--              :: F tys ~r rhs,</span><span>
+</span><span id="line-591"></span><span>    </span><span class="hs-comment">-- where the r in the output is coaxrRole of the rule. It is up to the</span><span>
+</span><span id="line-592"></span><span>    </span><span class="hs-comment">-- caller to ensure that this role is appropriate.</span><span>
+</span><span id="line-593"></span><span>
+</span><span id="line-594"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="sfInteractTop"><span class="annot"><span class="annottext">BuiltInSynFamily -&gt; [Type] -&gt; Type -&gt; [TypeEqn]
+</span><a href="GHC.Core.Coercion.Axiom.html#sfInteractTop"><span class="hs-identifier hs-var hs-var">sfInteractTop</span></a></span></span><span>   </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Core.TyCo.Rep.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.TyCo.Rep.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#TypeEqn"><span class="hs-identifier hs-type">TypeEqn</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-595"></span><span>    </span><span class="hs-comment">-- If given these type arguments and RHS, returns the equalities that</span><span>
+</span><span id="line-596"></span><span>    </span><span class="hs-comment">-- are guaranteed to hold.</span><span>
+</span><span id="line-597"></span><span>
+</span><span id="line-598"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="sfInteractInert"><span class="annot"><span class="annottext">BuiltInSynFamily -&gt; [Type] -&gt; Type -&gt; [Type] -&gt; Type -&gt; [TypeEqn]
+</span><a href="GHC.Core.Coercion.Axiom.html#sfInteractInert"><span class="hs-identifier hs-var hs-var">sfInteractInert</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Core.TyCo.Rep.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.TyCo.Rep.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-599"></span><span>                       </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Core.TyCo.Rep.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.TyCo.Rep.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#TypeEqn"><span class="hs-identifier hs-type">TypeEqn</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-600"></span><span>    </span><span class="hs-comment">-- If given one set of arguments and result, and another set of arguments</span><span>
+</span><span id="line-601"></span><span>    </span><span class="hs-comment">-- and result, returns the equalities that are guaranteed to hold.</span><span>
+</span><span id="line-602"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-603"></span><span>
+</span><span id="line-604"></span><span class="hs-comment">-- Provides default implementations that do nothing.</span><span>
+</span><span id="line-605"></span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#trivialBuiltInFamily"><span class="hs-identifier hs-type">trivialBuiltInFamily</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#BuiltInSynFamily"><span class="hs-identifier hs-type">BuiltInSynFamily</span></a></span><span>
+</span><span id="line-606"></span><span id="trivialBuiltInFamily"><span class="annot"><span class="annottext">trivialBuiltInFamily :: BuiltInSynFamily
+</span><a href="GHC.Core.Coercion.Axiom.html#trivialBuiltInFamily"><span class="hs-identifier hs-var hs-var">trivialBuiltInFamily</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.Axiom.html#BuiltInSynFamily"><span class="hs-identifier hs-type">BuiltInSynFamily</span></a></span><span>
+</span><span id="line-607"></span><span>  </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">sfMatchFam :: [Type] -&gt; Maybe (CoAxiomRule, [Type], Type)
+</span><a href="GHC.Core.Coercion.Axiom.html#sfMatchFam"><span class="hs-identifier hs-var">sfMatchFam</span></a></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="annot"><span class="annottext">[Type]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Nothing"><span class="hs-identifier hs-var">Nothing</span></a></span><span>
+</span><span id="line-608"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">sfInteractTop :: [Type] -&gt; Type -&gt; [TypeEqn]
+</span><a href="GHC.Core.Coercion.Axiom.html#sfInteractTop"><span class="hs-identifier hs-var">sfInteractTop</span></a></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="annot"><span class="annottext">[Type]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Type
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-609"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">sfInteractInert :: [Type] -&gt; Type -&gt; [Type] -&gt; Type -&gt; [TypeEqn]
+</span><a href="GHC.Core.Coercion.Axiom.html#sfInteractInert"><span class="hs-identifier hs-var">sfInteractInert</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="annot"><span class="annottext">[Type]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Type
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">[Type]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Type
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-610"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-611"></span></pre></body></html>

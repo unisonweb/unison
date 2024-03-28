@@ -1,0 +1,248 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE RankNTypes #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE ExistentialQuantification #-}</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- Stability: experimental</span><span>
+</span><span id="line-5"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Test.Hspec.Core.Format</span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-6"></span><span>  </span><span class="annot"><a href="Test.Hspec.Core.Format.html#Format"><span class="hs-identifier">Format</span></a></span><span>
+</span><span id="line-7"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Format.html#FormatConfig"><span class="hs-identifier">FormatConfig</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-8"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Format.html#Event"><span class="hs-identifier">Event</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-9"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.html#Progress"><span class="hs-identifier">Progress</span></a></span><span>
+</span><span id="line-10"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Util.html#Path"><span class="hs-identifier">Path</span></a></span><span>
+</span><span id="line-11"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.Location.html#Location"><span class="hs-identifier">Location</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Clock.html#Seconds"><span class="hs-identifier">Seconds</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Format.html#Item"><span class="hs-identifier">Item</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Format.html#Result"><span class="hs-identifier">Result</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.html#FailureReason"><span class="hs-identifier">FailureReason</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Format.html#monadic"><span class="hs-identifier">monadic</span></a></span><span>
+</span><span id="line-17"></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Test.Hspec.Core.Compat.html"><span class="hs-identifier">Test.Hspec.Core.Compat</span></a></span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Exception</span></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Concurrent</span></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Control.Concurrent.Async.html"><span class="hs-identifier">Control.Concurrent.Async</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Concurrent.Async.html#async"><span class="hs-identifier">async</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Control.Concurrent.Async.html"><span class="hs-identifier">Control.Concurrent.Async</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Async</span></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad.IO.Class</span></span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Test.Hspec.Core.Example.html"><span class="hs-identifier">Test.Hspec.Core.Example</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.Hspec.Core.Example.html#Progress"><span class="hs-identifier">Progress</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.Location.html#Location"><span class="hs-identifier">Location</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.html#FailureReason"><span class="hs-identifier">FailureReason</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Test.Hspec.Core.Util.html"><span class="hs-identifier">Test.Hspec.Core.Util</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.Hspec.Core.Util.html#Path"><span class="hs-identifier">Path</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Test.Hspec.Core.Clock.html"><span class="hs-identifier">Test.Hspec.Core.Clock</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.Hspec.Core.Clock.html#Seconds"><span class="hs-identifier">Seconds</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">type</span><span> </span><span id="Format"><span class="annot"><a href="Test.Hspec.Core.Format.html#Format"><span class="hs-identifier hs-var">Format</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Format.html#Event"><span class="hs-identifier hs-type">Event</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">data</span><span> </span><span id="Item"><span class="annot"><a href="Test.Hspec.Core.Format.html#Item"><span class="hs-identifier hs-var">Item</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Item"><span class="annot"><a href="Test.Hspec.Core.Format.html#Item"><span class="hs-identifier hs-var">Item</span></a></span></span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-35"></span><span>  </span><span id="itemLocation"><span class="annot"><span class="annottext">Item -&gt; Maybe Location
+</span><a href="Test.Hspec.Core.Format.html#itemLocation"><span class="hs-identifier hs-var hs-var">itemLocation</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.Location.html#Location"><span class="hs-identifier hs-type">Location</span></a></span><span>
+</span><span id="line-36"></span><span class="hs-special">,</span><span> </span><span id="itemDuration"><span class="annot"><span class="annottext">Item -&gt; Seconds
+</span><a href="Test.Hspec.Core.Format.html#itemDuration"><span class="hs-identifier hs-var hs-var">itemDuration</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Clock.html#Seconds"><span class="hs-identifier hs-type">Seconds</span></a></span><span>
+</span><span id="line-37"></span><span class="hs-special">,</span><span> </span><span id="itemInfo"><span class="annot"><span class="annottext">Item -&gt; String
+</span><a href="Test.Hspec.Core.Format.html#itemInfo"><span class="hs-identifier hs-var hs-var">itemInfo</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-38"></span><span class="hs-special">,</span><span> </span><span id="itemResult"><span class="annot"><span class="annottext">Item -&gt; Result
+</span><a href="Test.Hspec.Core.Format.html#itemResult"><span class="hs-identifier hs-var hs-var">itemResult</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Format.html#Result"><span class="hs-identifier hs-type">Result</span></a></span><span>
+</span><span id="line-39"></span><span class="hs-special">}</span><span> </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621679159842"><span id="local-6989586621679159844"><span id="local-6989586621679159857"><span class="annot"><span class="annottext">Int -&gt; Item -&gt; ShowS
+[Item] -&gt; ShowS
+Item -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [Item] -&gt; ShowS
+$cshowList :: [Item] -&gt; ShowS
+show :: Item -&gt; String
+$cshow :: Item -&gt; String
+showsPrec :: Int -&gt; Item -&gt; ShowS
+$cshowsPrec :: Int -&gt; Item -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span class="hs-keyword">data</span><span> </span><span id="Result"><span class="annot"><a href="Test.Hspec.Core.Format.html#Result"><span class="hs-identifier hs-var">Result</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-42"></span><span>    </span><span id="Success"><span class="annot"><a href="Test.Hspec.Core.Format.html#Success"><span class="hs-identifier hs-var">Success</span></a></span></span><span>
+</span><span id="line-43"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Pending"><span class="annot"><a href="Test.Hspec.Core.Format.html#Pending"><span class="hs-identifier hs-var">Pending</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.Location.html#Location"><span class="hs-identifier hs-type">Location</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">)</span><span>
+</span><span id="line-44"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Failure"><span class="annot"><a href="Test.Hspec.Core.Format.html#Failure"><span class="hs-identifier hs-var">Failure</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.Location.html#Location"><span class="hs-identifier hs-type">Location</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.html#FailureReason"><span class="hs-identifier hs-type">FailureReason</span></a></span><span>
+</span><span id="line-45"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621679159821"><span id="local-6989586621679159823"><span id="local-6989586621679159834"><span class="annot"><span class="annottext">Int -&gt; Result -&gt; ShowS
+[Result] -&gt; ShowS
+Result -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [Result] -&gt; ShowS
+$cshowList :: [Result] -&gt; ShowS
+show :: Result -&gt; String
+$cshow :: Result -&gt; String
+showsPrec :: Int -&gt; Result -&gt; ShowS
+$cshowsPrec :: Int -&gt; Result -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span class="hs-keyword">data</span><span> </span><span id="Event"><span class="annot"><a href="Test.Hspec.Core.Format.html#Event"><span class="hs-identifier hs-var">Event</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-48"></span><span>    </span><span id="Started"><span class="annot"><a href="Test.Hspec.Core.Format.html#Started"><span class="hs-identifier hs-var">Started</span></a></span></span><span>
+</span><span id="line-49"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="GroupStarted"><span class="annot"><a href="Test.Hspec.Core.Format.html#GroupStarted"><span class="hs-identifier hs-var">GroupStarted</span></a></span></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Util.html#Path"><span class="hs-identifier hs-type">Path</span></a></span><span>
+</span><span id="line-50"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="GroupDone"><span class="annot"><a href="Test.Hspec.Core.Format.html#GroupDone"><span class="hs-identifier hs-var">GroupDone</span></a></span></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Util.html#Path"><span class="hs-identifier hs-type">Path</span></a></span><span>
+</span><span id="line-51"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Progress"><span class="annot"><a href="Test.Hspec.Core.Format.html#Progress"><span class="hs-identifier hs-var">Progress</span></a></span></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Util.html#Path"><span class="hs-identifier hs-type">Path</span></a></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.html#Progress"><span class="hs-identifier hs-type">Progress</span></a></span><span>
+</span><span id="line-52"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ItemStarted"><span class="annot"><a href="Test.Hspec.Core.Format.html#ItemStarted"><span class="hs-identifier hs-var">ItemStarted</span></a></span></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Util.html#Path"><span class="hs-identifier hs-type">Path</span></a></span><span>
+</span><span id="line-53"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ItemDone"><span class="annot"><a href="Test.Hspec.Core.Format.html#ItemDone"><span class="hs-identifier hs-var">ItemDone</span></a></span></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Util.html#Path"><span class="hs-identifier hs-type">Path</span></a></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Format.html#Item"><span class="hs-identifier hs-type">Item</span></a></span><span>
+</span><span id="line-54"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Done"><span class="annot"><a href="Test.Hspec.Core.Format.html#Done"><span class="hs-identifier hs-var">Done</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><a href="Test.Hspec.Core.Util.html#Path"><span class="hs-identifier hs-type">Path</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Format.html#Item"><span class="hs-identifier hs-type">Item</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-55"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621679159787"><span id="local-6989586621679159789"><span id="local-6989586621679159811"><span class="annot"><span class="annottext">Int -&gt; Event -&gt; ShowS
+[Event] -&gt; ShowS
+Event -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [Event] -&gt; ShowS
+$cshowList :: [Event] -&gt; ShowS
+show :: Event -&gt; String
+$cshow :: Event -&gt; String
+showsPrec :: Int -&gt; Event -&gt; ShowS
+$cshowsPrec :: Int -&gt; Event -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span class="hs-keyword">data</span><span> </span><span id="FormatConfig"><span class="annot"><a href="Test.Hspec.Core.Format.html#FormatConfig"><span class="hs-identifier hs-var">FormatConfig</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="FormatConfig"><span class="annot"><a href="Test.Hspec.Core.Format.html#FormatConfig"><span class="hs-identifier hs-var">FormatConfig</span></a></span></span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-58"></span><span>  </span><span id="formatConfigUseColor"><span class="annot"><span class="annottext">FormatConfig -&gt; Bool
+</span><a href="Test.Hspec.Core.Format.html#formatConfigUseColor"><span class="hs-identifier hs-var hs-var">formatConfigUseColor</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-59"></span><span class="hs-special">,</span><span> </span><span id="formatConfigReportProgress"><span class="annot"><span class="annottext">FormatConfig -&gt; Bool
+</span><a href="Test.Hspec.Core.Format.html#formatConfigReportProgress"><span class="hs-identifier hs-var hs-var">formatConfigReportProgress</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-60"></span><span class="hs-special">,</span><span> </span><span id="formatConfigOutputUnicode"><span class="annot"><span class="annottext">FormatConfig -&gt; Bool
+</span><a href="Test.Hspec.Core.Format.html#formatConfigOutputUnicode"><span class="hs-identifier hs-var hs-var">formatConfigOutputUnicode</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-61"></span><span class="hs-special">,</span><span> </span><span id="formatConfigUseDiff"><span class="annot"><span class="annottext">FormatConfig -&gt; Bool
+</span><a href="Test.Hspec.Core.Format.html#formatConfigUseDiff"><span class="hs-identifier hs-var hs-var">formatConfigUseDiff</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-62"></span><span class="hs-special">,</span><span> </span><span id="formatConfigPrettyPrint"><span class="annot"><span class="annottext">FormatConfig -&gt; Bool
+</span><a href="Test.Hspec.Core.Format.html#formatConfigPrettyPrint"><span class="hs-identifier hs-var hs-var">formatConfigPrettyPrint</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-63"></span><span class="hs-special">,</span><span> </span><span id="formatConfigPrintTimes"><span class="annot"><span class="annottext">FormatConfig -&gt; Bool
+</span><a href="Test.Hspec.Core.Format.html#formatConfigPrintTimes"><span class="hs-identifier hs-var hs-var">formatConfigPrintTimes</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-64"></span><span class="hs-special">,</span><span> </span><span id="formatConfigHtmlOutput"><span class="annot"><span class="annottext">FormatConfig -&gt; Bool
+</span><a href="Test.Hspec.Core.Format.html#formatConfigHtmlOutput"><span class="hs-identifier hs-var hs-var">formatConfigHtmlOutput</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-65"></span><span class="hs-special">,</span><span> </span><span id="formatConfigPrintCpuTime"><span class="annot"><span class="annottext">FormatConfig -&gt; Bool
+</span><a href="Test.Hspec.Core.Format.html#formatConfigPrintCpuTime"><span class="hs-identifier hs-var hs-var">formatConfigPrintCpuTime</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-66"></span><span class="hs-special">,</span><span> </span><span id="formatConfigUsedSeed"><span class="annot"><span class="annottext">FormatConfig -&gt; Integer
+</span><a href="Test.Hspec.Core.Format.html#formatConfigUsedSeed"><span class="hs-identifier hs-var hs-var">formatConfigUsedSeed</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span>
+</span><span id="line-67"></span><span class="hs-special">,</span><span> </span><span id="formatConfigExpectedTotalCount"><span class="annot"><span class="annottext">FormatConfig -&gt; Int
+</span><a href="Test.Hspec.Core.Format.html#formatConfigExpectedTotalCount"><span class="hs-identifier hs-var hs-var">formatConfigExpectedTotalCount</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-68"></span><span class="hs-special">}</span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679159756"><span id="local-6989586621679159771"><span class="annot"><span class="annottext">FormatConfig -&gt; FormatConfig -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: FormatConfig -&gt; FormatConfig -&gt; Bool
+$c/= :: FormatConfig -&gt; FormatConfig -&gt; Bool
+== :: FormatConfig -&gt; FormatConfig -&gt; Bool
+$c== :: FormatConfig -&gt; FormatConfig -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679159736"><span id="local-6989586621679159738"><span id="local-6989586621679159753"><span class="annot"><span class="annottext">Int -&gt; FormatConfig -&gt; ShowS
+[FormatConfig] -&gt; ShowS
+FormatConfig -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [FormatConfig] -&gt; ShowS
+$cshowList :: [FormatConfig] -&gt; ShowS
+show :: FormatConfig -&gt; String
+$cshow :: FormatConfig -&gt; String
+showsPrec :: Int -&gt; FormatConfig -&gt; ShowS
+$cshowsPrec :: Int -&gt; FormatConfig -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-69"></span><span>
+</span><span id="line-70"></span><span class="hs-keyword">data</span><span> </span><span id="Signal"><span class="annot"><a href="Test.Hspec.Core.Format.html#Signal"><span class="hs-identifier hs-var">Signal</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Ok"><span class="annot"><a href="Test.Hspec.Core.Format.html#Ok"><span class="hs-identifier hs-var">Ok</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="NotOk"><span class="annot"><a href="Test.Hspec.Core.Format.html#NotOk"><span class="hs-identifier hs-var">NotOk</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">SomeException</span></span><span>
+</span><span id="line-71"></span><span>
+</span><span id="line-72"></span><span id="local-6989586621679159914"><span class="annot"><a href="Test.Hspec.Core.Format.html#monadic"><span class="hs-identifier hs-type">monadic</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadIO</span></span><span> </span><span class="annot"><a href="#local-6989586621679159914"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679159914"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.Hspec.Core.Format.html#Event"><span class="hs-identifier hs-type">Event</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679159914"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Format.html#Format"><span class="hs-identifier hs-type">Format</span></a></span></span><span>
+</span><span id="line-73"></span><span id="monadic"><span class="annot"><span class="annottext">monadic :: forall (m :: * -&gt; *).
+MonadIO m =&gt;
+(m () -&gt; IO ()) -&gt; (Event -&gt; m ()) -&gt; IO Format
+</span><a href="Test.Hspec.Core.Format.html#monadic"><span class="hs-identifier hs-var hs-var">monadic</span></a></span></span><span> </span><span id="local-6989586621679159712"><span class="annot"><span class="annottext">m () -&gt; IO ()
+</span><a href="#local-6989586621679159712"><span class="hs-identifier hs-var">run</span></a></span></span><span> </span><span id="local-6989586621679159711"><span class="annot"><span class="annottext">Event -&gt; m ()
+</span><a href="#local-6989586621679159711"><span class="hs-identifier hs-var">format</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-74"></span><span>  </span><span id="local-6989586621679159710"><span class="annot"><span class="annottext">MVar Event
+</span><a href="#local-6989586621679159710"><span class="hs-identifier hs-var">mvar</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a. IO (MVar a)
+</span><span class="hs-identifier hs-var">newEmptyMVar</span></span><span>
+</span><span id="line-75"></span><span>  </span><span id="local-6989586621679159708"><span class="annot"><span class="annottext">MVar Signal
+</span><a href="#local-6989586621679159708"><span class="hs-identifier hs-var">done</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a. IO (MVar a)
+</span><span class="hs-identifier hs-var">newEmptyMVar</span></span><span>
+</span><span id="line-76"></span><span>
+</span><span id="line-77"></span><span>  </span><span class="hs-keyword">let</span><span>
+</span><span id="line-78"></span><span>    </span><span class="annot"><a href="#local-6989586621679159707"><span class="hs-identifier hs-type">putEvent</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Format.html#Event"><span class="hs-identifier hs-type">Event</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-79"></span><span>    </span><span id="local-6989586621679159707"><span class="annot"><span class="annottext">putEvent :: Format
+</span><a href="#local-6989586621679159707"><span class="hs-identifier hs-var hs-var">putEvent</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. MVar a -&gt; a -&gt; IO ()
+</span><span class="hs-identifier hs-var">putMVar</span></span><span> </span><span class="annot"><span class="annottext">MVar Event
+</span><a href="#local-6989586621679159710"><span class="hs-identifier hs-var">mvar</span></a></span><span>
+</span><span id="line-80"></span><span>
+</span><span id="line-81"></span><span>    </span><span id="local-6989586621679159903"><span class="annot"><a href="#local-6989586621679159705"><span class="hs-identifier hs-type">takeEvent</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadIO</span></span><span> </span><span class="annot"><a href="#local-6989586621679159903"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679159903"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Format.html#Event"><span class="hs-identifier hs-type">Event</span></a></span></span><span>
+</span><span id="line-82"></span><span>    </span><span id="local-6989586621679159705"><span class="annot"><span class="annottext">takeEvent :: forall (m :: * -&gt; *). MonadIO m =&gt; m Event
+</span><a href="#local-6989586621679159705"><span class="hs-identifier hs-var hs-var">takeEvent</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><span class="hs-identifier hs-var">liftIO</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall a. MVar a -&gt; IO a
+</span><span class="hs-identifier hs-var">takeMVar</span></span><span> </span><span class="annot"><span class="annottext">MVar Event
+</span><a href="#local-6989586621679159710"><span class="hs-identifier hs-var">mvar</span></a></span><span>
+</span><span id="line-83"></span><span>
+</span><span id="line-84"></span><span>    </span><span id="local-6989586621679159896"><span class="annot"><a href="#local-6989586621679159700"><span class="hs-identifier hs-type">signal</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadIO</span></span><span> </span><span class="annot"><a href="#local-6989586621679159896"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Format.html#Signal"><span class="hs-identifier hs-type">Signal</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679159896"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-85"></span><span>    </span><span id="local-6989586621679159700"><span class="annot"><span class="annottext">signal :: forall (m :: * -&gt; *). MonadIO m =&gt; Signal -&gt; m ()
+</span><a href="#local-6989586621679159700"><span class="hs-identifier hs-var hs-var">signal</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><span class="hs-identifier hs-var">liftIO</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall a. MVar a -&gt; a -&gt; IO ()
+</span><span class="hs-identifier hs-var">putMVar</span></span><span> </span><span class="annot"><span class="annottext">MVar Signal
+</span><a href="#local-6989586621679159708"><span class="hs-identifier hs-var">done</span></a></span><span>
+</span><span id="line-86"></span><span>
+</span><span id="line-87"></span><span>    </span><span class="annot"><a href="#local-6989586621679159696"><span class="hs-identifier hs-type">wait</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Format.html#Signal"><span class="hs-identifier hs-type">Signal</span></a></span><span>
+</span><span id="line-88"></span><span>    </span><span id="local-6989586621679159696"><span class="annot"><span class="annottext">wait :: IO Signal
+</span><a href="#local-6989586621679159696"><span class="hs-identifier hs-var hs-var">wait</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. MVar a -&gt; IO a
+</span><span class="hs-identifier hs-var">takeMVar</span></span><span> </span><span class="annot"><span class="annottext">MVar Signal
+</span><a href="#local-6989586621679159708"><span class="hs-identifier hs-var">done</span></a></span><span>
+</span><span id="line-89"></span><span>
+</span><span id="line-90"></span><span>    </span><span id="local-6989586621679159689"><span class="annot"><span class="annottext">go :: m ()
+</span><a href="#local-6989586621679159689"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-91"></span><span>      </span><span id="local-6989586621679159688"><span class="annot"><span class="annottext">Event
+</span><a href="#local-6989586621679159688"><span class="hs-identifier hs-var">event</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *). MonadIO m =&gt; m Event
+</span><a href="#local-6989586621679159705"><span class="hs-identifier hs-var">takeEvent</span></a></span><span>
+</span><span id="line-92"></span><span>      </span><span class="annot"><span class="annottext">Event -&gt; m ()
+</span><a href="#local-6989586621679159711"><span class="hs-identifier hs-var">format</span></a></span><span> </span><span class="annot"><span class="annottext">Event
+</span><a href="#local-6989586621679159688"><span class="hs-identifier hs-var">event</span></a></span><span>
+</span><span id="line-93"></span><span>      </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Event
+</span><a href="#local-6989586621679159688"><span class="hs-identifier hs-var">event</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-94"></span><span>        </span><span class="annot"><a href="Test.Hspec.Core.Format.html#Done"><span class="hs-identifier hs-type">Done</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-95"></span><span>        </span><span class="annot"><span class="annottext">Event
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-96"></span><span>          </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *). MonadIO m =&gt; Signal -&gt; m ()
+</span><a href="#local-6989586621679159700"><span class="hs-identifier hs-var">signal</span></a></span><span> </span><span class="annot"><span class="annottext">Signal
+</span><a href="Test.Hspec.Core.Format.html#Ok"><span class="hs-identifier hs-var">Ok</span></a></span><span>
+</span><span id="line-97"></span><span>          </span><span class="annot"><span class="annottext">m ()
+</span><a href="#local-6989586621679159689"><span class="hs-identifier hs-var">go</span></a></span><span>
+</span><span id="line-98"></span><span>
+</span><span id="line-99"></span><span>  </span><span id="local-6989586621679159687"><span class="annot"><span class="annottext">Async ()
+</span><a href="#local-6989586621679159687"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a. IO a -&gt; IO (Async a)
+</span><a href="Control.Concurrent.Async.html#async"><span class="hs-identifier hs-var">async</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-100"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">m () -&gt; IO ()
+</span><a href="#local-6989586621679159712"><span class="hs-identifier hs-var">run</span></a></span><span> </span><span class="annot"><span class="annottext">m ()
+</span><a href="#local-6989586621679159689"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *). MonadIO m =&gt; Signal -&gt; m ()
+</span><a href="#local-6989586621679159700"><span class="hs-identifier hs-var">signal</span></a></span><span> </span><span class="annot"><span class="annottext">Signal
+</span><a href="Test.Hspec.Core.Format.html#Ok"><span class="hs-identifier hs-var">Ok</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall e a. Exception e =&gt; IO a -&gt; (e -&gt; IO a) -&gt; IO a
+</span><span class="hs-operator hs-var">`catch`</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (m :: * -&gt; *). MonadIO m =&gt; Signal -&gt; m ()
+</span><a href="#local-6989586621679159700"><span class="hs-identifier hs-var">signal</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">SomeException -&gt; Signal
+</span><a href="Test.Hspec.Core.Format.html#NotOk"><span class="hs-identifier hs-var">NotOk</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-101"></span><span>
+</span><span id="line-102"></span><span>  </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621679159685"><span class="annot"><span class="annottext">Event
+</span><a href="#local-6989586621679159685"><span class="hs-identifier hs-var">event</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-103"></span><span>    </span><span id="local-6989586621679159684"><span class="annot"><span class="annottext">Maybe (Either SomeException ())
+</span><a href="#local-6989586621679159684"><span class="hs-identifier hs-var">running</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a. Async a -&gt; IO (Maybe (Either SomeException a))
+</span><a href="Control.Concurrent.Async.html#poll"><span class="hs-identifier hs-var">Async.poll</span></a></span><span> </span><span class="annot"><span class="annottext">Async ()
+</span><a href="#local-6989586621679159687"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-104"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Maybe (Either SomeException ())
+</span><a href="#local-6989586621679159684"><span class="hs-identifier hs-var">running</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-105"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><span class="annottext">Either SomeException ()
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-106"></span><span>      </span><span class="annot"><span class="annottext">Maybe (Either SomeException ())
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-107"></span><span>        </span><span class="annot"><span class="annottext">Format
+</span><a href="#local-6989586621679159707"><span class="hs-identifier hs-var">putEvent</span></a></span><span> </span><span class="annot"><span class="annottext">Event
+</span><a href="#local-6989586621679159685"><span class="hs-identifier hs-var">event</span></a></span><span>
+</span><span id="line-108"></span><span>        </span><span id="local-6989586621679159682"><span class="annot"><span class="annottext">Signal
+</span><a href="#local-6989586621679159682"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO Signal
+</span><a href="#local-6989586621679159696"><span class="hs-identifier hs-var">wait</span></a></span><span>
+</span><span id="line-109"></span><span>        </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Signal
+</span><a href="#local-6989586621679159682"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-110"></span><span>          </span><span class="annot"><span class="annottext">Signal
+</span><a href="Test.Hspec.Core.Format.html#Ok"><span class="hs-identifier hs-var">Ok</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-111"></span><span>          </span><span class="annot"><a href="Test.Hspec.Core.Format.html#NotOk"><span class="hs-identifier hs-type">NotOk</span></a></span><span> </span><span id="local-6989586621679159681"><span class="annot"><span class="annottext">SomeException
+</span><a href="#local-6989586621679159681"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-112"></span><span>            </span><span class="annot"><span class="annottext">forall a. Async a -&gt; IO a
+</span><a href="Control.Concurrent.Async.html#wait"><span class="hs-identifier hs-var">Async.wait</span></a></span><span> </span><span class="annot"><span class="annottext">Async ()
+</span><a href="#local-6989586621679159687"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-113"></span><span>            </span><span class="annot"><span class="annottext">forall e a. Exception e =&gt; e -&gt; IO a
+</span><span class="hs-identifier hs-var">throwIO</span></span><span> </span><span class="annot"><span class="annottext">SomeException
+</span><a href="#local-6989586621679159681"><span class="hs-identifier hs-var">err</span></a></span><span>
+</span><span id="line-114"></span></pre></body></html>

@@ -1,0 +1,390 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span id="local-6989586621679062791"><span id="local-6989586621679062792"><span id="local-6989586621679062793"><span id="local-6989586621679062794"><span id="local-6989586621679062795"><span id="local-6989586621679062796"><span id="local-6989586621679062797"><span id="local-6989586621679062798"><span id="local-6989586621679062799"><span id="local-6989586621679062800"></span></span></span></span></span></span></span></span></span></span><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE DeriveDataTypeable #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE DeriveGeneric #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE FlexibleContexts #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LANGUAGE RankNTypes #-}</span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# LANGUAGE ScopedTypeVariables #-}</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-comment">{-|
+Module      : Text.Pretty.Simple.Internal.Expr
+Copyright   : (c) Dennis Gosnell, 2016
+License     : BSD-style (see LICENSE file)
+Maintainer  : cdep.illabout@gmail.com
+Stability   : experimental
+Portability : POSIX
+
+-}</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Text.Pretty.Simple.Internal.Expr</span><span>
+</span><span id="line-18"></span><span>  </span><span class="hs-keyword">where</span><span class="hs-cpp">
+
+#if __GLASGOW_HASKELL__ &lt; 710
+</span><span class="hs-comment">-- We don't need this import for GHC 7.10 as it exports all required functions</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- from Prelude</span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Control.Applicative</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Data</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Data</span></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Typeable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Typeable</span></span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span id="local-6989586621679062789"><span id="local-6989586621679062790"></span></span><span class="hs-keyword">newtype</span><span> </span><span id="CommaSeparated"><span class="annot"><a href="Text.Pretty.Simple.Internal.Expr.html#CommaSeparated"><span class="hs-identifier hs-var">CommaSeparated</span></a></span></span><span> </span><span id="local-6989586621679062937"><span class="annot"><a href="#local-6989586621679062937"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="CommaSeparated"><span class="annot"><a href="Text.Pretty.Simple.Internal.Expr.html#CommaSeparated"><span class="hs-identifier hs-var">CommaSeparated</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="unCommaSeparated"><span class="annot"><span class="annottext">forall a. CommaSeparated a -&gt; [a]
+</span><a href="Text.Pretty.Simple.Internal.Expr.html#unCommaSeparated"><span class="hs-identifier hs-var hs-var">unCommaSeparated</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679062937"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-31"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679062749"><span id="local-6989586621679062751"><span id="local-6989586621679062753"><span id="local-6989586621679062755"><span id="local-6989586621679062757"><span id="local-6989586621679062759"><span id="local-6989586621679062761"><span id="local-6989586621679062763"><span id="local-6989586621679062765"><span id="local-6989586621679062771"><span id="local-6989586621679062773"><span id="local-6989586621679062775"><span id="local-6989586621679062778"><span id="local-6989586621679062782"><span class="annot"><span class="annottext">CommaSeparated a -&gt; DataType
+CommaSeparated a -&gt; Constr
+forall {a}. Data a =&gt; Typeable (CommaSeparated a)
+forall a. Data a =&gt; CommaSeparated a -&gt; DataType
+forall a. Data a =&gt; CommaSeparated a -&gt; Constr
+forall a.
+Data a =&gt;
+(forall b. Data b =&gt; b -&gt; b)
+-&gt; CommaSeparated a -&gt; CommaSeparated a
+forall a u.
+Data a =&gt;
+Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; CommaSeparated a -&gt; u
+forall a u.
+Data a =&gt;
+(forall d. Data d =&gt; d -&gt; u) -&gt; CommaSeparated a -&gt; [u]
+forall a r r'.
+Data a =&gt;
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; CommaSeparated a -&gt; r
+forall a r r'.
+Data a =&gt;
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; CommaSeparated a -&gt; r
+forall a (m :: * -&gt; *).
+(Data a, Monad m) =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; CommaSeparated a -&gt; m (CommaSeparated a)
+forall a (m :: * -&gt; *).
+(Data a, MonadPlus m) =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; CommaSeparated a -&gt; m (CommaSeparated a)
+forall a (c :: * -&gt; *).
+Data a =&gt;
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c (CommaSeparated a)
+forall a (c :: * -&gt; *).
+Data a =&gt;
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; CommaSeparated a -&gt; c (CommaSeparated a)
+forall a (t :: * -&gt; *) (c :: * -&gt; *).
+(Data a, Typeable t) =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c (CommaSeparated a))
+forall a (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+(Data a, Typeable t) =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c (CommaSeparated a))
+forall a.
+Typeable a
+-&gt; (forall (c :: * -&gt; *).
+    (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+    -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c (CommaSeparated a)
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; CommaSeparated a -&gt; c (CommaSeparated a)
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c (CommaSeparated a))
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; CommaSeparated a -&gt; m (CommaSeparated a)
+$cgmapMo :: forall a (m :: * -&gt; *).
+(Data a, MonadPlus m) =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; CommaSeparated a -&gt; m (CommaSeparated a)
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; CommaSeparated a -&gt; m (CommaSeparated a)
+$cgmapMp :: forall a (m :: * -&gt; *).
+(Data a, MonadPlus m) =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; CommaSeparated a -&gt; m (CommaSeparated a)
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; CommaSeparated a -&gt; m (CommaSeparated a)
+$cgmapM :: forall a (m :: * -&gt; *).
+(Data a, Monad m) =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; CommaSeparated a -&gt; m (CommaSeparated a)
+gmapQi :: forall u.
+Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; CommaSeparated a -&gt; u
+$cgmapQi :: forall a u.
+Data a =&gt;
+Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; CommaSeparated a -&gt; u
+gmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; CommaSeparated a -&gt; [u]
+$cgmapQ :: forall a u.
+Data a =&gt;
+(forall d. Data d =&gt; d -&gt; u) -&gt; CommaSeparated a -&gt; [u]
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; CommaSeparated a -&gt; r
+$cgmapQr :: forall a r r'.
+Data a =&gt;
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; CommaSeparated a -&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; CommaSeparated a -&gt; r
+$cgmapQl :: forall a r r'.
+Data a =&gt;
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; CommaSeparated a -&gt; r
+gmapT :: (forall b. Data b =&gt; b -&gt; b)
+-&gt; CommaSeparated a -&gt; CommaSeparated a
+$cgmapT :: forall a.
+Data a =&gt;
+(forall b. Data b =&gt; b -&gt; b)
+-&gt; CommaSeparated a -&gt; CommaSeparated a
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c (CommaSeparated a))
+$cdataCast2 :: forall a (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+(Data a, Typeable t) =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c (CommaSeparated a))
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c (CommaSeparated a))
+$cdataCast1 :: forall a (t :: * -&gt; *) (c :: * -&gt; *).
+(Data a, Typeable t) =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c (CommaSeparated a))
+dataTypeOf :: CommaSeparated a -&gt; DataType
+$cdataTypeOf :: forall a. Data a =&gt; CommaSeparated a -&gt; DataType
+toConstr :: CommaSeparated a -&gt; Constr
+$ctoConstr :: forall a. Data a =&gt; CommaSeparated a -&gt; Constr
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c (CommaSeparated a)
+$cgunfold :: forall a (c :: * -&gt; *).
+Data a =&gt;
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c (CommaSeparated a)
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; CommaSeparated a -&gt; c (CommaSeparated a)
+$cgfoldl :: forall a (c :: * -&gt; *).
+Data a =&gt;
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; CommaSeparated a -&gt; c (CommaSeparated a)
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679062740"><span id="local-6989586621679062745"><span class="annot"><span class="annottext">CommaSeparated a -&gt; CommaSeparated a -&gt; Bool
+forall a. Eq a =&gt; CommaSeparated a -&gt; CommaSeparated a -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: CommaSeparated a -&gt; CommaSeparated a -&gt; Bool
+$c/= :: forall a. Eq a =&gt; CommaSeparated a -&gt; CommaSeparated a -&gt; Bool
+== :: CommaSeparated a -&gt; CommaSeparated a -&gt; Bool
+$c== :: forall a. Eq a =&gt; CommaSeparated a -&gt; CommaSeparated a -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+forall a x. Rep (CommaSeparated a) x -&gt; CommaSeparated a
+forall a x. CommaSeparated a -&gt; Rep (CommaSeparated a) x
+$cto :: forall a x. Rep (CommaSeparated a) x -&gt; CommaSeparated a
+$cfrom :: forall a x. CommaSeparated a -&gt; Rep (CommaSeparated a) x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679062722"><span id="local-6989586621679062724"><span id="local-6989586621679062730"><span class="annot"><span class="annottext">Int -&gt; CommaSeparated a -&gt; ShowS
+forall a. Show a =&gt; Int -&gt; CommaSeparated a -&gt; ShowS
+forall a. Show a =&gt; [CommaSeparated a] -&gt; ShowS
+forall a. Show a =&gt; CommaSeparated a -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [CommaSeparated a] -&gt; ShowS
+$cshowList :: forall a. Show a =&gt; [CommaSeparated a] -&gt; ShowS
+show :: CommaSeparated a -&gt; String
+$cshow :: forall a. Show a =&gt; CommaSeparated a -&gt; String
+showsPrec :: Int -&gt; CommaSeparated a -&gt; ShowS
+$cshowsPrec :: forall a. Show a =&gt; Int -&gt; CommaSeparated a -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Typeable</span></span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span id="local-6989586621679062719"><span id="local-6989586621679062720"></span></span><span class="hs-keyword">data</span><span> </span><span id="Expr"><span class="annot"><a href="Text.Pretty.Simple.Internal.Expr.html#Expr"><span class="hs-identifier hs-var">Expr</span></a></span></span><span>
+</span><span id="line-34"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="Brackets"><span class="annot"><a href="Text.Pretty.Simple.Internal.Expr.html#Brackets"><span class="hs-identifier hs-var">Brackets</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><a href="Text.Pretty.Simple.Internal.Expr.html#CommaSeparated"><span class="hs-identifier hs-type">CommaSeparated</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Text.Pretty.Simple.Internal.Expr.html#Expr"><span class="hs-identifier hs-type">Expr</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Braces"><span class="annot"><a href="Text.Pretty.Simple.Internal.Expr.html#Braces"><span class="hs-identifier hs-var">Braces</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><a href="Text.Pretty.Simple.Internal.Expr.html#CommaSeparated"><span class="hs-identifier hs-type">CommaSeparated</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Text.Pretty.Simple.Internal.Expr.html#Expr"><span class="hs-identifier hs-type">Expr</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Parens"><span class="annot"><a href="Text.Pretty.Simple.Internal.Expr.html#Parens"><span class="hs-identifier hs-var">Parens</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><a href="Text.Pretty.Simple.Internal.Expr.html#CommaSeparated"><span class="hs-identifier hs-type">CommaSeparated</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Text.Pretty.Simple.Internal.Expr.html#Expr"><span class="hs-identifier hs-type">Expr</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-37"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="StringLit"><span class="annot"><a href="Text.Pretty.Simple.Internal.Expr.html#StringLit"><span class="hs-identifier hs-var">StringLit</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-38"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="CharLit"><span class="annot"><a href="Text.Pretty.Simple.Internal.Expr.html#CharLit"><span class="hs-identifier hs-var">CharLit</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-39"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="NumberLit"><span class="annot"><a href="Text.Pretty.Simple.Internal.Expr.html#NumberLit"><span class="hs-identifier hs-var">NumberLit</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-40"></span><span>  </span><span class="hs-comment">-- ^ We could store this as a 'Rational', say, instead of a 'String'.</span><span>
+</span><span id="line-41"></span><span>  </span><span class="hs-comment">-- However, we will never need to use its value for anything. Indeed, the</span><span>
+</span><span id="line-42"></span><span>  </span><span class="hs-comment">-- only thing we will be doing with it is turning it /back/ into a string</span><span>
+</span><span id="line-43"></span><span>  </span><span class="hs-comment">-- at some stage, so we might as well cut out the middle man and store it</span><span>
+</span><span id="line-44"></span><span>  </span><span class="hs-comment">-- directly like this.</span><span>
+</span><span id="line-45"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Other"><span class="annot"><a href="Text.Pretty.Simple.Internal.Expr.html#Other"><span class="hs-identifier hs-var">Other</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-46"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679062664"><span id="local-6989586621679062666"><span id="local-6989586621679062668"><span id="local-6989586621679062670"><span id="local-6989586621679062672"><span id="local-6989586621679062674"><span id="local-6989586621679062676"><span id="local-6989586621679062678"><span id="local-6989586621679062680"><span id="local-6989586621679062682"><span id="local-6989586621679062684"><span id="local-6989586621679062686"><span id="local-6989586621679062697"><span id="local-6989586621679062708"><span class="annot"><span class="annottext">Typeable Expr
+Expr -&gt; DataType
+Expr -&gt; Constr
+(forall b. Data b =&gt; b -&gt; b) -&gt; Expr -&gt; Expr
+forall a.
+Typeable a
+-&gt; (forall (c :: * -&gt; *).
+    (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+    -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Expr -&gt; u
+forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Expr -&gt; [u]
+forall r r'.
+(r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Expr -&gt; r
+forall r r'.
+(r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Expr -&gt; r
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Expr -&gt; m Expr
+forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Expr -&gt; m Expr
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Expr
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Expr -&gt; c Expr
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Expr)
+forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Expr)
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Expr -&gt; m Expr
+$cgmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Expr -&gt; m Expr
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Expr -&gt; m Expr
+$cgmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Expr -&gt; m Expr
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Expr -&gt; m Expr
+$cgmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Expr -&gt; m Expr
+gmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Expr -&gt; u
+$cgmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Expr -&gt; u
+gmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Expr -&gt; [u]
+$cgmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Expr -&gt; [u]
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Expr -&gt; r
+$cgmapQr :: forall r r'.
+(r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Expr -&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Expr -&gt; r
+$cgmapQl :: forall r r'.
+(r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Expr -&gt; r
+gmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; Expr -&gt; Expr
+$cgmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; Expr -&gt; Expr
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Expr)
+$cdataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Expr)
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Expr)
+$cdataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Expr)
+dataTypeOf :: Expr -&gt; DataType
+$cdataTypeOf :: Expr -&gt; DataType
+toConstr :: Expr -&gt; Constr
+$ctoConstr :: Expr -&gt; Constr
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Expr
+$cgunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Expr
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Expr -&gt; c Expr
+$cgfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Expr -&gt; c Expr
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679062648"><span id="local-6989586621679062659"><span class="annot"><span class="annottext">Expr -&gt; Expr -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: Expr -&gt; Expr -&gt; Bool
+$c/= :: Expr -&gt; Expr -&gt; Bool
+== :: Expr -&gt; Expr -&gt; Bool
+$c== :: Expr -&gt; Expr -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall x. Rep Expr x -&gt; Expr
+forall x. Expr -&gt; Rep Expr x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cto :: forall x. Rep Expr x -&gt; Expr
+$cfrom :: forall x. Expr -&gt; Rep Expr x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679062621"><span id="local-6989586621679062623"><span id="local-6989586621679062641"><span class="annot"><span class="annottext">Int -&gt; Expr -&gt; ShowS
+[Expr] -&gt; ShowS
+Expr -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [Expr] -&gt; ShowS
+$cshowList :: [Expr] -&gt; ShowS
+show :: Expr -&gt; String
+$cshow :: Expr -&gt; String
+showsPrec :: Int -&gt; Expr -&gt; ShowS
+$cshowsPrec :: Int -&gt; Expr -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Typeable</span></span><span class="hs-special">)</span><span>
+</span><span id="line-47"></span></pre></body></html>

@@ -1,0 +1,243 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DeriveFunctor         #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE FlexibleInstances     #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE MultiParamTypeClasses #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE TypeFamilies          #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LANGUAGE UndecidableInstances  #-}</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Servant.Server.Internal.RouteResult</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span>
+</span><span id="line-9"></span><span>                 </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ap</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">liftM</span></span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad.Base</span></span><span>
+</span><span id="line-11"></span><span>                 </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">MonadBase</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad.Catch</span></span><span>
+</span><span id="line-13"></span><span>                 </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">MonadThrow</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad.Trans</span></span><span>
+</span><span id="line-15"></span><span>                 </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">MonadIO</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">MonadTrans</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad.Trans.Control</span></span><span>
+</span><span id="line-17"></span><span>                 </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ComposeSt</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">MonadBaseControl</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">MonadTransControl</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-18"></span><span>                 </span><span class="annot"><span class="hs-identifier">defaultLiftBaseWith</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">defaultRestoreM</span></span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Servant.Server.Internal.ServerError.html"><span class="hs-identifier">Servant.Server.Internal.ServerError</span></a></span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- | The result of matching against a path in the route tree.</span><span>
+</span><span id="line-23"></span><span class="hs-keyword">data</span><span> </span><span id="RouteResult"><span class="annot"><a href="Servant.Server.Internal.RouteResult.html#RouteResult"><span class="hs-identifier hs-var">RouteResult</span></a></span></span><span> </span><span id="local-6989586621679130179"><span class="annot"><a href="#local-6989586621679130179"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-24"></span><span>    </span><span id="Fail"><span class="annot"><a href="Servant.Server.Internal.RouteResult.html#Fail"><span class="hs-identifier hs-var">Fail</span></a></span></span><span> </span><span class="annot"><a href="Servant.Server.Internal.ServerError.html#ServerError"><span class="hs-identifier hs-type">ServerError</span></a></span><span>           </span><span class="hs-comment">-- ^ Keep trying other paths.</span><span>
+</span><span id="line-25"></span><span>                               </span><span class="hs-comment">--   The 'ServantError' should only be 404, 405 or 406.</span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="FailFatal"><span class="annot"><a href="Servant.Server.Internal.RouteResult.html#FailFatal"><span class="hs-identifier hs-var">FailFatal</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="Servant.Server.Internal.ServerError.html#ServerError"><span class="hs-identifier hs-type">ServerError</span></a></span><span>     </span><span class="hs-comment">-- ^ Don't try other paths.</span><span>
+</span><span id="line-27"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Route"><span class="annot"><a href="Servant.Server.Internal.RouteResult.html#Route"><span class="hs-identifier hs-var">Route</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="#local-6989586621679130179"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679130021"><span id="local-6989586621679130027"><span class="annot"><span class="annottext">RouteResult a -&gt; RouteResult a -&gt; Bool
+forall a. Eq a =&gt; RouteResult a -&gt; RouteResult a -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: RouteResult a -&gt; RouteResult a -&gt; Bool
+$c/= :: forall a. Eq a =&gt; RouteResult a -&gt; RouteResult a -&gt; Bool
+== :: RouteResult a -&gt; RouteResult a -&gt; Bool
+$c== :: forall a. Eq a =&gt; RouteResult a -&gt; RouteResult a -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679130006"><span id="local-6989586621679130008"><span id="local-6989586621679130018"><span class="annot"><span class="annottext">Int -&gt; RouteResult a -&gt; ShowS
+forall a. Show a =&gt; Int -&gt; RouteResult a -&gt; ShowS
+forall a. Show a =&gt; [RouteResult a] -&gt; ShowS
+forall a. Show a =&gt; RouteResult a -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [RouteResult a] -&gt; ShowS
+$cshowList :: forall a. Show a =&gt; [RouteResult a] -&gt; ShowS
+show :: RouteResult a -&gt; String
+$cshow :: forall a. Show a =&gt; RouteResult a -&gt; String
+showsPrec :: Int -&gt; RouteResult a -&gt; ShowS
+$cshowsPrec :: forall a. Show a =&gt; Int -&gt; RouteResult a -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679129982"><span id="local-6989586621679129998"><span id="local-6989586621679130001"><span id="local-6989586621679130003"><span class="annot"><span class="annottext">ReadPrec [RouteResult a]
+ReadPrec (RouteResult a)
+ReadS [RouteResult a]
+forall a. Read a =&gt; ReadPrec [RouteResult a]
+forall a. Read a =&gt; ReadPrec (RouteResult a)
+forall a. Read a =&gt; Int -&gt; ReadS (RouteResult a)
+forall a. Read a =&gt; ReadS [RouteResult a]
+forall a.
+(Int -&gt; ReadS a)
+-&gt; ReadS [a] -&gt; ReadPrec a -&gt; ReadPrec [a] -&gt; Read a
+readListPrec :: ReadPrec [RouteResult a]
+$creadListPrec :: forall a. Read a =&gt; ReadPrec [RouteResult a]
+readPrec :: ReadPrec (RouteResult a)
+$creadPrec :: forall a. Read a =&gt; ReadPrec (RouteResult a)
+readList :: ReadS [RouteResult a]
+$creadList :: forall a. Read a =&gt; ReadS [RouteResult a]
+readsPrec :: Int -&gt; ReadS (RouteResult a)
+$creadsPrec :: forall a. Read a =&gt; Int -&gt; ReadS (RouteResult a)
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Read</span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679129976"><span id="local-6989586621679129978"><span class="annot"><span class="annottext">forall a b. a -&gt; RouteResult b -&gt; RouteResult a
+forall a b. (a -&gt; b) -&gt; RouteResult a -&gt; RouteResult b
+forall (f :: * -&gt; *).
+(forall a b. (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b. a -&gt; f b -&gt; f a) -&gt; Functor f
+&lt;$ :: forall a b. a -&gt; RouteResult b -&gt; RouteResult a
+$c&lt;$ :: forall a b. a -&gt; RouteResult b -&gt; RouteResult a
+fmap :: forall a b. (a -&gt; b) -&gt; RouteResult a -&gt; RouteResult b
+$cfmap :: forall a b. (a -&gt; b) -&gt; RouteResult a -&gt; RouteResult b
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Functor</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679129964"><span id="local-6989586621679129966"><span id="local-6989586621679129968"><span class="annot"><span class="hs-identifier hs-type">Applicative</span></span><span> </span><span class="annot"><a href="Servant.Server.Internal.RouteResult.html#RouteResult"><span class="hs-identifier hs-type">RouteResult</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-31"></span><span>    </span><span id="local-6989586621679129961"><span class="annot"><span class="annottext">pure :: forall a. a -&gt; RouteResult a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">pure</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span>
+</span><span id="line-32"></span><span>    </span><span id="local-6989586621679129959"><span class="annot"><span class="annottext">&lt;*&gt; :: forall a b. RouteResult (a -&gt; b) -&gt; RouteResult a -&gt; RouteResult b
+</span><span class="hs-operator hs-var hs-var hs-var hs-var">(&lt;*&gt;)</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m (a -&gt; b) -&gt; m a -&gt; m b
+</span><span class="hs-identifier hs-var">ap</span></span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679129954"><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="Servant.Server.Internal.RouteResult.html#RouteResult"><span class="hs-identifier hs-type">RouteResult</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-35"></span><span>    </span><span id="local-6989586621679129951"><span class="annot"><span class="annottext">return :: forall a. a -&gt; RouteResult a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">return</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; RouteResult a
+</span><a href="Servant.Server.Internal.RouteResult.html#Route"><span class="hs-identifier hs-var">Route</span></a></span><span>
+</span><span id="line-36"></span><span>    </span><span class="annot"><a href="Servant.Server.Internal.RouteResult.html#Route"><span class="hs-identifier hs-type">Route</span></a></span><span> </span><span id="local-6989586621679129950"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679129950"><span class="hs-identifier hs-var">a</span></a></span></span><span>     </span><span id="local-6989586621679129949"><span class="annot"><span class="annottext">&gt;&gt;= :: forall a b. RouteResult a -&gt; (a -&gt; RouteResult b) -&gt; RouteResult b
+</span><span class="hs-operator hs-var hs-var hs-var hs-var">&gt;&gt;=</span></span></span><span> </span><span id="local-6989586621679129948"><span class="annot"><span class="annottext">a -&gt; RouteResult b
+</span><a href="#local-6989586621679129948"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; RouteResult b
+</span><a href="#local-6989586621679129948"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679129950"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-37"></span><span>    </span><span class="annot"><a href="Servant.Server.Internal.RouteResult.html#Fail"><span class="hs-identifier hs-type">Fail</span></a></span><span> </span><span id="local-6989586621679129947"><span class="annot"><span class="annottext">ServerError
+</span><a href="#local-6989586621679129947"><span class="hs-identifier hs-var">e</span></a></span></span><span>      </span><span class="annot"><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; RouteResult b
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. ServerError -&gt; RouteResult a
+</span><a href="Servant.Server.Internal.RouteResult.html#Fail"><span class="hs-identifier hs-var">Fail</span></a></span><span> </span><span class="annot"><span class="annottext">ServerError
+</span><a href="#local-6989586621679129947"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-38"></span><span>    </span><span class="annot"><a href="Servant.Server.Internal.RouteResult.html#FailFatal"><span class="hs-identifier hs-type">FailFatal</span></a></span><span> </span><span id="local-6989586621679129946"><span class="annot"><span class="annottext">ServerError
+</span><a href="#local-6989586621679129946"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="annot"><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; RouteResult b
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. ServerError -&gt; RouteResult a
+</span><a href="Servant.Server.Internal.RouteResult.html#FailFatal"><span class="hs-identifier hs-var">FailFatal</span></a></span><span> </span><span class="annot"><span class="annottext">ServerError
+</span><a href="#local-6989586621679129946"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span class="hs-keyword">newtype</span><span> </span><span id="RouteResultT"><span class="annot"><a href="Servant.Server.Internal.RouteResult.html#RouteResultT"><span class="hs-identifier hs-var">RouteResultT</span></a></span></span><span> </span><span id="local-6989586621679130146"><span class="annot"><a href="#local-6989586621679130146"><span class="hs-identifier hs-type">m</span></a></span></span><span> </span><span id="local-6989586621679130145"><span class="annot"><a href="#local-6989586621679130145"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="RouteResultT"><span class="annot"><a href="Servant.Server.Internal.RouteResult.html#RouteResultT"><span class="hs-identifier hs-var">RouteResultT</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="runRouteResultT"><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. RouteResultT m a -&gt; m (RouteResult a)
+</span><a href="Servant.Server.Internal.RouteResult.html#runRouteResultT"><span class="hs-identifier hs-var hs-var">runRouteResultT</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679130146"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Servant.Server.Internal.RouteResult.html#RouteResult"><span class="hs-identifier hs-type">RouteResult</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679130145"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-41"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679129937"><span id="local-6989586621679129941"><span class="annot"><span class="annottext">forall a b. a -&gt; RouteResultT m b -&gt; RouteResultT m a
+forall a b. (a -&gt; b) -&gt; RouteResultT m a -&gt; RouteResultT m b
+forall (m :: * -&gt; *) a b.
+Functor m =&gt;
+a -&gt; RouteResultT m b -&gt; RouteResultT m a
+forall (m :: * -&gt; *) a b.
+Functor m =&gt;
+(a -&gt; b) -&gt; RouteResultT m a -&gt; RouteResultT m b
+forall (f :: * -&gt; *).
+(forall a b. (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b. a -&gt; f b -&gt; f a) -&gt; Functor f
+&lt;$ :: forall a b. a -&gt; RouteResultT m b -&gt; RouteResultT m a
+$c&lt;$ :: forall (m :: * -&gt; *) a b.
+Functor m =&gt;
+a -&gt; RouteResultT m b -&gt; RouteResultT m a
+fmap :: forall a b. (a -&gt; b) -&gt; RouteResultT m a -&gt; RouteResultT m b
+$cfmap :: forall (m :: * -&gt; *) a b.
+Functor m =&gt;
+(a -&gt; b) -&gt; RouteResultT m a -&gt; RouteResultT m b
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Functor</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadTrans</span></span><span> </span><span class="annot"><a href="Servant.Server.Internal.RouteResult.html#RouteResultT"><span class="hs-identifier hs-type">RouteResultT</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-44"></span><span>    </span><span id="local-6989586621679129928"><span class="annot"><span class="annottext">lift :: forall (m :: * -&gt; *) a. Monad m =&gt; m a -&gt; RouteResultT m a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">lift</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. m (RouteResult a) -&gt; RouteResultT m a
+</span><a href="Servant.Server.Internal.RouteResult.html#RouteResultT"><span class="hs-identifier hs-var">RouteResultT</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a1 r. Monad m =&gt; (a1 -&gt; r) -&gt; m a1 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM</span></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; RouteResult a
+</span><a href="Servant.Server.Internal.RouteResult.html#Route"><span class="hs-identifier hs-var">Route</span></a></span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679129916"><span id="local-6989586621679129918"><span id="local-6989586621679129920"><span id="local-6989586621679130129"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="annot"><a href="#local-6989586621679130129"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679130129"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Applicative</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Servant.Server.Internal.RouteResult.html#RouteResultT"><span class="hs-identifier hs-type">RouteResultT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679130129"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-47"></span><span>    </span><span id="local-6989586621679129914"><span class="annot"><span class="annottext">pure :: forall a. a -&gt; RouteResultT m a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">pure</span></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span>
+</span><span id="line-48"></span><span>    </span><span id="local-6989586621679129912"><span class="annot"><span class="annottext">&lt;*&gt; :: forall a b.
+RouteResultT m (a -&gt; b) -&gt; RouteResultT m a -&gt; RouteResultT m b
+</span><span class="hs-operator hs-var hs-var hs-var hs-var">(&lt;*&gt;)</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m (a -&gt; b) -&gt; m a -&gt; m b
+</span><span class="hs-identifier hs-var">ap</span></span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679129907"><span id="local-6989586621679130128"><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679130128"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Servant.Server.Internal.RouteResult.html#RouteResultT"><span class="hs-identifier hs-type">RouteResultT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679130128"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-51"></span><span>    </span><span id="local-6989586621679129904"><span class="annot"><span class="annottext">return :: forall a. a -&gt; RouteResultT m a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">return</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. m (RouteResult a) -&gt; RouteResultT m a
+</span><a href="Servant.Server.Internal.RouteResult.html#RouteResultT"><span class="hs-identifier hs-var">RouteResultT</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; RouteResult a
+</span><a href="Servant.Server.Internal.RouteResult.html#Route"><span class="hs-identifier hs-var">Route</span></a></span><span>
+</span><span id="line-52"></span><span>    </span><span id="local-6989586621679129900"><span class="annot"><span class="annottext">RouteResultT m a
+</span><a href="#local-6989586621679129900"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span id="local-6989586621679129899"><span class="annot"><span class="annottext">&gt;&gt;= :: forall a b.
+RouteResultT m a -&gt; (a -&gt; RouteResultT m b) -&gt; RouteResultT m b
+</span><span class="hs-operator hs-var hs-var hs-var hs-var">&gt;&gt;=</span></span></span><span> </span><span id="local-6989586621679129898"><span class="annot"><span class="annottext">a -&gt; RouteResultT m b
+</span><a href="#local-6989586621679129898"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. m (RouteResult a) -&gt; RouteResultT m a
+</span><a href="Servant.Server.Internal.RouteResult.html#RouteResultT"><span class="hs-identifier hs-var">RouteResultT</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-53"></span><span>        </span><span id="local-6989586621679129897"><span class="annot"><span class="annottext">RouteResult a
+</span><a href="#local-6989586621679129897"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. RouteResultT m a -&gt; m (RouteResult a)
+</span><a href="Servant.Server.Internal.RouteResult.html#runRouteResultT"><span class="hs-identifier hs-var">runRouteResultT</span></a></span><span> </span><span class="annot"><span class="annottext">RouteResultT m a
+</span><a href="#local-6989586621679129900"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-54"></span><span>        </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">RouteResult a
+</span><a href="#local-6989586621679129897"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-55"></span><span>            </span><span class="annot"><a href="Servant.Server.Internal.RouteResult.html#Fail"><span class="hs-identifier hs-type">Fail</span></a></span><span> </span><span id="local-6989586621679129896"><span class="annot"><span class="annottext">ServerError
+</span><a href="#local-6989586621679129896"><span class="hs-identifier hs-var">e</span></a></span></span><span>      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall a. ServerError -&gt; RouteResult a
+</span><a href="Servant.Server.Internal.RouteResult.html#Fail"><span class="hs-identifier hs-var">Fail</span></a></span><span> </span><span class="annot"><span class="annottext">ServerError
+</span><a href="#local-6989586621679129896"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-56"></span><span>            </span><span class="annot"><a href="Servant.Server.Internal.RouteResult.html#FailFatal"><span class="hs-identifier hs-type">FailFatal</span></a></span><span> </span><span id="local-6989586621679129895"><span class="annot"><span class="annottext">ServerError
+</span><a href="#local-6989586621679129895"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall a. ServerError -&gt; RouteResult a
+</span><a href="Servant.Server.Internal.RouteResult.html#FailFatal"><span class="hs-identifier hs-var">FailFatal</span></a></span><span> </span><span class="annot"><span class="annottext">ServerError
+</span><a href="#local-6989586621679129895"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-57"></span><span>            </span><span class="annot"><a href="Servant.Server.Internal.RouteResult.html#Route"><span class="hs-identifier hs-type">Route</span></a></span><span> </span><span id="local-6989586621679129894"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679129894"><span class="hs-identifier hs-var">b</span></a></span></span><span>     </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. RouteResultT m a -&gt; m (RouteResult a)
+</span><a href="Servant.Server.Internal.RouteResult.html#runRouteResultT"><span class="hs-identifier hs-var">runRouteResultT</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; RouteResultT m b
+</span><a href="#local-6989586621679129898"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679129894"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-58"></span><span>
+</span><span id="line-59"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679130117"><span class="annot"><span class="hs-identifier hs-type">MonadIO</span></span><span> </span><span class="annot"><a href="#local-6989586621679130117"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadIO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Servant.Server.Internal.RouteResult.html#RouteResultT"><span class="hs-identifier hs-type">RouteResultT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679130117"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-60"></span><span>    </span><span id="local-6989586621679129882"><span class="annot"><span class="annottext">liftIO :: forall a. IO a -&gt; RouteResultT m a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">liftIO</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTrans t, Monad m) =&gt;
+m a -&gt; t m a
+</span><span class="hs-identifier hs-var">lift</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><span class="hs-identifier hs-var">liftIO</span></span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679130108"><span id="local-6989586621679130109"><span class="annot"><span class="hs-identifier hs-type">MonadBase</span></span><span> </span><span class="annot"><a href="#local-6989586621679130109"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679130108"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadBase</span></span><span> </span><span class="annot"><a href="#local-6989586621679130109"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Servant.Server.Internal.RouteResult.html#RouteResultT"><span class="hs-identifier hs-type">RouteResultT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679130108"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-63"></span><span>    </span><span id="local-6989586621679129856"><span class="annot"><span class="annottext">liftBase :: forall &#945;. b &#945; -&gt; RouteResultT m &#945;
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">liftBase</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTrans t, Monad m) =&gt;
+m a -&gt; t m a
+</span><span class="hs-identifier hs-var">lift</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall (b :: * -&gt; *) (m :: * -&gt; *) &#945;. MonadBase b m =&gt; b &#945; -&gt; m &#945;
+</span><span class="hs-identifier hs-var">liftBase</span></span><span>
+</span><span id="line-64"></span><span>
+</span><span id="line-65"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679130096"><span id="local-6989586621679130097"><span class="annot"><span class="hs-identifier hs-type">MonadBaseControl</span></span><span> </span><span class="annot"><a href="#local-6989586621679130097"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679130096"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadBaseControl</span></span><span> </span><span class="annot"><a href="#local-6989586621679130097"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Servant.Server.Internal.RouteResult.html#RouteResultT"><span class="hs-identifier hs-type">RouteResultT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679130096"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-66"></span><span>    </span><span class="hs-keyword">type</span><span> </span><span id="StM"><span class="annot"><span class="hs-identifier hs-var">StM</span></span></span><span> </span><span id="local-6989586621679129845"><span id="local-6989586621679130096"><span class="hs-special">(</span><span class="annot"><a href="Servant.Server.Internal.RouteResult.html#RouteResultT"><span class="hs-identifier hs-type">RouteResultT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679130096"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679129845"><span class="hs-identifier hs-type">a</span></a></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ComposeSt</span></span><span> </span><span class="annot"><a href="Servant.Server.Internal.RouteResult.html#RouteResultT"><span class="hs-identifier hs-type">RouteResultT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679130096"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679129845"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-67"></span><span>    </span><span id="local-6989586621679129841"><span class="annot"><span class="annottext">liftBaseWith :: forall a. (RunInBase (RouteResultT m) b -&gt; b a) -&gt; RouteResultT m a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">liftBaseWith</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (t :: (* -&gt; *) -&gt; * -&gt; *) (b :: * -&gt; *) (m :: * -&gt; *) a.
+(MonadTransControl t, MonadBaseControl b m) =&gt;
+(RunInBaseDefault t m b -&gt; b a) -&gt; t m a
+</span><span class="hs-identifier hs-var">defaultLiftBaseWith</span></span><span>
+</span><span id="line-68"></span><span>    </span><span id="local-6989586621679129837"><span class="annot"><span class="annottext">restoreM :: forall a. StM (RouteResultT m) a -&gt; RouteResultT m a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">restoreM</span></span></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (t :: (* -&gt; *) -&gt; * -&gt; *) (b :: * -&gt; *) (m :: * -&gt; *) a.
+(MonadTransControl t, MonadBaseControl b m) =&gt;
+ComposeSt t m a -&gt; t m a
+</span><span class="hs-identifier hs-var">defaultRestoreM</span></span><span>
+</span><span id="line-69"></span><span>
+</span><span id="line-70"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadTransControl</span></span><span> </span><span class="annot"><a href="Servant.Server.Internal.RouteResult.html#RouteResultT"><span class="hs-identifier hs-type">RouteResultT</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-71"></span><span>    </span><span class="hs-keyword">type</span><span> </span><span id="StT"><span class="annot"><span class="hs-identifier hs-var">StT</span></span></span><span> </span><span id="local-6989586621679129830"><span class="annot"><a href="Servant.Server.Internal.RouteResult.html#RouteResultT"><span class="hs-identifier hs-type">RouteResultT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679129830"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Servant.Server.Internal.RouteResult.html#RouteResult"><span class="hs-identifier hs-type">RouteResult</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679129830"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-72"></span><span>    </span><span id="local-6989586621679129826"><span class="annot"><span class="annottext">liftWith :: forall (m :: * -&gt; *) a.
+Monad m =&gt;
+(Run RouteResultT -&gt; m a) -&gt; RouteResultT m a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">liftWith</span></span></span><span> </span><span id="local-6989586621679129824"><span class="annot"><span class="annottext">Run RouteResultT -&gt; m a
+</span><a href="#local-6989586621679129824"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. m (RouteResult a) -&gt; RouteResultT m a
+</span><a href="Servant.Server.Internal.RouteResult.html#RouteResultT"><span class="hs-identifier hs-var">RouteResultT</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a1 r. Monad m =&gt; (a1 -&gt; r) -&gt; m a1 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Run RouteResultT -&gt; m a
+</span><a href="#local-6989586621679129824"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. RouteResultT m a -&gt; m (RouteResult a)
+</span><a href="Servant.Server.Internal.RouteResult.html#runRouteResultT"><span class="hs-identifier hs-var">runRouteResultT</span></a></span><span>
+</span><span id="line-73"></span><span>    </span><span id="local-6989586621679129821"><span class="annot"><span class="annottext">restoreT :: forall (m :: * -&gt; *) a.
+Monad m =&gt;
+m (StT RouteResultT a) -&gt; RouteResultT m a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">restoreT</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. m (RouteResult a) -&gt; RouteResultT m a
+</span><a href="Servant.Server.Internal.RouteResult.html#RouteResultT"><span class="hs-identifier hs-var">RouteResultT</span></a></span><span>
+</span><span id="line-74"></span><span>
+</span><span id="line-75"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679130067"><span class="annot"><span class="hs-identifier hs-type">MonadThrow</span></span><span> </span><span class="annot"><a href="#local-6989586621679130067"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadThrow</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Servant.Server.Internal.RouteResult.html#RouteResultT"><span class="hs-identifier hs-type">RouteResultT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679130067"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-76"></span><span>    </span><span id="local-6989586621679129806"><span class="annot"><span class="annottext">throwM :: forall e a. Exception e =&gt; e -&gt; RouteResultT m a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">throwM</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTrans t, Monad m) =&gt;
+m a -&gt; t m a
+</span><span class="hs-identifier hs-var">lift</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) e a. (MonadThrow m, Exception e) =&gt; e -&gt; m a
+</span><span class="hs-identifier hs-var">throwM</span></span><span>
+</span><span id="line-77"></span></pre></body></html>

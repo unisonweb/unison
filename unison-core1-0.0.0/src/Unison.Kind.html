@@ -1,0 +1,74 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DeriveGeneric #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Unison.Kind</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Prelude</span></span><span>
+</span><span id="line-6"></span><span>
+</span><span id="line-7"></span><span id="local-6989586621679220406"><span id="local-6989586621679220407"></span></span><span class="hs-keyword">data</span><span> </span><span id="Kind"><span class="annot"><a href="Unison.Kind.html#Kind"><span class="hs-identifier hs-var">Kind</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Star"><span class="annot"><a href="Unison.Kind.html#Star"><span class="hs-identifier hs-var">Star</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="Arrow"><span class="annot"><a href="Unison.Kind.html#Arrow"><span class="hs-identifier hs-var">Arrow</span></a></span></span><span> </span><span class="annot"><a href="Unison.Kind.html#Kind"><span class="hs-identifier hs-type">Kind</span></a></span><span> </span><span class="annot"><a href="Unison.Kind.html#Kind"><span class="hs-identifier hs-type">Kind</span></a></span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679220398"><span id="local-6989586621679220402"><span class="annot"><span class="annottext">Kind -&gt; Kind -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: Kind -&gt; Kind -&gt; Bool
+$c/= :: Kind -&gt; Kind -&gt; Bool
+== :: Kind -&gt; Kind -&gt; Bool
+$c== :: Kind -&gt; Kind -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679220374"><span id="local-6989586621679220376"><span id="local-6989586621679220379"><span id="local-6989586621679220382"><span id="local-6989586621679220385"><span id="local-6989586621679220389"><span id="local-6989586621679220393"><span class="annot"><span class="annottext">Eq Kind
+Kind -&gt; Kind -&gt; Bool
+Kind -&gt; Kind -&gt; Ordering
+Kind -&gt; Kind -&gt; Kind
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: Kind -&gt; Kind -&gt; Kind
+$cmin :: Kind -&gt; Kind -&gt; Kind
+max :: Kind -&gt; Kind -&gt; Kind
+$cmax :: Kind -&gt; Kind -&gt; Kind
+&gt;= :: Kind -&gt; Kind -&gt; Bool
+$c&gt;= :: Kind -&gt; Kind -&gt; Bool
+&gt; :: Kind -&gt; Kind -&gt; Bool
+$c&gt; :: Kind -&gt; Kind -&gt; Bool
+&lt;= :: Kind -&gt; Kind -&gt; Bool
+$c&lt;= :: Kind -&gt; Kind -&gt; Bool
+&lt; :: Kind -&gt; Kind -&gt; Bool
+$c&lt; :: Kind -&gt; Kind -&gt; Bool
+compare :: Kind -&gt; Kind -&gt; Ordering
+$ccompare :: Kind -&gt; Kind -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679220356"><span id="local-6989586621679220366"><span id="local-6989586621679220369"><span id="local-6989586621679220371"><span class="annot"><span class="annottext">ReadPrec [Kind]
+ReadPrec Kind
+Int -&gt; ReadS Kind
+ReadS [Kind]
+forall a.
+(Int -&gt; ReadS a)
+-&gt; ReadS [a] -&gt; ReadPrec a -&gt; ReadPrec [a] -&gt; Read a
+readListPrec :: ReadPrec [Kind]
+$creadListPrec :: ReadPrec [Kind]
+readPrec :: ReadPrec Kind
+$creadPrec :: ReadPrec Kind
+readList :: ReadS [Kind]
+$creadList :: ReadS [Kind]
+readsPrec :: Int -&gt; ReadS Kind
+$creadsPrec :: Int -&gt; ReadS Kind
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Read</span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679220344"><span id="local-6989586621679220346"><span id="local-6989586621679220352"><span class="annot"><span class="annottext">Int -&gt; Kind -&gt; ShowS
+[Kind] -&gt; ShowS
+Kind -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [Kind] -&gt; ShowS
+$cshowList :: [Kind] -&gt; ShowS
+show :: Kind -&gt; String
+$cshow :: Kind -&gt; String
+showsPrec :: Int -&gt; Kind -&gt; ShowS
+$cshowsPrec :: Int -&gt; Kind -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall x. Rep Kind x -&gt; Kind
+forall x. Kind -&gt; Rep Kind x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cto :: forall x. Rep Kind x -&gt; Kind
+$cfrom :: forall x. Kind -&gt; Rep Kind x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-8"></span></pre></body></html>

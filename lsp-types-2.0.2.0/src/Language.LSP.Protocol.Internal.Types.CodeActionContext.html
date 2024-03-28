@@ -1,0 +1,172 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- THIS IS A GENERATED FILE, DO NOT EDIT</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-imports #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-matches #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-deprecations #-}</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.CodeActionContext</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Hashable</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html"><span class="hs-identifier">Language.LSP.Protocol.Utils.Misc</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prettyprinter</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Aeson.html"><span class="hs-identifier">Data.Row.Aeson</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Hashable.html"><span class="hs-identifier">Data.Row.Hashable</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Hashable</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.CodeActionKind.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.CodeActionKind</span></a></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.CodeActionTriggerKind.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.CodeActionTriggerKind</span></a></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.Diagnostic.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.Diagnostic</span></a></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html"><span class="hs-identifier">Language.LSP.Protocol.Types.Common</span></a></span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-comment">{-|
+Contains additional diagnostic information about the context in which
+a `CodeActionProvider.provideCodeActions` is run.
+-}</span><span>
+</span><span id="line-25"></span><span id="local-6989586621682228367"><span id="local-6989586621682228368"></span></span><span class="hs-keyword">data</span><span> </span><span id="CodeActionContext"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.CodeActionContext.html#CodeActionContext"><span class="hs-identifier hs-var">CodeActionContext</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="CodeActionContext"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.CodeActionContext.html#CodeActionContext"><span class="hs-identifier hs-var">CodeActionContext</span></a></span></span><span> </span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-special">{</span><span> </span><span class="hs-comment">{-|
+  An array of diagnostics known on the client side overlapping the range provided to the
+  `textDocument/codeAction` request. They are provided so that the server knows which
+  errors are currently presented to the user for the given range. There is no guarantee
+  that these accurately reflect the error state of the resource. The primary parameter
+  to compute code actions is the provided range.
+  -}</span><span>
+</span><span id="line-33"></span><span>  </span><span id="%24sel%3A_diagnostics%3ACodeActionContext"><span class="annot"><span class="annottext">CodeActionContext -&gt; [Diagnostic]
+</span><a href="Language.LSP.Protocol.Internal.Types.CodeActionContext.html#%24sel%3A_diagnostics%3ACodeActionContext"><span class="hs-identifier hs-var hs-var">_diagnostics</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.Diagnostic.html#Diagnostic"><span class="hs-identifier hs-type">Language.LSP.Protocol.Internal.Types.Diagnostic.Diagnostic</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-34"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-comment">{-|
+  Requested kind of actions to return.
+
+  Actions not of this kind are filtered out by the client before being shown. So servers
+  can omit computing them.
+  -}</span><span>
+</span><span id="line-40"></span><span>  </span><span id="%24sel%3A_only%3ACodeActionContext"><span class="annot"><span class="annottext">CodeActionContext -&gt; Maybe [CodeActionKind]
+</span><a href="Language.LSP.Protocol.Internal.Types.CodeActionContext.html#%24sel%3A_only%3ACodeActionContext"><span class="hs-identifier hs-var hs-var">_only</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.CodeActionKind.html#CodeActionKind"><span class="hs-identifier hs-type">Language.LSP.Protocol.Internal.Types.CodeActionKind.CodeActionKind</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-41"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-comment">{-|
+  The reason why code actions were requested.
+
+  @since 3.17.0
+  -}</span><span>
+</span><span id="line-46"></span><span>  </span><span id="%24sel%3A_triggerKind%3ACodeActionContext"><span class="annot"><span class="annottext">CodeActionContext -&gt; Maybe CodeActionTriggerKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CodeActionContext.html#%24sel%3A_triggerKind%3ACodeActionContext"><span class="hs-identifier hs-var hs-var">_triggerKind</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.CodeActionTriggerKind.html#CodeActionTriggerKind"><span class="hs-identifier hs-type">Language.LSP.Protocol.Internal.Types.CodeActionTriggerKind.CodeActionTriggerKind</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-47"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-48"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682228347"><span id="local-6989586621682228349"><span id="local-6989586621682228361"><span class="annot"><span class="annottext">Int -&gt; CodeActionContext -&gt; ShowS
+[CodeActionContext] -&gt; ShowS
+CodeActionContext -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [CodeActionContext] -&gt; ShowS
+$cshowList :: [CodeActionContext] -&gt; ShowS
+show :: CodeActionContext -&gt; String
+$cshow :: CodeActionContext -&gt; String
+showsPrec :: Int -&gt; CodeActionContext -&gt; ShowS
+$cshowsPrec :: Int -&gt; CodeActionContext -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682228330"><span id="local-6989586621682228340"><span class="annot"><span class="annottext">CodeActionContext -&gt; CodeActionContext -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: CodeActionContext -&gt; CodeActionContext -&gt; Bool
+$c/= :: CodeActionContext -&gt; CodeActionContext -&gt; Bool
+== :: CodeActionContext -&gt; CodeActionContext -&gt; Bool
+$c== :: CodeActionContext -&gt; CodeActionContext -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682228292"><span id="local-6989586621682228294"><span id="local-6989586621682228297"><span id="local-6989586621682228300"><span id="local-6989586621682228303"><span id="local-6989586621682228311"><span id="local-6989586621682228321"><span class="annot"><span class="annottext">Eq CodeActionContext
+CodeActionContext -&gt; CodeActionContext -&gt; Bool
+CodeActionContext -&gt; CodeActionContext -&gt; Ordering
+CodeActionContext -&gt; CodeActionContext -&gt; CodeActionContext
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: CodeActionContext -&gt; CodeActionContext -&gt; CodeActionContext
+$cmin :: CodeActionContext -&gt; CodeActionContext -&gt; CodeActionContext
+max :: CodeActionContext -&gt; CodeActionContext -&gt; CodeActionContext
+$cmax :: CodeActionContext -&gt; CodeActionContext -&gt; CodeActionContext
+&gt;= :: CodeActionContext -&gt; CodeActionContext -&gt; Bool
+$c&gt;= :: CodeActionContext -&gt; CodeActionContext -&gt; Bool
+&gt; :: CodeActionContext -&gt; CodeActionContext -&gt; Bool
+$c&gt; :: CodeActionContext -&gt; CodeActionContext -&gt; Bool
+&lt;= :: CodeActionContext -&gt; CodeActionContext -&gt; Bool
+$c&lt;= :: CodeActionContext -&gt; CodeActionContext -&gt; Bool
+&lt; :: CodeActionContext -&gt; CodeActionContext -&gt; Bool
+$c&lt; :: CodeActionContext -&gt; CodeActionContext -&gt; Bool
+compare :: CodeActionContext -&gt; CodeActionContext -&gt; Ordering
+$ccompare :: CodeActionContext -&gt; CodeActionContext -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall x. Rep CodeActionContext x -&gt; CodeActionContext
+forall x. CodeActionContext -&gt; Rep CodeActionContext x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cto :: forall x. Rep CodeActionContext x -&gt; CodeActionContext
+$cfrom :: forall x. CodeActionContext -&gt; Rep CodeActionContext x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-49"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">anyclass</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682228281"><span class="annot"><span class="annottext">CodeActionContext -&gt; ()
+forall a. (a -&gt; ()) -&gt; NFData a
+rnf :: CodeActionContext -&gt; ()
+$crnf :: CodeActionContext -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682228274"><span id="local-6989586621682228276"><span class="annot"><span class="annottext">Eq CodeActionContext
+Int -&gt; CodeActionContext -&gt; Int
+CodeActionContext -&gt; Int
+forall a. Eq a -&gt; (Int -&gt; a -&gt; Int) -&gt; (a -&gt; Int) -&gt; Hashable a
+hash :: CodeActionContext -&gt; Int
+$chash :: CodeActionContext -&gt; Int
+hashWithSalt :: Int -&gt; CodeActionContext -&gt; Int
+$chashWithSalt :: Int -&gt; CodeActionContext -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Hashable</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-50"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621682228265"><span id="local-6989586621682228271"><span class="annot"><span class="annottext">forall ann. [CodeActionContext] -&gt; Doc ann
+forall ann. CodeActionContext -&gt; Doc ann
+forall a.
+(forall ann. a -&gt; Doc ann)
+-&gt; (forall ann. [a] -&gt; Doc ann) -&gt; Pretty a
+prettyList :: forall ann. [CodeActionContext] -&gt; Doc ann
+$cprettyList :: forall ann. [CodeActionContext] -&gt; Doc ann
+pretty :: forall ann. CodeActionContext -&gt; Doc ann
+$cpretty :: forall ann. CodeActionContext -&gt; Doc ann
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Pretty</span></span></span></span><span> </span><span class="hs-keyword">via</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html#ViaJSON"><span class="hs-identifier hs-type">ViaJSON</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.CodeActionContext.html#CodeActionContext"><span class="hs-identifier hs-type">CodeActionContext</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682228253"><span id="local-6989586621682228255"><span id="local-6989586621682228257"><span class="annot"><span class="hs-identifier hs-type">Aeson.ToJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.CodeActionContext.html#CodeActionContext"><span class="hs-identifier hs-type">CodeActionContext</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-53"></span><span>  </span><span id="local-6989586621682228234"><span class="annot"><span class="annottext">toJSON :: CodeActionContext -&gt; Value
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">toJSON</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.CodeActionContext.html#CodeActionContext"><span class="hs-identifier hs-type">CodeActionContext</span></a></span><span> </span><span id="local-6989586621682228232"><span class="annot"><span class="annottext">[Diagnostic]
+</span><a href="#local-6989586621682228232"><span class="hs-identifier hs-var">arg0</span></a></span></span><span> </span><span id="local-6989586621682228231"><span class="annot"><span class="annottext">Maybe [CodeActionKind]
+</span><a href="#local-6989586621682228231"><span class="hs-identifier hs-var">arg1</span></a></span></span><span> </span><span id="local-6989586621682228230"><span class="annot"><span class="annottext">Maybe CodeActionTriggerKind
+</span><a href="#local-6989586621682228230"><span class="hs-identifier hs-var">arg2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">Aeson.object</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">concat</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>  </span><span class="hs-special">[</span><span class="hs-special">[</span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;diagnostics&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">Aeson..=</span></span><span> </span><span class="annot"><span class="annottext">[Diagnostic]
+</span><a href="#local-6989586621682228232"><span class="hs-identifier hs-var">arg0</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-54"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;only&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe [CodeActionKind]
+</span><a href="#local-6989586621682228231"><span class="hs-identifier hs-var">arg1</span></a></span><span>
+</span><span id="line-55"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;triggerKind&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe CodeActionTriggerKind
+</span><a href="#local-6989586621682228230"><span class="hs-identifier hs-var">arg2</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682228223"><span class="annot"><span class="hs-identifier hs-type">Aeson.FromJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.CodeActionContext.html#CodeActionContext"><span class="hs-identifier hs-type">CodeActionContext</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-58"></span><span>  </span><span id="local-6989586621682228204"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser CodeActionContext
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">Aeson.withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;CodeActionContext&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621682228201"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682228201"><span class="hs-identifier hs-var">arg</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Diagnostic]
+-&gt; Maybe [CodeActionKind]
+-&gt; Maybe CodeActionTriggerKind
+-&gt; CodeActionContext
+</span><a href="Language.LSP.Protocol.Internal.Types.CodeActionContext.html#CodeActionContext"><span class="hs-identifier hs-var">CodeActionContext</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682228201"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">Aeson..:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;diagnostics&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682228201"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">Aeson..:!</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;only&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682228201"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">Aeson..:!</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;triggerKind&quot;</span></span><span>
+</span><span id="line-59"></span></pre></body></html>

@@ -1,0 +1,222 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE OverloadedStrings #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- | File finding utiliites for Shelly</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- The basic 'find' takes a dir and gives back a list of files.</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- If you don't just want a list, use the folding variants like 'findFold'.</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- If you want to avoid traversing certain directories, use the directory filtering variants like 'findDirFilter'</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Shelly.Find</span><span>
+</span><span id="line-9"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Shelly.Find.html#find"><span class="hs-identifier">find</span></a></span><span>
+</span><span id="line-10"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Shelly.Find.html#findWhen"><span class="hs-identifier">findWhen</span></a></span><span>
+</span><span id="line-11"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Shelly.Find.html#findFold"><span class="hs-identifier">findFold</span></a></span><span>
+</span><span id="line-12"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Shelly.Find.html#findDirFilter"><span class="hs-identifier">findDirFilter</span></a></span><span>
+</span><span id="line-13"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Shelly.Find.html#findDirFilterWhen"><span class="hs-identifier">findDirFilterWhen</span></a></span><span>
+</span><span id="line-14"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Shelly.Find.html#findFoldDirFilter"><span class="hs-identifier">findFoldDirFilter</span></a></span><span>
+</span><span id="line-15"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Shelly.Base.html"><span class="hs-identifier">Shelly.Base</span></a></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span>                  </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier">foldM</span></span><span> </span><span class="hs-special">)</span><span class="hs-cpp">
+#if !MIN_VERSION_base(4,13,0)
+</span><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data.Monoid</span><span>                    </span><span class="hs-special">(</span><span> </span><span class="hs-identifier">mappend</span><span> </span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">System.PosixCompat.Files</span></span><span>       </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier">getSymbolicLinkStatus</span></span><span>
+</span><span id="line-24"></span><span>                                                </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">isSymbolicLink</span></span><span>
+</span><span id="line-25"></span><span>                                                </span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">System.Directory</span></span><span>               </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier">doesDirectoryExist</span></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="hs-comment">-- | List directory recursively (like the POSIX utility &quot;find&quot;).</span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- listing is relative if the path given is relative.</span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- If you want to filter out some results or fold over them you can do that with the returned files.</span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- A more efficient approach is to use one of the other find functions.</span><span>
+</span><span id="line-32"></span><span class="annot"><a href="Shelly.Find.html#find"><span class="hs-identifier hs-type">find</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Shelly.Base.html#Sh"><span class="hs-identifier hs-type">Sh</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span class="hs-special">]</span><span>
+</span><span id="line-33"></span><span id="find"><span class="annot"><span class="annottext">find :: FilePath -&gt; Sh [FilePath]
+</span><a href="Shelly.Find.html#find"><span class="hs-identifier hs-var hs-var">find</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. (a -&gt; FilePath -&gt; Sh a) -&gt; a -&gt; FilePath -&gt; Sh a
+</span><a href="Shelly.Find.html#findFold"><span class="hs-identifier hs-var">findFold</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679080832"><span class="annot"><span class="annottext">[FilePath]
+</span><a href="#local-6989586621679080832"><span class="hs-identifier hs-var">paths</span></a></span></span><span> </span><span id="local-6989586621679080831"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679080831"><span class="hs-identifier hs-var">fp</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[FilePath]
+</span><a href="#local-6989586621679080832"><span class="hs-identifier hs-var">paths</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679080831"><span class="hs-identifier hs-var">fp</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span class="hs-comment">-- | 'find' that filters the found files as it finds.</span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- Files must satisfy the given filter to be returned in the result.</span><span>
+</span><span id="line-37"></span><span class="annot"><a href="Shelly.Find.html#findWhen"><span class="hs-identifier hs-type">findWhen</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Shelly.Base.html#Sh"><span class="hs-identifier hs-type">Sh</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Shelly.Base.html#Sh"><span class="hs-identifier hs-type">Sh</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span class="hs-special">]</span><span>
+</span><span id="line-38"></span><span id="findWhen"><span class="annot"><span class="annottext">findWhen :: (FilePath -&gt; Sh Bool) -&gt; FilePath -&gt; Sh [FilePath]
+</span><a href="Shelly.Find.html#findWhen"><span class="hs-identifier hs-var hs-var">findWhen</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(FilePath -&gt; Sh Bool)
+-&gt; (FilePath -&gt; Sh Bool) -&gt; FilePath -&gt; Sh [FilePath]
+</span><a href="Shelly.Find.html#findDirFilterWhen"><span class="hs-identifier hs-var">findDirFilterWhen</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span class="hs-special">)</span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- | Fold an arbitrary folding function over files froma a 'find'.</span><span>
+</span><span id="line-41"></span><span class="hs-comment">-- Like 'findWhen' but use a more general fold rather than a filter.</span><span>
+</span><span id="line-42"></span><span id="local-6989586621679080875"><span class="annot"><a href="Shelly.Find.html#findFold"><span class="hs-identifier hs-type">findFold</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679080875"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Shelly.Base.html#Sh"><span class="hs-identifier hs-type">Sh</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679080875"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679080875"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Shelly.Base.html#Sh"><span class="hs-identifier hs-type">Sh</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679080875"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-43"></span><span id="findFold"><span class="annot"><span class="annottext">findFold :: forall a. (a -&gt; FilePath -&gt; Sh a) -&gt; a -&gt; FilePath -&gt; Sh a
+</span><a href="Shelly.Find.html#findFold"><span class="hs-identifier hs-var hs-var">findFold</span></a></span></span><span> </span><span id="local-6989586621679080828"><span class="annot"><span class="annottext">a -&gt; FilePath -&gt; Sh a
+</span><a href="#local-6989586621679080828"><span class="hs-identifier hs-var">folder</span></a></span></span><span> </span><span id="local-6989586621679080827"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679080827"><span class="hs-identifier hs-var">startValue</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-44"></span><span>  </span><span class="annot"><span class="annottext">forall a.
+(a -&gt; FilePath -&gt; Sh a)
+-&gt; a -&gt; (FilePath -&gt; Sh Bool) -&gt; FilePath -&gt; Sh a
+</span><a href="Shelly.Find.html#findFoldDirFilter"><span class="hs-identifier hs-var">findFoldDirFilter</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; FilePath -&gt; Sh a
+</span><a href="#local-6989586621679080828"><span class="hs-identifier hs-var">folder</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679080827"><span class="hs-identifier hs-var">startValue</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span class="hs-special">)</span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span class="hs-comment">-- | 'find' that filters out directories as it finds.</span><span>
+</span><span id="line-47"></span><span class="hs-comment">-- Filtering out directories can make a find much more efficient by avoiding entire trees of files.</span><span>
+</span><span id="line-48"></span><span class="annot"><a href="Shelly.Find.html#findDirFilter"><span class="hs-identifier hs-type">findDirFilter</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Shelly.Base.html#Sh"><span class="hs-identifier hs-type">Sh</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Shelly.Base.html#Sh"><span class="hs-identifier hs-type">Sh</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span class="hs-special">]</span><span>
+</span><span id="line-49"></span><span id="findDirFilter"><span class="annot"><span class="annottext">findDirFilter :: (FilePath -&gt; Sh Bool) -&gt; FilePath -&gt; Sh [FilePath]
+</span><a href="Shelly.Find.html#findDirFilter"><span class="hs-identifier hs-var hs-var">findDirFilter</span></a></span></span><span> </span><span id="local-6989586621679080826"><span class="annot"><span class="annottext">FilePath -&gt; Sh Bool
+</span><a href="#local-6989586621679080826"><span class="hs-identifier hs-var">filt</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(FilePath -&gt; Sh Bool)
+-&gt; (FilePath -&gt; Sh Bool) -&gt; FilePath -&gt; Sh [FilePath]
+</span><a href="Shelly.Find.html#findDirFilterWhen"><span class="hs-identifier hs-var">findDirFilterWhen</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; Sh Bool
+</span><a href="#local-6989586621679080826"><span class="hs-identifier hs-var">filt</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span class="hs-special">)</span><span>
+</span><span id="line-50"></span><span>
+</span><span id="line-51"></span><span class="hs-comment">-- | Similar to 'findWhen', but also filter out directories.</span><span>
+</span><span id="line-52"></span><span class="hs-comment">-- Alternatively, similar to 'findDirFilter', but also filter out files.</span><span>
+</span><span id="line-53"></span><span class="hs-comment">-- Filtering out directories makes the find much more efficient.</span><span>
+</span><span id="line-54"></span><span class="annot"><a href="Shelly.Find.html#findDirFilterWhen"><span class="hs-identifier hs-type">findDirFilterWhen</span></a></span><span>
+</span><span id="line-55"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Shelly.Base.html#Sh"><span class="hs-identifier hs-type">Sh</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span> </span><span class="hs-comment">-- ^ directory filter</span><span>
+</span><span id="line-56"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Shelly.Base.html#Sh"><span class="hs-identifier hs-type">Sh</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span> </span><span class="hs-comment">-- ^ file filter</span><span>
+</span><span id="line-57"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-comment">-- ^ directory</span><span>
+</span><span id="line-58"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Shelly.Base.html#Sh"><span class="hs-identifier hs-type">Sh</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span class="hs-special">]</span><span>
+</span><span id="line-59"></span><span id="findDirFilterWhen"><span class="annot"><span class="annottext">findDirFilterWhen :: (FilePath -&gt; Sh Bool)
+-&gt; (FilePath -&gt; Sh Bool) -&gt; FilePath -&gt; Sh [FilePath]
+</span><a href="Shelly.Find.html#findDirFilterWhen"><span class="hs-identifier hs-var hs-var">findDirFilterWhen</span></a></span></span><span> </span><span id="local-6989586621679080825"><span class="annot"><span class="annottext">FilePath -&gt; Sh Bool
+</span><a href="#local-6989586621679080825"><span class="hs-identifier hs-var">dirFilt</span></a></span></span><span> </span><span id="local-6989586621679080824"><span class="annot"><span class="annottext">FilePath -&gt; Sh Bool
+</span><a href="#local-6989586621679080824"><span class="hs-identifier hs-var">fileFilter</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a.
+(a -&gt; FilePath -&gt; Sh a)
+-&gt; a -&gt; (FilePath -&gt; Sh Bool) -&gt; FilePath -&gt; Sh a
+</span><a href="Shelly.Find.html#findFoldDirFilter"><span class="hs-identifier hs-var">findFoldDirFilter</span></a></span><span> </span><span class="annot"><span class="annottext">[FilePath] -&gt; FilePath -&gt; Sh [FilePath]
+</span><a href="#local-6989586621679080823"><span class="hs-identifier hs-var">filterIt</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; Sh Bool
+</span><a href="#local-6989586621679080825"><span class="hs-identifier hs-var">dirFilt</span></a></span><span>
+</span><span id="line-60"></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-61"></span><span>  </span><span id="local-6989586621679080823"><span class="annot"><span class="annottext">filterIt :: [FilePath] -&gt; FilePath -&gt; Sh [FilePath]
+</span><a href="#local-6989586621679080823"><span class="hs-identifier hs-var hs-var">filterIt</span></a></span></span><span> </span><span id="local-6989586621679080820"><span class="annot"><span class="annottext">[FilePath]
+</span><a href="#local-6989586621679080820"><span class="hs-identifier hs-var">paths</span></a></span></span><span> </span><span id="local-6989586621679080819"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679080819"><span class="hs-identifier hs-var">fp</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-62"></span><span>    </span><span id="local-6989586621679080818"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679080818"><span class="hs-identifier hs-var">yes</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; Sh Bool
+</span><a href="#local-6989586621679080824"><span class="hs-identifier hs-var">fileFilter</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679080819"><span class="hs-identifier hs-var">fp</span></a></span><span>
+</span><span id="line-63"></span><span>    </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679080818"><span class="hs-identifier hs-var">yes</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">[FilePath]
+</span><a href="#local-6989586621679080820"><span class="hs-identifier hs-var">paths</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679080819"><span class="hs-identifier hs-var">fp</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">[FilePath]
+</span><a href="#local-6989586621679080820"><span class="hs-identifier hs-var">paths</span></a></span><span>
+</span><span id="line-64"></span><span>
+</span><span id="line-65"></span><span class="hs-comment">-- | Like 'findDirFilterWhen' but use a folding function rather than a filter.</span><span>
+</span><span id="line-66"></span><span class="hs-comment">-- The most general finder: you likely want a more specific one.</span><span>
+</span><span id="line-67"></span><span id="local-6989586621679080864"><span class="annot"><a href="Shelly.Find.html#findFoldDirFilter"><span class="hs-identifier hs-type">findFoldDirFilter</span></a></span><span>
+</span><span id="line-68"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679080864"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Shelly.Base.html#Sh"><span class="hs-identifier hs-type">Sh</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679080864"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679080864"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Shelly.Base.html#Sh"><span class="hs-identifier hs-type">Sh</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Shelly.Base.html#Sh"><span class="hs-identifier hs-type">Sh</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679080864"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-69"></span><span id="findFoldDirFilter"><span class="annot"><span class="annottext">findFoldDirFilter :: forall a.
+(a -&gt; FilePath -&gt; Sh a)
+-&gt; a -&gt; (FilePath -&gt; Sh Bool) -&gt; FilePath -&gt; Sh a
+</span><a href="Shelly.Find.html#findFoldDirFilter"><span class="hs-identifier hs-var hs-var">findFoldDirFilter</span></a></span></span><span> </span><span id="local-6989586621679080805"><span class="annot"><span class="annottext">a -&gt; FilePath -&gt; Sh a
+</span><a href="#local-6989586621679080805"><span class="hs-identifier hs-var">folder</span></a></span></span><span> </span><span id="local-6989586621679080804"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679080804"><span class="hs-identifier hs-var">startValue</span></a></span></span><span> </span><span id="local-6989586621679080803"><span class="annot"><span class="annottext">FilePath -&gt; Sh Bool
+</span><a href="#local-6989586621679080803"><span class="hs-identifier hs-var">dirFilter</span></a></span></span><span> </span><span id="local-6989586621679080802"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679080802"><span class="hs-identifier hs-var">dir</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-70"></span><span>  </span><span id="local-6989586621679080801"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679080801"><span class="hs-identifier hs-var">absDir</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; Sh FilePath
+</span><a href="Shelly.Base.html#absPath"><span class="hs-identifier hs-var">absPath</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679080802"><span class="hs-identifier hs-var">dir</span></a></span><span>
+</span><span id="line-71"></span><span>  </span><span class="annot"><span class="annottext">Text -&gt; Sh ()
+</span><a href="Shelly.Base.html#trace"><span class="hs-identifier hs-var">trace</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;find &quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a. Monoid a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`mappend`</span></span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; Text
+</span><a href="Shelly.Base.html#toTextIgnore"><span class="hs-identifier hs-var">toTextIgnore</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679080801"><span class="hs-identifier hs-var">absDir</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-72"></span><span>  </span><span id="local-6989586621679080797"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679080797"><span class="hs-identifier hs-var">filt</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; Sh Bool
+</span><a href="#local-6989586621679080803"><span class="hs-identifier hs-var">dirFilter</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679080801"><span class="hs-identifier hs-var">absDir</span></a></span><span>
+</span><span id="line-73"></span><span>  </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679080797"><span class="hs-identifier hs-var">filt</span></a></span><span>
+</span><span id="line-74"></span><span>    </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679080804"><span class="hs-identifier hs-var">startValue</span></a></span><span>
+</span><span id="line-75"></span><span>    </span><span class="hs-comment">-- use possible relative path, not absolute so that listing will remain relative</span><span>
+</span><span id="line-76"></span><span>    </span><span class="hs-keyword">else</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-77"></span><span>      </span><span class="hs-special">(</span><span id="local-6989586621679080795"><span class="annot"><span class="annottext">[FilePath]
+</span><a href="#local-6989586621679080795"><span class="hs-identifier hs-var">rPaths</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679080794"><span class="annot"><span class="annottext">[FilePath]
+</span><a href="#local-6989586621679080794"><span class="hs-identifier hs-var">aPaths</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; Sh ([FilePath], [FilePath])
+</span><a href="Shelly.Base.html#lsRelAbs"><span class="hs-identifier hs-var">lsRelAbs</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679080802"><span class="hs-identifier hs-var">dir</span></a></span><span>
+</span><span id="line-78"></span><span>      </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) (m :: * -&gt; *) b a.
+(Foldable t, Monad m) =&gt;
+(b -&gt; a -&gt; m b) -&gt; b -&gt; t a -&gt; m b
+</span><span class="hs-identifier hs-var">foldM</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; (FilePath, FilePath) -&gt; Sh a
+</span><a href="#local-6989586621679080792"><span class="hs-identifier hs-var">traverse'</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679080804"><span class="hs-identifier hs-var">startValue</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. [a] -&gt; [b] -&gt; [(a, b)]
+</span><span class="hs-identifier hs-var">zip</span></span><span> </span><span class="annot"><span class="annottext">[FilePath]
+</span><a href="#local-6989586621679080795"><span class="hs-identifier hs-var">rPaths</span></a></span><span> </span><span class="annot"><span class="annottext">[FilePath]
+</span><a href="#local-6989586621679080794"><span class="hs-identifier hs-var">aPaths</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-79"></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-80"></span><span>  </span><span id="local-6989586621679080792"><span class="annot"><span class="annottext">traverse' :: a -&gt; (FilePath, FilePath) -&gt; Sh a
+</span><a href="#local-6989586621679080792"><span class="hs-identifier hs-var hs-var">traverse'</span></a></span></span><span> </span><span id="local-6989586621679080779"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679080779"><span class="hs-identifier hs-var">acc</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679080778"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679080778"><span class="hs-identifier hs-var">relativePath</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679080777"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679080777"><span class="hs-identifier hs-var">absolutePath</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-81"></span><span>    </span><span class="hs-comment">-- optimization: don't use Shelly API since our path is already good</span><span>
+</span><span id="line-82"></span><span>    </span><span id="local-6989586621679080776"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679080776"><span class="hs-identifier hs-var">isDir</span></a></span></span><span>  </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><span class="hs-identifier hs-var">liftIO</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; IO Bool
+</span><span class="hs-identifier hs-var">doesDirectoryExist</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679080777"><span class="hs-identifier hs-var">absolutePath</span></a></span><span>
+</span><span id="line-83"></span><span>    </span><span id="local-6989586621679080774"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679080774"><span class="hs-identifier hs-var">sym</span></a></span></span><span>    </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><span class="hs-identifier hs-var">liftIO</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">FileStatus -&gt; Bool
+</span><span class="hs-identifier hs-var">isSymbolicLink</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; IO FileStatus
+</span><span class="hs-identifier hs-var">getSymbolicLinkStatus</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679080777"><span class="hs-identifier hs-var">absolutePath</span></a></span><span>
+</span><span id="line-84"></span><span>    </span><span id="local-6989586621679080773"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679080773"><span class="hs-identifier hs-var">newAcc</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">a -&gt; FilePath -&gt; Sh a
+</span><a href="#local-6989586621679080805"><span class="hs-identifier hs-var">folder</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679080779"><span class="hs-identifier hs-var">acc</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679080778"><span class="hs-identifier hs-var">relativePath</span></a></span><span>
+</span><span id="line-85"></span><span>    </span><span id="local-6989586621679080772"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679080772"><span class="hs-identifier hs-var">follow</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">State -&gt; Bool
+</span><a href="Shelly.Base.html#sFollowSymlink"><span class="hs-identifier hs-var">sFollowSymlink</span></a></span><span> </span><span class="annot"><span class="annottext">Sh State
+</span><a href="Shelly.Base.html#get"><span class="hs-identifier hs-var">get</span></a></span><span>
+</span><span id="line-86"></span><span>    </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679080776"><span class="hs-identifier hs-var">isDir</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679080772"><span class="hs-identifier hs-var">follow</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679080774"><span class="hs-identifier hs-var">sym</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-87"></span><span>      </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">forall a.
+(a -&gt; FilePath -&gt; Sh a)
+-&gt; a -&gt; (FilePath -&gt; Sh Bool) -&gt; FilePath -&gt; Sh a
+</span><a href="Shelly.Find.html#findFoldDirFilter"><span class="hs-identifier hs-var">findFoldDirFilter</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; FilePath -&gt; Sh a
+</span><a href="#local-6989586621679080805"><span class="hs-identifier hs-var">folder</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679080773"><span class="hs-identifier hs-var">newAcc</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; Sh Bool
+</span><a href="#local-6989586621679080803"><span class="hs-identifier hs-var">dirFilter</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679080778"><span class="hs-identifier hs-var">relativePath</span></a></span><span>
+</span><span id="line-88"></span><span>      </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679080773"><span class="hs-identifier hs-var">newAcc</span></a></span><span>
+</span><span id="line-89"></span></pre></body></html>

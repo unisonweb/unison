@@ -1,0 +1,809 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE FlexibleContexts #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE TypeFamilies #-}</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Statistics for per-module compilations</span><span>
+</span><span id="line-6"></span><span class="hs-comment">--</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- (c) The GRASP/AQUA Project, Glasgow University, 1993-1998</span><span>
+</span><span id="line-8"></span><span class="hs-comment">--</span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">GHC.Hs.Stats</span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Hs.Stats.html#ppSourceStats"><span class="hs-identifier">ppSourceStats</span></a></span><span> </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-11"></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Prelude.html"><span class="hs-identifier">GHC.Prelude</span></a></span><span>
+</span><span id="line-13"></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Data.Bag.html"><span class="hs-identifier">GHC.Data.Bag</span></a></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Hs.html"><span class="hs-identifier">GHC.Hs</span></a></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.SrcLoc.html"><span class="hs-identifier">GHC.Types.SrcLoc</span></a></span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html"><span class="hs-identifier">GHC.Utils.Outputable</span></a></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Misc.html"><span class="hs-identifier">GHC.Utils.Misc</span></a></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Panic.html"><span class="hs-identifier">GHC.Utils.Panic</span></a></span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Data-Char.html#"><span class="hs-identifier">Data.Char</span></a></span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- | Source Statistics</span><span>
+</span><span id="line-25"></span><span class="annot"><a href="GHC.Hs.Stats.html#ppSourceStats"><span class="hs-identifier hs-type">ppSourceStats</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Types.SrcLoc.html#Located"><span class="hs-identifier hs-type">Located</span></a></span><span> </span><span class="annot"><a href="GHC.Hs.html#HsModule"><span class="hs-identifier hs-type">HsModule</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#SDoc"><span class="hs-identifier hs-type">SDoc</span></a></span><span>
+</span><span id="line-26"></span><span id="ppSourceStats"><span class="annot"><span class="annottext">ppSourceStats :: Bool -&gt; Located HsModule -&gt; SDoc
+</span><a href="GHC.Hs.Stats.html#ppSourceStats"><span class="hs-identifier hs-var hs-var">ppSourceStats</span></a></span></span><span> </span><span id="local-6989586621681165087"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681165087"><span class="hs-identifier hs-var">short</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.SrcLoc.html#L"><span class="hs-identifier hs-type">L</span></a></span><span> </span><span class="annot"><span class="annottext">SrcSpan
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Hs.html#HsModule"><span class="hs-identifier hs-type">HsModule</span></a></span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">hsmodExports :: HsModule -&gt; Maybe (LocatedL [LIE GhcPs])
+</span><a href="GHC.Hs.html#hsmodExports"><span class="hs-identifier hs-var">hsmodExports</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621681165083"><span class="annot"><span class="annottext">Maybe (LocatedL [LIE GhcPs])
+</span><a href="#local-6989586621681165083"><span class="hs-identifier hs-var">exports</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">hsmodImports :: HsModule -&gt; [LImportDecl GhcPs]
+</span><a href="GHC.Hs.html#hsmodImports"><span class="hs-identifier hs-var">hsmodImports</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621681165081"><span class="annot"><span class="annottext">[LImportDecl GhcPs]
+</span><a href="#local-6989586621681165081"><span class="hs-identifier hs-var">imports</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">hsmodDecls :: HsModule -&gt; [LHsDecl GhcPs]
+</span><a href="GHC.Hs.html#hsmodDecls"><span class="hs-identifier hs-var">hsmodDecls</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621681165079"><span class="annot"><span class="annottext">[LHsDecl GhcPs]
+</span><a href="#local-6989586621681165079"><span class="hs-identifier hs-var">ldecls</span></a></span></span><span> </span><span class="hs-special">}</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681165087"><span class="hs-identifier hs-var">short</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">[SDoc] -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#hcat"><span class="hs-identifier hs-var">hcat</span></a></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">[SDoc] -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#vcat"><span class="hs-identifier hs-var">vcat</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span>        </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#map"><span class="hs-identifier hs-var">map</span></a></span><span> </span><span class="annot"><span class="annottext">(String, Int) -&gt; SDoc
+</span><a href="#local-6989586621681165076"><span class="hs-identifier hs-var">pp_val</span></a></span><span>
+</span><span id="line-29"></span><span>            </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;ExportAll        &quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165075"><span class="hs-identifier hs-var">export_all</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="hs-comment">-- 1 if no export list</span><span>
+</span><span id="line-30"></span><span>             </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;ExportDecls      &quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165074"><span class="hs-identifier hs-var">export_ds</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-31"></span><span>             </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;ExportModules    &quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165073"><span class="hs-identifier hs-var">export_ms</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-32"></span><span>             </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Imports          &quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165072"><span class="hs-identifier hs-var">imp_no</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-33"></span><span>             </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;  ImpSafe        &quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165071"><span class="hs-identifier hs-var">imp_safe</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-34"></span><span>             </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;  ImpQual        &quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165070"><span class="hs-identifier hs-var">imp_qual</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-35"></span><span>             </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;  ImpAs          &quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165069"><span class="hs-identifier hs-var">imp_as</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-36"></span><span>             </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;  ImpAll         &quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165068"><span class="hs-identifier hs-var">imp_all</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-37"></span><span>             </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;  ImpPartial     &quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165067"><span class="hs-identifier hs-var">imp_partial</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-38"></span><span>             </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;  ImpHiding      &quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165066"><span class="hs-identifier hs-var">imp_hiding</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-39"></span><span>             </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;FixityDecls      &quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165065"><span class="hs-identifier hs-var">fixity_sigs</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-40"></span><span>             </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;DefaultDecls     &quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165064"><span class="hs-identifier hs-var">default_ds</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-41"></span><span>             </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;TypeDecls        &quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165063"><span class="hs-identifier hs-var">type_ds</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-42"></span><span>             </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;DataDecls        &quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165062"><span class="hs-identifier hs-var">data_ds</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-43"></span><span>             </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;NewTypeDecls     &quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165061"><span class="hs-identifier hs-var">newt_ds</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-44"></span><span>             </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;TypeFamilyDecls  &quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165060"><span class="hs-identifier hs-var">type_fam_ds</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-45"></span><span>             </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;DataConstrs      &quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165059"><span class="hs-identifier hs-var">data_constrs</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-46"></span><span>             </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;DataDerivings    &quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165058"><span class="hs-identifier hs-var">data_derivs</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-47"></span><span>             </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;ClassDecls       &quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165057"><span class="hs-identifier hs-var">class_ds</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-48"></span><span>             </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;ClassMethods     &quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165056"><span class="hs-identifier hs-var">class_method_ds</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-49"></span><span>             </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;DefaultMethods   &quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165055"><span class="hs-identifier hs-var">default_method_ds</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-50"></span><span>             </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;InstDecls        &quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165054"><span class="hs-identifier hs-var">inst_ds</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-51"></span><span>             </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;InstMethods      &quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165053"><span class="hs-identifier hs-var">inst_method_ds</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-52"></span><span>             </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;InstType         &quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165052"><span class="hs-identifier hs-var">inst_type_ds</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-53"></span><span>             </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;InstData         &quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165051"><span class="hs-identifier hs-var">inst_data_ds</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-54"></span><span>             </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;TypeSigs         &quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165050"><span class="hs-identifier hs-var">bind_tys</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-55"></span><span>             </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;ClassOpSigs      &quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165049"><span class="hs-identifier hs-var">generic_sigs</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-56"></span><span>             </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;ValBinds         &quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165048"><span class="hs-identifier hs-var">val_bind_ds</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-57"></span><span>             </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;FunBinds         &quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165047"><span class="hs-identifier hs-var">fn_bind_ds</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-58"></span><span>             </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;PatSynBinds      &quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165046"><span class="hs-identifier hs-var">patsyn_ds</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-59"></span><span>             </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;InlineMeths      &quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165045"><span class="hs-identifier hs-var">method_inlines</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-60"></span><span>             </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;InlineBinds      &quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165044"><span class="hs-identifier hs-var">bind_inlines</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-61"></span><span>             </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;SpecialisedMeths &quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165043"><span class="hs-identifier hs-var">method_specs</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-62"></span><span>             </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;SpecialisedBinds &quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165042"><span class="hs-identifier hs-var">bind_specs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-63"></span><span>            </span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-64"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-65"></span><span>    </span><span id="local-6989586621681165041"><span class="annot"><span class="annottext">decls :: [HsDecl GhcPs]
+</span><a href="#local-6989586621681165041"><span class="hs-identifier hs-var hs-var">decls</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#map"><span class="hs-identifier hs-var">map</span></a></span><span> </span><span class="annot"><span class="annottext">forall l e. GenLocated l e -&gt; e
+</span><a href="GHC.Types.SrcLoc.html#unLoc"><span class="hs-identifier hs-var">unLoc</span></a></span><span> </span><span class="annot"><span class="annottext">[LHsDecl GhcPs]
+</span><a href="#local-6989586621681165079"><span class="hs-identifier hs-var">ldecls</span></a></span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span>    </span><span id="local-6989586621681165076"><span class="annot"><span class="annottext">pp_val :: (String, Int) -&gt; SDoc
+</span><a href="#local-6989586621681165076"><span class="hs-identifier hs-var hs-var">pp_val</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SDoc
+</span><a href="GHC.Utils.Outputable.html#empty"><span class="hs-identifier hs-var">empty</span></a></span><span>
+</span><span id="line-68"></span><span>    </span><span class="annot"><a href="#local-6989586621681165076"><span class="hs-identifier hs-var">pp_val</span></a></span><span> </span><span class="hs-special">(</span><span id="local-6989586621681165038"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621681165038"><span class="hs-identifier hs-var">str</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681165037"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165037"><span class="hs-identifier hs-var">n</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-69"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681165087"><span class="hs-identifier hs-var">short</span></a></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[SDoc] -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#hcat"><span class="hs-identifier hs-var">hcat</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">String -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621681165038"><span class="hs-identifier hs-var">str</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#int"><span class="hs-identifier hs-var">int</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165037"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-70"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#otherwise"><span class="hs-identifier hs-var">otherwise</span></a></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[SDoc] -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#hcat"><span class="hs-identifier hs-var">hcat</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">String -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; String
+</span><a href="#local-6989586621681165033"><span class="hs-identifier hs-var">trim</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621681165038"><span class="hs-identifier hs-var">str</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">SDoc
+</span><a href="GHC.Utils.Outputable.html#equals"><span class="hs-identifier hs-var">equals</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#int"><span class="hs-identifier hs-var">int</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165037"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">SDoc
+</span><a href="GHC.Utils.Outputable.html#semi"><span class="hs-identifier hs-var">semi</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-71"></span><span>
+</span><span id="line-72"></span><span>    </span><span id="local-6989586621681165033"><span class="annot"><span class="annottext">trim :: String -&gt; String
+</span><a href="#local-6989586621681165033"><span class="hs-identifier hs-var hs-var">trim</span></a></span></span><span> </span><span id="local-6989586621681165030"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621681165030"><span class="hs-identifier hs-var">ls</span></a></span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. (a -&gt; Bool) -&gt; [a] -&gt; [a]
+</span><a href="../../base-4.16.4.0/src/GHC-List.html#takeWhile"><span class="hs-identifier hs-var">takeWhile</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#."><span class="hs-operator hs-var">.</span></a></span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><a href="../../base-4.16.4.0/src/GHC-Unicode.html#isSpace"><span class="hs-identifier hs-var">isSpace</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. (a -&gt; Bool) -&gt; [a] -&gt; [a]
+</span><a href="../../base-4.16.4.0/src/GHC-List.html#dropWhile"><span class="hs-identifier hs-var">dropWhile</span></a></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><a href="../../base-4.16.4.0/src/GHC-Unicode.html#isSpace"><span class="hs-identifier hs-var">isSpace</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621681165030"><span class="hs-identifier hs-var">ls</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-73"></span><span>
+</span><span id="line-74"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621681165065"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165065"><span class="hs-identifier hs-var">fixity_sigs</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681165050"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165050"><span class="hs-identifier hs-var">bind_tys</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681165042"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165042"><span class="hs-identifier hs-var">bind_specs</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681165044"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165044"><span class="hs-identifier hs-var">bind_inlines</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681165049"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165049"><span class="hs-identifier hs-var">generic_sigs</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-75"></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {pass}. [Sig pass] -&gt; (Int, Int, Int, Int, Int)
+</span><a href="#local-6989586621681165025"><span class="hs-identifier hs-var">count_sigs</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Sig GhcPs
+</span><a href="#local-6989586621681165024"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Decls.html#SigD"><span class="hs-identifier hs-type">SigD</span></a></span><span> </span><span class="annot"><span class="annottext">XSigD GhcPs
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681165024"><span class="annot"><span class="annottext">Sig GhcPs
+</span><a href="#local-6989586621681165024"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[HsDecl GhcPs]
+</span><a href="#local-6989586621681165041"><span class="hs-identifier hs-var">decls</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-76"></span><span>                </span><span class="hs-comment">-- NB: this omits fixity decls on local bindings and</span><span>
+</span><span id="line-77"></span><span>                </span><span class="hs-comment">-- in class decls. ToDo</span><span>
+</span><span id="line-78"></span><span>
+</span><span id="line-79"></span><span>    </span><span id="local-6989586621681165022"><span class="annot"><span class="annottext">tycl_decls :: [TyClDecl GhcPs]
+</span><a href="#local-6989586621681165022"><span class="hs-identifier hs-var hs-var">tycl_decls</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">TyClDecl GhcPs
+</span><a href="#local-6989586621681165021"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Decls.html#TyClD"><span class="hs-identifier hs-type">TyClD</span></a></span><span> </span><span class="annot"><span class="annottext">XTyClD GhcPs
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681165021"><span class="annot"><span class="annottext">TyClDecl GhcPs
+</span><a href="#local-6989586621681165021"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[HsDecl GhcPs]
+</span><a href="#local-6989586621681165041"><span class="hs-identifier hs-var">decls</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-80"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621681165057"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165057"><span class="hs-identifier hs-var">class_ds</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681165063"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165063"><span class="hs-identifier hs-var">type_ds</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681165062"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165062"><span class="hs-identifier hs-var">data_ds</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681165061"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165061"><span class="hs-identifier hs-var">newt_ds</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681165060"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165060"><span class="hs-identifier hs-var">type_fam_ds</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-81"></span><span>      </span><span class="annot"><span class="annottext">forall pass. [TyClDecl pass] -&gt; (Int, Int, Int, Int, Int)
+</span><a href="Language.Haskell.Syntax.Decls.html#countTyClDecls"><span class="hs-identifier hs-var">countTyClDecls</span></a></span><span> </span><span class="annot"><span class="annottext">[TyClDecl GhcPs]
+</span><a href="#local-6989586621681165022"><span class="hs-identifier hs-var">tycl_decls</span></a></span><span>
+</span><span id="line-82"></span><span>
+</span><span id="line-83"></span><span>    </span><span id="local-6989586621681165018"><span class="annot"><span class="annottext">inst_decls :: [InstDecl GhcPs]
+</span><a href="#local-6989586621681165018"><span class="hs-identifier hs-var hs-var">inst_decls</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">InstDecl GhcPs
+</span><a href="#local-6989586621681165017"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Decls.html#InstD"><span class="hs-identifier hs-type">InstD</span></a></span><span> </span><span class="annot"><span class="annottext">XInstD GhcPs
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681165017"><span class="annot"><span class="annottext">InstDecl GhcPs
+</span><a href="#local-6989586621681165017"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[HsDecl GhcPs]
+</span><a href="#local-6989586621681165041"><span class="hs-identifier hs-var">decls</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-84"></span><span>    </span><span id="local-6989586621681165054"><span class="annot"><span class="annottext">inst_ds :: Int
+</span><a href="#local-6989586621681165054"><span class="hs-identifier hs-var hs-var">inst_ds</span></a></span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><a href="../../base-4.16.4.0/src/Data-Foldable.html#length"><span class="hs-identifier hs-var">length</span></a></span><span> </span><span class="annot"><span class="annottext">[InstDecl GhcPs]
+</span><a href="#local-6989586621681165018"><span class="hs-identifier hs-var">inst_decls</span></a></span><span>
+</span><span id="line-85"></span><span>    </span><span id="local-6989586621681165064"><span class="annot"><span class="annottext">default_ds :: Int
+</span><a href="#local-6989586621681165064"><span class="hs-identifier hs-var hs-var">default_ds</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. (a -&gt; Bool) -&gt; [a] -&gt; Int
+</span><a href="GHC.Utils.Misc.html#count"><span class="hs-identifier hs-var">count</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621681165013"><span class="annot"><span class="annottext">HsDecl GhcPs
+</span><a href="#local-6989586621681165013"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">HsDecl GhcPs
+</span><a href="#local-6989586621681165013"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="hs-keyword">of</span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Decls.html#DefD"><span class="hs-identifier hs-type">DefD</span></a></span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span class="hs-special">;</span><span> </span><span class="annot"><span class="annottext">HsDecl GhcPs
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[HsDecl GhcPs]
+</span><a href="#local-6989586621681165041"><span class="hs-identifier hs-var">decls</span></a></span><span>
+</span><span id="line-86"></span><span>    </span><span id="local-6989586621681165011"><span class="annot"><span class="annottext">val_decls :: [HsBindLR GhcPs GhcPs]
+</span><a href="#local-6989586621681165011"><span class="hs-identifier hs-var hs-var">val_decls</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">HsBindLR GhcPs GhcPs
+</span><a href="#local-6989586621681165010"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Decls.html#ValD"><span class="hs-identifier hs-type">ValD</span></a></span><span> </span><span class="annot"><span class="annottext">XValD GhcPs
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681165010"><span class="annot"><span class="annottext">HsBindLR GhcPs GhcPs
+</span><a href="#local-6989586621681165010"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[HsDecl GhcPs]
+</span><a href="#local-6989586621681165041"><span class="hs-identifier hs-var">decls</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-87"></span><span>
+</span><span id="line-88"></span><span>    </span><span id="local-6989586621681165008"><span class="annot"><span class="annottext">real_exports :: [GenLocated SrcSpanAnnA (IE GhcPs)]
+</span><a href="#local-6989586621681165008"><span class="hs-identifier hs-var hs-var">real_exports</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Maybe (LocatedL [LIE GhcPs])
+</span><a href="#local-6989586621681165083"><span class="hs-identifier hs-var">exports</span></a></span><span> </span><span class="hs-keyword">of</span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">Maybe (LocatedL [LIE GhcPs])
+</span><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Nothing"><span class="hs-identifier hs-var">Nothing</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">;</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Just"><span class="hs-identifier hs-type">Just</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.SrcLoc.html#L"><span class="hs-identifier hs-type">L</span></a></span><span> </span><span class="annot"><span class="annottext">SrcSpanAnnL
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681165007"><span class="annot"><span class="annottext">[LIE GhcPs]
+</span><a href="#local-6989586621681165007"><span class="hs-identifier hs-var">es</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[LIE GhcPs]
+</span><a href="#local-6989586621681165007"><span class="hs-identifier hs-var">es</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-89"></span><span>    </span><span id="local-6989586621681165006"><span class="annot"><span class="annottext">n_exports :: Int
+</span><a href="#local-6989586621681165006"><span class="hs-identifier hs-var hs-var">n_exports</span></a></span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><a href="../../base-4.16.4.0/src/Data-Foldable.html#length"><span class="hs-identifier hs-var">length</span></a></span><span> </span><span class="annot"><span class="annottext">[GenLocated SrcSpanAnnA (IE GhcPs)]
+</span><a href="#local-6989586621681165008"><span class="hs-identifier hs-var">real_exports</span></a></span><span>
+</span><span id="line-90"></span><span>    </span><span id="local-6989586621681165073"><span class="annot"><span class="annottext">export_ms :: Int
+</span><a href="#local-6989586621681165073"><span class="hs-identifier hs-var hs-var">export_ms</span></a></span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. (a -&gt; Bool) -&gt; [a] -&gt; Int
+</span><a href="GHC.Utils.Misc.html#count"><span class="hs-identifier hs-var">count</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621681165005"><span class="annot"><span class="annottext">GenLocated SrcSpanAnnA (IE GhcPs)
+</span><a href="#local-6989586621681165005"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">forall l e. GenLocated l e -&gt; e
+</span><a href="GHC.Types.SrcLoc.html#unLoc"><span class="hs-identifier hs-var">unLoc</span></a></span><span> </span><span class="annot"><span class="annottext">GenLocated SrcSpanAnnA (IE GhcPs)
+</span><a href="#local-6989586621681165005"><span class="hs-identifier hs-var">e</span></a></span><span> </span><span class="hs-keyword">of</span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><a href="GHC.Hs.ImpExp.html#IEModuleContents"><span class="hs-identifier hs-type">IEModuleContents</span></a></span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-91"></span><span>                                                 </span><span class="hs-special">;</span><span> </span><span class="annot"><span class="annottext">IE GhcPs
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span class="hs-special">}</span><span class="hs-special">)</span><span>
+</span><span id="line-92"></span><span>                         </span><span class="annot"><span class="annottext">[GenLocated SrcSpanAnnA (IE GhcPs)]
+</span><a href="#local-6989586621681165008"><span class="hs-identifier hs-var">real_exports</span></a></span><span>
+</span><span id="line-93"></span><span>    </span><span id="local-6989586621681165074"><span class="annot"><span class="annottext">export_ds :: Int
+</span><a href="#local-6989586621681165074"><span class="hs-identifier hs-var hs-var">export_ds</span></a></span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165006"><span class="hs-identifier hs-var">n_exports</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#-"><span class="hs-glyph hs-var">-</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165073"><span class="hs-identifier hs-var">export_ms</span></a></span><span>
+</span><span id="line-94"></span><span>    </span><span id="local-6989586621681165075"><span class="annot"><span class="annottext">export_all :: Int
+</span><a href="#local-6989586621681165075"><span class="hs-identifier hs-var hs-var">export_all</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Maybe (LocatedL [LIE GhcPs])
+</span><a href="#local-6989586621681165083"><span class="hs-identifier hs-var">exports</span></a></span><span> </span><span class="hs-keyword">of</span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">Maybe (LocatedL [LIE GhcPs])
+</span><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Nothing"><span class="hs-identifier hs-var">Nothing</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">;</span><span> </span><span class="annot"><span class="annottext">Maybe (LocatedL [LIE GhcPs])
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-95"></span><span>
+</span><span id="line-96"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621681165048"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165048"><span class="hs-identifier hs-var">val_bind_ds</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681165047"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165047"><span class="hs-identifier hs-var">fn_bind_ds</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681165046"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165046"><span class="hs-identifier hs-var">patsyn_ds</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-97"></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[(Int, Int, Int)] -&gt; (Int, Int, Int)
+</span><a href="#local-6989586621681165003"><span class="hs-identifier hs-var">sum3</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#map"><span class="hs-identifier hs-var">map</span></a></span><span> </span><span class="annot"><span class="annottext">forall {idL} {l} {a} {b} {c} {idR}.
+(XRec idL (Pat idL) ~ GenLocated l (Pat idL), Num a, Num b, Num c,
+ Outputable (HsBindLR idL idR)) =&gt;
+HsBindLR idL idR -&gt; (a, b, c)
+</span><a href="#local-6989586621681165002"><span class="hs-identifier hs-var">count_bind</span></a></span><span> </span><span class="annot"><span class="annottext">[HsBindLR GhcPs GhcPs]
+</span><a href="#local-6989586621681165011"><span class="hs-identifier hs-var">val_decls</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-98"></span><span>
+</span><span id="line-99"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621681165072"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165072"><span class="hs-identifier hs-var">imp_no</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681165071"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165071"><span class="hs-identifier hs-var">imp_safe</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681165070"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165070"><span class="hs-identifier hs-var">imp_qual</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681165069"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165069"><span class="hs-identifier hs-var">imp_as</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681165068"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165068"><span class="hs-identifier hs-var">imp_all</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681165067"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165067"><span class="hs-identifier hs-var">imp_partial</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681165066"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165066"><span class="hs-identifier hs-var">imp_hiding</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-100"></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[(Int, Int, Int, Int, Int, Int, Int)]
+-&gt; (Int, Int, Int, Int, Int, Int, Int)
+</span><a href="#local-6989586621681165001"><span class="hs-identifier hs-var">sum7</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#map"><span class="hs-identifier hs-var">map</span></a></span><span> </span><span class="annot"><span class="annottext">LImportDecl GhcPs -&gt; (Int, Int, Int, Int, Int, Int, Int)
+</span><a href="#local-6989586621681165000"><span class="hs-identifier hs-var">import_info</span></a></span><span> </span><span class="annot"><span class="annottext">[LImportDecl GhcPs]
+</span><a href="#local-6989586621681165081"><span class="hs-identifier hs-var">imports</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-101"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621681165059"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165059"><span class="hs-identifier hs-var">data_constrs</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681165058"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165058"><span class="hs-identifier hs-var">data_derivs</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-102"></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[(Int, Int)] -&gt; (Int, Int)
+</span><a href="#local-6989586621681164999"><span class="hs-identifier hs-var">sum2</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#map"><span class="hs-identifier hs-var">map</span></a></span><span> </span><span class="annot"><span class="annottext">forall {pass} {t :: * -&gt; *} {a} {l}.
+(XRec pass (DerivClauseTys pass) ~ t a,
+ XRec pass (HsDerivingClause pass)
+ ~ GenLocated l (HsDerivingClause pass),
+ Foldable t) =&gt;
+TyClDecl pass -&gt; (Int, Int)
+</span><a href="#local-6989586621681164998"><span class="hs-identifier hs-var">data_info</span></a></span><span> </span><span class="annot"><span class="annottext">[TyClDecl GhcPs]
+</span><a href="#local-6989586621681165022"><span class="hs-identifier hs-var">tycl_decls</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-103"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621681165056"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165056"><span class="hs-identifier hs-var">class_method_ds</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681165055"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165055"><span class="hs-identifier hs-var">default_method_ds</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-104"></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[(Int, Int)] -&gt; (Int, Int)
+</span><a href="#local-6989586621681164999"><span class="hs-identifier hs-var">sum2</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#map"><span class="hs-identifier hs-var">map</span></a></span><span> </span><span class="annot"><span class="annottext">forall {pass} {l} {l} {l}.
+(XRec pass (HsBindLR pass pass)
+ ~ GenLocated l (HsBindLR pass pass),
+ XRec pass (Sig pass) ~ GenLocated l (Sig pass),
+ XRec pass (Pat pass) ~ GenLocated l (Pat pass),
+ Outputable (HsBindLR pass pass)) =&gt;
+TyClDecl pass -&gt; (Int, Int)
+</span><a href="#local-6989586621681164997"><span class="hs-identifier hs-var">class_info</span></a></span><span> </span><span class="annot"><span class="annottext">[TyClDecl GhcPs]
+</span><a href="#local-6989586621681165022"><span class="hs-identifier hs-var">tycl_decls</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-105"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621681165053"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165053"><span class="hs-identifier hs-var">inst_method_ds</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681165043"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165043"><span class="hs-identifier hs-var">method_specs</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681165045"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165045"><span class="hs-identifier hs-var">method_inlines</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681165052"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165052"><span class="hs-identifier hs-var">inst_type_ds</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681165051"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681165051"><span class="hs-identifier hs-var">inst_data_ds</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-106"></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[(Int, Int, Int, Int, Int)] -&gt; (Int, Int, Int, Int, Int)
+</span><a href="#local-6989586621681164996"><span class="hs-identifier hs-var">sum5</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#map"><span class="hs-identifier hs-var">map</span></a></span><span> </span><span class="annot"><span class="annottext">InstDecl GhcPs -&gt; (Int, Int, Int, Int, Int)
+</span><a href="#local-6989586621681164995"><span class="hs-identifier hs-var">inst_info</span></a></span><span> </span><span class="annot"><span class="annottext">[InstDecl GhcPs]
+</span><a href="#local-6989586621681165018"><span class="hs-identifier hs-var">inst_decls</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-107"></span><span>
+</span><span id="line-108"></span><span>    </span><span id="local-6989586621681165002"><span class="annot"><span class="annottext">count_bind :: HsBindLR idL idR -&gt; (a, b, c)
+</span><a href="#local-6989586621681165002"><span class="hs-identifier hs-var hs-var">count_bind</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Binds.html#PatBind"><span class="hs-identifier hs-type">PatBind</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">pat_lhs :: forall idL idR. HsBindLR idL idR -&gt; LPat idL
+</span><a href="Language.Haskell.Syntax.Binds.html#pat_lhs"><span class="hs-identifier hs-var">pat_lhs</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.Types.SrcLoc.html#L"><span class="hs-identifier hs-type">L</span></a></span><span> </span><span class="annot"><span class="annottext">l
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Pat.html#VarPat"><span class="hs-identifier hs-type">VarPat</span></a></span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">1</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">b
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">c
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span>
+</span><span id="line-109"></span><span>    </span><span class="annot"><a href="#local-6989586621681165002"><span class="hs-identifier hs-var">count_bind</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Binds.html#PatBind"><span class="hs-identifier hs-type">PatBind</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span>                           </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">b
+</span><span class="hs-number">1</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">c
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span>
+</span><span id="line-110"></span><span>    </span><span class="annot"><a href="#local-6989586621681165002"><span class="hs-identifier hs-var">count_bind</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Binds.html#FunBind"><span class="hs-identifier hs-type">FunBind</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span>                           </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">b
+</span><span class="hs-number">1</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">c
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span>
+</span><span id="line-111"></span><span>    </span><span class="annot"><a href="#local-6989586621681165002"><span class="hs-identifier hs-var">count_bind</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Binds.html#PatSynBind"><span class="hs-identifier hs-type">PatSynBind</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span>                        </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">b
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">c
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span>
+</span><span id="line-112"></span><span>    </span><span class="annot"><a href="#local-6989586621681165002"><span class="hs-identifier hs-var">count_bind</span></a></span><span> </span><span id="local-6989586621681164968"><span class="annot"><span class="annottext">HsBindLR idL idR
+</span><a href="#local-6989586621681164968"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. HasCallStack =&gt; String -&gt; SDoc -&gt; a
+</span><a href="GHC.Utils.Panic.html#pprPanic"><span class="hs-identifier hs-var">pprPanic</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;count_bind: Unhandled binder&quot;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">HsBindLR idL idR
+</span><a href="#local-6989586621681164968"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-113"></span><span>
+</span><span id="line-114"></span><span>    </span><span id="local-6989586621681165025"><span class="annot"><span class="annottext">count_sigs :: [Sig pass] -&gt; (Int, Int, Int, Int, Int)
+</span><a href="#local-6989586621681165025"><span class="hs-identifier hs-var hs-var">count_sigs</span></a></span></span><span> </span><span id="local-6989586621681164960"><span class="annot"><span class="annottext">[Sig pass]
+</span><a href="#local-6989586621681164960"><span class="hs-identifier hs-var">sigs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[(Int, Int, Int, Int, Int)] -&gt; (Int, Int, Int, Int, Int)
+</span><a href="#local-6989586621681164996"><span class="hs-identifier hs-var">sum5</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#map"><span class="hs-identifier hs-var">map</span></a></span><span> </span><span class="annot"><span class="annottext">forall {a} {b} {c} {d} {e} {pass}.
+(Num a, Num b, Num c, Num d, Num e) =&gt;
+Sig pass -&gt; (a, b, c, d, e)
+</span><a href="#local-6989586621681164959"><span class="hs-identifier hs-var">sig_info</span></a></span><span> </span><span class="annot"><span class="annottext">[Sig pass]
+</span><a href="#local-6989586621681164960"><span class="hs-identifier hs-var">sigs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-115"></span><span>
+</span><span id="line-116"></span><span>    </span><span id="local-6989586621681164959"><span class="annot"><span class="annottext">sig_info :: Sig pass -&gt; (a, b, c, d, e)
+</span><a href="#local-6989586621681164959"><span class="hs-identifier hs-var hs-var">sig_info</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Binds.html#FixSig"><span class="hs-identifier hs-type">FixSig</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">1</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">b
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">c
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">d
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">e
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span>
+</span><span id="line-117"></span><span>    </span><span class="annot"><a href="#local-6989586621681164959"><span class="hs-identifier hs-var">sig_info</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Binds.html#TypeSig"><span class="hs-identifier hs-type">TypeSig</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">b
+</span><span class="hs-number">1</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">c
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">d
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">e
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span>
+</span><span id="line-118"></span><span>    </span><span class="annot"><a href="#local-6989586621681164959"><span class="hs-identifier hs-var">sig_info</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Binds.html#SpecSig"><span class="hs-identifier hs-type">SpecSig</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">b
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">c
+</span><span class="hs-number">1</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">d
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">e
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span>
+</span><span id="line-119"></span><span>    </span><span class="annot"><a href="#local-6989586621681164959"><span class="hs-identifier hs-var">sig_info</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Binds.html#InlineSig"><span class="hs-identifier hs-type">InlineSig</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">b
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">c
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">d
+</span><span class="hs-number">1</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">e
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span>
+</span><span id="line-120"></span><span>    </span><span class="annot"><a href="#local-6989586621681164959"><span class="hs-identifier hs-var">sig_info</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Binds.html#ClassOpSig"><span class="hs-identifier hs-type">ClassOpSig</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">b
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">c
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">d
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">e
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span>
+</span><span id="line-121"></span><span>    </span><span class="annot"><a href="#local-6989586621681164959"><span class="hs-identifier hs-var">sig_info</span></a></span><span> </span><span class="annot"><span class="annottext">Sig pass
+</span><span class="hs-identifier">_</span></span><span>               </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">b
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">c
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">d
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">e
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span>
+</span><span id="line-122"></span><span>
+</span><span id="line-123"></span><span>    </span><span class="annot"><a href="#local-6989586621681165000"><span class="hs-identifier hs-type">import_info</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Hs.ImpExp.html#LImportDecl"><span class="hs-identifier hs-type">LImportDecl</span></a></span><span> </span><span class="annot"><a href="GHC.Hs.Extension.html#GhcPs"><span class="hs-identifier hs-type">GhcPs</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span>
+</span><span id="line-124"></span><span>    </span><span id="local-6989586621681165000"><span class="annot"><span class="annottext">import_info :: LImportDecl GhcPs -&gt; (Int, Int, Int, Int, Int, Int, Int)
+</span><a href="#local-6989586621681165000"><span class="hs-identifier hs-var hs-var">import_info</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.SrcLoc.html#L"><span class="hs-identifier hs-type">L</span></a></span><span> </span><span class="annot"><span class="annottext">SrcSpanAnnA
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Hs.ImpExp.html#ImportDecl"><span class="hs-identifier hs-type">ImportDecl</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">ideclSafe :: forall pass. ImportDecl pass -&gt; Bool
+</span><a href="GHC.Hs.ImpExp.html#ideclSafe"><span class="hs-identifier hs-var">ideclSafe</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621681164916"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681164916"><span class="hs-keyword hs-var">safe</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ideclQualified :: forall pass. ImportDecl pass -&gt; ImportDeclQualifiedStyle
+</span><a href="GHC.Hs.ImpExp.html#ideclQualified"><span class="hs-identifier hs-var">ideclQualified</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621681164914"><span class="annot"><span class="annottext">ImportDeclQualifiedStyle
+</span><a href="#local-6989586621681164914"><span class="hs-identifier hs-var">qual</span></a></span></span><span>
+</span><span id="line-125"></span><span>                                 </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ideclAs :: forall pass. ImportDecl pass -&gt; Maybe (XRec pass ModuleName)
+</span><a href="GHC.Hs.ImpExp.html#ideclAs"><span class="hs-identifier hs-var">ideclAs</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621681164912"><span class="annot"><span class="annottext">Maybe (XRec GhcPs ModuleName)
+</span><a href="#local-6989586621681164912"><span class="hs-keyword hs-var">as</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ideclHiding :: forall pass. ImportDecl pass -&gt; Maybe (Bool, XRec pass [LIE pass])
+</span><a href="GHC.Hs.ImpExp.html#ideclHiding"><span class="hs-identifier hs-var">ideclHiding</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621681164910"><span class="annot"><span class="annottext">Maybe (Bool, XRec GhcPs [LIE GhcPs])
+</span><a href="#local-6989586621681164910"><span class="hs-identifier hs-var">spec</span></a></span></span><span> </span><span class="hs-special">}</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-126"></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Int, Int, Int, Int, Int, Int, Int)
+-&gt; (Int, Int, Int, Int, Int, Int, Int)
+-&gt; (Int, Int, Int, Int, Int, Int, Int)
+</span><a href="#local-6989586621681164909"><span class="hs-identifier hs-var">add7</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall {a}. Num a =&gt; Bool -&gt; a
+</span><a href="#local-6989586621681164908"><span class="hs-identifier hs-var">safe_info</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681164916"><span class="hs-keyword hs-var">safe</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall {a}. Num a =&gt; ImportDeclQualifiedStyle -&gt; a
+</span><a href="#local-6989586621681164907"><span class="hs-identifier hs-var">qual_info</span></a></span><span> </span><span class="annot"><span class="annottext">ImportDeclQualifiedStyle
+</span><a href="#local-6989586621681164914"><span class="hs-identifier hs-var">qual</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall {a} {a}. Num a =&gt; Maybe a -&gt; a
+</span><a href="#local-6989586621681164906"><span class="hs-identifier hs-var">as_info</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe (XRec GhcPs ModuleName)
+</span><a href="#local-6989586621681164912"><span class="hs-keyword hs-var">as</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall {a} {b} {c} {d} {e} {f} {g} {b}.
+(Num a, Num b, Num c, Num d, Num e, Num f, Num g) =&gt;
+Maybe (Bool, b) -&gt; (a, b, c, d, e, f, g)
+</span><a href="#local-6989586621681164905"><span class="hs-identifier hs-var">spec_info</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe (Bool, XRec GhcPs [LIE GhcPs])
+</span><a href="#local-6989586621681164910"><span class="hs-identifier hs-var">spec</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-127"></span><span>
+</span><span id="line-128"></span><span>    </span><span id="local-6989586621681164908"><span class="annot"><span class="annottext">safe_info :: Bool -&gt; a
+</span><a href="#local-6989586621681164908"><span class="hs-identifier hs-var hs-var">safe_info</span></a></span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-129"></span><span>    </span><span class="annot"><a href="#local-6989586621681164908"><span class="hs-identifier hs-var">safe_info</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-130"></span><span>    </span><span id="local-6989586621681164907"><span class="annot"><span class="annottext">qual_info :: ImportDeclQualifiedStyle -&gt; a
+</span><a href="#local-6989586621681164907"><span class="hs-identifier hs-var hs-var">qual_info</span></a></span></span><span> </span><span class="annot"><span class="annottext">ImportDeclQualifiedStyle
+</span><a href="GHC.Hs.ImpExp.html#NotQualified"><span class="hs-identifier hs-var">NotQualified</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-131"></span><span>    </span><span class="annot"><a href="#local-6989586621681164907"><span class="hs-identifier hs-var">qual_info</span></a></span><span> </span><span class="annot"><span class="annottext">ImportDeclQualifiedStyle
+</span><span class="hs-identifier">_</span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-132"></span><span>    </span><span id="local-6989586621681164906"><span class="annot"><span class="annottext">as_info :: Maybe a -&gt; a
+</span><a href="#local-6989586621681164906"><span class="hs-identifier hs-var hs-var">as_info</span></a></span></span><span> </span><span class="annot"><span class="annottext">Maybe a
+</span><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Nothing"><span class="hs-identifier hs-var">Nothing</span></a></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-133"></span><span>    </span><span class="annot"><a href="#local-6989586621681164906"><span class="hs-identifier hs-var">as_info</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Just"><span class="hs-identifier hs-type">Just</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-134"></span><span>    </span><span id="local-6989586621681164905"><span class="annot"><span class="annottext">spec_info :: Maybe (Bool, b) -&gt; (a, b, c, d, e, f, g)
+</span><a href="#local-6989586621681164905"><span class="hs-identifier hs-var hs-var">spec_info</span></a></span></span><span> </span><span class="annot"><span class="annottext">Maybe (Bool, b)
+</span><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Nothing"><span class="hs-identifier hs-var">Nothing</span></a></span><span>           </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">b
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">c
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">d
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">e
+</span><span class="hs-number">1</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">f
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">g
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span>
+</span><span id="line-135"></span><span>    </span><span class="annot"><a href="#local-6989586621681164905"><span class="hs-identifier hs-var">spec_info</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Just"><span class="hs-identifier hs-type">Just</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">b
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">b
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">c
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">d
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">e
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">f
+</span><span class="hs-number">1</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">g
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span>
+</span><span id="line-136"></span><span>    </span><span class="annot"><a href="#local-6989586621681164905"><span class="hs-identifier hs-var">spec_info</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Just"><span class="hs-identifier hs-type">Just</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">b
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">b
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">c
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">d
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">e
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">f
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">g
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span>
+</span><span id="line-137"></span><span>
+</span><span id="line-138"></span><span>    </span><span id="local-6989586621681164998"><span class="annot"><span class="annottext">data_info :: TyClDecl pass -&gt; (Int, Int)
+</span><a href="#local-6989586621681164998"><span class="hs-identifier hs-var hs-var">data_info</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Decls.html#DataDecl"><span class="hs-identifier hs-type">DataDecl</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">tcdDataDefn :: forall pass. TyClDecl pass -&gt; HsDataDefn pass
+</span><a href="Language.Haskell.Syntax.Decls.html#tcdDataDefn"><span class="hs-identifier hs-var">tcdDataDefn</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Decls.html#HsDataDefn"><span class="hs-identifier hs-type">HsDataDefn</span></a></span><span>
+</span><span id="line-139"></span><span>                                          </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">dd_cons :: forall pass. HsDataDefn pass -&gt; [LConDecl pass]
+</span><a href="Language.Haskell.Syntax.Decls.html#dd_cons"><span class="hs-identifier hs-var">dd_cons</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621681164850"><span class="annot"><span class="annottext">[LConDecl pass]
+</span><a href="#local-6989586621681164850"><span class="hs-identifier hs-var">cs</span></a></span></span><span>
+</span><span id="line-140"></span><span>                                          </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">dd_derivs :: forall pass. HsDataDefn pass -&gt; HsDeriving pass
+</span><a href="Language.Haskell.Syntax.Decls.html#dd_derivs"><span class="hs-identifier hs-var">dd_derivs</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621681164848"><span class="annot"><span class="annottext">HsDeriving pass
+</span><a href="#local-6989586621681164848"><span class="hs-identifier hs-var">derivs</span></a></span></span><span class="hs-special">}</span><span class="hs-special">}</span><span class="hs-special">)</span><span>
+</span><span id="line-141"></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><a href="../../base-4.16.4.0/src/Data-Foldable.html#length"><span class="hs-identifier hs-var">length</span></a></span><span> </span><span class="annot"><span class="annottext">[LConDecl pass]
+</span><a href="#local-6989586621681164850"><span class="hs-identifier hs-var">cs</span></a></span><span>
+</span><span id="line-142"></span><span>          </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) b a.
+Foldable t =&gt;
+(b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><a href="../../base-4.16.4.0/src/Data-Foldable.html#foldl%27"><span class="hs-identifier hs-var">foldl'</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621681164846"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681164846"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span id="local-6989586621681164845"><span class="annot"><span class="annottext">GenLocated l (HsDerivingClause pass)
+</span><a href="#local-6989586621681164845"><span class="hs-identifier hs-var">dc</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><a href="../../base-4.16.4.0/src/Data-Foldable.html#length"><span class="hs-identifier hs-var">length</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall pass. HsDerivingClause pass -&gt; LDerivClauseTys pass
+</span><a href="Language.Haskell.Syntax.Decls.html#deriv_clause_tys"><span class="hs-identifier hs-var">deriv_clause_tys</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">forall l e. GenLocated l e -&gt; e
+</span><a href="GHC.Types.SrcLoc.html#unLoc"><span class="hs-identifier hs-var">unLoc</span></a></span><span> </span><span class="annot"><span class="annottext">GenLocated l (HsDerivingClause pass)
+</span><a href="#local-6989586621681164845"><span class="hs-identifier hs-var">dc</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681164846"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-143"></span><span>                   </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">HsDeriving pass
+</span><a href="#local-6989586621681164848"><span class="hs-identifier hs-var">derivs</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-144"></span><span>    </span><span class="annot"><a href="#local-6989586621681164998"><span class="hs-identifier hs-var">data_info</span></a></span><span> </span><span class="annot"><span class="annottext">TyClDecl pass
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span>
+</span><span id="line-145"></span><span>
+</span><span id="line-146"></span><span>    </span><span id="local-6989586621681164997"><span class="annot"><span class="annottext">class_info :: TyClDecl pass -&gt; (Int, Int)
+</span><a href="#local-6989586621681164997"><span class="hs-identifier hs-var hs-var">class_info</span></a></span></span><span> </span><span id="local-6989586621681164828"><span class="annot"><span class="annottext">decl :: TyClDecl pass
+</span><a href="#local-6989586621681164828"><span class="hs-identifier hs-var">decl</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Decls.html#ClassDecl"><span class="hs-identifier hs-type">ClassDecl</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span>
+</span><span id="line-147"></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681164826"><span class="hs-identifier hs-var">classops</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">(Int, Int, Int) -&gt; Int
+</span><a href="#local-6989586621681164825"><span class="hs-identifier hs-var">addpr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[(Int, Int, Int)] -&gt; (Int, Int, Int)
+</span><a href="#local-6989586621681165003"><span class="hs-identifier hs-var">sum3</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#map"><span class="hs-identifier hs-var">map</span></a></span><span> </span><span class="annot"><span class="annottext">forall {idL} {l} {a} {b} {c} {idR}.
+(XRec idL (Pat idL) ~ GenLocated l (Pat idL), Num a, Num b, Num c,
+ Outputable (HsBindLR idL idR)) =&gt;
+HsBindLR idL idR -&gt; (a, b, c)
+</span><a href="#local-6989586621681165002"><span class="hs-identifier hs-var">count_bind</span></a></span><span> </span><span class="annot"><span class="annottext">[HsBindLR pass pass]
+</span><a href="#local-6989586621681164824"><span class="hs-identifier hs-var">methods</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-148"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-149"></span><span>        </span><span id="local-6989586621681164824"><span class="annot"><span class="annottext">methods :: [HsBindLR pass pass]
+</span><a href="#local-6989586621681164824"><span class="hs-identifier hs-var hs-var">methods</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#map"><span class="hs-identifier hs-var">map</span></a></span><span> </span><span class="annot"><span class="annottext">forall l e. GenLocated l e -&gt; e
+</span><a href="GHC.Types.SrcLoc.html#unLoc"><span class="hs-identifier hs-var">unLoc</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bag a -&gt; [a]
+</span><a href="GHC.Data.Bag.html#bagToList"><span class="hs-identifier hs-var">bagToList</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall pass. TyClDecl pass -&gt; LHsBinds pass
+</span><a href="Language.Haskell.Syntax.Decls.html#tcdMeths"><span class="hs-identifier hs-var">tcdMeths</span></a></span><span> </span><span class="annot"><span class="annottext">TyClDecl pass
+</span><a href="#local-6989586621681164828"><span class="hs-identifier hs-var">decl</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-150"></span><span>        </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681164826"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681164826"><span class="hs-identifier hs-var">classops</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {pass}. [Sig pass] -&gt; (Int, Int, Int, Int, Int)
+</span><a href="#local-6989586621681165025"><span class="hs-identifier hs-var">count_sigs</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#map"><span class="hs-identifier hs-var">map</span></a></span><span> </span><span class="annot"><span class="annottext">forall l e. GenLocated l e -&gt; e
+</span><a href="GHC.Types.SrcLoc.html#unLoc"><span class="hs-identifier hs-var">unLoc</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall pass. TyClDecl pass -&gt; [LSig pass]
+</span><a href="Language.Haskell.Syntax.Decls.html#tcdSigs"><span class="hs-identifier hs-var">tcdSigs</span></a></span><span> </span><span class="annot"><span class="annottext">TyClDecl pass
+</span><a href="#local-6989586621681164828"><span class="hs-identifier hs-var">decl</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-151"></span><span>    </span><span class="annot"><a href="#local-6989586621681164997"><span class="hs-identifier hs-var">class_info</span></a></span><span> </span><span class="annot"><span class="annottext">TyClDecl pass
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span>
+</span><span id="line-152"></span><span>
+</span><span id="line-153"></span><span>    </span><span class="annot"><a href="#local-6989586621681164995"><span class="hs-identifier hs-type">inst_info</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Decls.html#InstDecl"><span class="hs-identifier hs-type">InstDecl</span></a></span><span> </span><span class="annot"><a href="GHC.Hs.Extension.html#GhcPs"><span class="hs-identifier hs-type">GhcPs</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span>
+</span><span id="line-154"></span><span>    </span><span id="local-6989586621681164995"><span class="annot"><span class="annottext">inst_info :: InstDecl GhcPs -&gt; (Int, Int, Int, Int, Int)
+</span><a href="#local-6989586621681164995"><span class="hs-identifier hs-var hs-var">inst_info</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Decls.html#TyFamInstD"><span class="hs-identifier hs-type">TyFamInstD</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span>
+</span><span id="line-155"></span><span>    </span><span class="annot"><a href="#local-6989586621681164995"><span class="hs-identifier hs-var">inst_info</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Decls.html#DataFamInstD"><span class="hs-identifier hs-type">DataFamInstD</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span>
+</span><span id="line-156"></span><span>    </span><span class="annot"><a href="#local-6989586621681164995"><span class="hs-identifier hs-var">inst_info</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Decls.html#ClsInstD"><span class="hs-identifier hs-type">ClsInstD</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">cid_inst :: forall pass. InstDecl pass -&gt; ClsInstDecl pass
+</span><a href="Language.Haskell.Syntax.Decls.html#cid_inst"><span class="hs-identifier hs-var">cid_inst</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Decls.html#ClsInstDecl"><span class="hs-identifier hs-type">ClsInstDecl</span></a></span><span> </span><span class="hs-special">{</span><span class="annot"><span class="annottext">cid_binds :: forall pass. ClsInstDecl pass -&gt; LHsBinds pass
+</span><a href="Language.Haskell.Syntax.Decls.html#cid_binds"><span class="hs-identifier hs-var">cid_binds</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621681164814"><span class="annot"><span class="annottext">LHsBinds GhcPs
+</span><a href="#local-6989586621681164814"><span class="hs-identifier hs-var">inst_meths</span></a></span></span><span>
+</span><span id="line-157"></span><span>                                                 </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">cid_sigs :: forall pass. ClsInstDecl pass -&gt; [LSig pass]
+</span><a href="Language.Haskell.Syntax.Decls.html#cid_sigs"><span class="hs-identifier hs-var">cid_sigs</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621681164812"><span class="annot"><span class="annottext">[XRec GhcPs (Sig GhcPs)]
+</span><a href="#local-6989586621681164812"><span class="hs-identifier hs-var">inst_sigs</span></a></span></span><span>
+</span><span id="line-158"></span><span>                                                 </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">cid_tyfam_insts :: forall pass. ClsInstDecl pass -&gt; [LTyFamInstDecl pass]
+</span><a href="Language.Haskell.Syntax.Decls.html#cid_tyfam_insts"><span class="hs-identifier hs-var">cid_tyfam_insts</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621681164810"><span class="annot"><span class="annottext">[LTyFamInstDecl GhcPs]
+</span><a href="#local-6989586621681164810"><span class="hs-identifier hs-var">ats</span></a></span></span><span>
+</span><span id="line-159"></span><span>                                                 </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">cid_datafam_insts :: forall pass. ClsInstDecl pass -&gt; [LDataFamInstDecl pass]
+</span><a href="Language.Haskell.Syntax.Decls.html#cid_datafam_insts"><span class="hs-identifier hs-var">cid_datafam_insts</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621681164808"><span class="annot"><span class="annottext">[LDataFamInstDecl GhcPs]
+</span><a href="#local-6989586621681164808"><span class="hs-identifier hs-var">adts</span></a></span></span><span> </span><span class="hs-special">}</span><span> </span><span class="hs-special">}</span><span class="hs-special">)</span><span>
+</span><span id="line-160"></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">forall {pass}. [Sig pass] -&gt; (Int, Int, Int, Int, Int)
+</span><a href="#local-6989586621681165025"><span class="hs-identifier hs-var">count_sigs</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#map"><span class="hs-identifier hs-var">map</span></a></span><span> </span><span class="annot"><span class="annottext">forall l e. GenLocated l e -&gt; e
+</span><a href="GHC.Types.SrcLoc.html#unLoc"><span class="hs-identifier hs-var">unLoc</span></a></span><span> </span><span class="annot"><span class="annottext">[XRec GhcPs (Sig GhcPs)]
+</span><a href="#local-6989586621681164812"><span class="hs-identifier hs-var">inst_sigs</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-161"></span><span>            </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span id="local-6989586621681164807"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681164807"><span class="hs-identifier hs-var">ss</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621681164806"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681164806"><span class="hs-identifier hs-var">is</span></a></span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-162"></span><span>                  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Int, Int, Int) -&gt; Int
+</span><a href="#local-6989586621681164825"><span class="hs-identifier hs-var">addpr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[(Int, Int, Int)] -&gt; (Int, Int, Int)
+</span><a href="#local-6989586621681165003"><span class="hs-identifier hs-var">sum3</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#map"><span class="hs-identifier hs-var">map</span></a></span><span> </span><span class="annot"><span class="annottext">forall {idL} {l} {a} {b} {c} {idR}.
+(XRec idL (Pat idL) ~ GenLocated l (Pat idL), Num a, Num b, Num c,
+ Outputable (HsBindLR idL idR)) =&gt;
+HsBindLR idL idR -&gt; (a, b, c)
+</span><a href="#local-6989586621681165002"><span class="hs-identifier hs-var">count_bind</span></a></span><span> </span><span class="annot"><span class="annottext">[HsBindLR GhcPs GhcPs]
+</span><a href="#local-6989586621681164805"><span class="hs-identifier hs-var">methods</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-163"></span><span>                   </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681164807"><span class="hs-identifier hs-var">ss</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681164806"><span class="hs-identifier hs-var">is</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><a href="../../base-4.16.4.0/src/Data-Foldable.html#length"><span class="hs-identifier hs-var">length</span></a></span><span> </span><span class="annot"><span class="annottext">[LTyFamInstDecl GhcPs]
+</span><a href="#local-6989586621681164810"><span class="hs-identifier hs-var">ats</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><a href="../../base-4.16.4.0/src/Data-Foldable.html#length"><span class="hs-identifier hs-var">length</span></a></span><span> </span><span class="annot"><span class="annottext">[LDataFamInstDecl GhcPs]
+</span><a href="#local-6989586621681164808"><span class="hs-identifier hs-var">adts</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-164"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-165"></span><span>        </span><span id="local-6989586621681164805"><span class="annot"><span class="annottext">methods :: [HsBindLR GhcPs GhcPs]
+</span><a href="#local-6989586621681164805"><span class="hs-identifier hs-var hs-var">methods</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#map"><span class="hs-identifier hs-var">map</span></a></span><span> </span><span class="annot"><span class="annottext">forall l e. GenLocated l e -&gt; e
+</span><a href="GHC.Types.SrcLoc.html#unLoc"><span class="hs-identifier hs-var">unLoc</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bag a -&gt; [a]
+</span><a href="GHC.Data.Bag.html#bagToList"><span class="hs-identifier hs-var">bagToList</span></a></span><span> </span><span class="annot"><span class="annottext">LHsBinds GhcPs
+</span><a href="#local-6989586621681164814"><span class="hs-identifier hs-var">inst_meths</span></a></span><span>
+</span><span id="line-166"></span><span>
+</span><span id="line-167"></span><span>    </span><span class="hs-comment">-- TODO: use Sum monoid</span><span>
+</span><span id="line-168"></span><span>    </span><span class="annot"><a href="#local-6989586621681164825"><span class="hs-identifier hs-type">addpr</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-169"></span><span>    </span><span class="annot"><a href="#local-6989586621681164999"><span class="hs-identifier hs-type">sum2</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span>
+</span><span id="line-170"></span><span>    </span><span class="annot"><a href="#local-6989586621681165003"><span class="hs-identifier hs-type">sum3</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span>
+</span><span id="line-171"></span><span>    </span><span class="annot"><a href="#local-6989586621681164996"><span class="hs-identifier hs-type">sum5</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span>
+</span><span id="line-172"></span><span>    </span><span class="annot"><a href="#local-6989586621681165001"><span class="hs-identifier hs-type">sum7</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span>
+</span><span id="line-173"></span><span>    </span><span class="annot"><a href="#local-6989586621681164909"><span class="hs-identifier hs-type">add7</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span>
+</span><span id="line-174"></span><span>         </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span>
+</span><span id="line-175"></span><span>
+</span><span id="line-176"></span><span>    </span><span id="local-6989586621681164825"><span class="annot"><span class="annottext">addpr :: (Int, Int, Int) -&gt; Int
+</span><a href="#local-6989586621681164825"><span class="hs-identifier hs-var hs-var">addpr</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621681164804"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681164804"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621681164803"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681164803"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621681164802"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681164802"><span class="hs-identifier hs-var">z</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681164804"><span class="hs-identifier hs-var">x</span></a></span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681164803"><span class="hs-identifier hs-var">y</span></a></span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681164802"><span class="hs-identifier hs-var">z</span></a></span><span>
+</span><span id="line-177"></span><span>    </span><span id="local-6989586621681164999"><span class="annot"><span class="annottext">sum2 :: [(Int, Int)] -&gt; (Int, Int)
+</span><a href="#local-6989586621681164999"><span class="hs-identifier hs-var hs-var">sum2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a b.
+Foldable t =&gt;
+(a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><a href="../../base-4.16.4.0/src/Data-Foldable.html#foldr"><span class="hs-identifier hs-var">foldr</span></a></span><span> </span><span class="annot"><span class="annottext">forall {a} {b}. (Num a, Num b) =&gt; (a, b) -&gt; (a, b) -&gt; (a, b)
+</span><a href="#local-6989586621681164800"><span class="hs-identifier hs-var">add2</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span>
+</span><span id="line-178"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-179"></span><span>        </span><span id="local-6989586621681164800"><span class="annot"><span class="annottext">add2 :: (a, b) -&gt; (a, b) -&gt; (a, b)
+</span><a href="#local-6989586621681164800"><span class="hs-identifier hs-var hs-var">add2</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621681164795"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681164795"><span class="hs-identifier hs-var">x1</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621681164794"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621681164794"><span class="hs-identifier hs-var">x2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681164793"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681164793"><span class="hs-identifier hs-var">y1</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621681164792"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621681164792"><span class="hs-identifier hs-var">y2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681164795"><span class="hs-identifier hs-var">x1</span></a></span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681164793"><span class="hs-identifier hs-var">y1</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621681164794"><span class="hs-identifier hs-var">x2</span></a></span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621681164792"><span class="hs-identifier hs-var">y2</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-180"></span><span>    </span><span id="local-6989586621681165003"><span class="annot"><span class="annottext">sum3 :: [(Int, Int, Int)] -&gt; (Int, Int, Int)
+</span><a href="#local-6989586621681165003"><span class="hs-identifier hs-var hs-var">sum3</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a b.
+Foldable t =&gt;
+(a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><a href="../../base-4.16.4.0/src/Data-Foldable.html#foldr"><span class="hs-identifier hs-var">foldr</span></a></span><span> </span><span class="annot"><span class="annottext">forall {a} {b} {c}.
+(Num a, Num b, Num c) =&gt;
+(a, b, c) -&gt; (a, b, c) -&gt; (a, b, c)
+</span><a href="#local-6989586621681164791"><span class="hs-identifier hs-var">add3</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span>
+</span><span id="line-181"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-182"></span><span>        </span><span id="local-6989586621681164791"><span class="annot"><span class="annottext">add3 :: (a, b, c) -&gt; (a, b, c) -&gt; (a, b, c)
+</span><a href="#local-6989586621681164791"><span class="hs-identifier hs-var hs-var">add3</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621681164784"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681164784"><span class="hs-identifier hs-var">x1</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621681164783"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621681164783"><span class="hs-identifier hs-var">x2</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621681164782"><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621681164782"><span class="hs-identifier hs-var">x3</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681164781"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681164781"><span class="hs-identifier hs-var">y1</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621681164780"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621681164780"><span class="hs-identifier hs-var">y2</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621681164779"><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621681164779"><span class="hs-identifier hs-var">y3</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681164784"><span class="hs-identifier hs-var">x1</span></a></span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681164781"><span class="hs-identifier hs-var">y1</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621681164783"><span class="hs-identifier hs-var">x2</span></a></span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621681164780"><span class="hs-identifier hs-var">y2</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621681164782"><span class="hs-identifier hs-var">x3</span></a></span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621681164779"><span class="hs-identifier hs-var">y3</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-183"></span><span>    </span><span id="local-6989586621681164996"><span class="annot"><span class="annottext">sum5 :: [(Int, Int, Int, Int, Int)] -&gt; (Int, Int, Int, Int, Int)
+</span><a href="#local-6989586621681164996"><span class="hs-identifier hs-var hs-var">sum5</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a b.
+Foldable t =&gt;
+(a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><a href="../../base-4.16.4.0/src/Data-Foldable.html#foldr"><span class="hs-identifier hs-var">foldr</span></a></span><span> </span><span class="annot"><span class="annottext">forall {a} {b} {c} {d} {e}.
+(Num a, Num b, Num c, Num d, Num e) =&gt;
+(a, b, c, d, e) -&gt; (a, b, c, d, e) -&gt; (a, b, c, d, e)
+</span><a href="#local-6989586621681164778"><span class="hs-identifier hs-var">add5</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span>
+</span><span id="line-184"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-185"></span><span>        </span><span id="local-6989586621681164778"><span class="annot"><span class="annottext">add5 :: (a, b, c, d, e) -&gt; (a, b, c, d, e) -&gt; (a, b, c, d, e)
+</span><a href="#local-6989586621681164778"><span class="hs-identifier hs-var hs-var">add5</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621681164767"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681164767"><span class="hs-identifier hs-var">x1</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621681164766"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621681164766"><span class="hs-identifier hs-var">x2</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621681164765"><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621681164765"><span class="hs-identifier hs-var">x3</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621681164764"><span class="annot"><span class="annottext">d
+</span><a href="#local-6989586621681164764"><span class="hs-identifier hs-var">x4</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621681164763"><span class="annot"><span class="annottext">e
+</span><a href="#local-6989586621681164763"><span class="hs-identifier hs-var">x5</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681164762"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681164762"><span class="hs-identifier hs-var">y1</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621681164761"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621681164761"><span class="hs-identifier hs-var">y2</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621681164760"><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621681164760"><span class="hs-identifier hs-var">y3</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621681164759"><span class="annot"><span class="annottext">d
+</span><a href="#local-6989586621681164759"><span class="hs-identifier hs-var">y4</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621681164758"><span class="annot"><span class="annottext">e
+</span><a href="#local-6989586621681164758"><span class="hs-identifier hs-var">y5</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681164767"><span class="hs-identifier hs-var">x1</span></a></span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681164762"><span class="hs-identifier hs-var">y1</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621681164766"><span class="hs-identifier hs-var">x2</span></a></span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621681164761"><span class="hs-identifier hs-var">y2</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621681164765"><span class="hs-identifier hs-var">x3</span></a></span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621681164760"><span class="hs-identifier hs-var">y3</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">d
+</span><a href="#local-6989586621681164764"><span class="hs-identifier hs-var">x4</span></a></span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span class="annot"><span class="annottext">d
+</span><a href="#local-6989586621681164759"><span class="hs-identifier hs-var">y4</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">e
+</span><a href="#local-6989586621681164763"><span class="hs-identifier hs-var">x5</span></a></span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span class="annot"><span class="annottext">e
+</span><a href="#local-6989586621681164758"><span class="hs-identifier hs-var">y5</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-186"></span><span>    </span><span id="local-6989586621681165001"><span class="annot"><span class="annottext">sum7 :: [(Int, Int, Int, Int, Int, Int, Int)]
+-&gt; (Int, Int, Int, Int, Int, Int, Int)
+</span><a href="#local-6989586621681165001"><span class="hs-identifier hs-var hs-var">sum7</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a b.
+Foldable t =&gt;
+(a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><a href="../../base-4.16.4.0/src/Data-Foldable.html#foldr"><span class="hs-identifier hs-var">foldr</span></a></span><span> </span><span class="annot"><span class="annottext">(Int, Int, Int, Int, Int, Int, Int)
+-&gt; (Int, Int, Int, Int, Int, Int, Int)
+-&gt; (Int, Int, Int, Int, Int, Int, Int)
+</span><a href="#local-6989586621681164909"><span class="hs-identifier hs-var">add7</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span>
+</span><span id="line-187"></span><span>
+</span><span id="line-188"></span><span>    </span><span id="local-6989586621681164909"><span class="annot"><span class="annottext">add7 :: (Int, Int, Int, Int, Int, Int, Int)
+-&gt; (Int, Int, Int, Int, Int, Int, Int)
+-&gt; (Int, Int, Int, Int, Int, Int, Int)
+</span><a href="#local-6989586621681164909"><span class="hs-identifier hs-var hs-var">add7</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621681164757"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681164757"><span class="hs-identifier hs-var">x1</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621681164756"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681164756"><span class="hs-identifier hs-var">x2</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621681164755"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681164755"><span class="hs-identifier hs-var">x3</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621681164754"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681164754"><span class="hs-identifier hs-var">x4</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621681164753"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681164753"><span class="hs-identifier hs-var">x5</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621681164752"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681164752"><span class="hs-identifier hs-var">x6</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621681164751"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681164751"><span class="hs-identifier hs-var">x7</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681164750"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681164750"><span class="hs-identifier hs-var">y1</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621681164749"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681164749"><span class="hs-identifier hs-var">y2</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621681164748"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681164748"><span class="hs-identifier hs-var">y3</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621681164747"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681164747"><span class="hs-identifier hs-var">y4</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621681164746"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681164746"><span class="hs-identifier hs-var">y5</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621681164745"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681164745"><span class="hs-identifier hs-var">y6</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621681164744"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681164744"><span class="hs-identifier hs-var">y7</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681164757"><span class="hs-identifier hs-var">x1</span></a></span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681164750"><span class="hs-identifier hs-var">y1</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681164756"><span class="hs-identifier hs-var">x2</span></a></span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681164749"><span class="hs-identifier hs-var">y2</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681164755"><span class="hs-identifier hs-var">x3</span></a></span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681164748"><span class="hs-identifier hs-var">y3</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681164754"><span class="hs-identifier hs-var">x4</span></a></span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681164747"><span class="hs-identifier hs-var">y4</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681164753"><span class="hs-identifier hs-var">x5</span></a></span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681164746"><span class="hs-identifier hs-var">y5</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681164752"><span class="hs-identifier hs-var">x6</span></a></span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681164745"><span class="hs-identifier hs-var">y6</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681164751"><span class="hs-identifier hs-var">x7</span></a></span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681164744"><span class="hs-identifier hs-var">y7</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-189"></span></pre></body></html>

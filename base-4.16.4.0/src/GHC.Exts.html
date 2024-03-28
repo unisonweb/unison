@@ -1,0 +1,675 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span id="local-6989586621679640536"><span id="local-6989586621679640537"><span id="local-6989586621679640538"></span></span></span><span class="hs-pragma">{-# LANGUAGE FlexibleInstances #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE MagicHash #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE MultiParamTypeClasses #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE NoImplicitPrelude #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LANGUAGE TypeFamilies #-}</span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# LANGUAGE UnboxedTuples #-}</span><span>
+</span><span id="line-7"></span><span class="hs-pragma">{-# LANGUAGE Unsafe #-}</span><span>
+</span><span id="line-8"></span><span class="hs-pragma">{-# LANGUAGE DeriveDataTypeable #-}</span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- Module      :  GHC.Exts</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- Copyright   :  (c) The University of Glasgow 2002</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- License     :  see libraries/base/LICENSE</span><span>
+</span><span id="line-15"></span><span class="hs-comment">--</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- Maintainer  :  cvs-ghc@haskell.org</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- Stability   :  internal</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- Portability :  non-portable (GHC Extensions)</span><span>
+</span><span id="line-19"></span><span class="hs-comment">--</span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- GHC Extensions: this is the Approved Way to get at GHC-specific extensions.</span><span>
+</span><span id="line-21"></span><span class="hs-comment">--</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- Note: no other base module should import this module.</span><span>
+</span><span id="line-23"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">GHC.Exts</span><span>
+</span><span id="line-26"></span><span>       </span><span class="hs-special">(</span><span>
+</span><span id="line-27"></span><span>        </span><span class="annot"><span class="hs-comment">-- * Representations of some basic types</span></span><span>
+</span><span id="line-28"></span><span>        </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#Int"><span class="hs-identifier">Int</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#Word"><span class="hs-identifier">Word</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#Float"><span class="hs-identifier">Float</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#Double"><span class="hs-identifier">Double</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-29"></span><span>        </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#Char"><span class="hs-identifier">Char</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-30"></span><span>        </span><span class="annot"><a href="GHC.Ptr.html#Ptr"><span class="hs-identifier">Ptr</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Ptr.html#FunPtr"><span class="hs-identifier">FunPtr</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span>        </span><span class="annot"><span class="hs-comment">-- * The maximum tuple size</span></span><span>
+</span><span id="line-33"></span><span>        </span><span class="annot"><a href="GHC.Exts.html#maxTupleSize"><span class="hs-identifier">maxTupleSize</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span>        </span><span class="annot"><span class="hs-comment">-- * Primitive operations</span></span><span>
+</span><span id="line-36"></span><span>        </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#FUN"><span class="hs-identifier">FUN</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-comment">-- See https://gitlab.haskell.org/ghc/ghc/issues/18302</span><span>
+</span><span id="line-37"></span><span>        </span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#"><span class="hs-identifier">GHC.Prim</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-38"></span><span>        </span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Prim-Ext.html#"><span class="hs-identifier">GHC.Prim.Ext</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-39"></span><span>        </span><span class="annot"><a href="GHC.Base.html#shiftL%23"><span class="hs-identifier">shiftL#</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Base.html#shiftRL%23"><span class="hs-identifier">shiftRL#</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Base.html#iShiftL%23"><span class="hs-identifier">iShiftL#</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Base.html#iShiftRA%23"><span class="hs-identifier">iShiftRA#</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Base.html#iShiftRL%23"><span class="hs-identifier">iShiftRL#</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-40"></span><span>        </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#isTrue%23"><span class="hs-identifier">isTrue#</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-41"></span><span>        </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#Void%23"><span class="hs-identifier">Void#</span></a></span><span class="hs-special">,</span><span>  </span><span class="hs-comment">-- Previously exported by GHC.Prim</span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span>        </span><span class="annot"><span class="hs-comment">-- * Compat wrapper</span></span><span>
+</span><span id="line-44"></span><span>        </span><span class="annot"><a href="GHC.Exts.html#atomicModifyMutVar%23"><span class="hs-identifier">atomicModifyMutVar#</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span>        </span><span class="annot"><span class="hs-comment">-- * Resize functions</span></span><span>
+</span><span id="line-47"></span><span>        </span><span class="hs-comment">--</span><span>
+</span><span id="line-48"></span><span>        </span><span class="hs-comment">-- | Resizing arrays of boxed elements is currently handled in</span><span>
+</span><span id="line-49"></span><span>        </span><span class="hs-comment">-- library space (rather than being a primop) since there is not</span><span>
+</span><span id="line-50"></span><span>        </span><span class="hs-comment">-- an efficient way to grow arrays. However, resize operations</span><span>
+</span><span id="line-51"></span><span>        </span><span class="hs-comment">-- may become primops in a future release of GHC.</span><span>
+</span><span id="line-52"></span><span>        </span><span class="annot"><a href="GHC.Exts.html#resizeSmallMutableArray%23"><span class="hs-identifier">resizeSmallMutableArray#</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-53"></span><span>
+</span><span id="line-54"></span><span>        </span><span class="annot"><span class="hs-comment">-- * Fusion</span></span><span>
+</span><span id="line-55"></span><span>        </span><span class="annot"><a href="GHC.Base.html#build"><span class="hs-identifier">build</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Base.html#augment"><span class="hs-identifier">augment</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span>        </span><span class="annot"><span class="hs-comment">-- * Overloaded string literals</span></span><span>
+</span><span id="line-58"></span><span>        </span><span class="annot"><a href="Data.String.html#IsString"><span class="hs-identifier">IsString</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span>        </span><span class="annot"><span class="hs-comment">-- * CString</span></span><span>
+</span><span id="line-61"></span><span>        </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-CString.html#unpackCString%23"><span class="hs-identifier">unpackCString#</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-62"></span><span>        </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-CString.html#unpackAppendCString%23"><span class="hs-identifier">unpackAppendCString#</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-63"></span><span>        </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-CString.html#unpackFoldrCString%23"><span class="hs-identifier">unpackFoldrCString#</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-64"></span><span>        </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-CString.html#unpackCStringUtf8%23"><span class="hs-identifier">unpackCStringUtf8#</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-65"></span><span>        </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-CString.html#unpackNBytes%23"><span class="hs-identifier">unpackNBytes#</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-66"></span><span>        </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-CString.html#cstringLength%23"><span class="hs-identifier">cstringLength#</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-67"></span><span>
+</span><span id="line-68"></span><span>        </span><span class="annot"><span class="hs-comment">-- * Debugging</span></span><span>
+</span><span id="line-69"></span><span>        </span><span class="annot"><a href="GHC.Base.html#breakpoint"><span class="hs-identifier">breakpoint</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Base.html#breakpointCond"><span class="hs-identifier">breakpointCond</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-70"></span><span>
+</span><span id="line-71"></span><span>        </span><span class="annot"><span class="hs-comment">-- * Ids with special behaviour</span></span><span>
+</span><span id="line-72"></span><span>        </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Magic.html#inline"><span class="hs-identifier">inline</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Magic.html#noinline"><span class="hs-identifier">noinline</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Magic.html#lazy"><span class="hs-identifier">lazy</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Magic.html#oneShot"><span class="hs-identifier">oneShot</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Exts.html#considerAccessible"><span class="hs-identifier">considerAccessible</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#SPEC"><span class="hs-identifier">SPEC</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-73"></span><span>
+</span><span id="line-74"></span><span>        </span><span class="annot"><span class="hs-comment">-- * Running 'RealWorld' state thread</span></span><span>
+</span><span id="line-75"></span><span>        </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Magic.html#runRW%23"><span class="hs-identifier">runRW#</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-76"></span><span>
+</span><span id="line-77"></span><span>        </span><span class="annot"><span class="hs-comment">-- * Safe coercions</span></span><span>
+</span><span id="line-78"></span><span>        </span><span class="hs-comment">--</span><span>
+</span><span id="line-79"></span><span>        </span><span class="hs-comment">-- | These are available from the /Trustworthy/ module &quot;Data.Coerce&quot; as well</span><span>
+</span><span id="line-80"></span><span>        </span><span class="hs-comment">--</span><span>
+</span><span id="line-81"></span><span>        </span><span class="hs-comment">-- @since 4.7.0.0</span><span>
+</span><span id="line-82"></span><span>        </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#coerce"><span class="hs-identifier">Data.Coerce.coerce</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#Coercible"><span class="hs-identifier">Data.Coerce.Coercible</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-83"></span><span>
+</span><span id="line-84"></span><span>        </span><span class="annot"><span class="hs-comment">-- * Very unsafe coercion</span></span><span>
+</span><span id="line-85"></span><span>        </span><span class="annot"><a href="Unsafe.Coerce.html#unsafeCoerce%23"><span class="hs-identifier">unsafeCoerce#</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-86"></span><span>
+</span><span id="line-87"></span><span>        </span><span class="annot"><span class="hs-comment">-- * Equality</span></span><span>
+</span><span id="line-88"></span><span>        </span><span class="hs-keyword">type</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#~~"><span class="hs-operator">(~~)</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-89"></span><span>
+</span><span id="line-90"></span><span>        </span><span class="annot"><span class="hs-comment">-- * Representation polymorphism</span></span><span>
+</span><span id="line-91"></span><span>        </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#TYPE"><span class="hs-identifier">GHC.Prim.TYPE</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#RuntimeRep"><span class="hs-identifier">RuntimeRep</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#Levity"><span class="hs-identifier">Levity</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-92"></span><span>        </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#LiftedRep"><span class="hs-identifier">LiftedRep</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#UnliftedRep"><span class="hs-identifier">UnliftedRep</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#UnliftedType"><span class="hs-identifier">UnliftedType</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-93"></span><span>        </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#VecCount"><span class="hs-identifier">VecCount</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#VecElem"><span class="hs-identifier">VecElem</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-94"></span><span>
+</span><span id="line-95"></span><span>        </span><span class="annot"><span class="hs-comment">-- * Transform comprehensions</span></span><span>
+</span><span id="line-96"></span><span>        </span><span class="annot"><a href="Data.Ord.html#Down"><span class="hs-identifier">Down</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Exts.html#groupWith"><span class="hs-identifier">groupWith</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Exts.html#sortWith"><span class="hs-identifier">sortWith</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Exts.html#the"><span class="hs-identifier">the</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-97"></span><span>
+</span><span id="line-98"></span><span>        </span><span class="annot"><span class="hs-comment">-- * Event logging</span></span><span>
+</span><span id="line-99"></span><span>        </span><span class="annot"><a href="GHC.Exts.html#traceEvent"><span class="hs-identifier">traceEvent</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-100"></span><span>
+</span><span id="line-101"></span><span>        </span><span class="annot"><span class="hs-comment">-- * SpecConstr annotations</span></span><span>
+</span><span id="line-102"></span><span>        </span><span class="annot"><a href="GHC.Exts.html#SpecConstrAnnotation"><span class="hs-identifier">SpecConstrAnnotation</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-103"></span><span>
+</span><span id="line-104"></span><span>        </span><span class="annot"><span class="hs-comment">-- * The call stack</span></span><span>
+</span><span id="line-105"></span><span>        </span><span class="annot"><a href="GHC.Stack.CCS.html#currentCallStack"><span class="hs-identifier">currentCallStack</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-106"></span><span>
+</span><span id="line-107"></span><span>        </span><span class="annot"><span class="hs-comment">-- * The Constraint kind</span></span><span>
+</span><span id="line-108"></span><span>        </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#Constraint"><span class="hs-identifier">Constraint</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-109"></span><span>
+</span><span id="line-110"></span><span>        </span><span class="annot"><span class="hs-comment">-- * The Any type</span></span><span>
+</span><span id="line-111"></span><span>        </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#Any"><span class="hs-identifier">Any</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-112"></span><span>
+</span><span id="line-113"></span><span>        </span><span class="annot"><span class="hs-comment">-- * Overloaded lists</span></span><span>
+</span><span id="line-114"></span><span>        </span><span class="annot"><a href="GHC.Exts.html#IsList"><span class="hs-identifier">IsList</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-115"></span><span>       </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-116"></span><span>
+</span><span id="line-117"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#"><span class="hs-identifier">GHC.Prim</span></a></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#coerce"><span class="hs-identifier">coerce</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#TYPE"><span class="hs-identifier">TYPE</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-118"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#"><span class="hs-identifier">GHC.Prim</span></a></span><span>
+</span><span id="line-119"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Prim-Ext.html#"><span class="hs-identifier">GHC.Prim.Ext</span></a></span><span>
+</span><span id="line-120"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Base.html"><span class="hs-identifier">GHC.Base</span></a></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#coerce"><span class="hs-identifier">coerce</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-121"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Ptr.html"><span class="hs-identifier">GHC.Ptr</span></a></span><span>
+</span><span id="line-122"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Stack.html"><span class="hs-identifier">GHC.Stack</span></a></span><span>
+</span><span id="line-123"></span><span>
+</span><span id="line-124"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Coerce.html"><span class="hs-identifier">Data.Coerce</span></a></span><span>
+</span><span id="line-125"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.String.html"><span class="hs-identifier">Data.String</span></a></span><span>
+</span><span id="line-126"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.OldList.html"><span class="hs-identifier">Data.OldList</span></a></span><span>
+</span><span id="line-127"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Data.html"><span class="hs-identifier">Data.Data</span></a></span><span>
+</span><span id="line-128"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Ord.html"><span class="hs-identifier">Data.Ord</span></a></span><span>
+</span><span id="line-129"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Version.html"><span class="hs-identifier">Data.Version</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Data.Version.html#Version"><span class="hs-identifier">Version</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Version.html#makeVersion"><span class="hs-identifier">makeVersion</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-130"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Debug.Trace.html"><span class="hs-identifier">Debug.Trace</span></a></span><span>
+</span><span id="line-131"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unsafe.Coerce.html"><span class="hs-identifier">Unsafe.Coerce</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unsafe.Coerce.html#unsafeCoerce%23"><span class="hs-identifier">unsafeCoerce#</span></a></span><span> </span><span class="hs-special">)</span><span> </span><span class="hs-comment">-- just for re-export</span><span>
+</span><span id="line-132"></span><span>
+</span><span id="line-133"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Control.Applicative.html"><span class="hs-identifier">Control.Applicative</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Applicative.html#ZipList"><span class="hs-identifier">ZipList</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-134"></span><span>
+</span><span id="line-135"></span><span class="hs-comment">-- XXX This should really be in Data.Tuple, where the definitions are</span><span>
+</span><span id="line-136"></span><span class="annot"><a href="GHC.Exts.html#maxTupleSize"><span class="hs-identifier hs-type">maxTupleSize</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#Int"><span class="hs-identifier hs-type">Int</span></a></span><span>
+</span><span id="line-137"></span><span id="maxTupleSize"><span class="annot"><span class="annottext">maxTupleSize :: Int
+</span><a href="GHC.Exts.html#maxTupleSize"><span class="hs-identifier hs-var hs-var">maxTupleSize</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">64</span></span><span>
+</span><span id="line-138"></span><span>
+</span><span id="line-139"></span><span class="hs-comment">-- | 'the' ensures that all the elements of the list are identical</span><span>
+</span><span id="line-140"></span><span class="hs-comment">-- and then returns that unique element</span><span>
+</span><span id="line-141"></span><span id="local-6989586621679640678"><span class="annot"><a href="GHC.Exts.html#the"><span class="hs-identifier hs-type">the</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#Eq"><span class="hs-identifier hs-type">Eq</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679640678"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679640678"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679640678"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-142"></span><span id="the"><span class="annot"><span class="annottext">the :: forall a. Eq a =&gt; [a] -&gt; a
+</span><a href="GHC.Exts.html#the"><span class="hs-identifier hs-var hs-var">the</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679640515"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679640515"><span class="hs-identifier hs-var">x</span></a></span></span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#%3A"><span class="hs-glyph hs-type">:</span></a></span><span id="local-6989586621679640514"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679640514"><span class="hs-identifier hs-var">xs</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-143"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">forall a. (a -&gt; Bool) -&gt; [a] -&gt; Bool
+</span><a href="GHC.List.html#all"><span class="hs-identifier hs-var">all</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679640515"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#%3D%3D"><span class="hs-operator hs-var">==</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679640514"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679640515"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-144"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="GHC.Base.html#otherwise"><span class="hs-identifier hs-var">otherwise</span></a></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. [Char] -&gt; a
+</span><a href="GHC.Err.html#errorWithoutStackTrace"><span class="hs-identifier hs-var">errorWithoutStackTrace</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;GHC.Exts.the: non-identical elements&quot;</span></span><span>
+</span><span id="line-145"></span><span class="annot"><a href="GHC.Exts.html#the"><span class="hs-identifier hs-var">the</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>            </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. [Char] -&gt; a
+</span><a href="GHC.Err.html#errorWithoutStackTrace"><span class="hs-identifier hs-var">errorWithoutStackTrace</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;GHC.Exts.the: empty list&quot;</span></span><span>
+</span><span id="line-146"></span><span>
+</span><span id="line-147"></span><span class="hs-comment">-- | The 'sortWith' function sorts a list of elements using the</span><span>
+</span><span id="line-148"></span><span class="hs-comment">-- user supplied function to project something out of each element</span><span>
+</span><span id="line-149"></span><span id="local-6989586621679640671"><span id="local-6989586621679640672"><span class="annot"><a href="GHC.Exts.html#sortWith"><span class="hs-identifier hs-type">sortWith</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#Ord"><span class="hs-identifier hs-type">Ord</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679640672"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679640671"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679640672"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679640671"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679640671"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span></span></span><span>
+</span><span id="line-150"></span><span id="sortWith"><span class="annot"><span class="annottext">sortWith :: forall b a. Ord b =&gt; (a -&gt; b) -&gt; [a] -&gt; [a]
+</span><a href="GHC.Exts.html#sortWith"><span class="hs-identifier hs-var hs-var">sortWith</span></a></span></span><span> </span><span id="local-6989586621679640509"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679640509"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. (a -&gt; a -&gt; Ordering) -&gt; [a] -&gt; [a]
+</span><a href="Data.OldList.html#sortBy"><span class="hs-identifier hs-var">sortBy</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679640507"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679640507"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679640506"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679640506"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Ordering
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#compare"><span class="hs-identifier hs-var">compare</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679640509"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679640507"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679640509"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679640506"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-151"></span><span>
+</span><span id="line-152"></span><span class="hs-comment">-- | The 'groupWith' function uses the user supplied function which</span><span>
+</span><span id="line-153"></span><span class="hs-comment">-- projects an element out of every list element in order to first sort the</span><span>
+</span><span id="line-154"></span><span class="hs-comment">-- input list and then to form groups by equality on these projected elements</span><span>
+</span><span id="line-155"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="GHC.Exts.html#groupWith"><span class="hs-pragma hs-type">groupWith</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-156"></span><span id="local-6989586621679640665"><span id="local-6989586621679640666"><span class="annot"><a href="GHC.Exts.html#groupWith"><span class="hs-identifier hs-type">groupWith</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#Ord"><span class="hs-identifier hs-type">Ord</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679640666"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679640665"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679640666"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679640665"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679640665"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span class="hs-special">]</span></span></span><span>
+</span><span id="line-157"></span><span id="groupWith"><span class="annot"><span class="annottext">groupWith :: forall b a. Ord b =&gt; (a -&gt; b) -&gt; [a] -&gt; [[a]]
+</span><a href="GHC.Exts.html#groupWith"><span class="hs-identifier hs-var hs-var">groupWith</span></a></span></span><span> </span><span id="local-6989586621679640501"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679640501"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679640500"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679640500"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. (forall b. (a -&gt; b -&gt; b) -&gt; b -&gt; b) -&gt; [a]
+</span><a href="GHC.Base.html#build"><span class="hs-identifier hs-var">build</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679640497"><span class="annot"><span class="annottext">[a] -&gt; b -&gt; b
+</span><a href="#local-6989586621679640497"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span id="local-6989586621679640496"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679640496"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a lst.
+([a] -&gt; lst -&gt; lst) -&gt; lst -&gt; (a -&gt; a -&gt; Bool) -&gt; [a] -&gt; lst
+</span><a href="GHC.Exts.html#groupByFB"><span class="hs-identifier hs-var">groupByFB</span></a></span><span> </span><span class="annot"><span class="annottext">[a] -&gt; b -&gt; b
+</span><a href="#local-6989586621679640497"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679640496"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679640494"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679640494"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679640493"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679640493"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679640501"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679640494"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#%3D%3D"><span class="hs-operator hs-var">==</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679640501"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679640493"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall b a. Ord b =&gt; (a -&gt; b) -&gt; [a] -&gt; [a]
+</span><a href="GHC.Exts.html#sortWith"><span class="hs-identifier hs-var">sortWith</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679640501"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679640500"><span class="hs-identifier hs-var">xs</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-158"></span><span>
+</span><span id="line-159"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="hs-pragma">[</span><span class="hs-pragma">0</span><span class="hs-pragma">]</span><span> </span><span class="annot"><a href="GHC.Exts.html#groupByFB"><span class="hs-pragma hs-type">groupByFB</span></a></span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="hs-comment">-- See Note [Inline FB functions] in GHC.List</span><span>
+</span><span id="line-160"></span><span id="local-6989586621679640658"><span id="local-6989586621679640659"><span class="annot"><a href="GHC.Exts.html#groupByFB"><span class="hs-identifier hs-type">groupByFB</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679640659"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679640658"><span class="hs-identifier hs-type">lst</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679640658"><span class="hs-identifier hs-type">lst</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679640658"><span class="hs-identifier hs-type">lst</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679640659"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679640659"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#Bool"><span class="hs-identifier hs-type">Bool</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679640659"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679640658"><span class="hs-identifier hs-type">lst</span></a></span></span></span><span>
+</span><span id="line-161"></span><span id="groupByFB"><span class="annot"><span class="annottext">groupByFB :: forall a lst.
+([a] -&gt; lst -&gt; lst) -&gt; lst -&gt; (a -&gt; a -&gt; Bool) -&gt; [a] -&gt; lst
+</span><a href="GHC.Exts.html#groupByFB"><span class="hs-identifier hs-var hs-var">groupByFB</span></a></span></span><span> </span><span id="local-6989586621679640492"><span class="annot"><span class="annottext">[a] -&gt; lst -&gt; lst
+</span><a href="#local-6989586621679640492"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span id="local-6989586621679640491"><span class="annot"><span class="annottext">lst
+</span><a href="#local-6989586621679640491"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621679640490"><span class="annot"><span class="annottext">a -&gt; a -&gt; Bool
+</span><a href="#local-6989586621679640490"><span class="hs-identifier hs-var">eq</span></a></span></span><span> </span><span id="local-6989586621679640489"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679640489"><span class="hs-identifier hs-var">xs0</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[a] -&gt; lst
+</span><a href="#local-6989586621679640488"><span class="hs-identifier hs-var">groupByFBCore</span></a></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679640489"><span class="hs-identifier hs-var">xs0</span></a></span><span>
+</span><span id="line-162"></span><span>  </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679640488"><span class="annot"><span class="annottext">groupByFBCore :: [a] -&gt; lst
+</span><a href="#local-6989586621679640488"><span class="hs-identifier hs-var hs-var">groupByFBCore</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">lst
+</span><a href="#local-6989586621679640491"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-163"></span><span>        </span><span class="annot"><a href="#local-6989586621679640488"><span class="hs-identifier hs-var">groupByFBCore</span></a></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679640487"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679640487"><span class="hs-identifier hs-var">x</span></a></span></span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#%3A"><span class="hs-glyph hs-type">:</span></a></span><span id="local-6989586621679640486"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679640486"><span class="hs-identifier hs-var">xs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[a] -&gt; lst -&gt; lst
+</span><a href="#local-6989586621679640492"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679640487"><span class="hs-identifier hs-var">x</span></a></span><span class="annot"><span class="annottext">forall a. a -&gt; [a] -&gt; [a]
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#%3A"><span class="hs-glyph hs-var">:</span></a></span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679640485"><span class="hs-identifier hs-var">ys</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[a] -&gt; lst
+</span><a href="#local-6989586621679640488"><span class="hs-identifier hs-var">groupByFBCore</span></a></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679640484"><span class="hs-identifier hs-var">zs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-164"></span><span>            </span><span class="hs-keyword">where</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679640485"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679640485"><span class="hs-identifier hs-var">ys</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679640484"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679640484"><span class="hs-identifier hs-var">zs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. (a -&gt; Bool) -&gt; [a] -&gt; ([a], [a])
+</span><a href="GHC.List.html#span"><span class="hs-identifier hs-var">span</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; a -&gt; Bool
+</span><a href="#local-6989586621679640490"><span class="hs-identifier hs-var">eq</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679640487"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679640486"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-165"></span><span>
+</span><span id="line-166"></span><span>
+</span><span id="line-167"></span><span class="hs-comment">-- -----------------------------------------------------------------------------</span><span>
+</span><span id="line-168"></span><span class="hs-comment">-- tracing</span><span>
+</span><span id="line-169"></span><span>
+</span><span id="line-170"></span><span class="annot"><a href="GHC.Exts.html#traceEvent"><span class="hs-identifier hs-type">traceEvent</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Base.html#String"><span class="hs-identifier hs-type">String</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-171"></span><span id="traceEvent"><span class="annot"><span class="annottext">traceEvent :: [Char] -&gt; IO ()
+</span><a href="GHC.Exts.html#traceEvent"><span class="hs-identifier hs-var hs-var">traceEvent</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; IO ()
+</span><a href="Debug.Trace.html#traceEventIO"><span class="hs-identifier hs-var">Debug.Trace.traceEventIO</span></a></span><span>
+</span><span id="line-172"></span><span class="hs-pragma">{-# DEPRECATED</span><span> </span><span class="hs-pragma">traceEvent</span><span> </span><span class="hs-pragma">&quot;Use 'Debug.Trace.traceEvent' or 'Debug.Trace.traceEventIO'&quot;</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="hs-comment">-- deprecated in 7.4</span><span>
+</span><span id="line-173"></span><span>
+</span><span id="line-174"></span><span>
+</span><span id="line-175"></span><span class="hs-comment">{- **********************************************************************
+*                                                                       *
+*              SpecConstr annotation                                    *
+*                                                                       *
+********************************************************************** -}</span><span>
+</span><span id="line-180"></span><span>
+</span><span id="line-181"></span><span class="hs-comment">-- Annotating a type with NoSpecConstr will make SpecConstr</span><span>
+</span><span id="line-182"></span><span class="hs-comment">-- not specialise for arguments of that type.</span><span>
+</span><span id="line-183"></span><span>
+</span><span id="line-184"></span><span class="hs-comment">-- This data type is defined here, rather than in the SpecConstr module</span><span>
+</span><span id="line-185"></span><span class="hs-comment">-- itself, so that importing it doesn't force stupidly linking the</span><span>
+</span><span id="line-186"></span><span class="hs-comment">-- entire ghc package at runtime</span><span>
+</span><span id="line-187"></span><span>
+</span><span id="line-188"></span><span class="hs-keyword">data</span><span> </span><span id="SpecConstrAnnotation"><span class="annot"><a href="GHC.Exts.html#SpecConstrAnnotation"><span class="hs-identifier hs-var">SpecConstrAnnotation</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="NoSpecConstr"><span class="annot"><a href="GHC.Exts.html#NoSpecConstr"><span class="hs-identifier hs-var">NoSpecConstr</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="ForceSpecConstr"><span class="annot"><a href="GHC.Exts.html#ForceSpecConstr"><span class="hs-identifier hs-var">ForceSpecConstr</span></a></span></span><span>
+</span><span id="line-189"></span><span>                </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span> </span><span id="local-6989586621679640450"><span id="local-6989586621679640452"><span id="local-6989586621679640454"><span id="local-6989586621679640456"><span id="local-6989586621679640458"><span id="local-6989586621679640460"><span id="local-6989586621679640462"><span id="local-6989586621679640464"><span id="local-6989586621679640466"><span id="local-6989586621679640468"><span id="local-6989586621679640470"><span id="local-6989586621679640472"><span id="local-6989586621679640474"><span id="local-6989586621679640476"><span class="annot"><span class="annottext">Typeable SpecConstrAnnotation
+SpecConstrAnnotation -&gt; Constr
+SpecConstrAnnotation -&gt; DataType
+(forall b. Data b =&gt; b -&gt; b)
+-&gt; SpecConstrAnnotation -&gt; SpecConstrAnnotation
+forall a.
+Typeable a
+-&gt; (forall (c :: * -&gt; *).
+    (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+    -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall u.
+Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; SpecConstrAnnotation -&gt; u
+forall u.
+(forall d. Data d =&gt; d -&gt; u) -&gt; SpecConstrAnnotation -&gt; [u]
+forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; SpecConstrAnnotation -&gt; r
+forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; SpecConstrAnnotation -&gt; r
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; SpecConstrAnnotation -&gt; m SpecConstrAnnotation
+forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; SpecConstrAnnotation -&gt; m SpecConstrAnnotation
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c SpecConstrAnnotation
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g)
+-&gt; SpecConstrAnnotation
+-&gt; c SpecConstrAnnotation
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c SpecConstrAnnotation)
+forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c SpecConstrAnnotation)
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; SpecConstrAnnotation -&gt; m SpecConstrAnnotation
+$cgmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; SpecConstrAnnotation -&gt; m SpecConstrAnnotation
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; SpecConstrAnnotation -&gt; m SpecConstrAnnotation
+$cgmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; SpecConstrAnnotation -&gt; m SpecConstrAnnotation
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; SpecConstrAnnotation -&gt; m SpecConstrAnnotation
+$cgmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; SpecConstrAnnotation -&gt; m SpecConstrAnnotation
+gmapQi :: forall u.
+Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; SpecConstrAnnotation -&gt; u
+$cgmapQi :: forall u.
+Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; SpecConstrAnnotation -&gt; u
+gmapQ :: forall u.
+(forall d. Data d =&gt; d -&gt; u) -&gt; SpecConstrAnnotation -&gt; [u]
+$cgmapQ :: forall u.
+(forall d. Data d =&gt; d -&gt; u) -&gt; SpecConstrAnnotation -&gt; [u]
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; SpecConstrAnnotation -&gt; r
+$cgmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; SpecConstrAnnotation -&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; SpecConstrAnnotation -&gt; r
+$cgmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; SpecConstrAnnotation -&gt; r
+gmapT :: (forall b. Data b =&gt; b -&gt; b)
+-&gt; SpecConstrAnnotation -&gt; SpecConstrAnnotation
+$cgmapT :: (forall b. Data b =&gt; b -&gt; b)
+-&gt; SpecConstrAnnotation -&gt; SpecConstrAnnotation
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c SpecConstrAnnotation)
+$cdataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c SpecConstrAnnotation)
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c SpecConstrAnnotation)
+$cdataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c SpecConstrAnnotation)
+dataTypeOf :: SpecConstrAnnotation -&gt; DataType
+$cdataTypeOf :: SpecConstrAnnotation -&gt; DataType
+toConstr :: SpecConstrAnnotation -&gt; Constr
+$ctoConstr :: SpecConstrAnnotation -&gt; Constr
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c SpecConstrAnnotation
+$cgunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c SpecConstrAnnotation
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g)
+-&gt; SpecConstrAnnotation
+-&gt; c SpecConstrAnnotation
+$cgfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g)
+-&gt; SpecConstrAnnotation
+-&gt; c SpecConstrAnnotation
+</span><a href="Data.Data.html#Data"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data</span></a></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span> </span><span class="hs-comment">-- ^ @since 4.3.0.0</span><span>
+</span><span id="line-190"></span><span>                         </span><span class="hs-special">,</span><span> </span><span id="local-6989586621679640445"><span id="local-6989586621679640447"><span class="annot"><span class="annottext">SpecConstrAnnotation -&gt; SpecConstrAnnotation -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: SpecConstrAnnotation -&gt; SpecConstrAnnotation -&gt; Bool
+$c/= :: SpecConstrAnnotation -&gt; SpecConstrAnnotation -&gt; Bool
+== :: SpecConstrAnnotation -&gt; SpecConstrAnnotation -&gt; Bool
+$c== :: SpecConstrAnnotation -&gt; SpecConstrAnnotation -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#Eq"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></a></span></span></span><span>   </span><span class="hs-comment">-- ^ @since 4.3.0.0</span><span>
+</span><span id="line-191"></span><span>                         </span><span class="hs-special">)</span><span>
+</span><span id="line-192"></span><span>
+</span><span id="line-193"></span><span>
+</span><span id="line-194"></span><span class="hs-comment">{- **********************************************************************
+*                                                                       *
+*              The IsList class                                         *
+*                                                                       *
+********************************************************************** -}</span><span>
+</span><span id="line-199"></span><span>
+</span><span id="line-200"></span><span class="hs-comment">-- | The 'IsList' class and its methods are intended to be used in</span><span>
+</span><span id="line-201"></span><span class="hs-comment">--   conjunction with the OverloadedLists extension.</span><span>
+</span><span id="line-202"></span><span class="hs-comment">--</span><span>
+</span><span id="line-203"></span><span class="hs-comment">-- @since 4.7.0.0</span><span>
+</span><span id="line-204"></span><span class="hs-keyword">class</span><span> </span><span id="IsList"><span class="annot"><a href="GHC.Exts.html#IsList"><span class="hs-identifier hs-var">IsList</span></a></span></span><span> </span><span id="local-6989586621679640620"><span class="annot"><a href="#local-6989586621679640620"><span class="hs-identifier hs-type">l</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-205"></span><span>  </span><span class="hs-comment">-- | The 'Item' type function returns the type of items of the structure</span><span>
+</span><span id="line-206"></span><span>  </span><span class="hs-comment">--   @l@.</span><span>
+</span><span id="line-207"></span><span>  </span><span class="hs-keyword">type</span><span> </span><span id="Item"><span class="annot"><a href="GHC.Exts.html#Item"><span class="hs-identifier hs-var">Item</span></a></span></span><span> </span><span id="local-6989586621679640620"><span class="annot"><a href="#local-6989586621679640620"><span class="hs-identifier hs-type">l</span></a></span></span><span>
+</span><span id="line-208"></span><span>
+</span><span id="line-209"></span><span>  </span><span class="hs-comment">-- | The 'fromList' function constructs the structure @l@ from the given</span><span>
+</span><span id="line-210"></span><span>  </span><span class="hs-comment">--   list of @Item l@</span><span>
+</span><span id="line-211"></span><span>  </span><span id="fromList"><span class="annot"><a href="GHC.Exts.html#fromList"><span class="hs-identifier hs-type">fromList</span></a></span></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Exts.html#Item"><span class="hs-identifier hs-type">Item</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679640620"><span class="hs-identifier hs-type">l</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679640620"><span class="hs-identifier hs-type">l</span></a></span><span>
+</span><span id="line-212"></span><span>
+</span><span id="line-213"></span><span>  </span><span class="hs-comment">-- | The 'fromListN' function takes the input list's length and potentially</span><span>
+</span><span id="line-214"></span><span>  </span><span class="hs-comment">--   uses it to construct the structure @l@ more efficiently compared to</span><span>
+</span><span id="line-215"></span><span>  </span><span class="hs-comment">--   'fromList'. If the given number does not equal to the input list's length</span><span>
+</span><span id="line-216"></span><span>  </span><span class="hs-comment">--   the behaviour of 'fromListN' is not specified.</span><span>
+</span><span id="line-217"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-218"></span><span>  </span><span class="hs-comment">--   prop&gt; fromListN (length xs) xs == fromList xs</span><span>
+</span><span id="line-219"></span><span>  </span><span id="fromListN"><span class="annot"><a href="GHC.Exts.html#fromListN"><span class="hs-identifier hs-type">fromListN</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#Int"><span class="hs-identifier hs-type">Int</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Exts.html#Item"><span class="hs-identifier hs-type">Item</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679640620"><span class="hs-identifier hs-type">l</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679640620"><span class="hs-identifier hs-type">l</span></a></span><span>
+</span><span id="line-220"></span><span>  </span><span id="local-6989586621679640442"><span class="annot"><a href="GHC.Exts.html#fromListN"><span class="hs-identifier hs-var hs-var">fromListN</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall l. IsList l =&gt; [Item l] -&gt; l
+</span><a href="GHC.Exts.html#fromList"><span class="hs-identifier hs-var">fromList</span></a></span></span><span>
+</span><span id="line-221"></span><span>
+</span><span id="line-222"></span><span>  </span><span class="hs-comment">-- | The 'toList' function extracts a list of @Item l@ from the structure @l@.</span><span>
+</span><span id="line-223"></span><span>  </span><span class="hs-comment">--   It should satisfy fromList . toList = id.</span><span>
+</span><span id="line-224"></span><span>  </span><span id="toList"><span class="annot"><a href="GHC.Exts.html#toList"><span class="hs-identifier hs-type">toList</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679640620"><span class="hs-identifier hs-type">l</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Exts.html#Item"><span class="hs-identifier hs-type">Item</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679640620"><span class="hs-identifier hs-type">l</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-225"></span><span>
+</span><span id="line-226"></span><span class="hs-comment">-- | @since 4.7.0.0</span><span>
+</span><span id="line-227"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679640438"><span id="local-6989586621679640618"><span class="annot"><a href="GHC.Exts.html#IsList"><span class="hs-identifier hs-type">IsList</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679640618"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-228"></span><span>  </span><span class="hs-keyword">type</span><span> </span><span class="hs-special">(</span><span id="Item"><span class="annot"><a href="GHC.Exts.html#Item"><span class="hs-identifier hs-var">Item</span></a></span></span><span> </span><span id="local-6989586621679640618"><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679640618"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621679640618"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-229"></span><span>  </span><span id="local-6989586621679640435"><span class="annot"><span class="annottext">fromList :: [Item [a]] -&gt; [a]
+</span><a href="GHC.Exts.html#fromList"><span class="hs-identifier hs-var hs-var hs-var hs-var">fromList</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; a
+</span><a href="GHC.Base.html#id"><span class="hs-identifier hs-var">id</span></a></span><span>
+</span><span id="line-230"></span><span>  </span><span id="local-6989586621679640433"><span class="annot"><span class="annottext">toList :: [a] -&gt; [Item [a]]
+</span><a href="GHC.Exts.html#toList"><span class="hs-identifier hs-var hs-var hs-var hs-var">toList</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; a
+</span><a href="GHC.Base.html#id"><span class="hs-identifier hs-var">id</span></a></span><span>
+</span><span id="line-231"></span><span>
+</span><span id="line-232"></span><span class="hs-comment">-- | @since 4.15.0.0</span><span>
+</span><span id="line-233"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679640430"><span id="local-6989586621679640616"><span class="annot"><a href="GHC.Exts.html#IsList"><span class="hs-identifier hs-type">IsList</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Applicative.html#ZipList"><span class="hs-identifier hs-type">ZipList</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679640616"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-234"></span><span>  </span><span class="hs-keyword">type</span><span> </span><span id="Item"><span class="annot"><a href="GHC.Exts.html#Item"><span class="hs-identifier hs-var">Item</span></a></span></span><span> </span><span id="local-6989586621679640616"><span class="hs-special">(</span><span class="annot"><a href="Control.Applicative.html#ZipList"><span class="hs-identifier hs-type">ZipList</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679640616"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621679640616"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-235"></span><span>  </span><span id="local-6989586621679640428"><span class="annot"><span class="annottext">fromList :: [Item (ZipList a)] -&gt; ZipList a
+</span><a href="GHC.Exts.html#fromList"><span class="hs-identifier hs-var hs-var hs-var hs-var">fromList</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; ZipList a
+</span><a href="Control.Applicative.html#ZipList"><span class="hs-identifier hs-var">ZipList</span></a></span><span>
+</span><span id="line-236"></span><span>  </span><span id="local-6989586621679640426"><span class="annot"><span class="annottext">toList :: ZipList a -&gt; [Item (ZipList a)]
+</span><a href="GHC.Exts.html#toList"><span class="hs-identifier hs-var hs-var hs-var hs-var">toList</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. ZipList a -&gt; [a]
+</span><a href="Control.Applicative.html#getZipList"><span class="hs-identifier hs-var">getZipList</span></a></span><span>
+</span><span id="line-237"></span><span>
+</span><span id="line-238"></span><span class="hs-comment">-- | @since 4.9.0.0</span><span>
+</span><span id="line-239"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679640422"><span id="local-6989586621679640613"><span class="annot"><a href="GHC.Exts.html#IsList"><span class="hs-identifier hs-type">IsList</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Base.html#NonEmpty"><span class="hs-identifier hs-type">NonEmpty</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679640613"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-240"></span><span>  </span><span class="hs-keyword">type</span><span> </span><span id="Item"><span class="annot"><a href="GHC.Exts.html#Item"><span class="hs-identifier hs-var">Item</span></a></span></span><span> </span><span id="local-6989586621679640613"><span class="hs-special">(</span><span class="annot"><a href="GHC.Base.html#NonEmpty"><span class="hs-identifier hs-type">NonEmpty</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679640613"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621679640613"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-241"></span><span>
+</span><span id="line-242"></span><span>  </span><span id="local-6989586621679640420"><span class="annot"><span class="annottext">fromList :: [Item (NonEmpty a)] -&gt; NonEmpty a
+</span><a href="GHC.Exts.html#fromList"><span class="hs-identifier hs-var hs-var hs-var hs-var">fromList</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679640419"><span class="annot"><span class="annottext">Item (NonEmpty a)
+</span><a href="#local-6989586621679640419"><span class="hs-identifier hs-var">a</span></a></span></span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#%3A"><span class="hs-glyph hs-type">:</span></a></span><span id="local-6989586621679640418"><span class="annot"><span class="annottext">[Item (NonEmpty a)]
+</span><a href="#local-6989586621679640418"><span class="hs-keyword hs-var">as</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Item (NonEmpty a)
+</span><a href="#local-6989586621679640419"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; [a] -&gt; NonEmpty a
+</span><a href="GHC.Base.html#%3A%7C"><span class="hs-operator hs-var">:|</span></a></span><span> </span><span class="annot"><span class="annottext">[Item (NonEmpty a)]
+</span><a href="#local-6989586621679640418"><span class="hs-keyword hs-var">as</span></a></span><span>
+</span><span id="line-243"></span><span>  </span><span class="annot"><a href="GHC.Exts.html#fromList"><span class="hs-identifier hs-var">fromList</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. [Char] -&gt; a
+</span><a href="GHC.Err.html#errorWithoutStackTrace"><span class="hs-identifier hs-var">errorWithoutStackTrace</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;NonEmpty.fromList: empty list&quot;</span></span><span>
+</span><span id="line-244"></span><span>
+</span><span id="line-245"></span><span>  </span><span id="local-6989586621679640417"><span class="annot"><span class="annottext">toList :: NonEmpty a -&gt; [Item (NonEmpty a)]
+</span><a href="GHC.Exts.html#toList"><span class="hs-identifier hs-var hs-var hs-var hs-var">toList</span></a></span></span><span> </span><span class="hs-glyph">~</span><span class="hs-special">(</span><span id="local-6989586621679640416"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679640416"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="annot"><a href="GHC.Base.html#%3A%7C"><span class="hs-operator hs-type">:|</span></a></span><span> </span><span id="local-6989586621679640415"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679640415"><span class="hs-keyword hs-var">as</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679640416"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; [a] -&gt; [a]
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#%3A"><span class="hs-glyph hs-var">:</span></a></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679640415"><span class="hs-keyword hs-var">as</span></a></span><span>
+</span><span id="line-246"></span><span>
+</span><span id="line-247"></span><span class="hs-comment">-- | @since 4.8.0.0</span><span>
+</span><span id="line-248"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679640412"><span class="annot"><a href="GHC.Exts.html#IsList"><span class="hs-identifier hs-type">IsList</span></a></span><span> </span><span class="annot"><a href="Data.Version.html#Version"><span class="hs-identifier hs-type">Version</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-249"></span><span>  </span><span class="hs-keyword">type</span><span> </span><span class="hs-special">(</span><span id="Item"><span class="annot"><a href="GHC.Exts.html#Item"><span class="hs-identifier hs-var">Item</span></a></span></span><span> </span><span class="annot"><a href="Data.Version.html#Version"><span class="hs-identifier hs-type">Version</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#Int"><span class="hs-identifier hs-type">Int</span></a></span><span>
+</span><span id="line-250"></span><span>  </span><span id="local-6989586621679640410"><span class="annot"><span class="annottext">fromList :: [Item Version] -&gt; Version
+</span><a href="GHC.Exts.html#fromList"><span class="hs-identifier hs-var hs-var hs-var hs-var">fromList</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Int] -&gt; Version
+</span><a href="Data.Version.html#makeVersion"><span class="hs-identifier hs-var">makeVersion</span></a></span><span>
+</span><span id="line-251"></span><span>  </span><span id="local-6989586621679640409"><span class="annot"><span class="annottext">toList :: Version -&gt; [Item Version]
+</span><a href="GHC.Exts.html#toList"><span class="hs-identifier hs-var hs-var hs-var hs-var">toList</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Version -&gt; [Int]
+</span><a href="Data.Version.html#versionBranch"><span class="hs-identifier hs-var">versionBranch</span></a></span><span>
+</span><span id="line-252"></span><span>
+</span><span id="line-253"></span><span class="hs-comment">-- | Be aware that 'fromList . toList = id' only for unfrozen 'CallStack's,</span><span>
+</span><span id="line-254"></span><span class="hs-comment">-- since 'toList' removes frozenness information.</span><span>
+</span><span id="line-255"></span><span class="hs-comment">--</span><span>
+</span><span id="line-256"></span><span class="hs-comment">-- @since 4.9.0.0</span><span>
+</span><span id="line-257"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679640405"><span class="annot"><a href="GHC.Exts.html#IsList"><span class="hs-identifier hs-type">IsList</span></a></span><span> </span><span class="annot"><a href="GHC.Stack.Types.html#CallStack"><span class="hs-identifier hs-type">CallStack</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-258"></span><span>  </span><span class="hs-keyword">type</span><span> </span><span class="hs-special">(</span><span id="Item"><span class="annot"><a href="GHC.Exts.html#Item"><span class="hs-identifier hs-var">Item</span></a></span></span><span> </span><span class="annot"><a href="GHC.Stack.Types.html#CallStack"><span class="hs-identifier hs-type">CallStack</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Base.html#String"><span class="hs-identifier hs-type">String</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Stack.Types.html#SrcLoc"><span class="hs-identifier hs-type">SrcLoc</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-259"></span><span>  </span><span id="local-6989586621679640403"><span class="annot"><span class="annottext">fromList :: [Item CallStack] -&gt; CallStack
+</span><a href="GHC.Exts.html#fromList"><span class="hs-identifier hs-var hs-var hs-var hs-var">fromList</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[([Char], SrcLoc)] -&gt; CallStack
+</span><a href="GHC.Stack.Types.html#fromCallSiteList"><span class="hs-identifier hs-var">fromCallSiteList</span></a></span><span>
+</span><span id="line-260"></span><span>  </span><span id="local-6989586621679640401"><span class="annot"><span class="annottext">toList :: CallStack -&gt; [Item CallStack]
+</span><a href="GHC.Exts.html#toList"><span class="hs-identifier hs-var hs-var hs-var hs-var">toList</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CallStack -&gt; [([Char], SrcLoc)]
+</span><a href="GHC.Stack.Types.html#getCallStack"><span class="hs-identifier hs-var">getCallStack</span></a></span><span>
+</span><span id="line-261"></span><span>
+</span><span id="line-262"></span><span class="hs-comment">-- | An implementation of the old @atomicModifyMutVar#@ primop in</span><span>
+</span><span id="line-263"></span><span class="hs-comment">-- terms of the new 'atomicModifyMutVar2#' primop, for backwards</span><span>
+</span><span id="line-264"></span><span class="hs-comment">-- compatibility. The type of this function is a bit bogus. It's</span><span>
+</span><span id="line-265"></span><span class="hs-comment">-- best to think of it as having type</span><span>
+</span><span id="line-266"></span><span class="hs-comment">--</span><span>
+</span><span id="line-267"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-268"></span><span class="hs-comment">-- atomicModifyMutVar#</span><span>
+</span><span id="line-269"></span><span class="hs-comment">--   :: MutVar# s a</span><span>
+</span><span id="line-270"></span><span class="hs-comment">--   -&gt; (a -&gt; (a, b))</span><span>
+</span><span id="line-271"></span><span class="hs-comment">--   -&gt; State# s</span><span>
+</span><span id="line-272"></span><span class="hs-comment">--   -&gt; (# State# s, b #)</span><span>
+</span><span id="line-273"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-274"></span><span class="hs-comment">--</span><span>
+</span><span id="line-275"></span><span class="hs-comment">-- but there may be code that uses this with other two-field record</span><span>
+</span><span id="line-276"></span><span class="hs-comment">-- types.</span><span>
+</span><span id="line-277"></span><span id="local-6989586621679640608"><span id="local-6989586621679640609"><span id="local-6989586621679640610"><span id="local-6989586621679640611"><span class="annot"><a href="GHC.Exts.html#atomicModifyMutVar%23"><span class="hs-identifier hs-type">atomicModifyMutVar#</span></a></span><span>
+</span><span id="line-278"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#MutVar%23"><span class="hs-identifier hs-type">MutVar#</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679640611"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679640610"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-279"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679640610"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679640609"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-280"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#State%23"><span class="hs-identifier hs-type">State#</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679640611"><span class="hs-identifier hs-type">s</span></a></span><span>
+</span><span id="line-281"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(#</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#State%23"><span class="hs-identifier hs-type">State#</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679640611"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679640608"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="hs-special">#)</span></span></span></span></span><span>
+</span><span id="line-282"></span><span id="atomicModifyMutVar%23"><span class="annot"><span class="annottext">atomicModifyMutVar# :: forall s a b c.
+MutVar# s a -&gt; (a -&gt; b) -&gt; State# s -&gt; (# State# s, c #)
+</span><a href="GHC.Exts.html#atomicModifyMutVar%23"><span class="hs-identifier hs-var hs-var">atomicModifyMutVar#</span></a></span></span><span> </span><span id="local-6989586621679640399"><span class="annot"><span class="annottext">MutVar# s a
+</span><a href="#local-6989586621679640399"><span class="hs-identifier hs-var">mv</span></a></span></span><span> </span><span id="local-6989586621679640398"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679640398"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679640397"><span class="annot"><span class="annottext">State# s
+</span><a href="#local-6989586621679640397"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-283"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">forall a b. a -&gt; b
+</span><a href="Unsafe.Coerce.html#unsafeCoerce%23"><span class="hs-identifier hs-var">unsafeCoerce#</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall d a c.
+MutVar# d a -&gt; (a -&gt; c) -&gt; State# d -&gt; (# State# d, a, c #)
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#atomicModifyMutVar2%23"><span class="hs-identifier hs-var">atomicModifyMutVar2#</span></a></span><span> </span><span class="annot"><span class="annottext">MutVar# s a
+</span><a href="#local-6989586621679640399"><span class="hs-identifier hs-var">mv</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679640398"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">State# s
+</span><a href="#local-6989586621679640397"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-284"></span><span>    </span><span class="hs-special">(#</span><span> </span><span id="local-6989586621679640396"><span class="annot"><span class="annottext">State# s
+</span><a href="#local-6989586621679640396"><span class="hs-identifier hs-var">s'</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Any
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span class="hs-glyph">~</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Any
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679640395"><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679640395"><span class="hs-identifier hs-var">res</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">#)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(#</span><span> </span><span class="annot"><span class="annottext">State# s
+</span><a href="#local-6989586621679640396"><span class="hs-identifier hs-var">s'</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679640395"><span class="hs-identifier hs-var">res</span></a></span><span> </span><span class="hs-special">#)</span><span>
+</span><span id="line-285"></span><span>
+</span><span id="line-286"></span><span class="hs-comment">-- | Resize a mutable array to new specified size. The returned</span><span>
+</span><span id="line-287"></span><span class="hs-comment">-- 'SmallMutableArray#' is either the original 'SmallMutableArray#'</span><span>
+</span><span id="line-288"></span><span class="hs-comment">-- resized in-place or, if not possible, a newly allocated</span><span>
+</span><span id="line-289"></span><span class="hs-comment">-- 'SmallMutableArray#' with the original content copied over.</span><span>
+</span><span id="line-290"></span><span class="hs-comment">--</span><span>
+</span><span id="line-291"></span><span class="hs-comment">-- To avoid undefined behaviour, the original 'SmallMutableArray#' shall</span><span>
+</span><span id="line-292"></span><span class="hs-comment">-- not be accessed anymore after a 'resizeSmallMutableArray#' has been</span><span>
+</span><span id="line-293"></span><span class="hs-comment">-- performed. Moreover, no reference to the old one should be kept in order</span><span>
+</span><span id="line-294"></span><span class="hs-comment">-- to allow garbage collection of the original 'SmallMutableArray#'  in</span><span>
+</span><span id="line-295"></span><span class="hs-comment">-- case a new 'SmallMutableArray#' had to be allocated.</span><span>
+</span><span id="line-296"></span><span class="hs-comment">--</span><span>
+</span><span id="line-297"></span><span class="hs-comment">-- @since 4.14.0.0</span><span>
+</span><span id="line-298"></span><span id="local-6989586621679640596"><span id="local-6989586621679640597"><span class="annot"><a href="GHC.Exts.html#resizeSmallMutableArray%23"><span class="hs-identifier hs-type">resizeSmallMutableArray#</span></a></span><span>
+</span><span id="line-299"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#SmallMutableArray%23"><span class="hs-identifier hs-type">SmallMutableArray#</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679640597"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679640596"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-comment">-- ^ Array to resize</span><span>
+</span><span id="line-300"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#Int%23"><span class="hs-identifier hs-type">Int#</span></a></span><span> </span><span class="hs-comment">-- ^ New size of array</span><span>
+</span><span id="line-301"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679640596"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-302"></span><span>     </span><span class="hs-comment">-- ^ Newly created slots initialized to this element.</span><span>
+</span><span id="line-303"></span><span>     </span><span class="hs-comment">-- Only used when array is grown.</span><span>
+</span><span id="line-304"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#State%23"><span class="hs-identifier hs-type">State#</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679640597"><span class="hs-identifier hs-type">s</span></a></span><span>
+</span><span id="line-305"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(#</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#State%23"><span class="hs-identifier hs-type">State#</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679640597"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#SmallMutableArray%23"><span class="hs-identifier hs-type">SmallMutableArray#</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679640597"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679640596"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-special">#)</span></span></span><span>
+</span><span id="line-306"></span><span id="resizeSmallMutableArray%23"><span class="annot"><span class="annottext">resizeSmallMutableArray# :: forall s a.
+SmallMutableArray# s a
+-&gt; Int# -&gt; a -&gt; State# s -&gt; (# State# s, SmallMutableArray# s a #)
+</span><a href="GHC.Exts.html#resizeSmallMutableArray%23"><span class="hs-identifier hs-var hs-var">resizeSmallMutableArray#</span></a></span></span><span> </span><span id="local-6989586621679640394"><span class="annot"><span class="annottext">SmallMutableArray# s a
+</span><a href="#local-6989586621679640394"><span class="hs-identifier hs-var">arr0</span></a></span></span><span> </span><span id="local-6989586621679640393"><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679640393"><span class="hs-identifier hs-var">szNew</span></a></span></span><span> </span><span id="local-6989586621679640392"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679640392"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679640391"><span class="annot"><span class="annottext">State# s
+</span><a href="#local-6989586621679640391"><span class="hs-identifier hs-var">s0</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-307"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">forall d a.
+SmallMutableArray# d a -&gt; State# d -&gt; (# State# d, Int# #)
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#getSizeofSmallMutableArray%23"><span class="hs-identifier hs-var">getSizeofSmallMutableArray#</span></a></span><span> </span><span class="annot"><span class="annottext">SmallMutableArray# s a
+</span><a href="#local-6989586621679640394"><span class="hs-identifier hs-var">arr0</span></a></span><span> </span><span class="annot"><span class="annottext">State# s
+</span><a href="#local-6989586621679640391"><span class="hs-identifier hs-var">s0</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-308"></span><span>    </span><span class="hs-special">(#</span><span> </span><span id="local-6989586621679640390"><span class="annot"><span class="annottext">State# s
+</span><a href="#local-6989586621679640390"><span class="hs-identifier hs-var">s1</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679640389"><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679640389"><span class="hs-identifier hs-var">szOld</span></a></span></span><span> </span><span class="hs-special">#)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Int# -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#isTrue%23"><span class="hs-identifier hs-var">isTrue#</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679640393"><span class="hs-identifier hs-var">szNew</span></a></span><span> </span><span class="annot"><span class="annottext">Int# -&gt; Int# -&gt; Int#
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#%3C%23"><span class="hs-operator hs-var">&lt;#</span></a></span><span> </span><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679640389"><span class="hs-identifier hs-var">szOld</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-309"></span><span>      </span><span class="hs-keyword">then</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">forall d a. SmallMutableArray# d a -&gt; Int# -&gt; State# d -&gt; State# d
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#shrinkSmallMutableArray%23"><span class="hs-identifier hs-var">shrinkSmallMutableArray#</span></a></span><span> </span><span class="annot"><span class="annottext">SmallMutableArray# s a
+</span><a href="#local-6989586621679640394"><span class="hs-identifier hs-var">arr0</span></a></span><span> </span><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679640393"><span class="hs-identifier hs-var">szNew</span></a></span><span> </span><span class="annot"><span class="annottext">State# s
+</span><a href="#local-6989586621679640390"><span class="hs-identifier hs-var">s1</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-310"></span><span>        </span><span id="local-6989586621679640388"><span class="annot"><span class="annottext">State# s
+</span><a href="#local-6989586621679640388"><span class="hs-identifier hs-var">s2</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(#</span><span> </span><span class="annot"><span class="annottext">State# s
+</span><a href="#local-6989586621679640388"><span class="hs-identifier hs-var">s2</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">SmallMutableArray# s a
+</span><a href="#local-6989586621679640394"><span class="hs-identifier hs-var">arr0</span></a></span><span> </span><span class="hs-special">#)</span><span>
+</span><span id="line-311"></span><span>      </span><span class="hs-keyword">else</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Int# -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#isTrue%23"><span class="hs-identifier hs-var">isTrue#</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679640393"><span class="hs-identifier hs-var">szNew</span></a></span><span> </span><span class="annot"><span class="annottext">Int# -&gt; Int# -&gt; Int#
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#%3E%23"><span class="hs-operator hs-var">&gt;#</span></a></span><span> </span><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679640389"><span class="hs-identifier hs-var">szOld</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-312"></span><span>        </span><span class="hs-keyword">then</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">forall a d.
+Int# -&gt; a -&gt; State# d -&gt; (# State# d, SmallMutableArray# d a #)
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#newSmallArray%23"><span class="hs-identifier hs-var">newSmallArray#</span></a></span><span> </span><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679640393"><span class="hs-identifier hs-var">szNew</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679640392"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">State# s
+</span><a href="#local-6989586621679640390"><span class="hs-identifier hs-var">s1</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-313"></span><span>          </span><span class="hs-special">(#</span><span> </span><span id="local-6989586621679640387"><span class="annot"><span class="annottext">State# s
+</span><a href="#local-6989586621679640387"><span class="hs-identifier hs-var">s2</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679640386"><span class="annot"><span class="annottext">SmallMutableArray# s a
+</span><a href="#local-6989586621679640386"><span class="hs-identifier hs-var">arr1</span></a></span></span><span> </span><span class="hs-special">#)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">forall d a.
+SmallMutableArray# d a
+-&gt; Int#
+-&gt; SmallMutableArray# d a
+-&gt; Int#
+-&gt; Int#
+-&gt; State# d
+-&gt; State# d
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#copySmallMutableArray%23"><span class="hs-identifier hs-var">copySmallMutableArray#</span></a></span><span> </span><span class="annot"><span class="annottext">SmallMutableArray# s a
+</span><a href="#local-6989586621679640394"><span class="hs-identifier hs-var">arr0</span></a></span><span> </span><span class="annot"><span class="annottext">Int#
+</span><span class="hs-number">0#</span></span><span> </span><span class="annot"><span class="annottext">SmallMutableArray# s a
+</span><a href="#local-6989586621679640386"><span class="hs-identifier hs-var">arr1</span></a></span><span> </span><span class="annot"><span class="annottext">Int#
+</span><span class="hs-number">0#</span></span><span> </span><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679640389"><span class="hs-identifier hs-var">szOld</span></a></span><span> </span><span class="annot"><span class="annottext">State# s
+</span><a href="#local-6989586621679640387"><span class="hs-identifier hs-var">s2</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-314"></span><span>            </span><span id="local-6989586621679640385"><span class="annot"><span class="annottext">State# s
+</span><a href="#local-6989586621679640385"><span class="hs-identifier hs-var">s3</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(#</span><span> </span><span class="annot"><span class="annottext">State# s
+</span><a href="#local-6989586621679640385"><span class="hs-identifier hs-var">s3</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">SmallMutableArray# s a
+</span><a href="#local-6989586621679640386"><span class="hs-identifier hs-var">arr1</span></a></span><span> </span><span class="hs-special">#)</span><span>
+</span><span id="line-315"></span><span>        </span><span class="hs-keyword">else</span><span> </span><span class="hs-special">(#</span><span> </span><span class="annot"><span class="annottext">State# s
+</span><a href="#local-6989586621679640390"><span class="hs-identifier hs-var">s1</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">SmallMutableArray# s a
+</span><a href="#local-6989586621679640394"><span class="hs-identifier hs-var">arr0</span></a></span><span> </span><span class="hs-special">#)</span><span>
+</span><span id="line-316"></span><span>
+</span><span id="line-317"></span><span class="hs-comment">-- | Semantically, @considerAccessible = True@. But it has special meaning</span><span>
+</span><span id="line-318"></span><span class="hs-comment">-- to the pattern-match checker, which will never flag the clause in which</span><span>
+</span><span id="line-319"></span><span class="hs-comment">-- 'considerAccessible' occurs as a guard as redundant or inaccessible.</span><span>
+</span><span id="line-320"></span><span class="hs-comment">-- Example:</span><span>
+</span><span id="line-321"></span><span class="hs-comment">--</span><span>
+</span><span id="line-322"></span><span class="hs-comment">-- &gt; case (x, x) of</span><span>
+</span><span id="line-323"></span><span class="hs-comment">-- &gt;   (True,  True)  -&gt; 1</span><span>
+</span><span id="line-324"></span><span class="hs-comment">-- &gt;   (False, False) -&gt; 2</span><span>
+</span><span id="line-325"></span><span class="hs-comment">-- &gt;   (True,  False) -&gt; 3 -- Warning: redundant</span><span>
+</span><span id="line-326"></span><span class="hs-comment">--</span><span>
+</span><span id="line-327"></span><span class="hs-comment">-- The pattern-match checker will warn here that the third clause is redundant.</span><span>
+</span><span id="line-328"></span><span class="hs-comment">-- It will stop doing so if the clause is adorned with 'considerAccessible':</span><span>
+</span><span id="line-329"></span><span class="hs-comment">--</span><span>
+</span><span id="line-330"></span><span class="hs-comment">-- &gt; case (x, x) of</span><span>
+</span><span id="line-331"></span><span class="hs-comment">-- &gt;   (True,  True)  -&gt; 1</span><span>
+</span><span id="line-332"></span><span class="hs-comment">-- &gt;   (False, False) -&gt; 2</span><span>
+</span><span id="line-333"></span><span class="hs-comment">-- &gt;   (True,  False) | considerAccessible -&gt; 3 -- No warning</span><span>
+</span><span id="line-334"></span><span class="hs-comment">--</span><span>
+</span><span id="line-335"></span><span class="hs-comment">-- Put 'considerAccessible' as the last statement of the guard to avoid get</span><span>
+</span><span id="line-336"></span><span class="hs-comment">-- confusing results from the pattern-match checker, which takes \&quot;consider</span><span>
+</span><span id="line-337"></span><span class="hs-comment">-- accessible\&quot; by word.</span><span>
+</span><span id="line-338"></span><span class="annot"><a href="GHC.Exts.html#considerAccessible"><span class="hs-identifier hs-type">considerAccessible</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#Bool"><span class="hs-identifier hs-type">Bool</span></a></span><span>
+</span><span id="line-339"></span><span id="considerAccessible"><span class="annot"><span class="annottext">considerAccessible :: Bool
+</span><a href="GHC.Exts.html#considerAccessible"><span class="hs-identifier hs-var hs-var">considerAccessible</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#True"><span class="hs-identifier hs-var">True</span></a></span><span>
+</span><span id="line-340"></span></pre></body></html>

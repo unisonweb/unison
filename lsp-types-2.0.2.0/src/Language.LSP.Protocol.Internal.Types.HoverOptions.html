@@ -1,0 +1,128 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- THIS IS A GENERATED FILE, DO NOT EDIT</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-imports #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-matches #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-deprecations #-}</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.HoverOptions</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Hashable</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html"><span class="hs-identifier">Language.LSP.Protocol.Utils.Misc</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prettyprinter</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Aeson.html"><span class="hs-identifier">Data.Row.Aeson</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Hashable.html"><span class="hs-identifier">Data.Row.Hashable</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Hashable</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html"><span class="hs-identifier">Language.LSP.Protocol.Types.Common</span></a></span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="hs-comment">{-|
+Hover options.
+-}</span><span>
+</span><span id="line-21"></span><span id="local-6989586621682176246"><span id="local-6989586621682176247"></span></span><span class="hs-keyword">data</span><span> </span><span id="HoverOptions"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.HoverOptions.html#HoverOptions"><span class="hs-identifier hs-var">HoverOptions</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="HoverOptions"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.HoverOptions.html#HoverOptions"><span class="hs-identifier hs-var">HoverOptions</span></a></span></span><span> </span><span>
+</span><span id="line-22"></span><span>  </span><span class="hs-special">{</span><span> </span><span class="hs-comment">{-|
+
+  -}</span><span>
+</span><span id="line-25"></span><span>  </span><span id="%24sel%3A_workDoneProgress%3AHoverOptions"><span class="annot"><span class="annottext">HoverOptions -&gt; Maybe Bool
+</span><a href="Language.LSP.Protocol.Internal.Types.HoverOptions.html#%24sel%3A_workDoneProgress%3AHoverOptions"><span class="hs-identifier hs-var hs-var">_workDoneProgress</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-27"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682176233"><span id="local-6989586621682176235"><span id="local-6989586621682176242"><span class="annot"><span class="annottext">Int -&gt; HoverOptions -&gt; ShowS
+[HoverOptions] -&gt; ShowS
+HoverOptions -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [HoverOptions] -&gt; ShowS
+$cshowList :: [HoverOptions] -&gt; ShowS
+show :: HoverOptions -&gt; String
+$cshow :: HoverOptions -&gt; String
+showsPrec :: Int -&gt; HoverOptions -&gt; ShowS
+$cshowsPrec :: Int -&gt; HoverOptions -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682176224"><span id="local-6989586621682176229"><span class="annot"><span class="annottext">HoverOptions -&gt; HoverOptions -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: HoverOptions -&gt; HoverOptions -&gt; Bool
+$c/= :: HoverOptions -&gt; HoverOptions -&gt; Bool
+== :: HoverOptions -&gt; HoverOptions -&gt; Bool
+$c== :: HoverOptions -&gt; HoverOptions -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682176198"><span id="local-6989586621682176200"><span id="local-6989586621682176203"><span id="local-6989586621682176206"><span id="local-6989586621682176209"><span id="local-6989586621682176213"><span id="local-6989586621682176218"><span class="annot"><span class="annottext">Eq HoverOptions
+HoverOptions -&gt; HoverOptions -&gt; Bool
+HoverOptions -&gt; HoverOptions -&gt; Ordering
+HoverOptions -&gt; HoverOptions -&gt; HoverOptions
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: HoverOptions -&gt; HoverOptions -&gt; HoverOptions
+$cmin :: HoverOptions -&gt; HoverOptions -&gt; HoverOptions
+max :: HoverOptions -&gt; HoverOptions -&gt; HoverOptions
+$cmax :: HoverOptions -&gt; HoverOptions -&gt; HoverOptions
+&gt;= :: HoverOptions -&gt; HoverOptions -&gt; Bool
+$c&gt;= :: HoverOptions -&gt; HoverOptions -&gt; Bool
+&gt; :: HoverOptions -&gt; HoverOptions -&gt; Bool
+$c&gt; :: HoverOptions -&gt; HoverOptions -&gt; Bool
+&lt;= :: HoverOptions -&gt; HoverOptions -&gt; Bool
+$c&lt;= :: HoverOptions -&gt; HoverOptions -&gt; Bool
+&lt; :: HoverOptions -&gt; HoverOptions -&gt; Bool
+$c&lt; :: HoverOptions -&gt; HoverOptions -&gt; Bool
+compare :: HoverOptions -&gt; HoverOptions -&gt; Ordering
+$ccompare :: HoverOptions -&gt; HoverOptions -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall x. Rep HoverOptions x -&gt; HoverOptions
+forall x. HoverOptions -&gt; Rep HoverOptions x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cto :: forall x. Rep HoverOptions x -&gt; HoverOptions
+$cfrom :: forall x. HoverOptions -&gt; Rep HoverOptions x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">anyclass</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682176191"><span class="annot"><span class="annottext">HoverOptions -&gt; ()
+forall a. (a -&gt; ()) -&gt; NFData a
+rnf :: HoverOptions -&gt; ()
+$crnf :: HoverOptions -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682176184"><span id="local-6989586621682176186"><span class="annot"><span class="annottext">Eq HoverOptions
+Int -&gt; HoverOptions -&gt; Int
+HoverOptions -&gt; Int
+forall a. Eq a -&gt; (Int -&gt; a -&gt; Int) -&gt; (a -&gt; Int) -&gt; Hashable a
+hash :: HoverOptions -&gt; Int
+$chash :: HoverOptions -&gt; Int
+hashWithSalt :: Int -&gt; HoverOptions -&gt; Int
+$chashWithSalt :: Int -&gt; HoverOptions -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Hashable</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621682176175"><span id="local-6989586621682176181"><span class="annot"><span class="annottext">forall ann. [HoverOptions] -&gt; Doc ann
+forall ann. HoverOptions -&gt; Doc ann
+forall a.
+(forall ann. a -&gt; Doc ann)
+-&gt; (forall ann. [a] -&gt; Doc ann) -&gt; Pretty a
+prettyList :: forall ann. [HoverOptions] -&gt; Doc ann
+$cprettyList :: forall ann. [HoverOptions] -&gt; Doc ann
+pretty :: forall ann. HoverOptions -&gt; Doc ann
+$cpretty :: forall ann. HoverOptions -&gt; Doc ann
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Pretty</span></span></span></span><span> </span><span class="hs-keyword">via</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html#ViaJSON"><span class="hs-identifier hs-type">ViaJSON</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.HoverOptions.html#HoverOptions"><span class="hs-identifier hs-type">HoverOptions</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682176163"><span id="local-6989586621682176165"><span id="local-6989586621682176167"><span class="annot"><span class="hs-identifier hs-type">Aeson.ToJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.HoverOptions.html#HoverOptions"><span class="hs-identifier hs-type">HoverOptions</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-32"></span><span>  </span><span id="local-6989586621682176155"><span class="annot"><span class="annottext">toJSON :: HoverOptions -&gt; Value
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">toJSON</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.HoverOptions.html#HoverOptions"><span class="hs-identifier hs-type">HoverOptions</span></a></span><span> </span><span id="local-6989586621682176153"><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682176153"><span class="hs-identifier hs-var">arg0</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">Aeson.object</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">concat</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>  </span><span class="hs-special">[</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;workDoneProgress&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682176153"><span class="hs-identifier hs-var">arg0</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682176147"><span class="annot"><span class="hs-identifier hs-type">Aeson.FromJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.HoverOptions.html#HoverOptions"><span class="hs-identifier hs-type">HoverOptions</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-35"></span><span>  </span><span id="local-6989586621682176139"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser HoverOptions
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">Aeson.withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;HoverOptions&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621682176136"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682176136"><span class="hs-identifier hs-var">arg</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Bool -&gt; HoverOptions
+</span><a href="Language.LSP.Protocol.Internal.Types.HoverOptions.html#HoverOptions"><span class="hs-identifier hs-var">HoverOptions</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682176136"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">Aeson..:!</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;workDoneProgress&quot;</span></span><span>
+</span><span id="line-36"></span></pre></body></html>

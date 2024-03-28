@@ -1,0 +1,1176 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DataKinds             #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE DerivingStrategies             #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE DeriveLift             #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE DuplicateRecordFields #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LANGUAGE GADTs                 #-}</span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# LANGUAGE KindSignatures        #-}</span><span>
+</span><span id="line-7"></span><span class="hs-pragma">{-# LANGUAGE LambdaCase            #-}</span><span>
+</span><span id="line-8"></span><span class="hs-pragma">{-# LANGUAGE OverloadedStrings     #-}</span><span>
+</span><span id="line-9"></span><span class="hs-pragma">{-# LANGUAGE ScopedTypeVariables   #-}</span><span>
+</span><span id="line-10"></span><span class="hs-pragma">{-# LANGUAGE TemplateHaskell       #-}</span><span>
+</span><span id="line-11"></span><span class="hs-pragma">{-# LANGUAGE TypeApplications      #-}</span><span>
+</span><span id="line-12"></span><span class="hs-comment">{-|
+This defines the types of the LSP &quot;metamodel&quot;, which is a machine-readable format specifying the
+types used in the LSP protocol.
+
+The type system is quite typescript-y, which isn't surprising given that the whole protocol is
+very typescript-y.
+
+A typescript version of the metamodel types can be found here, which is useful for constructing
+this Haskell model of them:
+https://github.com/microsoft/vscode-languageserver-node/blob/main/tools/src/metaModel.ts
+-}</span><span>
+</span><span id="line-23"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Language.LSP.MetaModel.Types</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span>         </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Null</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">String</span></span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span>         </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">JSON</span></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson.TH</span></span><span>      </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">JSON</span></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Char</span></span><span>          </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Char</span></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span>          </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Lens</span></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad.IO.Class</span></span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.List.NonEmpty</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">NE</span></span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Language.Haskell.TH.Syntax</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Lift</span></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Q</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Exp</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">addDependentFile</span></span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- | What direction is this message sent in: server to client, client to server, or both?</span><span>
+</span><span id="line-38"></span><span class="hs-keyword">data</span><span> </span><span id="MessageDirection"><span class="annot"><a href="Language.LSP.MetaModel.Types.html#MessageDirection"><span class="hs-identifier hs-var">MessageDirection</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="ServerToClient"><span class="annot"><a href="Language.LSP.MetaModel.Types.html#ServerToClient"><span class="hs-identifier hs-var">ServerToClient</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="ClientToServer"><span class="annot"><a href="Language.LSP.MetaModel.Types.html#ClientToServer"><span class="hs-identifier hs-var">ClientToServer</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="Both"><span class="annot"><a href="Language.LSP.MetaModel.Types.html#Both"><span class="hs-identifier hs-var">Both</span></a></span></span><span>
+</span><span id="line-39"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679625325"><span id="local-6989586621679625327"><span id="local-6989586621679625329"><span class="annot"><span class="annottext">Int -&gt; MessageDirection -&gt; ShowS
+[MessageDirection] -&gt; ShowS
+MessageDirection -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [MessageDirection] -&gt; ShowS
+$cshowList :: [MessageDirection] -&gt; ShowS
+show :: MessageDirection -&gt; String
+$cshow :: MessageDirection -&gt; String
+showsPrec :: Int -&gt; MessageDirection -&gt; ShowS
+$cshowsPrec :: Int -&gt; MessageDirection -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679625320"><span id="local-6989586621679625322"><span class="annot"><span class="annottext">MessageDirection -&gt; MessageDirection -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: MessageDirection -&gt; MessageDirection -&gt; Bool
+$c/= :: MessageDirection -&gt; MessageDirection -&gt; Bool
+== :: MessageDirection -&gt; MessageDirection -&gt; Bool
+$c== :: MessageDirection -&gt; MessageDirection -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679625300"><span id="local-6989586621679625302"><span id="local-6989586621679625305"><span id="local-6989586621679625308"><span id="local-6989586621679625311"><span id="local-6989586621679625313"><span id="local-6989586621679625315"><span class="annot"><span class="annottext">Eq MessageDirection
+MessageDirection -&gt; MessageDirection -&gt; Bool
+MessageDirection -&gt; MessageDirection -&gt; Ordering
+MessageDirection -&gt; MessageDirection -&gt; MessageDirection
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: MessageDirection -&gt; MessageDirection -&gt; MessageDirection
+$cmin :: MessageDirection -&gt; MessageDirection -&gt; MessageDirection
+max :: MessageDirection -&gt; MessageDirection -&gt; MessageDirection
+$cmax :: MessageDirection -&gt; MessageDirection -&gt; MessageDirection
+&gt;= :: MessageDirection -&gt; MessageDirection -&gt; Bool
+$c&gt;= :: MessageDirection -&gt; MessageDirection -&gt; Bool
+&gt; :: MessageDirection -&gt; MessageDirection -&gt; Bool
+$c&gt; :: MessageDirection -&gt; MessageDirection -&gt; Bool
+&lt;= :: MessageDirection -&gt; MessageDirection -&gt; Bool
+$c&lt;= :: MessageDirection -&gt; MessageDirection -&gt; Bool
+&lt; :: MessageDirection -&gt; MessageDirection -&gt; Bool
+$c&lt; :: MessageDirection -&gt; MessageDirection -&gt; Bool
+compare :: MessageDirection -&gt; MessageDirection -&gt; Ordering
+$ccompare :: MessageDirection -&gt; MessageDirection -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679625291"><span id="local-6989586621679625297"><span class="annot"><span class="annottext">forall t.
+(forall (m :: * -&gt; *). Quote m =&gt; t -&gt; m Exp)
+-&gt; (forall (m :: * -&gt; *). Quote m =&gt; t -&gt; Code m t) -&gt; Lift t
+forall (m :: * -&gt; *). Quote m =&gt; MessageDirection -&gt; m Exp
+forall (m :: * -&gt; *).
+Quote m =&gt;
+MessageDirection -&gt; Code m MessageDirection
+liftTyped :: forall (m :: * -&gt; *).
+Quote m =&gt;
+MessageDirection -&gt; Code m MessageDirection
+$cliftTyped :: forall (m :: * -&gt; *).
+Quote m =&gt;
+MessageDirection -&gt; Code m MessageDirection
+lift :: forall (m :: * -&gt; *). Quote m =&gt; MessageDirection -&gt; m Exp
+$clift :: forall (m :: * -&gt; *). Quote m =&gt; MessageDirection -&gt; m Exp
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Lift</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679625278"><span id="local-6989586621679625280"><span id="local-6989586621679625282"><span class="annot"><span class="hs-identifier hs-type">ToJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.MetaModel.Types.html#MessageDirection"><span class="hs-identifier hs-type">MessageDirection</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-42"></span><span>  </span><span id="local-6989586621679625270"><span class="annot"><span class="annottext">toJSON :: MessageDirection -&gt; Value
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">toJSON</span></span></span><span> </span><span class="annot"><span class="annottext">MessageDirection
+</span><a href="Language.LSP.MetaModel.Types.html#ServerToClient"><span class="hs-identifier hs-var">ServerToClient</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. ToJSON a =&gt; a -&gt; Value
+</span><span class="hs-identifier hs-var">toJSON</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;serverToClient&quot;</span></span><span>
+</span><span id="line-43"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">toJSON</span></span><span> </span><span class="annot"><span class="annottext">MessageDirection
+</span><a href="Language.LSP.MetaModel.Types.html#ClientToServer"><span class="hs-identifier hs-var">ClientToServer</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. ToJSON a =&gt; a -&gt; Value
+</span><span class="hs-identifier hs-var">toJSON</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;clientToServer&quot;</span></span><span>
+</span><span id="line-44"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">toJSON</span></span><span> </span><span class="annot"><span class="annottext">MessageDirection
+</span><a href="Language.LSP.MetaModel.Types.html#Both"><span class="hs-identifier hs-var">Both</span></a></span><span>           </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. ToJSON a =&gt; a -&gt; Value
+</span><span class="hs-identifier hs-var">toJSON</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;both&quot;</span></span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679625266"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.MetaModel.Types.html#MessageDirection"><span class="hs-identifier hs-type">MessageDirection</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-47"></span><span>  </span><span id="local-6989586621679625245"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser MessageDirection
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. String -&gt; (Text -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">withText</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;MessageDirection&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-48"></span><span>    </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;serverToClient&quot;</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">MessageDirection
+</span><a href="Language.LSP.MetaModel.Types.html#ServerToClient"><span class="hs-identifier hs-var">ServerToClient</span></a></span><span>
+</span><span id="line-49"></span><span>    </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;clientToServer&quot;</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">MessageDirection
+</span><a href="Language.LSP.MetaModel.Types.html#ClientToServer"><span class="hs-identifier hs-var">ClientToServer</span></a></span><span>
+</span><span id="line-50"></span><span>    </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;both&quot;</span></span><span>           </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">MessageDirection
+</span><a href="Language.LSP.MetaModel.Types.html#Both"><span class="hs-identifier hs-var">Both</span></a></span><span>
+</span><span id="line-51"></span><span>    </span><span id="local-6989586621679625242"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679625242"><span class="hs-identifier hs-var">t</span></a></span></span><span>                </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. MonadFail m =&gt; String -&gt; m a
+</span><span class="hs-identifier hs-var">fail</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;unknown message direction &quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679625242"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-52"></span><span>
+</span><span id="line-53"></span><span class="hs-comment">-- | The &quot;base types&quot; in the metamodel.</span><span>
+</span><span id="line-54"></span><span class="hs-keyword">data</span><span> </span><span id="BaseTypeName"><span class="annot"><a href="Language.LSP.MetaModel.Types.html#BaseTypeName"><span class="hs-identifier hs-var">BaseTypeName</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="URI"><span class="annot"><a href="Language.LSP.MetaModel.Types.html#URI"><span class="hs-identifier hs-var">URI</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="DocumentUri"><span class="annot"><a href="Language.LSP.MetaModel.Types.html#DocumentUri"><span class="hs-identifier hs-var">DocumentUri</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="Integer"><span class="annot"><a href="Language.LSP.MetaModel.Types.html#Integer"><span class="hs-identifier hs-var">Integer</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="UInteger"><span class="annot"><a href="Language.LSP.MetaModel.Types.html#UInteger"><span class="hs-identifier hs-var">UInteger</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="Decimal"><span class="annot"><a href="Language.LSP.MetaModel.Types.html#Decimal"><span class="hs-identifier hs-var">Decimal</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="RegExp"><span class="annot"><a href="Language.LSP.MetaModel.Types.html#RegExp"><span class="hs-identifier hs-var">RegExp</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="String"><span class="annot"><a href="Language.LSP.MetaModel.Types.html#String"><span class="hs-identifier hs-var">String</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="Boolean"><span class="annot"><a href="Language.LSP.MetaModel.Types.html#Boolean"><span class="hs-identifier hs-var">Boolean</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="Null"><span class="annot"><a href="Language.LSP.MetaModel.Types.html#Null"><span class="hs-identifier hs-var">Null</span></a></span></span><span>
+</span><span id="line-55"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679625226"><span id="local-6989586621679625228"><span id="local-6989586621679625230"><span class="annot"><span class="annottext">Int -&gt; BaseTypeName -&gt; ShowS
+[BaseTypeName] -&gt; ShowS
+BaseTypeName -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [BaseTypeName] -&gt; ShowS
+$cshowList :: [BaseTypeName] -&gt; ShowS
+show :: BaseTypeName -&gt; String
+$cshow :: BaseTypeName -&gt; String
+showsPrec :: Int -&gt; BaseTypeName -&gt; ShowS
+$cshowsPrec :: Int -&gt; BaseTypeName -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679625222"><span id="local-6989586621679625224"><span class="annot"><span class="annottext">BaseTypeName -&gt; BaseTypeName -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: BaseTypeName -&gt; BaseTypeName -&gt; Bool
+$c/= :: BaseTypeName -&gt; BaseTypeName -&gt; Bool
+== :: BaseTypeName -&gt; BaseTypeName -&gt; Bool
+$c== :: BaseTypeName -&gt; BaseTypeName -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679625203"><span id="local-6989586621679625205"><span id="local-6989586621679625208"><span id="local-6989586621679625211"><span id="local-6989586621679625214"><span id="local-6989586621679625216"><span id="local-6989586621679625218"><span class="annot"><span class="annottext">Eq BaseTypeName
+BaseTypeName -&gt; BaseTypeName -&gt; Bool
+BaseTypeName -&gt; BaseTypeName -&gt; Ordering
+BaseTypeName -&gt; BaseTypeName -&gt; BaseTypeName
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: BaseTypeName -&gt; BaseTypeName -&gt; BaseTypeName
+$cmin :: BaseTypeName -&gt; BaseTypeName -&gt; BaseTypeName
+max :: BaseTypeName -&gt; BaseTypeName -&gt; BaseTypeName
+$cmax :: BaseTypeName -&gt; BaseTypeName -&gt; BaseTypeName
+&gt;= :: BaseTypeName -&gt; BaseTypeName -&gt; Bool
+$c&gt;= :: BaseTypeName -&gt; BaseTypeName -&gt; Bool
+&gt; :: BaseTypeName -&gt; BaseTypeName -&gt; Bool
+$c&gt; :: BaseTypeName -&gt; BaseTypeName -&gt; Bool
+&lt;= :: BaseTypeName -&gt; BaseTypeName -&gt; Bool
+$c&lt;= :: BaseTypeName -&gt; BaseTypeName -&gt; Bool
+&lt; :: BaseTypeName -&gt; BaseTypeName -&gt; Bool
+$c&lt; :: BaseTypeName -&gt; BaseTypeName -&gt; Bool
+compare :: BaseTypeName -&gt; BaseTypeName -&gt; Ordering
+$ccompare :: BaseTypeName -&gt; BaseTypeName -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679625189"><span id="local-6989586621679625201"><span class="annot"><span class="annottext">forall t.
+(forall (m :: * -&gt; *). Quote m =&gt; t -&gt; m Exp)
+-&gt; (forall (m :: * -&gt; *). Quote m =&gt; t -&gt; Code m t) -&gt; Lift t
+forall (m :: * -&gt; *). Quote m =&gt; BaseTypeName -&gt; m Exp
+forall (m :: * -&gt; *).
+Quote m =&gt;
+BaseTypeName -&gt; Code m BaseTypeName
+liftTyped :: forall (m :: * -&gt; *).
+Quote m =&gt;
+BaseTypeName -&gt; Code m BaseTypeName
+$cliftTyped :: forall (m :: * -&gt; *).
+Quote m =&gt;
+BaseTypeName -&gt; Code m BaseTypeName
+lift :: forall (m :: * -&gt; *). Quote m =&gt; BaseTypeName -&gt; m Exp
+$clift :: forall (m :: * -&gt; *). Quote m =&gt; BaseTypeName -&gt; m Exp
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Lift</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span class="hs-comment">-- | A property of a structure.</span><span>
+</span><span id="line-58"></span><span class="hs-keyword">data</span><span> </span><span id="Property"><span class="annot"><a href="Language.LSP.MetaModel.Types.html#Property"><span class="hs-identifier hs-var">Property</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Property"><span class="annot"><a href="Language.LSP.MetaModel.Types.html#Property"><span class="hs-identifier hs-var">Property</span></a></span></span><span>
+</span><span id="line-59"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="%24sel%3Aname%3AProperty"><span class="annot"><span class="annottext">Property -&gt; Text
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3Aname%3AProperty"><span class="hs-identifier hs-var hs-var">name</span></a></span></span><span>          </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-60"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Atype_%3AProperty"><span class="annot"><span class="annottext">Property -&gt; Type
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3Atype_%3AProperty"><span class="hs-identifier hs-var hs-var">type_</span></a></span></span><span>         </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.LSP.MetaModel.Types.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span>
+</span><span id="line-61"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Aoptional%3AProperty"><span class="annot"><span class="annottext">Property -&gt; Maybe Bool
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3Aoptional%3AProperty"><span class="hs-identifier hs-var hs-var">optional</span></a></span></span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-62"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Adocumentation%3AProperty"><span class="annot"><span class="annottext">Property -&gt; Maybe Text
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3Adocumentation%3AProperty"><span class="hs-identifier hs-var hs-var">documentation</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-63"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Asince%3AProperty"><span class="annot"><span class="annottext">Property -&gt; Maybe Text
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3Asince%3AProperty"><span class="hs-identifier hs-var hs-var">since</span></a></span></span><span>         </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-64"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Aproposed%3AProperty"><span class="annot"><span class="annottext">Property -&gt; Maybe Bool
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3Aproposed%3AProperty"><span class="hs-identifier hs-var hs-var">proposed</span></a></span></span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-65"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Adeprecated%3AProperty"><span class="annot"><span class="annottext">Property -&gt; Maybe Text
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3Adeprecated%3AProperty"><span class="hs-identifier hs-var hs-var">deprecated</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-66"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-67"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679625153"><span id="local-6989586621679625155"><span id="local-6989586621679625168"><span class="annot"><span class="annottext">Int -&gt; Property -&gt; ShowS
+[Property] -&gt; ShowS
+Property -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [Property] -&gt; ShowS
+$cshowList :: [Property] -&gt; ShowS
+show :: Property -&gt; String
+$cshow :: Property -&gt; String
+showsPrec :: Int -&gt; Property -&gt; ShowS
+$cshowsPrec :: Int -&gt; Property -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679625139"><span id="local-6989586621679625150"><span class="annot"><span class="annottext">Property -&gt; Property -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: Property -&gt; Property -&gt; Bool
+$c/= :: Property -&gt; Property -&gt; Bool
+== :: Property -&gt; Property -&gt; Bool
+$c== :: Property -&gt; Property -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679625101"><span id="local-6989586621679625103"><span id="local-6989586621679625106"><span id="local-6989586621679625109"><span id="local-6989586621679625112"><span id="local-6989586621679625122"><span id="local-6989586621679625134"><span class="annot"><span class="annottext">Eq Property
+Property -&gt; Property -&gt; Bool
+Property -&gt; Property -&gt; Ordering
+Property -&gt; Property -&gt; Property
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: Property -&gt; Property -&gt; Property
+$cmin :: Property -&gt; Property -&gt; Property
+max :: Property -&gt; Property -&gt; Property
+$cmax :: Property -&gt; Property -&gt; Property
+&gt;= :: Property -&gt; Property -&gt; Bool
+$c&gt;= :: Property -&gt; Property -&gt; Bool
+&gt; :: Property -&gt; Property -&gt; Bool
+$c&gt; :: Property -&gt; Property -&gt; Bool
+&lt;= :: Property -&gt; Property -&gt; Bool
+$c&lt;= :: Property -&gt; Property -&gt; Bool
+&lt; :: Property -&gt; Property -&gt; Bool
+$c&lt; :: Property -&gt; Property -&gt; Bool
+compare :: Property -&gt; Property -&gt; Ordering
+$ccompare :: Property -&gt; Property -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679625076"><span id="local-6989586621679625098"><span class="annot"><span class="annottext">forall t.
+(forall (m :: * -&gt; *). Quote m =&gt; t -&gt; m Exp)
+-&gt; (forall (m :: * -&gt; *). Quote m =&gt; t -&gt; Code m t) -&gt; Lift t
+forall (m :: * -&gt; *). Quote m =&gt; Property -&gt; m Exp
+forall (m :: * -&gt; *). Quote m =&gt; Property -&gt; Code m Property
+liftTyped :: forall (m :: * -&gt; *). Quote m =&gt; Property -&gt; Code m Property
+$cliftTyped :: forall (m :: * -&gt; *). Quote m =&gt; Property -&gt; Code m Property
+lift :: forall (m :: * -&gt; *). Quote m =&gt; Property -&gt; m Exp
+$clift :: forall (m :: * -&gt; *). Quote m =&gt; Property -&gt; m Exp
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Lift</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-68"></span><span>
+</span><span id="line-69"></span><span class="hs-comment">-- | An anonymous structure type.</span><span>
+</span><span id="line-70"></span><span class="hs-keyword">data</span><span> </span><span id="StructureLiteral"><span class="annot"><a href="Language.LSP.MetaModel.Types.html#StructureLiteral"><span class="hs-identifier hs-var">StructureLiteral</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="StructureLiteral"><span class="annot"><a href="Language.LSP.MetaModel.Types.html#StructureLiteral"><span class="hs-identifier hs-var">StructureLiteral</span></a></span></span><span>
+</span><span id="line-71"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="%24sel%3Aproperties%3AStructureLiteral"><span class="annot"><span class="annottext">StructureLiteral -&gt; [Property]
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3Aproperties%3AStructureLiteral"><span class="hs-identifier hs-var hs-var">properties</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Language.LSP.MetaModel.Types.html#Property"><span class="hs-identifier hs-type">Property</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-72"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Adocumentation%3AStructureLiteral"><span class="annot"><span class="annottext">StructureLiteral -&gt; Maybe Text
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3Adocumentation%3AStructureLiteral"><span class="hs-identifier hs-var hs-var">documentation</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-73"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Asince%3AStructureLiteral"><span class="annot"><span class="annottext">StructureLiteral -&gt; Maybe Text
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3Asince%3AStructureLiteral"><span class="hs-identifier hs-var hs-var">since</span></a></span></span><span>         </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-74"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Aproposed%3AStructureLiteral"><span class="annot"><span class="annottext">StructureLiteral -&gt; Maybe Bool
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3Aproposed%3AStructureLiteral"><span class="hs-identifier hs-var hs-var">proposed</span></a></span></span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-75"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Adeprecated%3AStructureLiteral"><span class="annot"><span class="annottext">StructureLiteral -&gt; Maybe Text
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3Adeprecated%3AStructureLiteral"><span class="hs-identifier hs-var hs-var">deprecated</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-76"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-77"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679625034"><span id="local-6989586621679625036"><span id="local-6989586621679625048"><span class="annot"><span class="annottext">Int -&gt; StructureLiteral -&gt; ShowS
+[StructureLiteral] -&gt; ShowS
+StructureLiteral -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [StructureLiteral] -&gt; ShowS
+$cshowList :: [StructureLiteral] -&gt; ShowS
+show :: StructureLiteral -&gt; String
+$cshow :: StructureLiteral -&gt; String
+showsPrec :: Int -&gt; StructureLiteral -&gt; ShowS
+$cshowsPrec :: Int -&gt; StructureLiteral -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679625021"><span id="local-6989586621679625032"><span class="annot"><span class="annottext">StructureLiteral -&gt; StructureLiteral -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: StructureLiteral -&gt; StructureLiteral -&gt; Bool
+$c/= :: StructureLiteral -&gt; StructureLiteral -&gt; Bool
+== :: StructureLiteral -&gt; StructureLiteral -&gt; Bool
+$c== :: StructureLiteral -&gt; StructureLiteral -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679624985"><span id="local-6989586621679624987"><span id="local-6989586621679624990"><span id="local-6989586621679624993"><span id="local-6989586621679624996"><span id="local-6989586621679625006"><span id="local-6989586621679625017"><span class="annot"><span class="annottext">Eq StructureLiteral
+StructureLiteral -&gt; StructureLiteral -&gt; Bool
+StructureLiteral -&gt; StructureLiteral -&gt; Ordering
+StructureLiteral -&gt; StructureLiteral -&gt; StructureLiteral
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: StructureLiteral -&gt; StructureLiteral -&gt; StructureLiteral
+$cmin :: StructureLiteral -&gt; StructureLiteral -&gt; StructureLiteral
+max :: StructureLiteral -&gt; StructureLiteral -&gt; StructureLiteral
+$cmax :: StructureLiteral -&gt; StructureLiteral -&gt; StructureLiteral
+&gt;= :: StructureLiteral -&gt; StructureLiteral -&gt; Bool
+$c&gt;= :: StructureLiteral -&gt; StructureLiteral -&gt; Bool
+&gt; :: StructureLiteral -&gt; StructureLiteral -&gt; Bool
+$c&gt; :: StructureLiteral -&gt; StructureLiteral -&gt; Bool
+&lt;= :: StructureLiteral -&gt; StructureLiteral -&gt; Bool
+$c&lt;= :: StructureLiteral -&gt; StructureLiteral -&gt; Bool
+&lt; :: StructureLiteral -&gt; StructureLiteral -&gt; Bool
+$c&lt; :: StructureLiteral -&gt; StructureLiteral -&gt; Bool
+compare :: StructureLiteral -&gt; StructureLiteral -&gt; Ordering
+$ccompare :: StructureLiteral -&gt; StructureLiteral -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679624965"><span id="local-6989586621679624983"><span class="annot"><span class="annottext">forall t.
+(forall (m :: * -&gt; *). Quote m =&gt; t -&gt; m Exp)
+-&gt; (forall (m :: * -&gt; *). Quote m =&gt; t -&gt; Code m t) -&gt; Lift t
+forall (m :: * -&gt; *). Quote m =&gt; StructureLiteral -&gt; m Exp
+forall (m :: * -&gt; *).
+Quote m =&gt;
+StructureLiteral -&gt; Code m StructureLiteral
+liftTyped :: forall (m :: * -&gt; *).
+Quote m =&gt;
+StructureLiteral -&gt; Code m StructureLiteral
+$cliftTyped :: forall (m :: * -&gt; *).
+Quote m =&gt;
+StructureLiteral -&gt; Code m StructureLiteral
+lift :: forall (m :: * -&gt; *). Quote m =&gt; StructureLiteral -&gt; m Exp
+$clift :: forall (m :: * -&gt; *). Quote m =&gt; StructureLiteral -&gt; m Exp
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Lift</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-78"></span><span>
+</span><span id="line-79"></span><span class="hs-comment">-- | The various kinds of type in the metamodel.</span><span>
+</span><span id="line-80"></span><span class="hs-keyword">data</span><span> </span><span id="Type"><span class="annot"><a href="Language.LSP.MetaModel.Types.html#Type"><span class="hs-identifier hs-var">Type</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-81"></span><span>  </span><span id="BaseType"><span class="annot"><a href="Language.LSP.MetaModel.Types.html#BaseType"><span class="hs-identifier hs-var">BaseType</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="%24sel%3AbtName%3ABaseType"><span class="annot"><span class="annottext">Type -&gt; BaseTypeName
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3AbtName%3ABaseType"><span class="hs-identifier hs-var hs-var">btName</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.LSP.MetaModel.Types.html#BaseTypeName"><span class="hs-identifier hs-type">BaseTypeName</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-82"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ReferenceType"><span class="annot"><a href="Language.LSP.MetaModel.Types.html#ReferenceType"><span class="hs-identifier hs-var">ReferenceType</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="%24sel%3ArtName%3ABaseType"><span class="annot"><span class="annottext">Type -&gt; Text
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3ArtName%3ABaseType"><span class="hs-identifier hs-var hs-var">rtName</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-83"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ArrayType"><span class="annot"><a href="Language.LSP.MetaModel.Types.html#ArrayType"><span class="hs-identifier hs-var">ArrayType</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="%24sel%3AatElement%3ABaseType"><span class="annot"><span class="annottext">Type -&gt; Type
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3AatElement%3ABaseType"><span class="hs-identifier hs-var hs-var">atElement</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.LSP.MetaModel.Types.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-84"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="MapType"><span class="annot"><a href="Language.LSP.MetaModel.Types.html#MapType"><span class="hs-identifier hs-var">MapType</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="%24sel%3AmKey%3ABaseType"><span class="annot"><span class="annottext">Type -&gt; Type
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3AmKey%3ABaseType"><span class="hs-identifier hs-var hs-var">mKey</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.LSP.MetaModel.Types.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span class="hs-special">,</span><span> </span><span id="%24sel%3AmValue%3ABaseType"><span class="annot"><span class="annottext">Type -&gt; Type
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3AmValue%3ABaseType"><span class="hs-identifier hs-var hs-var">mValue</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.LSP.MetaModel.Types.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-85"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="AndType"><span class="annot"><a href="Language.LSP.MetaModel.Types.html#AndType"><span class="hs-identifier hs-var">AndType</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="%24sel%3AaItems%3ABaseType"><span class="annot"><span class="annottext">Type -&gt; NonEmpty Type
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3AaItems%3ABaseType"><span class="hs-identifier hs-var hs-var">aItems</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">NE.NonEmpty</span></span><span> </span><span class="annot"><a href="Language.LSP.MetaModel.Types.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-86"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="OrType"><span class="annot"><a href="Language.LSP.MetaModel.Types.html#OrType"><span class="hs-identifier hs-var">OrType</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="%24sel%3AoItems%3ABaseType"><span class="annot"><span class="annottext">Type -&gt; NonEmpty Type
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3AoItems%3ABaseType"><span class="hs-identifier hs-var hs-var">oItems</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">NE.NonEmpty</span></span><span> </span><span class="annot"><a href="Language.LSP.MetaModel.Types.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-87"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="TupleType"><span class="annot"><a href="Language.LSP.MetaModel.Types.html#TupleType"><span class="hs-identifier hs-var">TupleType</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="%24sel%3AtItems%3ABaseType"><span class="annot"><span class="annottext">Type -&gt; [Type]
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3AtItems%3ABaseType"><span class="hs-identifier hs-var hs-var">tItems</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Language.LSP.MetaModel.Types.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-88"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="StructureLiteralType"><span class="annot"><a href="Language.LSP.MetaModel.Types.html#StructureLiteralType"><span class="hs-identifier hs-var">StructureLiteralType</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="%24sel%3AstlValue%3ABaseType"><span class="annot"><span class="annottext">Type -&gt; StructureLiteral
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3AstlValue%3ABaseType"><span class="hs-identifier hs-var hs-var">stlValue</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.LSP.MetaModel.Types.html#StructureLiteral"><span class="hs-identifier hs-type">StructureLiteral</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-89"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="StringLiteralType"><span class="annot"><a href="Language.LSP.MetaModel.Types.html#StringLiteralType"><span class="hs-identifier hs-var">StringLiteralType</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="%24sel%3AslValue%3ABaseType"><span class="annot"><span class="annottext">Type -&gt; Text
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3AslValue%3ABaseType"><span class="hs-identifier hs-var hs-var">slValue</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-90"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="IntegerLiteralType"><span class="annot"><a href="Language.LSP.MetaModel.Types.html#IntegerLiteralType"><span class="hs-identifier hs-var">IntegerLiteralType</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="%24sel%3AilValue%3ABaseType"><span class="annot"><span class="annottext">Type -&gt; Integer
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3AilValue%3ABaseType"><span class="hs-identifier hs-var hs-var">ilValue</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-91"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="BooleanLiteralType"><span class="annot"><a href="Language.LSP.MetaModel.Types.html#BooleanLiteralType"><span class="hs-identifier hs-var">BooleanLiteralType</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="%24sel%3AblValue%3ABaseType"><span class="annot"><span class="annottext">Type -&gt; Bool
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3AblValue%3ABaseType"><span class="hs-identifier hs-var hs-var">blValue</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-92"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679624895"><span id="local-6989586621679624897"><span id="local-6989586621679624924"><span class="annot"><span class="annottext">Int -&gt; Type -&gt; ShowS
+[Type] -&gt; ShowS
+Type -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [Type] -&gt; ShowS
+$cshowList :: [Type] -&gt; ShowS
+show :: Type -&gt; String
+$cshow :: Type -&gt; String
+showsPrec :: Int -&gt; Type -&gt; ShowS
+$cshowsPrec :: Int -&gt; Type -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679624877"><span id="local-6989586621679624893"><span class="annot"><span class="annottext">Type -&gt; Type -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: Type -&gt; Type -&gt; Bool
+$c/= :: Type -&gt; Type -&gt; Bool
+== :: Type -&gt; Type -&gt; Bool
+$c== :: Type -&gt; Type -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679624847"><span id="local-6989586621679624849"><span id="local-6989586621679624851"><span id="local-6989586621679624853"><span id="local-6989586621679624855"><span id="local-6989586621679624857"><span id="local-6989586621679624873"><span class="annot"><span class="annottext">Eq Type
+Type -&gt; Type -&gt; Bool
+Type -&gt; Type -&gt; Ordering
+Type -&gt; Type -&gt; Type
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: Type -&gt; Type -&gt; Type
+$cmin :: Type -&gt; Type -&gt; Type
+max :: Type -&gt; Type -&gt; Type
+$cmax :: Type -&gt; Type -&gt; Type
+&gt;= :: Type -&gt; Type -&gt; Bool
+$c&gt;= :: Type -&gt; Type -&gt; Bool
+&gt; :: Type -&gt; Type -&gt; Bool
+$c&gt; :: Type -&gt; Type -&gt; Bool
+&lt;= :: Type -&gt; Type -&gt; Bool
+$c&lt;= :: Type -&gt; Type -&gt; Bool
+&lt; :: Type -&gt; Type -&gt; Bool
+$c&lt; :: Type -&gt; Type -&gt; Bool
+compare :: Type -&gt; Type -&gt; Ordering
+$ccompare :: Type -&gt; Type -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679624805"><span id="local-6989586621679624845"><span class="annot"><span class="annottext">forall t.
+(forall (m :: * -&gt; *). Quote m =&gt; t -&gt; m Exp)
+-&gt; (forall (m :: * -&gt; *). Quote m =&gt; t -&gt; Code m t) -&gt; Lift t
+forall (m :: * -&gt; *). Quote m =&gt; Type -&gt; m Exp
+forall (m :: * -&gt; *). Quote m =&gt; Type -&gt; Code m Type
+liftTyped :: forall (m :: * -&gt; *). Quote m =&gt; Type -&gt; Code m Type
+$cliftTyped :: forall (m :: * -&gt; *). Quote m =&gt; Type -&gt; Code m Type
+lift :: forall (m :: * -&gt; *). Quote m =&gt; Type -&gt; m Exp
+$clift :: forall (m :: * -&gt; *). Quote m =&gt; Type -&gt; m Exp
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Lift</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-93"></span><span>
+</span><span id="line-94"></span><span class="hs-comment">-- | A request message.</span><span>
+</span><span id="line-95"></span><span class="hs-keyword">data</span><span> </span><span id="Request"><span class="annot"><a href="Language.LSP.MetaModel.Types.html#Request"><span class="hs-identifier hs-var">Request</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Request"><span class="annot"><a href="Language.LSP.MetaModel.Types.html#Request"><span class="hs-identifier hs-var">Request</span></a></span></span><span>
+</span><span id="line-96"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="%24sel%3Amethod%3ARequest"><span class="annot"><span class="annottext">Request -&gt; Text
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3Amethod%3ARequest"><span class="hs-identifier hs-var hs-var">method</span></a></span></span><span>              </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-97"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Aparams%3ARequest"><span class="annot"><span class="annottext">Request -&gt; Maybe Type
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3Aparams%3ARequest"><span class="hs-identifier hs-var hs-var">params</span></a></span></span><span>              </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Language.LSP.MetaModel.Types.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span> </span><span class="hs-comment">-- typescript says it can be [Type], but it never is so whatever</span><span>
+</span><span id="line-98"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Aresult%3ARequest"><span class="annot"><span class="annottext">Request -&gt; Type
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3Aresult%3ARequest"><span class="hs-identifier hs-var hs-var">result</span></a></span></span><span>              </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.LSP.MetaModel.Types.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span>
+</span><span id="line-99"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="%24sel%3ApartialResult%3ARequest"><span class="annot"><span class="annottext">Request -&gt; Maybe Type
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3ApartialResult%3ARequest"><span class="hs-identifier hs-var hs-var">partialResult</span></a></span></span><span>       </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Language.LSP.MetaModel.Types.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span>
+</span><span id="line-100"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="%24sel%3AerrorData%3ARequest"><span class="annot"><span class="annottext">Request -&gt; Maybe Type
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3AerrorData%3ARequest"><span class="hs-identifier hs-var hs-var">errorData</span></a></span></span><span>           </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Language.LSP.MetaModel.Types.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span>
+</span><span id="line-101"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="%24sel%3AregistrationOptions%3ARequest"><span class="annot"><span class="annottext">Request -&gt; Maybe Type
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3AregistrationOptions%3ARequest"><span class="hs-identifier hs-var hs-var">registrationOptions</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Language.LSP.MetaModel.Types.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span>
+</span><span id="line-102"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="%24sel%3AmessageDirection%3ARequest"><span class="annot"><span class="annottext">Request -&gt; MessageDirection
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3AmessageDirection%3ARequest"><span class="hs-identifier hs-var hs-var">messageDirection</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.LSP.MetaModel.Types.html#MessageDirection"><span class="hs-identifier hs-type">MessageDirection</span></a></span><span>
+</span><span id="line-103"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Adocumentation%3ARequest"><span class="annot"><span class="annottext">Request -&gt; Maybe Text
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3Adocumentation%3ARequest"><span class="hs-identifier hs-var hs-var">documentation</span></a></span></span><span>       </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-104"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Asince%3ARequest"><span class="annot"><span class="annottext">Request -&gt; Maybe Text
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3Asince%3ARequest"><span class="hs-identifier hs-var hs-var">since</span></a></span></span><span>               </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-105"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Aproposed%3ARequest"><span class="annot"><span class="annottext">Request -&gt; Maybe Bool
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3Aproposed%3ARequest"><span class="hs-identifier hs-var hs-var">proposed</span></a></span></span><span>            </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-106"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Adeprecated%3ARequest"><span class="annot"><span class="annottext">Request -&gt; Maybe Text
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3Adeprecated%3ARequest"><span class="hs-identifier hs-var hs-var">deprecated</span></a></span></span><span>          </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-107"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-108"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679624737"><span id="local-6989586621679624739"><span id="local-6989586621679624755"><span class="annot"><span class="annottext">Int -&gt; Request -&gt; ShowS
+[Request] -&gt; ShowS
+Request -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [Request] -&gt; ShowS
+$cshowList :: [Request] -&gt; ShowS
+show :: Request -&gt; String
+$cshow :: Request -&gt; String
+showsPrec :: Int -&gt; Request -&gt; ShowS
+$cshowsPrec :: Int -&gt; Request -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679624720"><span id="local-6989586621679624735"><span class="annot"><span class="annottext">Request -&gt; Request -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: Request -&gt; Request -&gt; Bool
+$c/= :: Request -&gt; Request -&gt; Bool
+== :: Request -&gt; Request -&gt; Bool
+$c== :: Request -&gt; Request -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679624675"><span id="local-6989586621679624677"><span id="local-6989586621679624680"><span id="local-6989586621679624683"><span id="local-6989586621679624686"><span id="local-6989586621679624701"><span id="local-6989586621679624716"><span class="annot"><span class="annottext">Eq Request
+Request -&gt; Request -&gt; Bool
+Request -&gt; Request -&gt; Ordering
+Request -&gt; Request -&gt; Request
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: Request -&gt; Request -&gt; Request
+$cmin :: Request -&gt; Request -&gt; Request
+max :: Request -&gt; Request -&gt; Request
+$cmax :: Request -&gt; Request -&gt; Request
+&gt;= :: Request -&gt; Request -&gt; Bool
+$c&gt;= :: Request -&gt; Request -&gt; Bool
+&gt; :: Request -&gt; Request -&gt; Bool
+$c&gt; :: Request -&gt; Request -&gt; Bool
+&lt;= :: Request -&gt; Request -&gt; Bool
+$c&lt;= :: Request -&gt; Request -&gt; Bool
+&lt; :: Request -&gt; Request -&gt; Bool
+$c&lt; :: Request -&gt; Request -&gt; Bool
+compare :: Request -&gt; Request -&gt; Ordering
+$ccompare :: Request -&gt; Request -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679624644"><span id="local-6989586621679624673"><span class="annot"><span class="annottext">forall t.
+(forall (m :: * -&gt; *). Quote m =&gt; t -&gt; m Exp)
+-&gt; (forall (m :: * -&gt; *). Quote m =&gt; t -&gt; Code m t) -&gt; Lift t
+forall (m :: * -&gt; *). Quote m =&gt; Request -&gt; m Exp
+forall (m :: * -&gt; *). Quote m =&gt; Request -&gt; Code m Request
+liftTyped :: forall (m :: * -&gt; *). Quote m =&gt; Request -&gt; Code m Request
+$cliftTyped :: forall (m :: * -&gt; *). Quote m =&gt; Request -&gt; Code m Request
+lift :: forall (m :: * -&gt; *). Quote m =&gt; Request -&gt; m Exp
+$clift :: forall (m :: * -&gt; *). Quote m =&gt; Request -&gt; m Exp
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Lift</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-109"></span><span>
+</span><span id="line-110"></span><span class="hs-comment">-- | A notification message.</span><span>
+</span><span id="line-111"></span><span class="hs-keyword">data</span><span> </span><span id="Notification"><span class="annot"><a href="Language.LSP.MetaModel.Types.html#Notification"><span class="hs-identifier hs-var">Notification</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Notification"><span class="annot"><a href="Language.LSP.MetaModel.Types.html#Notification"><span class="hs-identifier hs-var">Notification</span></a></span></span><span>
+</span><span id="line-112"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="%24sel%3Amethod%3ANotification"><span class="annot"><span class="annottext">Notification -&gt; Text
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3Amethod%3ANotification"><span class="hs-identifier hs-var hs-var">method</span></a></span></span><span>              </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-113"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Aparams%3ANotification"><span class="annot"><span class="annottext">Notification -&gt; Maybe Type
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3Aparams%3ANotification"><span class="hs-identifier hs-var hs-var">params</span></a></span></span><span>              </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Language.LSP.MetaModel.Types.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span>
+</span><span id="line-114"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="%24sel%3AregistrationOptions%3ANotification"><span class="annot"><span class="annottext">Notification -&gt; Maybe Type
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3AregistrationOptions%3ANotification"><span class="hs-identifier hs-var hs-var">registrationOptions</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Language.LSP.MetaModel.Types.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span>
+</span><span id="line-115"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="%24sel%3AmessageDirection%3ANotification"><span class="annot"><span class="annottext">Notification -&gt; MessageDirection
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3AmessageDirection%3ANotification"><span class="hs-identifier hs-var hs-var">messageDirection</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.LSP.MetaModel.Types.html#MessageDirection"><span class="hs-identifier hs-type">MessageDirection</span></a></span><span>
+</span><span id="line-116"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Adocumentation%3ANotification"><span class="annot"><span class="annottext">Notification -&gt; Maybe Text
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3Adocumentation%3ANotification"><span class="hs-identifier hs-var hs-var">documentation</span></a></span></span><span>       </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-117"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Asince%3ANotification"><span class="annot"><span class="annottext">Notification -&gt; Maybe Text
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3Asince%3ANotification"><span class="hs-identifier hs-var hs-var">since</span></a></span></span><span>               </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-118"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Aproposed%3ANotification"><span class="annot"><span class="annottext">Notification -&gt; Maybe Bool
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3Aproposed%3ANotification"><span class="hs-identifier hs-var hs-var">proposed</span></a></span></span><span>            </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-119"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Adeprecated%3ANotification"><span class="annot"><span class="annottext">Notification -&gt; Maybe Text
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3Adeprecated%3ANotification"><span class="hs-identifier hs-var hs-var">deprecated</span></a></span></span><span>          </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-120"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-121"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679624591"><span id="local-6989586621679624593"><span id="local-6989586621679624606"><span class="annot"><span class="annottext">Int -&gt; Notification -&gt; ShowS
+[Notification] -&gt; ShowS
+Notification -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [Notification] -&gt; ShowS
+$cshowList :: [Notification] -&gt; ShowS
+show :: Notification -&gt; String
+$cshow :: Notification -&gt; String
+showsPrec :: Int -&gt; Notification -&gt; ShowS
+$cshowsPrec :: Int -&gt; Notification -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679624577"><span id="local-6989586621679624589"><span class="annot"><span class="annottext">Notification -&gt; Notification -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: Notification -&gt; Notification -&gt; Bool
+$c/= :: Notification -&gt; Notification -&gt; Bool
+== :: Notification -&gt; Notification -&gt; Bool
+$c== :: Notification -&gt; Notification -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679624538"><span id="local-6989586621679624540"><span id="local-6989586621679624543"><span id="local-6989586621679624546"><span id="local-6989586621679624549"><span id="local-6989586621679624561"><span id="local-6989586621679624573"><span class="annot"><span class="annottext">Eq Notification
+Notification -&gt; Notification -&gt; Bool
+Notification -&gt; Notification -&gt; Ordering
+Notification -&gt; Notification -&gt; Notification
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: Notification -&gt; Notification -&gt; Notification
+$cmin :: Notification -&gt; Notification -&gt; Notification
+max :: Notification -&gt; Notification -&gt; Notification
+$cmax :: Notification -&gt; Notification -&gt; Notification
+&gt;= :: Notification -&gt; Notification -&gt; Bool
+$c&gt;= :: Notification -&gt; Notification -&gt; Bool
+&gt; :: Notification -&gt; Notification -&gt; Bool
+$c&gt; :: Notification -&gt; Notification -&gt; Bool
+&lt;= :: Notification -&gt; Notification -&gt; Bool
+$c&lt;= :: Notification -&gt; Notification -&gt; Bool
+&lt; :: Notification -&gt; Notification -&gt; Bool
+$c&lt; :: Notification -&gt; Notification -&gt; Bool
+compare :: Notification -&gt; Notification -&gt; Ordering
+$ccompare :: Notification -&gt; Notification -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679624513"><span id="local-6989586621679624536"><span class="annot"><span class="annottext">forall t.
+(forall (m :: * -&gt; *). Quote m =&gt; t -&gt; m Exp)
+-&gt; (forall (m :: * -&gt; *). Quote m =&gt; t -&gt; Code m t) -&gt; Lift t
+forall (m :: * -&gt; *). Quote m =&gt; Notification -&gt; m Exp
+forall (m :: * -&gt; *).
+Quote m =&gt;
+Notification -&gt; Code m Notification
+liftTyped :: forall (m :: * -&gt; *).
+Quote m =&gt;
+Notification -&gt; Code m Notification
+$cliftTyped :: forall (m :: * -&gt; *).
+Quote m =&gt;
+Notification -&gt; Code m Notification
+lift :: forall (m :: * -&gt; *). Quote m =&gt; Notification -&gt; m Exp
+$clift :: forall (m :: * -&gt; *). Quote m =&gt; Notification -&gt; m Exp
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Lift</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-122"></span><span>
+</span><span id="line-123"></span><span class="hs-comment">-- | A structure type.</span><span>
+</span><span id="line-124"></span><span class="hs-keyword">data</span><span> </span><span id="Structure"><span class="annot"><a href="Language.LSP.MetaModel.Types.html#Structure"><span class="hs-identifier hs-var">Structure</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Structure"><span class="annot"><a href="Language.LSP.MetaModel.Types.html#Structure"><span class="hs-identifier hs-var">Structure</span></a></span></span><span>
+</span><span id="line-125"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="%24sel%3Aname%3AStructure"><span class="annot"><span class="annottext">Structure -&gt; Text
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3Aname%3AStructure"><span class="hs-identifier hs-var hs-var">name</span></a></span></span><span>          </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-126"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Aextends%3AStructure"><span class="annot"><span class="annottext">Structure -&gt; Maybe [Type]
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3Aextends%3AStructure"><span class="hs-identifier hs-var hs-var">extends</span></a></span></span><span>       </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Language.LSP.MetaModel.Types.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-127"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Amixins%3AStructure"><span class="annot"><span class="annottext">Structure -&gt; Maybe [Type]
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3Amixins%3AStructure"><span class="hs-identifier hs-var hs-var">mixins</span></a></span></span><span>        </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Language.LSP.MetaModel.Types.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-128"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Aproperties%3AStructure"><span class="annot"><span class="annottext">Structure -&gt; [Property]
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3Aproperties%3AStructure"><span class="hs-identifier hs-var hs-var">properties</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Language.LSP.MetaModel.Types.html#Property"><span class="hs-identifier hs-type">Property</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-129"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Adocumentation%3AStructure"><span class="annot"><span class="annottext">Structure -&gt; Maybe Text
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3Adocumentation%3AStructure"><span class="hs-identifier hs-var hs-var">documentation</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-130"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Asince%3AStructure"><span class="annot"><span class="annottext">Structure -&gt; Maybe Text
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3Asince%3AStructure"><span class="hs-identifier hs-var hs-var">since</span></a></span></span><span>         </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-131"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Aproposed%3AStructure"><span class="annot"><span class="annottext">Structure -&gt; Maybe Bool
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3Aproposed%3AStructure"><span class="hs-identifier hs-var hs-var">proposed</span></a></span></span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-132"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Adeprecated%3AStructure"><span class="annot"><span class="annottext">Structure -&gt; Maybe Text
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3Adeprecated%3AStructure"><span class="hs-identifier hs-var hs-var">deprecated</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-133"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-134"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679624465"><span id="local-6989586621679624467"><span id="local-6989586621679624481"><span class="annot"><span class="annottext">Int -&gt; Structure -&gt; ShowS
+[Structure] -&gt; ShowS
+Structure -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [Structure] -&gt; ShowS
+$cshowList :: [Structure] -&gt; ShowS
+show :: Structure -&gt; String
+$cshow :: Structure -&gt; String
+showsPrec :: Int -&gt; Structure -&gt; ShowS
+$cshowsPrec :: Int -&gt; Structure -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679624449"><span id="local-6989586621679624462"><span class="annot"><span class="annottext">Structure -&gt; Structure -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: Structure -&gt; Structure -&gt; Bool
+$c/= :: Structure -&gt; Structure -&gt; Bool
+== :: Structure -&gt; Structure -&gt; Bool
+$c== :: Structure -&gt; Structure -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679624407"><span id="local-6989586621679624409"><span id="local-6989586621679624412"><span id="local-6989586621679624415"><span id="local-6989586621679624418"><span id="local-6989586621679624431"><span id="local-6989586621679624444"><span class="annot"><span class="annottext">Eq Structure
+Structure -&gt; Structure -&gt; Bool
+Structure -&gt; Structure -&gt; Ordering
+Structure -&gt; Structure -&gt; Structure
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: Structure -&gt; Structure -&gt; Structure
+$cmin :: Structure -&gt; Structure -&gt; Structure
+max :: Structure -&gt; Structure -&gt; Structure
+$cmax :: Structure -&gt; Structure -&gt; Structure
+&gt;= :: Structure -&gt; Structure -&gt; Bool
+$c&gt;= :: Structure -&gt; Structure -&gt; Bool
+&gt; :: Structure -&gt; Structure -&gt; Bool
+$c&gt; :: Structure -&gt; Structure -&gt; Bool
+&lt;= :: Structure -&gt; Structure -&gt; Bool
+$c&lt;= :: Structure -&gt; Structure -&gt; Bool
+&lt; :: Structure -&gt; Structure -&gt; Bool
+$c&lt; :: Structure -&gt; Structure -&gt; Bool
+compare :: Structure -&gt; Structure -&gt; Ordering
+$ccompare :: Structure -&gt; Structure -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679624379"><span id="local-6989586621679624403"><span class="annot"><span class="annottext">forall t.
+(forall (m :: * -&gt; *). Quote m =&gt; t -&gt; m Exp)
+-&gt; (forall (m :: * -&gt; *). Quote m =&gt; t -&gt; Code m t) -&gt; Lift t
+forall (m :: * -&gt; *). Quote m =&gt; Structure -&gt; m Exp
+forall (m :: * -&gt; *). Quote m =&gt; Structure -&gt; Code m Structure
+liftTyped :: forall (m :: * -&gt; *). Quote m =&gt; Structure -&gt; Code m Structure
+$cliftTyped :: forall (m :: * -&gt; *). Quote m =&gt; Structure -&gt; Code m Structure
+lift :: forall (m :: * -&gt; *). Quote m =&gt; Structure -&gt; m Exp
+$clift :: forall (m :: * -&gt; *). Quote m =&gt; Structure -&gt; m Exp
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Lift</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-135"></span><span>
+</span><span id="line-136"></span><span class="hs-comment">-- | A type alias.</span><span>
+</span><span id="line-137"></span><span class="hs-keyword">data</span><span> </span><span id="TypeAlias"><span class="annot"><a href="Language.LSP.MetaModel.Types.html#TypeAlias"><span class="hs-identifier hs-var">TypeAlias</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="TypeAlias"><span class="annot"><a href="Language.LSP.MetaModel.Types.html#TypeAlias"><span class="hs-identifier hs-var">TypeAlias</span></a></span></span><span>
+</span><span id="line-138"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="%24sel%3Aname%3ATypeAlias"><span class="annot"><span class="annottext">TypeAlias -&gt; Text
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3Aname%3ATypeAlias"><span class="hs-identifier hs-var hs-var">name</span></a></span></span><span>          </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-139"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Atype_%3ATypeAlias"><span class="annot"><span class="annottext">TypeAlias -&gt; Type
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3Atype_%3ATypeAlias"><span class="hs-identifier hs-var hs-var">type_</span></a></span></span><span>         </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.LSP.MetaModel.Types.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span>
+</span><span id="line-140"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Adocumentation%3ATypeAlias"><span class="annot"><span class="annottext">TypeAlias -&gt; Maybe Text
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3Adocumentation%3ATypeAlias"><span class="hs-identifier hs-var hs-var">documentation</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-141"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Asince%3ATypeAlias"><span class="annot"><span class="annottext">TypeAlias -&gt; Maybe Text
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3Asince%3ATypeAlias"><span class="hs-identifier hs-var hs-var">since</span></a></span></span><span>         </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-142"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Aproposed%3ATypeAlias"><span class="annot"><span class="annottext">TypeAlias -&gt; Maybe Bool
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3Aproposed%3ATypeAlias"><span class="hs-identifier hs-var hs-var">proposed</span></a></span></span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-143"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Adeprecated%3ATypeAlias"><span class="annot"><span class="annottext">TypeAlias -&gt; Maybe Text
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3Adeprecated%3ATypeAlias"><span class="hs-identifier hs-var hs-var">deprecated</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-144"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-145"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679624334"><span id="local-6989586621679624336"><span id="local-6989586621679624346"><span class="annot"><span class="annottext">Int -&gt; TypeAlias -&gt; ShowS
+[TypeAlias] -&gt; ShowS
+TypeAlias -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [TypeAlias] -&gt; ShowS
+$cshowList :: [TypeAlias] -&gt; ShowS
+show :: TypeAlias -&gt; String
+$cshow :: TypeAlias -&gt; String
+showsPrec :: Int -&gt; TypeAlias -&gt; ShowS
+$cshowsPrec :: Int -&gt; TypeAlias -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679624323"><span id="local-6989586621679624332"><span class="annot"><span class="annottext">TypeAlias -&gt; TypeAlias -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: TypeAlias -&gt; TypeAlias -&gt; Bool
+$c/= :: TypeAlias -&gt; TypeAlias -&gt; Bool
+== :: TypeAlias -&gt; TypeAlias -&gt; Bool
+$c== :: TypeAlias -&gt; TypeAlias -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679624290"><span id="local-6989586621679624292"><span id="local-6989586621679624295"><span id="local-6989586621679624298"><span id="local-6989586621679624301"><span id="local-6989586621679624310"><span id="local-6989586621679624319"><span class="annot"><span class="annottext">Eq TypeAlias
+TypeAlias -&gt; TypeAlias -&gt; Bool
+TypeAlias -&gt; TypeAlias -&gt; Ordering
+TypeAlias -&gt; TypeAlias -&gt; TypeAlias
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: TypeAlias -&gt; TypeAlias -&gt; TypeAlias
+$cmin :: TypeAlias -&gt; TypeAlias -&gt; TypeAlias
+max :: TypeAlias -&gt; TypeAlias -&gt; TypeAlias
+$cmax :: TypeAlias -&gt; TypeAlias -&gt; TypeAlias
+&gt;= :: TypeAlias -&gt; TypeAlias -&gt; Bool
+$c&gt;= :: TypeAlias -&gt; TypeAlias -&gt; Bool
+&gt; :: TypeAlias -&gt; TypeAlias -&gt; Bool
+$c&gt; :: TypeAlias -&gt; TypeAlias -&gt; Bool
+&lt;= :: TypeAlias -&gt; TypeAlias -&gt; Bool
+$c&lt;= :: TypeAlias -&gt; TypeAlias -&gt; Bool
+&lt; :: TypeAlias -&gt; TypeAlias -&gt; Bool
+$c&lt; :: TypeAlias -&gt; TypeAlias -&gt; Bool
+compare :: TypeAlias -&gt; TypeAlias -&gt; Ordering
+$ccompare :: TypeAlias -&gt; TypeAlias -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679624270"><span id="local-6989586621679624288"><span class="annot"><span class="annottext">forall t.
+(forall (m :: * -&gt; *). Quote m =&gt; t -&gt; m Exp)
+-&gt; (forall (m :: * -&gt; *). Quote m =&gt; t -&gt; Code m t) -&gt; Lift t
+forall (m :: * -&gt; *). Quote m =&gt; TypeAlias -&gt; m Exp
+forall (m :: * -&gt; *). Quote m =&gt; TypeAlias -&gt; Code m TypeAlias
+liftTyped :: forall (m :: * -&gt; *). Quote m =&gt; TypeAlias -&gt; Code m TypeAlias
+$cliftTyped :: forall (m :: * -&gt; *). Quote m =&gt; TypeAlias -&gt; Code m TypeAlias
+lift :: forall (m :: * -&gt; *). Quote m =&gt; TypeAlias -&gt; m Exp
+$clift :: forall (m :: * -&gt; *). Quote m =&gt; TypeAlias -&gt; m Exp
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Lift</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-146"></span><span>
+</span><span id="line-147"></span><span class="hs-comment">-- | This is just 'string | int' on the typescript side, but</span><span>
+</span><span id="line-148"></span><span class="hs-comment">-- it's convenient to have a proper type here.</span><span>
+</span><span id="line-149"></span><span class="hs-keyword">data</span><span> </span><span id="TextOrInteger"><span class="annot"><a href="Language.LSP.MetaModel.Types.html#TextOrInteger"><span class="hs-identifier hs-var">TextOrInteger</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="T"><span class="annot"><a href="Language.LSP.MetaModel.Types.html#T"><span class="hs-identifier hs-var">T</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="I"><span class="annot"><a href="Language.LSP.MetaModel.Types.html#I"><span class="hs-identifier hs-var">I</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span>
+</span><span id="line-150"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679624242"><span id="local-6989586621679624244"><span id="local-6989586621679624250"><span class="annot"><span class="annottext">Int -&gt; TextOrInteger -&gt; ShowS
+[TextOrInteger] -&gt; ShowS
+TextOrInteger -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [TextOrInteger] -&gt; ShowS
+$cshowList :: [TextOrInteger] -&gt; ShowS
+show :: TextOrInteger -&gt; String
+$cshow :: TextOrInteger -&gt; String
+showsPrec :: Int -&gt; TextOrInteger -&gt; ShowS
+$cshowsPrec :: Int -&gt; TextOrInteger -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679624236"><span id="local-6989586621679624240"><span class="annot"><span class="annottext">TextOrInteger -&gt; TextOrInteger -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: TextOrInteger -&gt; TextOrInteger -&gt; Bool
+$c/= :: TextOrInteger -&gt; TextOrInteger -&gt; Bool
+== :: TextOrInteger -&gt; TextOrInteger -&gt; Bool
+$c== :: TextOrInteger -&gt; TextOrInteger -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679624213"><span id="local-6989586621679624215"><span id="local-6989586621679624218"><span id="local-6989586621679624221"><span id="local-6989586621679624224"><span id="local-6989586621679624228"><span id="local-6989586621679624232"><span class="annot"><span class="annottext">Eq TextOrInteger
+TextOrInteger -&gt; TextOrInteger -&gt; Bool
+TextOrInteger -&gt; TextOrInteger -&gt; Ordering
+TextOrInteger -&gt; TextOrInteger -&gt; TextOrInteger
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: TextOrInteger -&gt; TextOrInteger -&gt; TextOrInteger
+$cmin :: TextOrInteger -&gt; TextOrInteger -&gt; TextOrInteger
+max :: TextOrInteger -&gt; TextOrInteger -&gt; TextOrInteger
+$cmax :: TextOrInteger -&gt; TextOrInteger -&gt; TextOrInteger
+&gt;= :: TextOrInteger -&gt; TextOrInteger -&gt; Bool
+$c&gt;= :: TextOrInteger -&gt; TextOrInteger -&gt; Bool
+&gt; :: TextOrInteger -&gt; TextOrInteger -&gt; Bool
+$c&gt; :: TextOrInteger -&gt; TextOrInteger -&gt; Bool
+&lt;= :: TextOrInteger -&gt; TextOrInteger -&gt; Bool
+$c&lt;= :: TextOrInteger -&gt; TextOrInteger -&gt; Bool
+&lt; :: TextOrInteger -&gt; TextOrInteger -&gt; Bool
+$c&lt; :: TextOrInteger -&gt; TextOrInteger -&gt; Bool
+compare :: TextOrInteger -&gt; TextOrInteger -&gt; Ordering
+$ccompare :: TextOrInteger -&gt; TextOrInteger -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679624202"><span id="local-6989586621679624211"><span class="annot"><span class="annottext">forall t.
+(forall (m :: * -&gt; *). Quote m =&gt; t -&gt; m Exp)
+-&gt; (forall (m :: * -&gt; *). Quote m =&gt; t -&gt; Code m t) -&gt; Lift t
+forall (m :: * -&gt; *). Quote m =&gt; TextOrInteger -&gt; m Exp
+forall (m :: * -&gt; *).
+Quote m =&gt;
+TextOrInteger -&gt; Code m TextOrInteger
+liftTyped :: forall (m :: * -&gt; *).
+Quote m =&gt;
+TextOrInteger -&gt; Code m TextOrInteger
+$cliftTyped :: forall (m :: * -&gt; *).
+Quote m =&gt;
+TextOrInteger -&gt; Code m TextOrInteger
+lift :: forall (m :: * -&gt; *). Quote m =&gt; TextOrInteger -&gt; m Exp
+$clift :: forall (m :: * -&gt; *). Quote m =&gt; TextOrInteger -&gt; m Exp
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Lift</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-151"></span><span>
+</span><span id="line-152"></span><span class="hs-comment">-- | An entry in an enumeration.</span><span>
+</span><span id="line-153"></span><span class="hs-keyword">data</span><span> </span><span id="EnumerationEntry"><span class="annot"><a href="Language.LSP.MetaModel.Types.html#EnumerationEntry"><span class="hs-identifier hs-var">EnumerationEntry</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="EnumerationEntry"><span class="annot"><a href="Language.LSP.MetaModel.Types.html#EnumerationEntry"><span class="hs-identifier hs-var">EnumerationEntry</span></a></span></span><span>
+</span><span id="line-154"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="%24sel%3Aname%3AEnumerationEntry"><span class="annot"><span class="annottext">EnumerationEntry -&gt; Text
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3Aname%3AEnumerationEntry"><span class="hs-identifier hs-var hs-var">name</span></a></span></span><span>          </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-155"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Avalue%3AEnumerationEntry"><span class="annot"><span class="annottext">EnumerationEntry -&gt; TextOrInteger
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3Avalue%3AEnumerationEntry"><span class="hs-identifier hs-var hs-var">value</span></a></span></span><span>         </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.LSP.MetaModel.Types.html#TextOrInteger"><span class="hs-identifier hs-type">TextOrInteger</span></a></span><span>
+</span><span id="line-156"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Adocumentation%3AEnumerationEntry"><span class="annot"><span class="annottext">EnumerationEntry -&gt; Maybe Text
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3Adocumentation%3AEnumerationEntry"><span class="hs-identifier hs-var hs-var">documentation</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-157"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Asince%3AEnumerationEntry"><span class="annot"><span class="annottext">EnumerationEntry -&gt; Maybe Text
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3Asince%3AEnumerationEntry"><span class="hs-identifier hs-var hs-var">since</span></a></span></span><span>         </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-158"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Aproposed%3AEnumerationEntry"><span class="annot"><span class="annottext">EnumerationEntry -&gt; Maybe Bool
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3Aproposed%3AEnumerationEntry"><span class="hs-identifier hs-var hs-var">proposed</span></a></span></span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-159"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Adeprecated%3AEnumerationEntry"><span class="annot"><span class="annottext">EnumerationEntry -&gt; Maybe Text
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3Adeprecated%3AEnumerationEntry"><span class="hs-identifier hs-var hs-var">deprecated</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-160"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-161"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679624173"><span id="local-6989586621679624175"><span id="local-6989586621679624185"><span class="annot"><span class="annottext">Int -&gt; EnumerationEntry -&gt; ShowS
+[EnumerationEntry] -&gt; ShowS
+EnumerationEntry -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [EnumerationEntry] -&gt; ShowS
+$cshowList :: [EnumerationEntry] -&gt; ShowS
+show :: EnumerationEntry -&gt; String
+$cshow :: EnumerationEntry -&gt; String
+showsPrec :: Int -&gt; EnumerationEntry -&gt; ShowS
+$cshowsPrec :: Int -&gt; EnumerationEntry -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679624162"><span id="local-6989586621679624171"><span class="annot"><span class="annottext">EnumerationEntry -&gt; EnumerationEntry -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: EnumerationEntry -&gt; EnumerationEntry -&gt; Bool
+$c/= :: EnumerationEntry -&gt; EnumerationEntry -&gt; Bool
+== :: EnumerationEntry -&gt; EnumerationEntry -&gt; Bool
+$c== :: EnumerationEntry -&gt; EnumerationEntry -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679624129"><span id="local-6989586621679624131"><span id="local-6989586621679624134"><span id="local-6989586621679624137"><span id="local-6989586621679624140"><span id="local-6989586621679624149"><span id="local-6989586621679624158"><span class="annot"><span class="annottext">Eq EnumerationEntry
+EnumerationEntry -&gt; EnumerationEntry -&gt; Bool
+EnumerationEntry -&gt; EnumerationEntry -&gt; Ordering
+EnumerationEntry -&gt; EnumerationEntry -&gt; EnumerationEntry
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: EnumerationEntry -&gt; EnumerationEntry -&gt; EnumerationEntry
+$cmin :: EnumerationEntry -&gt; EnumerationEntry -&gt; EnumerationEntry
+max :: EnumerationEntry -&gt; EnumerationEntry -&gt; EnumerationEntry
+$cmax :: EnumerationEntry -&gt; EnumerationEntry -&gt; EnumerationEntry
+&gt;= :: EnumerationEntry -&gt; EnumerationEntry -&gt; Bool
+$c&gt;= :: EnumerationEntry -&gt; EnumerationEntry -&gt; Bool
+&gt; :: EnumerationEntry -&gt; EnumerationEntry -&gt; Bool
+$c&gt; :: EnumerationEntry -&gt; EnumerationEntry -&gt; Bool
+&lt;= :: EnumerationEntry -&gt; EnumerationEntry -&gt; Bool
+$c&lt;= :: EnumerationEntry -&gt; EnumerationEntry -&gt; Bool
+&lt; :: EnumerationEntry -&gt; EnumerationEntry -&gt; Bool
+$c&lt; :: EnumerationEntry -&gt; EnumerationEntry -&gt; Bool
+compare :: EnumerationEntry -&gt; EnumerationEntry -&gt; Ordering
+$ccompare :: EnumerationEntry -&gt; EnumerationEntry -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679624109"><span id="local-6989586621679624127"><span class="annot"><span class="annottext">forall t.
+(forall (m :: * -&gt; *). Quote m =&gt; t -&gt; m Exp)
+-&gt; (forall (m :: * -&gt; *). Quote m =&gt; t -&gt; Code m t) -&gt; Lift t
+forall (m :: * -&gt; *). Quote m =&gt; EnumerationEntry -&gt; m Exp
+forall (m :: * -&gt; *).
+Quote m =&gt;
+EnumerationEntry -&gt; Code m EnumerationEntry
+liftTyped :: forall (m :: * -&gt; *).
+Quote m =&gt;
+EnumerationEntry -&gt; Code m EnumerationEntry
+$cliftTyped :: forall (m :: * -&gt; *).
+Quote m =&gt;
+EnumerationEntry -&gt; Code m EnumerationEntry
+lift :: forall (m :: * -&gt; *). Quote m =&gt; EnumerationEntry -&gt; m Exp
+$clift :: forall (m :: * -&gt; *). Quote m =&gt; EnumerationEntry -&gt; m Exp
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Lift</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-162"></span><span>
+</span><span id="line-163"></span><span class="hs-comment">-- | An enumeration type.</span><span>
+</span><span id="line-164"></span><span class="hs-keyword">data</span><span> </span><span id="Enumeration"><span class="annot"><a href="Language.LSP.MetaModel.Types.html#Enumeration"><span class="hs-identifier hs-var">Enumeration</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Enumeration"><span class="annot"><a href="Language.LSP.MetaModel.Types.html#Enumeration"><span class="hs-identifier hs-var">Enumeration</span></a></span></span><span>
+</span><span id="line-165"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="%24sel%3Aname%3AEnumeration"><span class="annot"><span class="annottext">Enumeration -&gt; Text
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3Aname%3AEnumeration"><span class="hs-identifier hs-var hs-var">name</span></a></span></span><span>                 </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-166"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Atype_%3AEnumeration"><span class="annot"><span class="annottext">Enumeration -&gt; Type
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3Atype_%3AEnumeration"><span class="hs-identifier hs-var hs-var">type_</span></a></span></span><span>                </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.LSP.MetaModel.Types.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span>
+</span><span id="line-167"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Avalues%3AEnumeration"><span class="annot"><span class="annottext">Enumeration -&gt; [EnumerationEntry]
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3Avalues%3AEnumeration"><span class="hs-identifier hs-var hs-var">values</span></a></span></span><span>               </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Language.LSP.MetaModel.Types.html#EnumerationEntry"><span class="hs-identifier hs-type">EnumerationEntry</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-168"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="%24sel%3AsupportsCustomValues%3AEnumeration"><span class="annot"><span class="annottext">Enumeration -&gt; Maybe Bool
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3AsupportsCustomValues%3AEnumeration"><span class="hs-identifier hs-var hs-var">supportsCustomValues</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-169"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Adocumentation%3AEnumeration"><span class="annot"><span class="annottext">Enumeration -&gt; Maybe Text
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3Adocumentation%3AEnumeration"><span class="hs-identifier hs-var hs-var">documentation</span></a></span></span><span>        </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-170"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Asince%3AEnumeration"><span class="annot"><span class="annottext">Enumeration -&gt; Maybe Text
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3Asince%3AEnumeration"><span class="hs-identifier hs-var hs-var">since</span></a></span></span><span>                </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-171"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Aproposed%3AEnumeration"><span class="annot"><span class="annottext">Enumeration -&gt; Maybe Bool
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3Aproposed%3AEnumeration"><span class="hs-identifier hs-var hs-var">proposed</span></a></span></span><span>             </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-172"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Adeprecated%3AEnumeration"><span class="annot"><span class="annottext">Enumeration -&gt; Maybe Text
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3Adeprecated%3AEnumeration"><span class="hs-identifier hs-var hs-var">deprecated</span></a></span></span><span>           </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-173"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-174"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679624067"><span id="local-6989586621679624069"><span id="local-6989586621679624082"><span class="annot"><span class="annottext">Int -&gt; Enumeration -&gt; ShowS
+[Enumeration] -&gt; ShowS
+Enumeration -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [Enumeration] -&gt; ShowS
+$cshowList :: [Enumeration] -&gt; ShowS
+show :: Enumeration -&gt; String
+$cshow :: Enumeration -&gt; String
+showsPrec :: Int -&gt; Enumeration -&gt; ShowS
+$cshowsPrec :: Int -&gt; Enumeration -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679624053"><span id="local-6989586621679624065"><span class="annot"><span class="annottext">Enumeration -&gt; Enumeration -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: Enumeration -&gt; Enumeration -&gt; Bool
+$c/= :: Enumeration -&gt; Enumeration -&gt; Bool
+== :: Enumeration -&gt; Enumeration -&gt; Bool
+$c== :: Enumeration -&gt; Enumeration -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679624014"><span id="local-6989586621679624016"><span id="local-6989586621679624019"><span id="local-6989586621679624022"><span id="local-6989586621679624025"><span id="local-6989586621679624037"><span id="local-6989586621679624049"><span class="annot"><span class="annottext">Eq Enumeration
+Enumeration -&gt; Enumeration -&gt; Bool
+Enumeration -&gt; Enumeration -&gt; Ordering
+Enumeration -&gt; Enumeration -&gt; Enumeration
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: Enumeration -&gt; Enumeration -&gt; Enumeration
+$cmin :: Enumeration -&gt; Enumeration -&gt; Enumeration
+max :: Enumeration -&gt; Enumeration -&gt; Enumeration
+$cmax :: Enumeration -&gt; Enumeration -&gt; Enumeration
+&gt;= :: Enumeration -&gt; Enumeration -&gt; Bool
+$c&gt;= :: Enumeration -&gt; Enumeration -&gt; Bool
+&gt; :: Enumeration -&gt; Enumeration -&gt; Bool
+$c&gt; :: Enumeration -&gt; Enumeration -&gt; Bool
+&lt;= :: Enumeration -&gt; Enumeration -&gt; Bool
+$c&lt;= :: Enumeration -&gt; Enumeration -&gt; Bool
+&lt; :: Enumeration -&gt; Enumeration -&gt; Bool
+$c&lt; :: Enumeration -&gt; Enumeration -&gt; Bool
+compare :: Enumeration -&gt; Enumeration -&gt; Ordering
+$ccompare :: Enumeration -&gt; Enumeration -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679623989"><span id="local-6989586621679624012"><span class="annot"><span class="annottext">forall t.
+(forall (m :: * -&gt; *). Quote m =&gt; t -&gt; m Exp)
+-&gt; (forall (m :: * -&gt; *). Quote m =&gt; t -&gt; Code m t) -&gt; Lift t
+forall (m :: * -&gt; *). Quote m =&gt; Enumeration -&gt; m Exp
+forall (m :: * -&gt; *). Quote m =&gt; Enumeration -&gt; Code m Enumeration
+liftTyped :: forall (m :: * -&gt; *). Quote m =&gt; Enumeration -&gt; Code m Enumeration
+$cliftTyped :: forall (m :: * -&gt; *). Quote m =&gt; Enumeration -&gt; Code m Enumeration
+lift :: forall (m :: * -&gt; *). Quote m =&gt; Enumeration -&gt; m Exp
+$clift :: forall (m :: * -&gt; *). Quote m =&gt; Enumeration -&gt; m Exp
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Lift</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-175"></span><span>
+</span><span id="line-176"></span><span class="hs-comment">-- | Metadata about the metamodel iteslf.</span><span>
+</span><span id="line-177"></span><span class="hs-keyword">data</span><span> </span><span id="MetaData"><span class="annot"><a href="Language.LSP.MetaModel.Types.html#MetaData"><span class="hs-identifier hs-var">MetaData</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="MetaData"><span class="annot"><a href="Language.LSP.MetaModel.Types.html#MetaData"><span class="hs-identifier hs-var">MetaData</span></a></span></span><span>
+</span><span id="line-178"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="%24sel%3Aversion%3AMetaData"><span class="annot"><span class="annottext">MetaData -&gt; Text
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3Aversion%3AMetaData"><span class="hs-identifier hs-var hs-var">version</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-179"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-180"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679623958"><span id="local-6989586621679623960"><span id="local-6989586621679623964"><span class="annot"><span class="annottext">Int -&gt; MetaData -&gt; ShowS
+[MetaData] -&gt; ShowS
+MetaData -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [MetaData] -&gt; ShowS
+$cshowList :: [MetaData] -&gt; ShowS
+show :: MetaData -&gt; String
+$cshow :: MetaData -&gt; String
+showsPrec :: Int -&gt; MetaData -&gt; ShowS
+$cshowsPrec :: Int -&gt; MetaData -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679623953"><span id="local-6989586621679623956"><span class="annot"><span class="annottext">MetaData -&gt; MetaData -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: MetaData -&gt; MetaData -&gt; Bool
+$c/= :: MetaData -&gt; MetaData -&gt; Bool
+== :: MetaData -&gt; MetaData -&gt; Bool
+$c== :: MetaData -&gt; MetaData -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679623932"><span id="local-6989586621679623934"><span id="local-6989586621679623937"><span id="local-6989586621679623940"><span id="local-6989586621679623943"><span id="local-6989586621679623946"><span id="local-6989586621679623949"><span class="annot"><span class="annottext">Eq MetaData
+MetaData -&gt; MetaData -&gt; Bool
+MetaData -&gt; MetaData -&gt; Ordering
+MetaData -&gt; MetaData -&gt; MetaData
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: MetaData -&gt; MetaData -&gt; MetaData
+$cmin :: MetaData -&gt; MetaData -&gt; MetaData
+max :: MetaData -&gt; MetaData -&gt; MetaData
+$cmax :: MetaData -&gt; MetaData -&gt; MetaData
+&gt;= :: MetaData -&gt; MetaData -&gt; Bool
+$c&gt;= :: MetaData -&gt; MetaData -&gt; Bool
+&gt; :: MetaData -&gt; MetaData -&gt; Bool
+$c&gt; :: MetaData -&gt; MetaData -&gt; Bool
+&lt;= :: MetaData -&gt; MetaData -&gt; Bool
+$c&lt;= :: MetaData -&gt; MetaData -&gt; Bool
+&lt; :: MetaData -&gt; MetaData -&gt; Bool
+$c&lt; :: MetaData -&gt; MetaData -&gt; Bool
+compare :: MetaData -&gt; MetaData -&gt; Ordering
+$ccompare :: MetaData -&gt; MetaData -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679623924"><span id="local-6989586621679623930"><span class="annot"><span class="annottext">forall t.
+(forall (m :: * -&gt; *). Quote m =&gt; t -&gt; m Exp)
+-&gt; (forall (m :: * -&gt; *). Quote m =&gt; t -&gt; Code m t) -&gt; Lift t
+forall (m :: * -&gt; *). Quote m =&gt; MetaData -&gt; m Exp
+forall (m :: * -&gt; *). Quote m =&gt; MetaData -&gt; Code m MetaData
+liftTyped :: forall (m :: * -&gt; *). Quote m =&gt; MetaData -&gt; Code m MetaData
+$cliftTyped :: forall (m :: * -&gt; *). Quote m =&gt; MetaData -&gt; Code m MetaData
+lift :: forall (m :: * -&gt; *). Quote m =&gt; MetaData -&gt; m Exp
+$clift :: forall (m :: * -&gt; *). Quote m =&gt; MetaData -&gt; m Exp
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Lift</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-181"></span><span>
+</span><span id="line-182"></span><span class="hs-comment">-- | The entire metamodel.</span><span>
+</span><span id="line-183"></span><span class="hs-keyword">data</span><span> </span><span id="MetaModel"><span class="annot"><a href="Language.LSP.MetaModel.Types.html#MetaModel"><span class="hs-identifier hs-var">MetaModel</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="MetaModel"><span class="annot"><a href="Language.LSP.MetaModel.Types.html#MetaModel"><span class="hs-identifier hs-var">MetaModel</span></a></span></span><span>
+</span><span id="line-184"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="%24sel%3AmetaData%3AMetaModel"><span class="annot"><span class="annottext">MetaModel -&gt; MetaData
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3AmetaData%3AMetaModel"><span class="hs-identifier hs-var hs-var">metaData</span></a></span></span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.LSP.MetaModel.Types.html#MetaData"><span class="hs-identifier hs-type">MetaData</span></a></span><span>
+</span><span id="line-185"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Arequests%3AMetaModel"><span class="annot"><span class="annottext">MetaModel -&gt; [Request]
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3Arequests%3AMetaModel"><span class="hs-identifier hs-var hs-var">requests</span></a></span></span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Language.LSP.MetaModel.Types.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-186"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Anotifications%3AMetaModel"><span class="annot"><span class="annottext">MetaModel -&gt; [Notification]
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3Anotifications%3AMetaModel"><span class="hs-identifier hs-var hs-var">notifications</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Language.LSP.MetaModel.Types.html#Notification"><span class="hs-identifier hs-type">Notification</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-187"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Astructures%3AMetaModel"><span class="annot"><span class="annottext">MetaModel -&gt; [Structure]
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3Astructures%3AMetaModel"><span class="hs-identifier hs-var hs-var">structures</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Language.LSP.MetaModel.Types.html#Structure"><span class="hs-identifier hs-type">Structure</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-188"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Aenumerations%3AMetaModel"><span class="annot"><span class="annottext">MetaModel -&gt; [Enumeration]
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3Aenumerations%3AMetaModel"><span class="hs-identifier hs-var hs-var">enumerations</span></a></span></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Language.LSP.MetaModel.Types.html#Enumeration"><span class="hs-identifier hs-type">Enumeration</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-189"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="%24sel%3AtypeAliases%3AMetaModel"><span class="annot"><span class="annottext">MetaModel -&gt; [TypeAlias]
+</span><a href="Language.LSP.MetaModel.Types.html#%24sel%3AtypeAliases%3AMetaModel"><span class="hs-identifier hs-var hs-var">typeAliases</span></a></span></span><span>   </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Language.LSP.MetaModel.Types.html#TypeAlias"><span class="hs-identifier hs-type">TypeAlias</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-190"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-191"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679623894"><span id="local-6989586621679623896"><span id="local-6989586621679623910"><span class="annot"><span class="annottext">Int -&gt; MetaModel -&gt; ShowS
+[MetaModel] -&gt; ShowS
+MetaModel -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [MetaModel] -&gt; ShowS
+$cshowList :: [MetaModel] -&gt; ShowS
+show :: MetaModel -&gt; String
+$cshow :: MetaModel -&gt; String
+showsPrec :: Int -&gt; MetaModel -&gt; ShowS
+$cshowsPrec :: Int -&gt; MetaModel -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679623879"><span id="local-6989586621679623892"><span class="annot"><span class="annottext">MetaModel -&gt; MetaModel -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: MetaModel -&gt; MetaModel -&gt; Bool
+$c/= :: MetaModel -&gt; MetaModel -&gt; Bool
+== :: MetaModel -&gt; MetaModel -&gt; Bool
+$c== :: MetaModel -&gt; MetaModel -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679623838"><span id="local-6989586621679623840"><span id="local-6989586621679623843"><span id="local-6989586621679623846"><span id="local-6989586621679623849"><span id="local-6989586621679623862"><span id="local-6989586621679623875"><span class="annot"><span class="annottext">Eq MetaModel
+MetaModel -&gt; MetaModel -&gt; Bool
+MetaModel -&gt; MetaModel -&gt; Ordering
+MetaModel -&gt; MetaModel -&gt; MetaModel
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: MetaModel -&gt; MetaModel -&gt; MetaModel
+$cmin :: MetaModel -&gt; MetaModel -&gt; MetaModel
+max :: MetaModel -&gt; MetaModel -&gt; MetaModel
+$cmax :: MetaModel -&gt; MetaModel -&gt; MetaModel
+&gt;= :: MetaModel -&gt; MetaModel -&gt; Bool
+$c&gt;= :: MetaModel -&gt; MetaModel -&gt; Bool
+&gt; :: MetaModel -&gt; MetaModel -&gt; Bool
+$c&gt; :: MetaModel -&gt; MetaModel -&gt; Bool
+&lt;= :: MetaModel -&gt; MetaModel -&gt; Bool
+$c&lt;= :: MetaModel -&gt; MetaModel -&gt; Bool
+&lt; :: MetaModel -&gt; MetaModel -&gt; Bool
+$c&lt; :: MetaModel -&gt; MetaModel -&gt; Bool
+compare :: MetaModel -&gt; MetaModel -&gt; Ordering
+$ccompare :: MetaModel -&gt; MetaModel -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679623815"><span id="local-6989586621679623836"><span class="annot"><span class="annottext">forall t.
+(forall (m :: * -&gt; *). Quote m =&gt; t -&gt; m Exp)
+-&gt; (forall (m :: * -&gt; *). Quote m =&gt; t -&gt; Code m t) -&gt; Lift t
+forall (m :: * -&gt; *). Quote m =&gt; MetaModel -&gt; m Exp
+forall (m :: * -&gt; *). Quote m =&gt; MetaModel -&gt; Code m MetaModel
+liftTyped :: forall (m :: * -&gt; *). Quote m =&gt; MetaModel -&gt; Code m MetaModel
+$cliftTyped :: forall (m :: * -&gt; *). Quote m =&gt; MetaModel -&gt; Code m MetaModel
+lift :: forall (m :: * -&gt; *). Quote m =&gt; MetaModel -&gt; m Exp
+$clift :: forall (m :: * -&gt; *). Quote m =&gt; MetaModel -&gt; m Exp
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Lift</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-192"></span><span>
+</span><span id="line-193"></span><span class="hs-comment">-- We need to do some massaging to make sure that we get the right aeson instances for</span><span>
+</span><span id="line-194"></span><span class="hs-comment">-- these types and can actually parse the incoming data!</span><span>
+</span><span id="line-195"></span><span class="hs-special">$</span><span id="local-6989586621679622830"><span id="local-6989586621679622832"><span id="local-6989586621679622850"><span id="local-6989586621679622875"><span id="local-6989586621679622877"><span id="local-6989586621679622901"><span id="local-6989586621679622903"><span id="local-6989586621679622905"><span id="local-6989586621679622921"><span id="local-6989586621679622942"><span id="local-6989586621679622944"><span id="local-6989586621679622964"><span id="local-6989586621679622966"><span id="local-6989586621679622968"><span id="local-6989586621679622970"><span id="local-6989586621679622972"><span id="local-6989586621679622974"><span id="local-6989586621679623002"><span id="local-6989586621679623004"><span id="local-6989586621679623006"><span id="local-6989586621679623044"><span id="local-6989586621679623107"><span id="local-6989586621679623109"><span id="local-6989586621679623165"><span id="local-6989586621679623167"><span id="local-6989586621679623169"><span id="local-6989586621679623196"><span id="local-6989586621679623234"><span id="local-6989586621679623236"><span id="local-6989586621679623273"><span id="local-6989586621679623275"><span id="local-6989586621679623277"><span id="local-6989586621679623298"><span id="local-6989586621679623327"><span id="local-6989586621679623329"><span id="local-6989586621679623357"><span id="local-6989586621679623359"><span id="local-6989586621679623361"><span id="local-6989586621679623383"><span id="local-6989586621679623413"><span id="local-6989586621679623415"><span id="local-6989586621679623444"><span id="local-6989586621679623446"><span id="local-6989586621679623448"><span id="local-6989586621679623464"><span id="local-6989586621679623486"><span id="local-6989586621679623488"><span id="local-6989586621679623509"><span id="local-6989586621679623511"><span id="local-6989586621679623513"><span id="local-6989586621679623517"><span id="local-6989586621679623522"><span id="local-6989586621679623524"><span id="local-6989586621679623533"><span id="local-6989586621679623535"><span id="local-6989586621679623537"><span id="local-6989586621679623553"><span id="local-6989586621679623575"><span id="local-6989586621679623577"><span id="local-6989586621679623598"><span id="local-6989586621679623600"><span id="local-6989586621679623602"><span id="local-6989586621679623623"><span id="local-6989586621679623653"><span id="local-6989586621679623655"><span id="local-6989586621679623685"><span id="local-6989586621679623687"><span id="local-6989586621679623689"><span id="local-6989586621679623694"><span id="local-6989586621679623701"><span id="local-6989586621679623703"><span id="local-6989586621679623709"><span id="local-6989586621679623711"><span id="local-6989586621679623713"><span id="local-6989586621679623735"><span id="local-6989586621679623764"><span id="local-6989586621679623766"><span id="local-6989586621679623794"><span class="hs-special">(</span><span>
+</span><span id="line-196"></span><span>  </span><span class="hs-keyword">let</span><span>
+</span><span id="line-197"></span><span>      </span><span class="hs-comment">-- &quot;type&quot; is a very common field name, we use &quot;type_&quot; on the Haskell side</span><span>
+</span><span id="line-198"></span><span>      </span><span class="hs-identifier">defOpts</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">defaultOptions</span><span class="hs-special">{</span><span class="hs-identifier">fieldLabelModifier</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span> </span><span class="hs-special">{</span><span> </span><span class="hs-string">&quot;type_&quot;</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-string">&quot;type&quot;</span><span class="hs-special">;</span><span> </span><span class="hs-identifier">x</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">x</span><span class="hs-special">;</span><span> </span><span class="hs-special">}</span><span class="hs-special">}</span><span>
+</span><span id="line-199"></span><span>
+</span><span id="line-200"></span><span>      </span><span class="hs-identifier">propertyInst</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">JSON.deriveJSON</span><span> </span><span class="hs-identifier">defOpts</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">Property</span><span>
+</span><span id="line-201"></span><span>      </span><span class="hs-identifier">slInst</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">JSON.deriveJSON</span><span> </span><span class="hs-identifier">defOpts</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">StructureLiteral</span><span>
+</span><span id="line-202"></span><span>
+</span><span id="line-203"></span><span>      </span><span class="hs-comment">-- 'BaseType' is a union of strings, so we encode it as an untagged sum with some</span><span>
+</span><span id="line-204"></span><span>      </span><span class="hs-comment">-- mangling of the constructor names</span><span>
+</span><span id="line-205"></span><span>      </span><span class="hs-identifier">baseTyNameToTag</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">String</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">String</span><span>
+</span><span id="line-206"></span><span>      </span><span class="hs-identifier">baseTyNameToTag</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-207"></span><span>        </span><span class="hs-string">&quot;Integer&quot;</span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-string">&quot;integer&quot;</span><span>
+</span><span id="line-208"></span><span>        </span><span class="hs-string">&quot;UInteger&quot;</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-string">&quot;uinteger&quot;</span><span>
+</span><span id="line-209"></span><span>        </span><span class="hs-string">&quot;Decimal&quot;</span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-string">&quot;decimal&quot;</span><span>
+</span><span id="line-210"></span><span>        </span><span class="hs-string">&quot;String&quot;</span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-string">&quot;string&quot;</span><span>
+</span><span id="line-211"></span><span>        </span><span class="hs-string">&quot;Boolean&quot;</span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-string">&quot;boolean&quot;</span><span>
+</span><span id="line-212"></span><span>        </span><span class="hs-string">&quot;Null&quot;</span><span>     </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-string">&quot;null&quot;</span><span>
+</span><span id="line-213"></span><span>        </span><span class="hs-identifier">x</span><span>          </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">x</span><span>
+</span><span id="line-214"></span><span>      </span><span class="hs-identifier">baseTyNameInst</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">JSON.deriveJSON</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">defOpts</span><span class="hs-special">{</span><span class="hs-identifier">sumEncoding</span><span class="hs-glyph">=</span><span class="hs-identifier">JSON.UntaggedValue</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">constructorTagModifier</span><span class="hs-glyph">=</span><span class="hs-identifier">baseTyNameToTag</span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">BaseTypeName</span><span>
+</span><span id="line-215"></span><span>
+</span><span id="line-216"></span><span>      </span><span class="hs-comment">-- 'Type' is a *tagged* union, but the tag is a string field (sigh), fortunately</span><span>
+</span><span id="line-217"></span><span>      </span><span class="hs-comment">-- aeson can deal with this. Also needs some constructor mangling.</span><span>
+</span><span id="line-218"></span><span>      </span><span class="hs-identifier">typeToTag</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">String</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">String</span><span>
+</span><span id="line-219"></span><span>      </span><span class="hs-identifier">typeToTag</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-220"></span><span>        </span><span class="hs-string">&quot;BaseType&quot;</span><span>             </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-string">&quot;base&quot;</span><span>
+</span><span id="line-221"></span><span>        </span><span class="hs-string">&quot;ReferenceType&quot;</span><span>        </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-string">&quot;reference&quot;</span><span>
+</span><span id="line-222"></span><span>        </span><span class="hs-string">&quot;ArrayType&quot;</span><span>            </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-string">&quot;array&quot;</span><span>
+</span><span id="line-223"></span><span>        </span><span class="hs-string">&quot;MapType&quot;</span><span>              </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-string">&quot;map&quot;</span><span>
+</span><span id="line-224"></span><span>        </span><span class="hs-string">&quot;AndType&quot;</span><span>              </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-string">&quot;and&quot;</span><span>
+</span><span id="line-225"></span><span>        </span><span class="hs-string">&quot;OrType&quot;</span><span>               </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-string">&quot;or&quot;</span><span>
+</span><span id="line-226"></span><span>        </span><span class="hs-string">&quot;TupleType&quot;</span><span>            </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-string">&quot;tuple&quot;</span><span>
+</span><span id="line-227"></span><span>        </span><span class="hs-string">&quot;StructureLiteralType&quot;</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-string">&quot;literal&quot;</span><span>
+</span><span id="line-228"></span><span>        </span><span class="hs-string">&quot;StringLiteralType&quot;</span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-string">&quot;stringLiteral&quot;</span><span>
+</span><span id="line-229"></span><span>        </span><span class="hs-string">&quot;IntegerLiteralType&quot;</span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-string">&quot;integerLiteral&quot;</span><span>
+</span><span id="line-230"></span><span>        </span><span class="hs-string">&quot;BooleanLiteralType&quot;</span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-string">&quot;booleanLiteral&quot;</span><span>
+</span><span id="line-231"></span><span>        </span><span class="hs-identifier">x</span><span>                      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">x</span><span>
+</span><span id="line-232"></span><span>      </span><span class="hs-identifier">typeOpts</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">defOpts</span><span>
+</span><span id="line-233"></span><span>        </span><span class="hs-special">{</span><span> </span><span class="hs-identifier">sumEncoding</span><span class="hs-glyph">=</span><span class="hs-identifier">JSON.defaultTaggedObject</span><span class="hs-special">{</span><span class="hs-identifier">tagFieldName</span><span class="hs-glyph">=</span><span class="hs-string">&quot;kind&quot;</span><span class="hs-special">}</span><span>
+</span><span id="line-234"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="hs-identifier">constructorTagModifier</span><span class="hs-glyph">=</span><span class="hs-identifier">typeToTag</span><span>
+</span><span id="line-235"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="hs-identifier">fieldLabelModifier</span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-identifier">s</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">over</span><span> </span><span class="hs-identifier">_head</span><span> </span><span class="hs-identifier">Char.toLower</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-identifier">Prelude.dropWhile</span><span> </span><span class="hs-identifier">Char.isLower</span><span> </span><span class="hs-identifier">s</span><span>
+</span><span id="line-236"></span><span>        </span><span class="hs-special">}</span><span>
+</span><span id="line-237"></span><span>      </span><span class="hs-identifier">typeInst</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">JSON.deriveJSON</span><span> </span><span class="hs-identifier">typeOpts</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">Type</span><span>
+</span><span id="line-238"></span><span>
+</span><span id="line-239"></span><span>      </span><span class="hs-comment">-- The rest are mostly normal</span><span>
+</span><span id="line-240"></span><span>      </span><span class="hs-identifier">reqInst</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">JSON.deriveJSON</span><span> </span><span class="hs-identifier">defOpts</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">Request</span><span>
+</span><span id="line-241"></span><span>      </span><span class="hs-identifier">notInst</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">JSON.deriveJSON</span><span> </span><span class="hs-identifier">defOpts</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">Notification</span><span>
+</span><span id="line-242"></span><span>      </span><span class="hs-identifier">sInst</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">JSON.deriveJSON</span><span> </span><span class="hs-identifier">defOpts</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">Structure</span><span>
+</span><span id="line-243"></span><span>      </span><span class="hs-identifier">taInst</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">JSON.deriveJSON</span><span> </span><span class="hs-identifier">defOpts</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">TypeAlias</span><span>
+</span><span id="line-244"></span><span>      </span><span class="hs-comment">-- TextOrInteger is also an untagged sum</span><span>
+</span><span id="line-245"></span><span>      </span><span class="hs-identifier">tiInst</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">JSON.deriveJSON</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">defOpts</span><span class="hs-special">{</span><span class="hs-identifier">sumEncoding</span><span class="hs-glyph">=</span><span class="hs-identifier">UntaggedValue</span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">TextOrInteger</span><span>
+</span><span id="line-246"></span><span>      </span><span class="hs-identifier">eeInst</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">JSON.deriveJSON</span><span> </span><span class="hs-identifier">defOpts</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">EnumerationEntry</span><span>
+</span><span id="line-247"></span><span>      </span><span class="hs-identifier">eInst</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">JSON.deriveJSON</span><span> </span><span class="hs-identifier">defOpts</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">Enumeration</span><span>
+</span><span id="line-248"></span><span>      </span><span class="hs-identifier">mdInst</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">JSON.deriveJSON</span><span> </span><span class="hs-identifier">defOpts</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">MetaData</span><span>
+</span><span id="line-249"></span><span>      </span><span class="hs-identifier">mmInst</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">JSON.deriveJSON</span><span> </span><span class="hs-identifier">defOpts</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">MetaModel</span><span>
+</span><span id="line-250"></span><span>  </span><span class="hs-keyword">in</span><span> </span><span class="hs-identifier">mconcat</span><span> </span><span class="hs-operator">&lt;$&gt;</span><span> </span><span class="hs-identifier">sequence</span><span> </span><span class="hs-special">[</span><span> </span><span class="hs-identifier">propertyInst</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">slInst</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">baseTyNameInst</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">typeInst</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">reqInst</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">notInst</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">sInst</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">taInst</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">tiInst</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">eeInst</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">eInst</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">mdInst</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">mmInst</span><span> </span><span class="hs-special">]</span><span>
+</span><span id="line-251"></span><span> </span><span class="hs-special">)</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span>
+</span><span id="line-252"></span><span>
+</span><span id="line-253"></span><span class="annot"><a href="Language.LSP.MetaModel.Types.html#loadMetaModelFromFile"><span class="hs-identifier hs-type">loadMetaModelFromFile</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Q</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Exp</span></span><span>
+</span><span id="line-254"></span><span id="loadMetaModelFromFile"><span class="annot"><span class="annottext">loadMetaModelFromFile :: String -&gt; Q Exp
+</span><a href="Language.LSP.MetaModel.Types.html#loadMetaModelFromFile"><span class="hs-identifier hs-var hs-var">loadMetaModelFromFile</span></a></span></span><span> </span><span id="local-6989586621679622492"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679622492"><span class="hs-identifier hs-var">fp</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-255"></span><span>  </span><span class="annot"><span class="annottext">String -&gt; Q ()
+</span><span class="hs-identifier hs-var">addDependentFile</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679622492"><span class="hs-identifier hs-var">fp</span></a></span><span>
+</span><span id="line-256"></span><span>  </span><span id="local-6989586621679622491"><span class="annot"><span class="annottext">Either String MetaModel
+</span><a href="#local-6989586621679622491"><span class="hs-identifier hs-var">res</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><span class="hs-identifier hs-var">liftIO</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; String -&gt; IO (Either String a)
+</span><span class="hs-identifier hs-var">JSON.eitherDecodeFileStrict'</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679622492"><span class="hs-identifier hs-var">fp</span></a></span><span>
+</span><span id="line-257"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Either String MetaModel
+</span><a href="#local-6989586621679622491"><span class="hs-identifier hs-var">res</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-258"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span id="local-6989586621679622488"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679622488"><span class="hs-identifier hs-var">e</span></a></span></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. MonadFail m =&gt; String -&gt; m a
+</span><span class="hs-identifier hs-var">fail</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679622488"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-259"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679622487"><span class="annot"><span class="annottext">MetaModel
+</span><a href="#local-6989586621679622487"><span class="hs-identifier hs-var">mm</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.LSP.MetaModel.Types.html#MetaModel"><span class="hs-identifier hs-type">MetaModel</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall t (m :: * -&gt; *). (Lift t, Quote m) =&gt; t -&gt; m Exp
+</span><span class="hs-identifier hs-var">lift</span></span><span> </span><span class="annot"><span class="annottext">MetaModel
+</span><a href="#local-6989586621679622487"><span class="hs-identifier hs-var">mm</span></a></span><span>
+</span><span id="line-260"></span></pre></body></html>

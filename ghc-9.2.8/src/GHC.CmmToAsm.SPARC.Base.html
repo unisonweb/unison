@@ -1,0 +1,113 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span>
+</span><span id="line-2"></span><span class="hs-comment">-- | Bits and pieces on the bottom of the module dependency tree.</span><span>
+</span><span id="line-3"></span><span class="hs-comment">--      Also import the required constants, so we know what we're using.</span><span>
+</span><span id="line-4"></span><span class="hs-comment">--</span><span>
+</span><span id="line-5"></span><span class="hs-comment">--      In the interests of cross-compilation, we want to free ourselves</span><span>
+</span><span id="line-6"></span><span class="hs-comment">--      from the autoconf generated modules like &quot;GHC.Settings.Constants&quot;</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">GHC.CmmToAsm.SPARC.Base</span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-9"></span><span>        </span><span class="annot"><a href="GHC.CmmToAsm.SPARC.Base.html#wordLength"><span class="hs-identifier">wordLength</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-10"></span><span>        </span><span class="annot"><a href="GHC.CmmToAsm.SPARC.Base.html#wordLengthInBits"><span class="hs-identifier">wordLengthInBits</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-11"></span><span>        </span><span class="annot"><a href="GHC.CmmToAsm.SPARC.Base.html#spillSlotSize"><span class="hs-identifier">spillSlotSize</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-12"></span><span>        </span><span class="annot"><a href="GHC.CmmToAsm.SPARC.Base.html#extraStackArgsHere"><span class="hs-identifier">extraStackArgsHere</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-13"></span><span>        </span><span class="annot"><a href="GHC.CmmToAsm.SPARC.Base.html#fits13Bits"><span class="hs-identifier">fits13Bits</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-14"></span><span>        </span><span class="annot"><a href="GHC.CmmToAsm.SPARC.Base.html#is32BitInteger"><span class="hs-identifier">is32BitInteger</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-15"></span><span>        </span><span class="annot"><a href="GHC.CmmToAsm.SPARC.Base.html#largeOffsetError"><span class="hs-identifier">largeOffsetError</span></a></span><span>
+</span><span id="line-16"></span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Prelude.html"><span class="hs-identifier">GHC.Prelude</span></a></span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Panic.html"><span class="hs-identifier">GHC.Utils.Panic</span></a></span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Data-Int.html#"><span class="hs-identifier">Data.Int</span></a></span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="hs-comment">-- On 32 bit SPARC, pointers are 32 bits.</span><span>
+</span><span id="line-28"></span><span class="annot"><a href="GHC.CmmToAsm.SPARC.Base.html#wordLength"><span class="hs-identifier hs-type">wordLength</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-29"></span><span id="wordLength"><span class="annot"><span class="annottext">wordLength :: Int
+</span><a href="GHC.CmmToAsm.SPARC.Base.html#wordLength"><span class="hs-identifier hs-var hs-var">wordLength</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="annot"><a href="GHC.CmmToAsm.SPARC.Base.html#wordLengthInBits"><span class="hs-identifier hs-type">wordLengthInBits</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-32"></span><span id="wordLengthInBits"><span class="annot"><span class="annottext">wordLengthInBits :: Int
+</span><a href="GHC.CmmToAsm.SPARC.Base.html#wordLengthInBits"><span class="hs-identifier hs-var hs-var">wordLengthInBits</span></a></span></span><span>
+</span><span id="line-33"></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="GHC.CmmToAsm.SPARC.Base.html#wordLength"><span class="hs-identifier hs-var">wordLength</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2A"><span class="hs-operator hs-var">*</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span class="hs-comment">-- | We need 8 bytes because our largest registers are 64 bit.</span><span>
+</span><span id="line-36"></span><span class="annot"><a href="GHC.CmmToAsm.SPARC.Base.html#spillSlotSize"><span class="hs-identifier hs-type">spillSlotSize</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-37"></span><span id="spillSlotSize"><span class="annot"><span class="annottext">spillSlotSize :: Int
+</span><a href="GHC.CmmToAsm.SPARC.Base.html#spillSlotSize"><span class="hs-identifier hs-var hs-var">spillSlotSize</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- | We (allegedly) put the first six C-call arguments in registers;</span><span>
+</span><span id="line-41"></span><span class="hs-comment">--      where do we start putting the rest of them?</span><span>
+</span><span id="line-42"></span><span class="annot"><a href="GHC.CmmToAsm.SPARC.Base.html#extraStackArgsHere"><span class="hs-identifier hs-type">extraStackArgsHere</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-43"></span><span id="extraStackArgsHere"><span class="annot"><span class="annottext">extraStackArgsHere :: Int
+</span><a href="GHC.CmmToAsm.SPARC.Base.html#extraStackArgsHere"><span class="hs-identifier hs-var hs-var">extraStackArgsHere</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">23</span></span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span class="hs-pragma">{-# SPECIALIZE</span><span> </span><span class="annot"><a href="GHC.CmmToAsm.SPARC.Base.html#fits13Bits"><span class="hs-pragma hs-type">fits13Bits</span></a></span><span> </span><span class="hs-pragma">::</span><span> </span><span class="annot"><span class="hs-pragma hs-type">Int</span></span><span> </span><span class="hs-pragma">-&gt;</span><span> </span><span class="annot"><span class="hs-pragma hs-type">Bool</span></span><span class="hs-pragma">,</span><span> </span><span class="annot"><span class="hs-pragma hs-type">Integer</span></span><span> </span><span class="hs-pragma">-&gt;</span><span> </span><span class="annot"><span class="hs-pragma hs-type">Bool</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-47"></span><span class="hs-comment">-- | Check whether an offset is representable with 13 bits.</span><span>
+</span><span id="line-48"></span><span id="local-6989586621681161209"><span class="annot"><a href="GHC.CmmToAsm.SPARC.Base.html#fits13Bits"><span class="hs-identifier hs-type">fits13Bits</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Real.html#Integral"><span class="hs-identifier hs-type">Integral</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681161209"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681161209"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span><span>
+</span><span id="line-49"></span><span id="fits13Bits"><span class="annot"><span class="annottext">fits13Bits :: forall a. Integral a =&gt; a -&gt; Bool
+</span><a href="GHC.CmmToAsm.SPARC.Base.html#fits13Bits"><span class="hs-identifier hs-var hs-var">fits13Bits</span></a></span></span><span> </span><span id="local-6989586621681161160"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681161160"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681161160"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="hs-glyph">-</span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">4096</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681161160"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">4096</span></span><span>
+</span><span id="line-50"></span><span>
+</span><span id="line-51"></span><span class="hs-comment">-- | Check whether an integer will fit in 32 bits.</span><span>
+</span><span id="line-52"></span><span class="hs-comment">--      A CmmInt is intended to be truncated to the appropriate</span><span>
+</span><span id="line-53"></span><span class="hs-comment">--      number of bits, so here we truncate it to Int64.  This is</span><span>
+</span><span id="line-54"></span><span class="hs-comment">--      important because e.g. -1 as a CmmInt might be either</span><span>
+</span><span id="line-55"></span><span class="hs-comment">--      -1 or 18446744073709551615.</span><span>
+</span><span id="line-56"></span><span class="hs-comment">--</span><span>
+</span><span id="line-57"></span><span class="annot"><a href="GHC.CmmToAsm.SPARC.Base.html#is32BitInteger"><span class="hs-identifier hs-type">is32BitInteger</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-58"></span><span id="is32BitInteger"><span class="annot"><span class="annottext">is32BitInteger :: Integer -&gt; Bool
+</span><a href="GHC.CmmToAsm.SPARC.Base.html#is32BitInteger"><span class="hs-identifier hs-var hs-var">is32BitInteger</span></a></span></span><span> </span><span id="local-6989586621681161157"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621681161157"><span class="hs-identifier hs-var">i</span></a></span></span><span>
+</span><span id="line-59"></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int64
+</span><a href="#local-6989586621681161156"><span class="hs-identifier hs-var">i64</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Int64
+</span><span class="hs-number">0x7fffffff</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Int64
+</span><a href="#local-6989586621681161156"><span class="hs-identifier hs-var">i64</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="hs-glyph">-</span><span class="annot"><span class="annottext">Int64
+</span><span class="hs-number">0x80000000</span></span><span>
+</span><span id="line-60"></span><span>        </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621681161156"><span class="annot"><span class="annottext">i64 :: Int64
+</span><a href="#local-6989586621681161156"><span class="hs-identifier hs-var hs-var">i64</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Real.html#fromIntegral"><span class="hs-identifier hs-var">fromIntegral</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621681161157"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Int.html#Int64"><span class="hs-identifier hs-type">Int64</span></a></span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span><span>
+</span><span id="line-63"></span><span class="hs-comment">-- | Sadness.</span><span>
+</span><span id="line-64"></span><span id="local-6989586621681161201"><span id="local-6989586621681161202"><span class="annot"><a href="GHC.CmmToAsm.SPARC.Base.html#largeOffsetError"><span class="hs-identifier hs-type">largeOffsetError</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Show.html#Show"><span class="hs-identifier hs-type">Show</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681161202"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681161202"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681161201"><span class="hs-identifier hs-type">b</span></a></span></span></span><span>
+</span><span id="line-65"></span><span id="largeOffsetError"><span class="annot"><span class="annottext">largeOffsetError :: forall a b. Show a =&gt; a -&gt; b
+</span><a href="GHC.CmmToAsm.SPARC.Base.html#largeOffsetError"><span class="hs-identifier hs-var hs-var">largeOffsetError</span></a></span></span><span> </span><span id="local-6989586621681161152"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681161152"><span class="hs-identifier hs-var">i</span></a></span></span><span>
+</span><span id="line-66"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. String -&gt; a
+</span><a href="GHC.Utils.Panic.Plain.html#panic"><span class="hs-identifier hs-var">panic</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;ERROR: SPARC native-code generator cannot handle large offset (&quot;</span></span><span>
+</span><span id="line-67"></span><span>                </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%2B%2B"><span class="hs-operator hs-var">++</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Show a =&gt; a -&gt; String
+</span><a href="../../base-4.16.4.0/src/GHC-Show.html#show"><span class="hs-identifier hs-var">show</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681161152"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%2B%2B"><span class="hs-operator hs-var">++</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;);\nprobably because of large constant data structures;&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%2B%2B"><span class="hs-operator hs-var">++</span></a></span><span>
+</span><span id="line-68"></span><span>                </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;\nworkaround: use -fllvm on this module.\n&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-69"></span><span>
+</span><span id="line-70"></span><span>
+</span><span id="line-71"></span></pre></body></html>

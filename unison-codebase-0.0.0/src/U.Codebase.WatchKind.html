@@ -1,0 +1,49 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">U.Codebase.WatchKind</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">data</span><span> </span><span id="WatchKind"><span class="annot"><a href="U.Codebase.WatchKind.html#WatchKind"><span class="hs-identifier hs-var">WatchKind</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="RegularWatch"><span class="annot"><a href="U.Codebase.WatchKind.html#RegularWatch"><span class="hs-identifier hs-var">RegularWatch</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="TestWatch"><span class="annot"><a href="U.Codebase.WatchKind.html#TestWatch"><span class="hs-identifier hs-var">TestWatch</span></a></span></span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679141592"><span id="local-6989586621679141594"><span class="annot"><span class="annottext">WatchKind -&gt; WatchKind -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: WatchKind -&gt; WatchKind -&gt; Bool
+$c/= :: WatchKind -&gt; WatchKind -&gt; Bool
+== :: WatchKind -&gt; WatchKind -&gt; Bool
+$c== :: WatchKind -&gt; WatchKind -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679141572"><span id="local-6989586621679141574"><span id="local-6989586621679141577"><span id="local-6989586621679141580"><span id="local-6989586621679141583"><span id="local-6989586621679141585"><span id="local-6989586621679141587"><span class="annot"><span class="annottext">Eq WatchKind
+WatchKind -&gt; WatchKind -&gt; Bool
+WatchKind -&gt; WatchKind -&gt; Ordering
+WatchKind -&gt; WatchKind -&gt; WatchKind
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: WatchKind -&gt; WatchKind -&gt; WatchKind
+$cmin :: WatchKind -&gt; WatchKind -&gt; WatchKind
+max :: WatchKind -&gt; WatchKind -&gt; WatchKind
+$cmax :: WatchKind -&gt; WatchKind -&gt; WatchKind
+&gt;= :: WatchKind -&gt; WatchKind -&gt; Bool
+$c&gt;= :: WatchKind -&gt; WatchKind -&gt; Bool
+&gt; :: WatchKind -&gt; WatchKind -&gt; Bool
+$c&gt; :: WatchKind -&gt; WatchKind -&gt; Bool
+&lt;= :: WatchKind -&gt; WatchKind -&gt; Bool
+$c&lt;= :: WatchKind -&gt; WatchKind -&gt; Bool
+&lt; :: WatchKind -&gt; WatchKind -&gt; Bool
+$c&lt; :: WatchKind -&gt; WatchKind -&gt; Bool
+compare :: WatchKind -&gt; WatchKind -&gt; Ordering
+$ccompare :: WatchKind -&gt; WatchKind -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679141565"><span id="local-6989586621679141567"><span id="local-6989586621679141569"><span class="annot"><span class="annottext">Int -&gt; WatchKind -&gt; ShowS
+[WatchKind] -&gt; ShowS
+WatchKind -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [WatchKind] -&gt; ShowS
+$cshowList :: [WatchKind] -&gt; ShowS
+show :: WatchKind -&gt; String
+$cshow :: WatchKind -&gt; String
+showsPrec :: Int -&gt; WatchKind -&gt; ShowS
+$cshowsPrec :: Int -&gt; WatchKind -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-4"></span></pre></body></html>

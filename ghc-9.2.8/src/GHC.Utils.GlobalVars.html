@@ -1,0 +1,171 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# OPTIONS_GHC -fno-cse #-}</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- -fno-cse is needed for GLOBAL_VAR's to behave properly</span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">GHC.Utils.GlobalVars</span><span>
+</span><span id="line-7"></span><span>   </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Utils.GlobalVars.html#v_unsafeHasPprDebug"><span class="hs-identifier">v_unsafeHasPprDebug</span></a></span><span>
+</span><span id="line-8"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Utils.GlobalVars.html#v_unsafeHasNoDebugOutput"><span class="hs-identifier">v_unsafeHasNoDebugOutput</span></a></span><span>
+</span><span id="line-9"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Utils.GlobalVars.html#v_unsafeHasNoStateHack"><span class="hs-identifier">v_unsafeHasNoStateHack</span></a></span><span>
+</span><span id="line-10"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Utils.GlobalVars.html#unsafeHasPprDebug"><span class="hs-identifier">unsafeHasPprDebug</span></a></span><span>
+</span><span id="line-11"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Utils.GlobalVars.html#unsafeHasNoDebugOutput"><span class="hs-identifier">unsafeHasNoDebugOutput</span></a></span><span>
+</span><span id="line-12"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Utils.GlobalVars.html#unsafeHasNoStateHack"><span class="hs-identifier">unsafeHasNoStateHack</span></a></span><span>
+</span><span id="line-13"></span><span>
+</span><span id="line-14"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Utils.GlobalVars.html#global"><span class="hs-identifier">global</span></a></span><span>
+</span><span id="line-15"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Utils.GlobalVars.html#consIORef"><span class="hs-identifier">consIORef</span></a></span><span>
+</span><span id="line-16"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Utils.GlobalVars.html#globalM"><span class="hs-identifier">globalM</span></a></span><span>
+</span><span id="line-17"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Utils.GlobalVars.html#sharedGlobal"><span class="hs-identifier">sharedGlobal</span></a></span><span>
+</span><span id="line-18"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Utils.GlobalVars.html#sharedGlobalM"><span class="hs-identifier">sharedGlobalM</span></a></span><span>
+</span><span id="line-19"></span><span>   </span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span class="hs-keyword">where</span><span class="hs-cpp">
+
+#include &quot;HsVersions.h&quot;
+</span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Prelude.html"><span class="hs-identifier">GHC.Prelude</span></a></span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Conc-Sync.html#"><span class="hs-identifier">GHC.Conc.Sync</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Conc-Sync.html#sharedCAF"><span class="hs-identifier">sharedCAF</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/System-IO-Unsafe.html#"><span class="hs-identifier">System.IO.Unsafe</span></a></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Data-IORef.html#"><span class="hs-identifier">Data.IORef</span></a></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Foreign.html#"><span class="hs-identifier">Foreign</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Ptr.html#Ptr"><span class="hs-identifier">Ptr</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span class="hs-comment">--------------------------------------------------------------------------</span><span>
+</span><span id="line-34"></span><span class="hs-comment">-- Do not use global variables!</span><span>
+</span><span id="line-35"></span><span class="hs-comment">--</span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- Global variables are a hack. Do not use them if you can help it.</span><span class="hs-cpp">
+
+#if GHC_STAGE &lt; 2
+</span><span>
+</span><span id="line-40"></span><span class="hs-identifier">GLOBAL_VAR</span><span class="hs-special">(</span><span class="hs-identifier">v_unsafeHasPprDebug</span><span class="hs-special">,</span><span>      </span><span class="hs-identifier">False</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">Bool</span><span class="hs-special">)</span><span>
+</span><span id="line-41"></span><span class="hs-identifier">GLOBAL_VAR</span><span class="hs-special">(</span><span class="hs-identifier">v_unsafeHasNoDebugOutput</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">False</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">Bool</span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span class="hs-identifier">GLOBAL_VAR</span><span class="hs-special">(</span><span class="hs-identifier">v_unsafeHasNoStateHack</span><span class="hs-special">,</span><span>   </span><span class="hs-identifier">False</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">Bool</span><span class="hs-special">)</span><span class="hs-cpp">
+
+#else
+</span><span class="hs-identifier">SHARED_GLOBAL_VAR</span><span class="hs-special">(</span><span> </span><span class="hs-identifier">v_unsafeHasPprDebug</span><span>
+</span><span id="line-46"></span><span>                 </span><span class="hs-special">,</span><span> </span><span class="hs-identifier">getOrSetLibHSghcGlobalHasPprDebug</span><span>
+</span><span id="line-47"></span><span>                 </span><span class="hs-special">,</span><span> </span><span class="hs-string">&quot;getOrSetLibHSghcGlobalHasPprDebug&quot;</span><span>
+</span><span id="line-48"></span><span>                 </span><span class="hs-special">,</span><span> </span><span class="hs-identifier">False</span><span>
+</span><span id="line-49"></span><span>                 </span><span class="hs-special">,</span><span> </span><span class="hs-identifier">Bool</span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-50"></span><span class="hs-identifier">SHARED_GLOBAL_VAR</span><span class="hs-special">(</span><span> </span><span class="hs-identifier">v_unsafeHasNoDebugOutput</span><span>
+</span><span id="line-51"></span><span>                 </span><span class="hs-special">,</span><span> </span><span class="hs-identifier">getOrSetLibHSghcGlobalHasNoDebugOutput</span><span>
+</span><span id="line-52"></span><span>                 </span><span class="hs-special">,</span><span> </span><span class="hs-string">&quot;getOrSetLibHSghcGlobalHasNoDebugOutput&quot;</span><span>
+</span><span id="line-53"></span><span>                 </span><span class="hs-special">,</span><span> </span><span class="hs-identifier">False</span><span>
+</span><span id="line-54"></span><span>                 </span><span class="hs-special">,</span><span> </span><span class="hs-identifier">Bool</span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-55"></span><span class="hs-identifier">SHARED_GLOBAL_VAR</span><span class="hs-special">(</span><span> </span><span class="hs-identifier">v_unsafeHasNoStateHack</span><span>
+</span><span id="line-56"></span><span>                 </span><span class="hs-special">,</span><span> </span><span class="hs-identifier">getOrSetLibHSghcGlobalHasNoStateHack</span><span>
+</span><span id="line-57"></span><span>                 </span><span class="hs-special">,</span><span> </span><span class="hs-string">&quot;getOrSetLibHSghcGlobalHasNoStateHack&quot;</span><span>
+</span><span id="line-58"></span><span>                 </span><span class="hs-special">,</span><span> </span><span class="hs-identifier">False</span><span>
+</span><span id="line-59"></span><span>                 </span><span class="hs-special">,</span><span> </span><span class="hs-identifier">Bool</span><span> </span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-62"></span><span class="annot"><a href="GHC.Utils.GlobalVars.html#unsafeHasPprDebug"><span class="hs-identifier hs-type">unsafeHasPprDebug</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-63"></span><span id="unsafeHasPprDebug"><span class="annot"><span class="annottext">unsafeHasPprDebug :: Bool
+</span><a href="GHC.Utils.GlobalVars.html#unsafeHasPprDebug"><span class="hs-identifier hs-var hs-var">unsafeHasPprDebug</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. IO a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-IO-Unsafe.html#unsafePerformIO"><span class="hs-identifier hs-var">unsafePerformIO</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. IORef a -&gt; IO a
+</span><a href="../../base-4.16.4.0/src/GHC-IORef.html#readIORef"><span class="hs-identifier hs-var">readIORef</span></a></span><span> </span><span class="annot"><span class="annottext">IORef Bool
+</span><a href="GHC.Utils.GlobalVars.html#v_unsafeHasPprDebug"><span class="hs-identifier hs-var">v_unsafeHasPprDebug</span></a></span><span>
+</span><span id="line-64"></span><span>
+</span><span id="line-65"></span><span class="annot"><a href="GHC.Utils.GlobalVars.html#unsafeHasNoDebugOutput"><span class="hs-identifier hs-type">unsafeHasNoDebugOutput</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-66"></span><span id="unsafeHasNoDebugOutput"><span class="annot"><span class="annottext">unsafeHasNoDebugOutput :: Bool
+</span><a href="GHC.Utils.GlobalVars.html#unsafeHasNoDebugOutput"><span class="hs-identifier hs-var hs-var">unsafeHasNoDebugOutput</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. IO a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-IO-Unsafe.html#unsafePerformIO"><span class="hs-identifier hs-var">unsafePerformIO</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. IORef a -&gt; IO a
+</span><a href="../../base-4.16.4.0/src/GHC-IORef.html#readIORef"><span class="hs-identifier hs-var">readIORef</span></a></span><span> </span><span class="annot"><span class="annottext">IORef Bool
+</span><a href="GHC.Utils.GlobalVars.html#v_unsafeHasNoDebugOutput"><span class="hs-identifier hs-var">v_unsafeHasNoDebugOutput</span></a></span><span>
+</span><span id="line-67"></span><span>
+</span><span id="line-68"></span><span class="annot"><a href="GHC.Utils.GlobalVars.html#unsafeHasNoStateHack"><span class="hs-identifier hs-type">unsafeHasNoStateHack</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-69"></span><span id="unsafeHasNoStateHack"><span class="annot"><span class="annottext">unsafeHasNoStateHack :: Bool
+</span><a href="GHC.Utils.GlobalVars.html#unsafeHasNoStateHack"><span class="hs-identifier hs-var hs-var">unsafeHasNoStateHack</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. IO a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-IO-Unsafe.html#unsafePerformIO"><span class="hs-identifier hs-var">unsafePerformIO</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. IORef a -&gt; IO a
+</span><a href="../../base-4.16.4.0/src/GHC-IORef.html#readIORef"><span class="hs-identifier hs-var">readIORef</span></a></span><span> </span><span class="annot"><span class="annottext">IORef Bool
+</span><a href="GHC.Utils.GlobalVars.html#v_unsafeHasNoStateHack"><span class="hs-identifier hs-var">v_unsafeHasNoStateHack</span></a></span><span>
+</span><span id="line-70"></span><span>
+</span><span id="line-71"></span><span class="hs-comment">{-
+************************************************************************
+*                                                                      *
+                        Globals and the RTS
+*                                                                      *
+************************************************************************
+
+When a plugin is loaded, it currently gets linked against a *newly
+loaded* copy of the GHC package. This would not be a problem, except
+that the new copy has its own mutable state that is not shared with
+that state that has already been initialized by the original GHC
+package.
+
+(Note that if the GHC executable was dynamically linked this
+wouldn't be a problem, because we could share the GHC library it
+links to; this is only a problem if DYNAMIC_GHC_PROGRAMS=NO.)
+
+The solution is to make use of @sharedCAF@ through @sharedGlobal@
+for globals that are shared between multiple copies of ghc packages.
+-}</span><span>
+</span><span id="line-91"></span><span>
+</span><span id="line-92"></span><span class="hs-comment">-- Global variables:</span><span>
+</span><span id="line-93"></span><span>
+</span><span id="line-94"></span><span id="local-6989586621680964815"><span class="annot"><a href="GHC.Utils.GlobalVars.html#global"><span class="hs-identifier hs-type">global</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621680964815"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-IORef.html#IORef"><span class="hs-identifier hs-type">IORef</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680964815"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-95"></span><span id="global"><span class="annot"><span class="annottext">global :: forall a. a -&gt; IORef a
+</span><a href="GHC.Utils.GlobalVars.html#global"><span class="hs-identifier hs-var hs-var">global</span></a></span></span><span> </span><span id="local-6989586621680964776"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680964776"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. IO a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-IO-Unsafe.html#unsafePerformIO"><span class="hs-identifier hs-var">unsafePerformIO</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. a -&gt; IO (IORef a)
+</span><a href="../../base-4.16.4.0/src/GHC-IORef.html#newIORef"><span class="hs-identifier hs-var">newIORef</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680964776"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-96"></span><span>
+</span><span id="line-97"></span><span id="local-6989586621680964812"><span class="annot"><a href="GHC.Utils.GlobalVars.html#consIORef"><span class="hs-identifier hs-type">consIORef</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-IORef.html#IORef"><span class="hs-identifier hs-type">IORef</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621680964812"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680964812"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-98"></span><span id="consIORef"><span class="annot"><span class="annottext">consIORef :: forall a. IORef [a] -&gt; a -&gt; IO ()
+</span><a href="GHC.Utils.GlobalVars.html#consIORef"><span class="hs-identifier hs-var hs-var">consIORef</span></a></span></span><span> </span><span id="local-6989586621680964774"><span class="annot"><span class="annottext">IORef [a]
+</span><a href="#local-6989586621680964774"><span class="hs-identifier hs-var">var</span></a></span></span><span> </span><span id="local-6989586621680964773"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680964773"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-99"></span><span>  </span><span class="annot"><span class="annottext">forall a b. IORef a -&gt; (a -&gt; (a, b)) -&gt; IO b
+</span><a href="../../base-4.16.4.0/src/GHC-IORef.html#atomicModifyIORef%27"><span class="hs-identifier hs-var">atomicModifyIORef'</span></a></span><span> </span><span class="annot"><span class="annottext">IORef [a]
+</span><a href="#local-6989586621680964774"><span class="hs-identifier hs-var">var</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621680964771"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621680964771"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680964773"><span class="hs-identifier hs-var">x</span></a></span><span class="annot"><span class="annottext">forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621680964771"><span class="hs-identifier hs-var">xs</span></a></span><span class="hs-special">,</span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-100"></span><span>
+</span><span id="line-101"></span><span id="local-6989586621680964807"><span class="annot"><a href="GHC.Utils.GlobalVars.html#globalM"><span class="hs-identifier hs-type">globalM</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621680964807"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-IORef.html#IORef"><span class="hs-identifier hs-type">IORef</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680964807"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-102"></span><span id="globalM"><span class="annot"><span class="annottext">globalM :: forall a. IO a -&gt; IORef a
+</span><a href="GHC.Utils.GlobalVars.html#globalM"><span class="hs-identifier hs-var hs-var">globalM</span></a></span></span><span> </span><span id="local-6989586621680964768"><span class="annot"><span class="annottext">IO a
+</span><a href="#local-6989586621680964768"><span class="hs-identifier hs-var">ma</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. IO a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-IO-Unsafe.html#unsafePerformIO"><span class="hs-identifier hs-var">unsafePerformIO</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IO a
+</span><a href="#local-6989586621680964768"><span class="hs-identifier hs-var">ma</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%3E%3E%3D"><span class="hs-operator hs-var">&gt;&gt;=</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; IO (IORef a)
+</span><a href="../../base-4.16.4.0/src/GHC-IORef.html#newIORef"><span class="hs-identifier hs-var">newIORef</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-103"></span><span>
+</span><span id="line-104"></span><span class="hs-comment">-- Shared global variables:</span><span>
+</span><span id="line-105"></span><span>
+</span><span id="line-106"></span><span id="local-6989586621680964822"><span class="annot"><a href="GHC.Utils.GlobalVars.html#sharedGlobal"><span class="hs-identifier hs-type">sharedGlobal</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621680964822"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Ptr.html#Ptr"><span class="hs-identifier hs-type">Ptr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-IORef.html#IORef"><span class="hs-identifier hs-type">IORef</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680964822"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Ptr.html#Ptr"><span class="hs-identifier hs-type">Ptr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-IORef.html#IORef"><span class="hs-identifier hs-type">IORef</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680964822"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-IORef.html#IORef"><span class="hs-identifier hs-type">IORef</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680964822"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-107"></span><span id="sharedGlobal"><span class="annot"><span class="annottext">sharedGlobal :: forall a. a -&gt; (Ptr (IORef a) -&gt; IO (Ptr (IORef a))) -&gt; IORef a
+</span><a href="GHC.Utils.GlobalVars.html#sharedGlobal"><span class="hs-identifier hs-var hs-var">sharedGlobal</span></a></span></span><span> </span><span id="local-6989586621680964766"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680964766"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621680964765"><span class="annot"><span class="annottext">Ptr (IORef a) -&gt; IO (Ptr (IORef a))
+</span><a href="#local-6989586621680964765"><span class="hs-identifier hs-var">get_or_set</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. IO a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-IO-Unsafe.html#unsafePerformIO"><span class="hs-identifier hs-var">unsafePerformIO</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span>
+</span><span id="line-108"></span><span>  </span><span class="annot"><span class="annottext">forall a. a -&gt; IO (IORef a)
+</span><a href="../../base-4.16.4.0/src/GHC-IORef.html#newIORef"><span class="hs-identifier hs-var">newIORef</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680964766"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%3E%3E%3D"><span class="hs-operator hs-var">&gt;&gt;=</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b c. (a -&gt; b -&gt; c) -&gt; b -&gt; a -&gt; c
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#flip"><span class="hs-identifier hs-var">flip</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; (Ptr a -&gt; IO (Ptr a)) -&gt; IO a
+</span><a href="../../base-4.16.4.0/src/GHC-Conc-Sync.html#sharedCAF"><span class="hs-identifier hs-var">sharedCAF</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr (IORef a) -&gt; IO (Ptr (IORef a))
+</span><a href="#local-6989586621680964765"><span class="hs-identifier hs-var">get_or_set</span></a></span><span>
+</span><span id="line-109"></span><span>
+</span><span id="line-110"></span><span id="local-6989586621680964797"><span class="annot"><a href="GHC.Utils.GlobalVars.html#sharedGlobalM"><span class="hs-identifier hs-type">sharedGlobalM</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621680964797"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Ptr.html#Ptr"><span class="hs-identifier hs-type">Ptr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-IORef.html#IORef"><span class="hs-identifier hs-type">IORef</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680964797"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Ptr.html#Ptr"><span class="hs-identifier hs-type">Ptr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-IORef.html#IORef"><span class="hs-identifier hs-type">IORef</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680964797"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-IORef.html#IORef"><span class="hs-identifier hs-type">IORef</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680964797"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-111"></span><span id="sharedGlobalM"><span class="annot"><span class="annottext">sharedGlobalM :: forall a. IO a -&gt; (Ptr (IORef a) -&gt; IO (Ptr (IORef a))) -&gt; IORef a
+</span><a href="GHC.Utils.GlobalVars.html#sharedGlobalM"><span class="hs-identifier hs-var hs-var">sharedGlobalM</span></a></span></span><span> </span><span id="local-6989586621680964761"><span class="annot"><span class="annottext">IO a
+</span><a href="#local-6989586621680964761"><span class="hs-identifier hs-var">ma</span></a></span></span><span> </span><span id="local-6989586621680964760"><span class="annot"><span class="annottext">Ptr (IORef a) -&gt; IO (Ptr (IORef a))
+</span><a href="#local-6989586621680964760"><span class="hs-identifier hs-var">get_or_set</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. IO a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-IO-Unsafe.html#unsafePerformIO"><span class="hs-identifier hs-var">unsafePerformIO</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span>
+</span><span id="line-112"></span><span>  </span><span class="annot"><span class="annottext">IO a
+</span><a href="#local-6989586621680964761"><span class="hs-identifier hs-var">ma</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%3E%3E%3D"><span class="hs-operator hs-var">&gt;&gt;=</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; IO (IORef a)
+</span><a href="../../base-4.16.4.0/src/GHC-IORef.html#newIORef"><span class="hs-identifier hs-var">newIORef</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%3E%3E%3D"><span class="hs-operator hs-var">&gt;&gt;=</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b c. (a -&gt; b -&gt; c) -&gt; b -&gt; a -&gt; c
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#flip"><span class="hs-identifier hs-var">flip</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; (Ptr a -&gt; IO (Ptr a)) -&gt; IO a
+</span><a href="../../base-4.16.4.0/src/GHC-Conc-Sync.html#sharedCAF"><span class="hs-identifier hs-var">sharedCAF</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr (IORef a) -&gt; IO (Ptr (IORef a))
+</span><a href="#local-6989586621680964760"><span class="hs-identifier hs-var">get_or_set</span></a></span><span>
+</span><span id="line-113"></span></pre></body></html>

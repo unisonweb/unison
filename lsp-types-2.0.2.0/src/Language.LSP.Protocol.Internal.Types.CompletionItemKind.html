@@ -1,0 +1,465 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- THIS IS A GENERATED FILE, DO NOT EDIT</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-imports #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-matches #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-deprecations #-}</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.CompletionItemKind</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Hashable</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html"><span class="hs-identifier">Language.LSP.Protocol.Utils.Misc</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prettyprinter</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Aeson.html"><span class="hs-identifier">Data.Row.Aeson</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Hashable.html"><span class="hs-identifier">Data.Row.Hashable</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Hashable</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Set</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.String</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html"><span class="hs-identifier">Language.LSP.Protocol.Types.Common</span></a></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html"><span class="hs-identifier">Language.LSP.Protocol.Types.LspEnum</span></a></span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-comment">{-|
+The kind of a completion entry.
+-}</span><span>
+</span><span id="line-24"></span><span id="local-6989586621682214712"><span id="local-6989586621682214713"></span></span><span class="hs-keyword">data</span><span> </span><span id="CompletionItemKind"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind"><span class="hs-identifier hs-var">CompletionItemKind</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span>
+</span><span id="line-25"></span><span>    </span><span class="hs-comment">{-|
+
+  -}</span><span>
+</span><span id="line-28"></span><span>  </span><span id="CompletionItemKind_Text"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Text"><span class="hs-identifier hs-var">CompletionItemKind_Text</span></a></span></span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-comment">{-|
+
+  -}</span><span>
+</span><span id="line-32"></span><span>  </span><span id="CompletionItemKind_Method"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Method"><span class="hs-identifier hs-var">CompletionItemKind_Method</span></a></span></span><span>
+</span><span id="line-33"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-comment">{-|
+
+  -}</span><span>
+</span><span id="line-36"></span><span>  </span><span id="CompletionItemKind_Function"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Function"><span class="hs-identifier hs-var">CompletionItemKind_Function</span></a></span></span><span>
+</span><span id="line-37"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-comment">{-|
+
+  -}</span><span>
+</span><span id="line-40"></span><span>  </span><span id="CompletionItemKind_Constructor"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Constructor"><span class="hs-identifier hs-var">CompletionItemKind_Constructor</span></a></span></span><span>
+</span><span id="line-41"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-comment">{-|
+
+  -}</span><span>
+</span><span id="line-44"></span><span>  </span><span id="CompletionItemKind_Field"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Field"><span class="hs-identifier hs-var">CompletionItemKind_Field</span></a></span></span><span>
+</span><span id="line-45"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-comment">{-|
+
+  -}</span><span>
+</span><span id="line-48"></span><span>  </span><span id="CompletionItemKind_Variable"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Variable"><span class="hs-identifier hs-var">CompletionItemKind_Variable</span></a></span></span><span>
+</span><span id="line-49"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-comment">{-|
+
+  -}</span><span>
+</span><span id="line-52"></span><span>  </span><span id="CompletionItemKind_Class"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Class"><span class="hs-identifier hs-var">CompletionItemKind_Class</span></a></span></span><span>
+</span><span id="line-53"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-comment">{-|
+
+  -}</span><span>
+</span><span id="line-56"></span><span>  </span><span id="CompletionItemKind_Interface"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Interface"><span class="hs-identifier hs-var">CompletionItemKind_Interface</span></a></span></span><span>
+</span><span id="line-57"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-comment">{-|
+
+  -}</span><span>
+</span><span id="line-60"></span><span>  </span><span id="CompletionItemKind_Module"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Module"><span class="hs-identifier hs-var">CompletionItemKind_Module</span></a></span></span><span>
+</span><span id="line-61"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-comment">{-|
+
+  -}</span><span>
+</span><span id="line-64"></span><span>  </span><span id="CompletionItemKind_Property"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Property"><span class="hs-identifier hs-var">CompletionItemKind_Property</span></a></span></span><span>
+</span><span id="line-65"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-comment">{-|
+
+  -}</span><span>
+</span><span id="line-68"></span><span>  </span><span id="CompletionItemKind_Unit"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Unit"><span class="hs-identifier hs-var">CompletionItemKind_Unit</span></a></span></span><span>
+</span><span id="line-69"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-comment">{-|
+
+  -}</span><span>
+</span><span id="line-72"></span><span>  </span><span id="CompletionItemKind_Value"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Value"><span class="hs-identifier hs-var">CompletionItemKind_Value</span></a></span></span><span>
+</span><span id="line-73"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-comment">{-|
+
+  -}</span><span>
+</span><span id="line-76"></span><span>  </span><span id="CompletionItemKind_Enum"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Enum"><span class="hs-identifier hs-var">CompletionItemKind_Enum</span></a></span></span><span>
+</span><span id="line-77"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-comment">{-|
+
+  -}</span><span>
+</span><span id="line-80"></span><span>  </span><span id="CompletionItemKind_Keyword"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Keyword"><span class="hs-identifier hs-var">CompletionItemKind_Keyword</span></a></span></span><span>
+</span><span id="line-81"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-comment">{-|
+
+  -}</span><span>
+</span><span id="line-84"></span><span>  </span><span id="CompletionItemKind_Snippet"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Snippet"><span class="hs-identifier hs-var">CompletionItemKind_Snippet</span></a></span></span><span>
+</span><span id="line-85"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-comment">{-|
+
+  -}</span><span>
+</span><span id="line-88"></span><span>  </span><span id="CompletionItemKind_Color"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Color"><span class="hs-identifier hs-var">CompletionItemKind_Color</span></a></span></span><span>
+</span><span id="line-89"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-comment">{-|
+
+  -}</span><span>
+</span><span id="line-92"></span><span>  </span><span id="CompletionItemKind_File"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_File"><span class="hs-identifier hs-var">CompletionItemKind_File</span></a></span></span><span>
+</span><span id="line-93"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-comment">{-|
+
+  -}</span><span>
+</span><span id="line-96"></span><span>  </span><span id="CompletionItemKind_Reference"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Reference"><span class="hs-identifier hs-var">CompletionItemKind_Reference</span></a></span></span><span>
+</span><span id="line-97"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-comment">{-|
+
+  -}</span><span>
+</span><span id="line-100"></span><span>  </span><span id="CompletionItemKind_Folder"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Folder"><span class="hs-identifier hs-var">CompletionItemKind_Folder</span></a></span></span><span>
+</span><span id="line-101"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-comment">{-|
+
+  -}</span><span>
+</span><span id="line-104"></span><span>  </span><span id="CompletionItemKind_EnumMember"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_EnumMember"><span class="hs-identifier hs-var">CompletionItemKind_EnumMember</span></a></span></span><span>
+</span><span id="line-105"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-comment">{-|
+
+  -}</span><span>
+</span><span id="line-108"></span><span>  </span><span id="CompletionItemKind_Constant"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Constant"><span class="hs-identifier hs-var">CompletionItemKind_Constant</span></a></span></span><span>
+</span><span id="line-109"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-comment">{-|
+
+  -}</span><span>
+</span><span id="line-112"></span><span>  </span><span id="CompletionItemKind_Struct"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Struct"><span class="hs-identifier hs-var">CompletionItemKind_Struct</span></a></span></span><span>
+</span><span id="line-113"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-comment">{-|
+
+  -}</span><span>
+</span><span id="line-116"></span><span>  </span><span id="CompletionItemKind_Event"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Event"><span class="hs-identifier hs-var">CompletionItemKind_Event</span></a></span></span><span>
+</span><span id="line-117"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-comment">{-|
+
+  -}</span><span>
+</span><span id="line-120"></span><span>  </span><span id="CompletionItemKind_Operator"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Operator"><span class="hs-identifier hs-var">CompletionItemKind_Operator</span></a></span></span><span>
+</span><span id="line-121"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-comment">{-|
+
+  -}</span><span>
+</span><span id="line-124"></span><span>  </span><span id="CompletionItemKind_TypeParameter"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_TypeParameter"><span class="hs-identifier hs-var">CompletionItemKind_TypeParameter</span></a></span></span><span>
+</span><span id="line-125"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682214681"><span id="local-6989586621682214683"><span id="local-6989586621682214685"><span class="annot"><span class="annottext">Int -&gt; CompletionItemKind -&gt; ShowS
+[CompletionItemKind] -&gt; ShowS
+CompletionItemKind -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [CompletionItemKind] -&gt; ShowS
+$cshowList :: [CompletionItemKind] -&gt; ShowS
+show :: CompletionItemKind -&gt; String
+$cshow :: CompletionItemKind -&gt; String
+showsPrec :: Int -&gt; CompletionItemKind -&gt; ShowS
+$cshowsPrec :: Int -&gt; CompletionItemKind -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682214676"><span id="local-6989586621682214678"><span class="annot"><span class="annottext">CompletionItemKind -&gt; CompletionItemKind -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: CompletionItemKind -&gt; CompletionItemKind -&gt; Bool
+$c/= :: CompletionItemKind -&gt; CompletionItemKind -&gt; Bool
+== :: CompletionItemKind -&gt; CompletionItemKind -&gt; Bool
+$c== :: CompletionItemKind -&gt; CompletionItemKind -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682214656"><span id="local-6989586621682214658"><span id="local-6989586621682214661"><span id="local-6989586621682214664"><span id="local-6989586621682214667"><span id="local-6989586621682214669"><span id="local-6989586621682214671"><span class="annot"><span class="annottext">Eq CompletionItemKind
+CompletionItemKind -&gt; CompletionItemKind -&gt; Bool
+CompletionItemKind -&gt; CompletionItemKind -&gt; Ordering
+CompletionItemKind -&gt; CompletionItemKind -&gt; CompletionItemKind
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: CompletionItemKind -&gt; CompletionItemKind -&gt; CompletionItemKind
+$cmin :: CompletionItemKind -&gt; CompletionItemKind -&gt; CompletionItemKind
+max :: CompletionItemKind -&gt; CompletionItemKind -&gt; CompletionItemKind
+$cmax :: CompletionItemKind -&gt; CompletionItemKind -&gt; CompletionItemKind
+&gt;= :: CompletionItemKind -&gt; CompletionItemKind -&gt; Bool
+$c&gt;= :: CompletionItemKind -&gt; CompletionItemKind -&gt; Bool
+&gt; :: CompletionItemKind -&gt; CompletionItemKind -&gt; Bool
+$c&gt; :: CompletionItemKind -&gt; CompletionItemKind -&gt; Bool
+&lt;= :: CompletionItemKind -&gt; CompletionItemKind -&gt; Bool
+$c&lt;= :: CompletionItemKind -&gt; CompletionItemKind -&gt; Bool
+&lt; :: CompletionItemKind -&gt; CompletionItemKind -&gt; Bool
+$c&lt; :: CompletionItemKind -&gt; CompletionItemKind -&gt; Bool
+compare :: CompletionItemKind -&gt; CompletionItemKind -&gt; Ordering
+$ccompare :: CompletionItemKind -&gt; CompletionItemKind -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall x. Rep CompletionItemKind x -&gt; CompletionItemKind
+forall x. CompletionItemKind -&gt; Rep CompletionItemKind x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cto :: forall x. Rep CompletionItemKind x -&gt; CompletionItemKind
+$cfrom :: forall x. CompletionItemKind -&gt; Rep CompletionItemKind x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-126"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">anyclass</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682214650"><span class="annot"><span class="annottext">CompletionItemKind -&gt; ()
+forall a. (a -&gt; ()) -&gt; NFData a
+rnf :: CompletionItemKind -&gt; ()
+$crnf :: CompletionItemKind -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682214643"><span id="local-6989586621682214645"><span class="annot"><span class="annottext">Eq CompletionItemKind
+Int -&gt; CompletionItemKind -&gt; Int
+CompletionItemKind -&gt; Int
+forall a. Eq a -&gt; (Int -&gt; a -&gt; Int) -&gt; (a -&gt; Int) -&gt; Hashable a
+hash :: CompletionItemKind -&gt; Int
+$chash :: CompletionItemKind -&gt; Int
+hashWithSalt :: Int -&gt; CompletionItemKind -&gt; Int
+$chashWithSalt :: Int -&gt; CompletionItemKind -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Hashable</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-127"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span> </span><span id="local-6989586621682214618"><span id="local-6989586621682214625"><span id="local-6989586621682214632"><span id="local-6989586621682214640"><span class="annot"><span class="annottext">[CompletionItemKind] -&gt; Encoding
+[CompletionItemKind] -&gt; Value
+CompletionItemKind -&gt; Encoding
+CompletionItemKind -&gt; Value
+forall a.
+(a -&gt; Value)
+-&gt; (a -&gt; Encoding)
+-&gt; ([a] -&gt; Value)
+-&gt; ([a] -&gt; Encoding)
+-&gt; ToJSON a
+toEncodingList :: [CompletionItemKind] -&gt; Encoding
+$ctoEncodingList :: [CompletionItemKind] -&gt; Encoding
+toJSONList :: [CompletionItemKind] -&gt; Value
+$ctoJSONList :: [CompletionItemKind] -&gt; Value
+toEncoding :: CompletionItemKind -&gt; Encoding
+$ctoEncoding :: CompletionItemKind -&gt; Encoding
+toJSON :: CompletionItemKind -&gt; Value
+$ctoJSON :: CompletionItemKind -&gt; Value
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Aeson.ToJSON</span></span></span></span></span></span><span>
+</span><span id="line-128"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="local-6989586621682214594"><span id="local-6989586621682214603"><span class="annot"><span class="annottext">Value -&gt; Parser [CompletionItemKind]
+Value -&gt; Parser CompletionItemKind
+forall a.
+(Value -&gt; Parser a) -&gt; (Value -&gt; Parser [a]) -&gt; FromJSON a
+parseJSONList :: Value -&gt; Parser [CompletionItemKind]
+$cparseJSONList :: Value -&gt; Parser [CompletionItemKind]
+parseJSON :: Value -&gt; Parser CompletionItemKind
+$cparseJSON :: Value -&gt; Parser CompletionItemKind
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Aeson.FromJSON</span></span></span></span><span> </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">via</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#AsLspEnum"><span class="hs-identifier hs-type">Language.LSP.Protocol.Types.LspEnum.AsLspEnum</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind"><span class="hs-identifier hs-type">CompletionItemKind</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#UInt"><span class="hs-identifier hs-type">Language.LSP.Protocol.Types.Common.UInt</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-129"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621682214574"><span id="local-6989586621682214580"><span class="annot"><span class="annottext">forall ann. [CompletionItemKind] -&gt; Doc ann
+forall ann. CompletionItemKind -&gt; Doc ann
+forall a.
+(forall ann. a -&gt; Doc ann)
+-&gt; (forall ann. [a] -&gt; Doc ann) -&gt; Pretty a
+prettyList :: forall ann. [CompletionItemKind] -&gt; Doc ann
+$cprettyList :: forall ann. [CompletionItemKind] -&gt; Doc ann
+pretty :: forall ann. CompletionItemKind -&gt; Doc ann
+$cpretty :: forall ann. CompletionItemKind -&gt; Doc ann
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Pretty</span></span></span></span><span> </span><span class="hs-keyword">via</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html#ViaJSON"><span class="hs-identifier hs-type">ViaJSON</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind"><span class="hs-identifier hs-type">CompletionItemKind</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-130"></span><span>
+</span><span id="line-131"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#LspEnum"><span class="hs-identifier hs-type">Language.LSP.Protocol.Types.LspEnum.LspEnum</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind"><span class="hs-identifier hs-type">CompletionItemKind</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-132"></span><span>  </span><span id="local-6989586621682214563"><span class="annot"><span class="annottext">knownValues :: Set CompletionItemKind
+</span><a href="Language.LSP.Protocol.Types.LspEnum.html#knownValues"><span class="hs-identifier hs-var hs-var hs-var hs-var">knownValues</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; [a] -&gt; Set a
+</span><span class="hs-identifier hs-var">Data.Set.fromList</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Text"><span class="hs-identifier hs-var">CompletionItemKind_Text</span></a></span><span>
+</span><span id="line-133"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Method"><span class="hs-identifier hs-var">CompletionItemKind_Method</span></a></span><span>
+</span><span id="line-134"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Function"><span class="hs-identifier hs-var">CompletionItemKind_Function</span></a></span><span>
+</span><span id="line-135"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Constructor"><span class="hs-identifier hs-var">CompletionItemKind_Constructor</span></a></span><span>
+</span><span id="line-136"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Field"><span class="hs-identifier hs-var">CompletionItemKind_Field</span></a></span><span>
+</span><span id="line-137"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Variable"><span class="hs-identifier hs-var">CompletionItemKind_Variable</span></a></span><span>
+</span><span id="line-138"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Class"><span class="hs-identifier hs-var">CompletionItemKind_Class</span></a></span><span>
+</span><span id="line-139"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Interface"><span class="hs-identifier hs-var">CompletionItemKind_Interface</span></a></span><span>
+</span><span id="line-140"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Module"><span class="hs-identifier hs-var">CompletionItemKind_Module</span></a></span><span>
+</span><span id="line-141"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Property"><span class="hs-identifier hs-var">CompletionItemKind_Property</span></a></span><span>
+</span><span id="line-142"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Unit"><span class="hs-identifier hs-var">CompletionItemKind_Unit</span></a></span><span>
+</span><span id="line-143"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Value"><span class="hs-identifier hs-var">CompletionItemKind_Value</span></a></span><span>
+</span><span id="line-144"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Enum"><span class="hs-identifier hs-var">CompletionItemKind_Enum</span></a></span><span>
+</span><span id="line-145"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Keyword"><span class="hs-identifier hs-var">CompletionItemKind_Keyword</span></a></span><span>
+</span><span id="line-146"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Snippet"><span class="hs-identifier hs-var">CompletionItemKind_Snippet</span></a></span><span>
+</span><span id="line-147"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Color"><span class="hs-identifier hs-var">CompletionItemKind_Color</span></a></span><span>
+</span><span id="line-148"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_File"><span class="hs-identifier hs-var">CompletionItemKind_File</span></a></span><span>
+</span><span id="line-149"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Reference"><span class="hs-identifier hs-var">CompletionItemKind_Reference</span></a></span><span>
+</span><span id="line-150"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Folder"><span class="hs-identifier hs-var">CompletionItemKind_Folder</span></a></span><span>
+</span><span id="line-151"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_EnumMember"><span class="hs-identifier hs-var">CompletionItemKind_EnumMember</span></a></span><span>
+</span><span id="line-152"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Constant"><span class="hs-identifier hs-var">CompletionItemKind_Constant</span></a></span><span>
+</span><span id="line-153"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Struct"><span class="hs-identifier hs-var">CompletionItemKind_Struct</span></a></span><span>
+</span><span id="line-154"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Event"><span class="hs-identifier hs-var">CompletionItemKind_Event</span></a></span><span>
+</span><span id="line-155"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Operator"><span class="hs-identifier hs-var">CompletionItemKind_Operator</span></a></span><span>
+</span><span id="line-156"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_TypeParameter"><span class="hs-identifier hs-var">CompletionItemKind_TypeParameter</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-157"></span><span>  </span><span class="hs-keyword">type</span><span> </span><span id="EnumBaseType"><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#EnumBaseType"><span class="hs-identifier hs-var">EnumBaseType</span></a></span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind"><span class="hs-identifier hs-type">CompletionItemKind</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#UInt"><span class="hs-identifier hs-type">Language.LSP.Protocol.Types.Common.UInt</span></a></span><span>
+</span><span id="line-158"></span><span>  </span><span id="local-6989586621682214534"><span class="annot"><span class="annottext">toEnumBaseType :: CompletionItemKind -&gt; EnumBaseType CompletionItemKind
+</span><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var hs-var hs-var hs-var">toEnumBaseType</span></a></span></span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Text"><span class="hs-identifier hs-var">CompletionItemKind_Text</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UInt
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-159"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Method"><span class="hs-identifier hs-var">CompletionItemKind_Method</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UInt
+</span><span class="hs-number">2</span></span><span>
+</span><span id="line-160"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Function"><span class="hs-identifier hs-var">CompletionItemKind_Function</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UInt
+</span><span class="hs-number">3</span></span><span>
+</span><span id="line-161"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Constructor"><span class="hs-identifier hs-var">CompletionItemKind_Constructor</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UInt
+</span><span class="hs-number">4</span></span><span>
+</span><span id="line-162"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Field"><span class="hs-identifier hs-var">CompletionItemKind_Field</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UInt
+</span><span class="hs-number">5</span></span><span>
+</span><span id="line-163"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Variable"><span class="hs-identifier hs-var">CompletionItemKind_Variable</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UInt
+</span><span class="hs-number">6</span></span><span>
+</span><span id="line-164"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Class"><span class="hs-identifier hs-var">CompletionItemKind_Class</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UInt
+</span><span class="hs-number">7</span></span><span>
+</span><span id="line-165"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Interface"><span class="hs-identifier hs-var">CompletionItemKind_Interface</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UInt
+</span><span class="hs-number">8</span></span><span>
+</span><span id="line-166"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Module"><span class="hs-identifier hs-var">CompletionItemKind_Module</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UInt
+</span><span class="hs-number">9</span></span><span>
+</span><span id="line-167"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Property"><span class="hs-identifier hs-var">CompletionItemKind_Property</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UInt
+</span><span class="hs-number">10</span></span><span>
+</span><span id="line-168"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Unit"><span class="hs-identifier hs-var">CompletionItemKind_Unit</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UInt
+</span><span class="hs-number">11</span></span><span>
+</span><span id="line-169"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Value"><span class="hs-identifier hs-var">CompletionItemKind_Value</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UInt
+</span><span class="hs-number">12</span></span><span>
+</span><span id="line-170"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Enum"><span class="hs-identifier hs-var">CompletionItemKind_Enum</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UInt
+</span><span class="hs-number">13</span></span><span>
+</span><span id="line-171"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Keyword"><span class="hs-identifier hs-var">CompletionItemKind_Keyword</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UInt
+</span><span class="hs-number">14</span></span><span>
+</span><span id="line-172"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Snippet"><span class="hs-identifier hs-var">CompletionItemKind_Snippet</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UInt
+</span><span class="hs-number">15</span></span><span>
+</span><span id="line-173"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Color"><span class="hs-identifier hs-var">CompletionItemKind_Color</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UInt
+</span><span class="hs-number">16</span></span><span>
+</span><span id="line-174"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_File"><span class="hs-identifier hs-var">CompletionItemKind_File</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UInt
+</span><span class="hs-number">17</span></span><span>
+</span><span id="line-175"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Reference"><span class="hs-identifier hs-var">CompletionItemKind_Reference</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UInt
+</span><span class="hs-number">18</span></span><span>
+</span><span id="line-176"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Folder"><span class="hs-identifier hs-var">CompletionItemKind_Folder</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UInt
+</span><span class="hs-number">19</span></span><span>
+</span><span id="line-177"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_EnumMember"><span class="hs-identifier hs-var">CompletionItemKind_EnumMember</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UInt
+</span><span class="hs-number">20</span></span><span>
+</span><span id="line-178"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Constant"><span class="hs-identifier hs-var">CompletionItemKind_Constant</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UInt
+</span><span class="hs-number">21</span></span><span>
+</span><span id="line-179"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Struct"><span class="hs-identifier hs-var">CompletionItemKind_Struct</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UInt
+</span><span class="hs-number">22</span></span><span>
+</span><span id="line-180"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Event"><span class="hs-identifier hs-var">CompletionItemKind_Event</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UInt
+</span><span class="hs-number">23</span></span><span>
+</span><span id="line-181"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Operator"><span class="hs-identifier hs-var">CompletionItemKind_Operator</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UInt
+</span><span class="hs-number">24</span></span><span>
+</span><span id="line-182"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_TypeParameter"><span class="hs-identifier hs-var">CompletionItemKind_TypeParameter</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UInt
+</span><span class="hs-number">25</span></span><span>
+</span><span id="line-183"></span><span>  </span><span id="local-6989586621682214455"><span class="annot"><span class="annottext">fromEnumBaseType :: EnumBaseType CompletionItemKind -&gt; Maybe CompletionItemKind
+</span><a href="Language.LSP.Protocol.Types.LspEnum.html#fromEnumBaseType"><span class="hs-identifier hs-var hs-var hs-var hs-var">fromEnumBaseType</span></a></span></span><span> </span><span class="annot"><span class="annottext">EnumBaseType CompletionItemKind
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Text"><span class="hs-identifier hs-var">CompletionItemKind_Text</span></a></span><span>
+</span><span id="line-184"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromEnumBaseType"><span class="hs-identifier hs-var">fromEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType CompletionItemKind
+</span><span class="hs-number">2</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Method"><span class="hs-identifier hs-var">CompletionItemKind_Method</span></a></span><span>
+</span><span id="line-185"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromEnumBaseType"><span class="hs-identifier hs-var">fromEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType CompletionItemKind
+</span><span class="hs-number">3</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Function"><span class="hs-identifier hs-var">CompletionItemKind_Function</span></a></span><span>
+</span><span id="line-186"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromEnumBaseType"><span class="hs-identifier hs-var">fromEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType CompletionItemKind
+</span><span class="hs-number">4</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Constructor"><span class="hs-identifier hs-var">CompletionItemKind_Constructor</span></a></span><span>
+</span><span id="line-187"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromEnumBaseType"><span class="hs-identifier hs-var">fromEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType CompletionItemKind
+</span><span class="hs-number">5</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Field"><span class="hs-identifier hs-var">CompletionItemKind_Field</span></a></span><span>
+</span><span id="line-188"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromEnumBaseType"><span class="hs-identifier hs-var">fromEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType CompletionItemKind
+</span><span class="hs-number">6</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Variable"><span class="hs-identifier hs-var">CompletionItemKind_Variable</span></a></span><span>
+</span><span id="line-189"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromEnumBaseType"><span class="hs-identifier hs-var">fromEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType CompletionItemKind
+</span><span class="hs-number">7</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Class"><span class="hs-identifier hs-var">CompletionItemKind_Class</span></a></span><span>
+</span><span id="line-190"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromEnumBaseType"><span class="hs-identifier hs-var">fromEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType CompletionItemKind
+</span><span class="hs-number">8</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Interface"><span class="hs-identifier hs-var">CompletionItemKind_Interface</span></a></span><span>
+</span><span id="line-191"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromEnumBaseType"><span class="hs-identifier hs-var">fromEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType CompletionItemKind
+</span><span class="hs-number">9</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Module"><span class="hs-identifier hs-var">CompletionItemKind_Module</span></a></span><span>
+</span><span id="line-192"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromEnumBaseType"><span class="hs-identifier hs-var">fromEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType CompletionItemKind
+</span><span class="hs-number">10</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Property"><span class="hs-identifier hs-var">CompletionItemKind_Property</span></a></span><span>
+</span><span id="line-193"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromEnumBaseType"><span class="hs-identifier hs-var">fromEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType CompletionItemKind
+</span><span class="hs-number">11</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Unit"><span class="hs-identifier hs-var">CompletionItemKind_Unit</span></a></span><span>
+</span><span id="line-194"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromEnumBaseType"><span class="hs-identifier hs-var">fromEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType CompletionItemKind
+</span><span class="hs-number">12</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Value"><span class="hs-identifier hs-var">CompletionItemKind_Value</span></a></span><span>
+</span><span id="line-195"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromEnumBaseType"><span class="hs-identifier hs-var">fromEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType CompletionItemKind
+</span><span class="hs-number">13</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Enum"><span class="hs-identifier hs-var">CompletionItemKind_Enum</span></a></span><span>
+</span><span id="line-196"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromEnumBaseType"><span class="hs-identifier hs-var">fromEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType CompletionItemKind
+</span><span class="hs-number">14</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Keyword"><span class="hs-identifier hs-var">CompletionItemKind_Keyword</span></a></span><span>
+</span><span id="line-197"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromEnumBaseType"><span class="hs-identifier hs-var">fromEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType CompletionItemKind
+</span><span class="hs-number">15</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Snippet"><span class="hs-identifier hs-var">CompletionItemKind_Snippet</span></a></span><span>
+</span><span id="line-198"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromEnumBaseType"><span class="hs-identifier hs-var">fromEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType CompletionItemKind
+</span><span class="hs-number">16</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Color"><span class="hs-identifier hs-var">CompletionItemKind_Color</span></a></span><span>
+</span><span id="line-199"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromEnumBaseType"><span class="hs-identifier hs-var">fromEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType CompletionItemKind
+</span><span class="hs-number">17</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_File"><span class="hs-identifier hs-var">CompletionItemKind_File</span></a></span><span>
+</span><span id="line-200"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromEnumBaseType"><span class="hs-identifier hs-var">fromEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType CompletionItemKind
+</span><span class="hs-number">18</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Reference"><span class="hs-identifier hs-var">CompletionItemKind_Reference</span></a></span><span>
+</span><span id="line-201"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromEnumBaseType"><span class="hs-identifier hs-var">fromEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType CompletionItemKind
+</span><span class="hs-number">19</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Folder"><span class="hs-identifier hs-var">CompletionItemKind_Folder</span></a></span><span>
+</span><span id="line-202"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromEnumBaseType"><span class="hs-identifier hs-var">fromEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType CompletionItemKind
+</span><span class="hs-number">20</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_EnumMember"><span class="hs-identifier hs-var">CompletionItemKind_EnumMember</span></a></span><span>
+</span><span id="line-203"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromEnumBaseType"><span class="hs-identifier hs-var">fromEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType CompletionItemKind
+</span><span class="hs-number">21</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Constant"><span class="hs-identifier hs-var">CompletionItemKind_Constant</span></a></span><span>
+</span><span id="line-204"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromEnumBaseType"><span class="hs-identifier hs-var">fromEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType CompletionItemKind
+</span><span class="hs-number">22</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Struct"><span class="hs-identifier hs-var">CompletionItemKind_Struct</span></a></span><span>
+</span><span id="line-205"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromEnumBaseType"><span class="hs-identifier hs-var">fromEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType CompletionItemKind
+</span><span class="hs-number">23</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Event"><span class="hs-identifier hs-var">CompletionItemKind_Event</span></a></span><span>
+</span><span id="line-206"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromEnumBaseType"><span class="hs-identifier hs-var">fromEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType CompletionItemKind
+</span><span class="hs-number">24</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Operator"><span class="hs-identifier hs-var">CompletionItemKind_Operator</span></a></span><span>
+</span><span id="line-207"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromEnumBaseType"><span class="hs-identifier hs-var">fromEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType CompletionItemKind
+</span><span class="hs-number">25</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_TypeParameter"><span class="hs-identifier hs-var">CompletionItemKind_TypeParameter</span></a></span><span>
+</span><span id="line-208"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromEnumBaseType"><span class="hs-identifier hs-var">fromEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType CompletionItemKind
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-209"></span><span>
+</span><span id="line-210"></span><span>
+</span><span id="line-211"></span></pre></body></html>

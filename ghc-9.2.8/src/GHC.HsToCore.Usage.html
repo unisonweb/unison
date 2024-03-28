@@ -1,0 +1,964 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">GHC.HsToCore.Usage</span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-6"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Dependency/fingerprinting code (used by GHC.Iface.Make)</span></span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><a href="GHC.HsToCore.Usage.html#mkUsageInfo"><span class="hs-identifier">mkUsageInfo</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.HsToCore.Usage.html#mkUsedNames"><span class="hs-identifier">mkUsedNames</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.HsToCore.Usage.html#mkDependencies"><span class="hs-identifier">mkDependencies</span></a></span><span>
+</span><span id="line-8"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span class="hs-cpp">
+
+#include &quot;HsVersions.h&quot;
+</span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Prelude.html"><span class="hs-identifier">GHC.Prelude</span></a></span><span>
+</span><span id="line-13"></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Driver.Env.html"><span class="hs-identifier">GHC.Driver.Env</span></a></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Driver.Session.html"><span class="hs-identifier">GHC.Driver.Session</span></a></span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Platform.html"><span class="hs-identifier">GHC.Platform</span></a></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Platform.Ways.html"><span class="hs-identifier">GHC.Platform.Ways</span></a></span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Tc.Types.html"><span class="hs-identifier">GHC.Tc.Types</span></a></span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html"><span class="hs-identifier">GHC.Utils.Outputable</span></a></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Misc.html"><span class="hs-identifier">GHC.Utils.Misc</span></a></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Fingerprint.html"><span class="hs-identifier">GHC.Utils.Fingerprint</span></a></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Panic.html"><span class="hs-identifier">GHC.Utils.Panic</span></a></span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Name.html"><span class="hs-identifier">GHC.Types.Name</span></a></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Name.Set.html"><span class="hs-identifier">GHC.Types.Name.Set</span></a></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Unique.Set.html"><span class="hs-identifier">GHC.Types.Unique.Set</span></a></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Unique.FM.html"><span class="hs-identifier">GHC.Types.Unique.FM</span></a></span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Unit.html"><span class="hs-identifier">GHC.Unit</span></a></span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Unit.External.html"><span class="hs-identifier">GHC.Unit.External</span></a></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Unit.State.html"><span class="hs-identifier">GHC.Unit.State</span></a></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Unit.Finder.html"><span class="hs-identifier">GHC.Unit.Finder</span></a></span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Imported.html"><span class="hs-identifier">GHC.Unit.Module.Imported</span></a></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Unit.Module.ModIface.html"><span class="hs-identifier">GHC.Unit.Module.ModIface</span></a></span><span>
+</span><span id="line-38"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Deps.html"><span class="hs-identifier">GHC.Unit.Module.Deps</span></a></span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Data.Maybe.html"><span class="hs-identifier">GHC.Data.Maybe</span></a></span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Control-Monad.html#"><span class="hs-identifier">Control.Monad</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../base-4.16.4.0/src/Control-Monad.html#filterM"><span class="hs-identifier">filterM</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-43"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Data-List.html#"><span class="hs-identifier">Data.List</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../base-4.16.4.0/src/Data-OldList.html#sort"><span class="hs-identifier">sort</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Data-OldList.html#sortBy"><span class="hs-identifier">sortBy</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Data-OldList.html#nub"><span class="hs-identifier">nub</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-44"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Data-IORef.html#"><span class="hs-identifier">Data.IORef</span></a></span><span>
+</span><span id="line-45"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../containers-0.6.5.1/src/Data-Map.html#"><span class="hs-identifier">Data.Map</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../containers-0.6.5.1/src/Data-Map-Internal.html#Map"><span class="hs-identifier">Map</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-46"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="../../containers-0.6.5.1/src/Data-Map.html#"><span class="hs-identifier">Data.Map</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Map</span></span><span>
+</span><span id="line-47"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="../../containers-0.6.5.1/src/Data-Set.html#"><span class="hs-identifier">Data.Set</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Set</span></span><span>
+</span><span id="line-48"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../directory-1.3.6.2/src/System-Directory.html#"><span class="hs-identifier">System.Directory</span></a></span><span>
+</span><span id="line-49"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../filepath-1.4.2.2/src/System-FilePath.html#"><span class="hs-identifier">System.FilePath</span></a></span><span>
+</span><span id="line-50"></span><span>
+</span><span id="line-51"></span><span class="hs-comment">{- Note [Module self-dependency]
+   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+GHC.Rename.Names.calculateAvails asserts the invariant that a module must not occur in
+its own dep_orphs or dep_finsts. However, if we aren't careful this can occur
+in the presence of hs-boot files: Consider that we have two modules, A and B,
+both with hs-boot files,
+
+    A.hs contains a SOURCE import of B B.hs-boot contains a SOURCE import of A
+    A.hs-boot declares an orphan instance A.hs defines the orphan instance
+
+In this case, B's dep_orphs will contain A due to its SOURCE import of A.
+Consequently, A will contain itself in its imp_orphs due to its import of B.
+This fact would end up being recorded in A's interface file. This would then
+break the invariant asserted by calculateAvails that a module does not itself in
+its dep_orphs. This was the cause of #14128.
+
+-}</span><span>
+</span><span id="line-69"></span><span>
+</span><span id="line-70"></span><span class="hs-comment">-- | Extract information from the rename and typecheck phases to produce</span><span>
+</span><span id="line-71"></span><span class="hs-comment">-- a dependencies information for the module being compiled.</span><span>
+</span><span id="line-72"></span><span class="hs-comment">--</span><span>
+</span><span id="line-73"></span><span class="hs-comment">-- The second argument is additional dependencies from plugins</span><span>
+</span><span id="line-74"></span><span class="annot"><a href="GHC.HsToCore.Usage.html#mkDependencies"><span class="hs-identifier hs-type">mkDependencies</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Unit.Types.html#UnitId"><span class="hs-identifier hs-type">UnitId</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Unit.Types.html#Module"><span class="hs-identifier hs-type">Module</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Tc.Types.html#TcGblEnv"><span class="hs-identifier hs-type">TcGblEnv</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="GHC.Unit.Module.Deps.html#Dependencies"><span class="hs-identifier hs-type">Dependencies</span></a></span><span>
+</span><span id="line-75"></span><span id="mkDependencies"><span class="annot"><span class="annottext">mkDependencies :: UnitId -&gt; [Module] -&gt; TcGblEnv -&gt; IO Dependencies
+</span><a href="GHC.HsToCore.Usage.html#mkDependencies"><span class="hs-identifier hs-var hs-var">mkDependencies</span></a></span></span><span> </span><span id="local-6989586621681209636"><span class="annot"><span class="annottext">UnitId
+</span><a href="#local-6989586621681209636"><span class="hs-identifier hs-var">iuid</span></a></span></span><span> </span><span id="local-6989586621681209635"><span class="annot"><span class="annottext">[Module]
+</span><a href="#local-6989586621681209635"><span class="hs-identifier hs-var">pluginModules</span></a></span></span><span>
+</span><span id="line-76"></span><span>          </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Tc.Types.html#TcGblEnv"><span class="hs-identifier hs-type">TcGblEnv</span></a></span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">tcg_mod :: TcGblEnv -&gt; Module
+</span><a href="GHC.Tc.Types.html#tcg_mod"><span class="hs-identifier hs-var">tcg_mod</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621681209632"><span class="annot"><span class="annottext">Module
+</span><a href="#local-6989586621681209632"><span class="hs-identifier hs-var">mod</span></a></span></span><span class="hs-special">,</span><span>
+</span><span id="line-77"></span><span>                    </span><span class="annot"><span class="annottext">tcg_imports :: TcGblEnv -&gt; ImportAvails
+</span><a href="GHC.Tc.Types.html#tcg_imports"><span class="hs-identifier hs-var">tcg_imports</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621681209630"><span class="annot"><span class="annottext">ImportAvails
+</span><a href="#local-6989586621681209630"><span class="hs-identifier hs-var">imports</span></a></span></span><span class="hs-special">,</span><span>
+</span><span id="line-78"></span><span>                    </span><span class="annot"><span class="annottext">tcg_th_used :: TcGblEnv -&gt; TcRef Bool
+</span><a href="GHC.Tc.Types.html#tcg_th_used"><span class="hs-identifier hs-var">tcg_th_used</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621681209628"><span class="annot"><span class="annottext">TcRef Bool
+</span><a href="#local-6989586621681209628"><span class="hs-identifier hs-var">th_var</span></a></span></span><span>
+</span><span id="line-79"></span><span>                  </span><span class="hs-special">}</span><span class="hs-special">)</span><span>
+</span><span id="line-80"></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-81"></span><span>      </span><span class="hs-comment">-- Template Haskell used?</span><span>
+</span><span id="line-82"></span><span>      </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681209627"><span class="annot"><span class="annottext">[ModuleName]
+</span><a href="#local-6989586621681209627"><span class="hs-identifier hs-var">dep_plgins</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681209626"><span class="annot"><span class="annottext">[Module]
+</span><a href="#local-6989586621681209626"><span class="hs-identifier hs-var">ms</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. [(a, b)] -&gt; ([a], [b])
+</span><a href="../../base-4.16.4.0/src/GHC-List.html#unzip"><span class="hs-identifier hs-var">unzip</span></a></span><span> </span><span class="hs-special">[</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall unit. GenModule unit -&gt; ModuleName
+</span><a href="GHC.Unit.Types.html#moduleName"><span class="hs-identifier hs-var">moduleName</span></a></span><span> </span><span class="annot"><span class="annottext">Module
+</span><a href="#local-6989586621681209623"><span class="hs-identifier hs-var">mn</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Module
+</span><a href="#local-6989586621681209623"><span class="hs-identifier hs-var">mn</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">|</span><span> </span><span id="local-6989586621681209623"><span class="annot"><span class="annottext">Module
+</span><a href="#local-6989586621681209623"><span class="hs-identifier hs-var">mn</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[Module]
+</span><a href="#local-6989586621681209635"><span class="hs-identifier hs-var">pluginModules</span></a></span><span> </span><span class="hs-special">]</span><span>
+</span><span id="line-83"></span><span>          </span><span id="local-6989586621681209622"><span class="annot"><span class="annottext">plugin_dep_pkgs :: [UnitId]
+</span><a href="#local-6989586621681209622"><span class="hs-identifier hs-var hs-var">plugin_dep_pkgs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. (a -&gt; Bool) -&gt; [a] -&gt; [a]
+</span><a href="../../base-4.16.4.0/src/GHC-List.html#filter"><span class="hs-identifier hs-var">filter</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">UnitId
+</span><a href="#local-6989586621681209636"><span class="hs-identifier hs-var">iuid</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#map"><span class="hs-identifier hs-var">map</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Unit -&gt; UnitId
+</span><a href="GHC.Unit.Types.html#toUnitId"><span class="hs-identifier hs-var">toUnitId</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#."><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">forall unit. GenModule unit -&gt; unit
+</span><a href="GHC.Unit.Types.html#moduleUnit"><span class="hs-identifier hs-var">moduleUnit</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Module]
+</span><a href="#local-6989586621681209626"><span class="hs-identifier hs-var">ms</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-84"></span><span>      </span><span id="local-6989586621681209617"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681209617"><span class="hs-identifier hs-var">th_used</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a. IORef a -&gt; IO a
+</span><a href="../../base-4.16.4.0/src/GHC-IORef.html#readIORef"><span class="hs-identifier hs-var">readIORef</span></a></span><span> </span><span class="annot"><span class="annottext">TcRef Bool
+</span><a href="#local-6989586621681209628"><span class="hs-identifier hs-var">th_var</span></a></span><span>
+</span><span id="line-85"></span><span>      </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681209615"><span class="annot"><span class="annottext">dep_mods :: [ModuleNameWithIsBoot]
+</span><a href="#local-6989586621681209615"><span class="hs-identifier hs-var hs-var">dep_mods</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ModuleNameEnv ModuleNameWithIsBoot -&gt; [ModuleNameWithIsBoot]
+</span><a href="GHC.Tc.Types.html#modDepsElts"><span class="hs-identifier hs-var">modDepsElts</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall key elt.
+Uniquable key =&gt;
+UniqFM key elt -&gt; key -&gt; UniqFM key elt
+</span><a href="GHC.Types.Unique.FM.html#delFromUFM"><span class="hs-identifier hs-var">delFromUFM</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ImportAvails -&gt; ModuleNameEnv ModuleNameWithIsBoot
+</span><a href="GHC.Tc.Types.html#imp_dep_mods"><span class="hs-identifier hs-var">imp_dep_mods</span></a></span><span> </span><span class="annot"><span class="annottext">ImportAvails
+</span><a href="#local-6989586621681209630"><span class="hs-identifier hs-var">imports</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-86"></span><span>                                             </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall unit. GenModule unit -&gt; ModuleName
+</span><a href="GHC.Unit.Types.html#moduleName"><span class="hs-identifier hs-var">moduleName</span></a></span><span> </span><span class="annot"><span class="annottext">Module
+</span><a href="#local-6989586621681209632"><span class="hs-identifier hs-var">mod</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-87"></span><span>                </span><span class="hs-comment">-- M.hi-boot can be in the imp_dep_mods, but we must remove</span><span>
+</span><span id="line-88"></span><span>                </span><span class="hs-comment">-- it before recording the modules on which this one depends!</span><span>
+</span><span id="line-89"></span><span>                </span><span class="hs-comment">-- (We want to retain M.hi-boot in imp_dep_mods so that</span><span>
+</span><span id="line-90"></span><span>                </span><span class="hs-comment">--  loadHiBootInterface can see if M's direct imports depend</span><span>
+</span><span id="line-91"></span><span>                </span><span class="hs-comment">--  on M.hi-boot, and hence that we should do the hi-boot consistency</span><span>
+</span><span id="line-92"></span><span>                </span><span class="hs-comment">--  check.)</span><span>
+</span><span id="line-93"></span><span>
+</span><span id="line-94"></span><span>          </span><span id="local-6989586621681209611"><span class="annot"><span class="annottext">dep_orphs :: [Module]
+</span><a href="#local-6989586621681209611"><span class="hs-identifier hs-var hs-var">dep_orphs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. (a -&gt; Bool) -&gt; [a] -&gt; [a]
+</span><a href="../../base-4.16.4.0/src/GHC-List.html#filter"><span class="hs-identifier hs-var">filter</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">Module
+</span><a href="#local-6989586621681209632"><span class="hs-identifier hs-var">mod</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ImportAvails -&gt; [Module]
+</span><a href="GHC.Tc.Types.html#imp_orphs"><span class="hs-identifier hs-var">imp_orphs</span></a></span><span> </span><span class="annot"><span class="annottext">ImportAvails
+</span><a href="#local-6989586621681209630"><span class="hs-identifier hs-var">imports</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-95"></span><span>                </span><span class="hs-comment">-- We must also remove self-references from imp_orphs. See</span><span>
+</span><span id="line-96"></span><span>                </span><span class="hs-comment">-- Note [Module self-dependency]</span><span>
+</span><span id="line-97"></span><span>
+</span><span id="line-98"></span><span>          </span><span id="local-6989586621681209609"><span class="annot"><span class="annottext">raw_pkgs :: Set UnitId
+</span><a href="#local-6989586621681209609"><span class="hs-identifier hs-var hs-var">raw_pkgs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a b.
+Foldable t =&gt;
+(a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><a href="../../base-4.16.4.0/src/Data-Foldable.html#foldr"><span class="hs-identifier hs-var">foldr</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; Set a -&gt; Set a
+</span><a href="../../containers-0.6.5.1/src/Data-Set-Internal.html#insert"><span class="hs-identifier hs-var">Set.insert</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ImportAvails -&gt; Set UnitId
+</span><a href="GHC.Tc.Types.html#imp_dep_pkgs"><span class="hs-identifier hs-var">imp_dep_pkgs</span></a></span><span> </span><span class="annot"><span class="annottext">ImportAvails
+</span><a href="#local-6989586621681209630"><span class="hs-identifier hs-var">imports</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[UnitId]
+</span><a href="#local-6989586621681209622"><span class="hs-identifier hs-var">plugin_dep_pkgs</span></a></span><span>
+</span><span id="line-99"></span><span>
+</span><span id="line-100"></span><span>          </span><span id="local-6989586621681209605"><span class="annot"><span class="annottext">pkgs :: Set UnitId
+</span><a href="#local-6989586621681209605"><span class="hs-identifier hs-var hs-var">pkgs</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681209617"><span class="hs-identifier hs-var">th_used</span></a></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; Set a -&gt; Set a
+</span><a href="../../containers-0.6.5.1/src/Data-Set-Internal.html#insert"><span class="hs-identifier hs-var">Set.insert</span></a></span><span> </span><span class="annot"><span class="annottext">UnitId
+</span><a href="GHC.Unit.Types.html#thUnitId"><span class="hs-identifier hs-var">thUnitId</span></a></span><span> </span><span class="annot"><span class="annottext">Set UnitId
+</span><a href="#local-6989586621681209609"><span class="hs-identifier hs-var">raw_pkgs</span></a></span><span>
+</span><span id="line-101"></span><span>               </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#otherwise"><span class="hs-identifier hs-var">otherwise</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Set UnitId
+</span><a href="#local-6989586621681209609"><span class="hs-identifier hs-var">raw_pkgs</span></a></span><span>
+</span><span id="line-102"></span><span>
+</span><span id="line-103"></span><span>          </span><span class="hs-comment">-- Set the packages required to be Safe according to Safe Haskell.</span><span>
+</span><span id="line-104"></span><span>          </span><span class="hs-comment">-- See Note [Tracking Trust Transitively] in GHC.Rename.Names</span><span>
+</span><span id="line-105"></span><span>          </span><span id="local-6989586621681209603"><span class="annot"><span class="annottext">sorted_pkgs :: [UnitId]
+</span><a href="#local-6989586621681209603"><span class="hs-identifier hs-var hs-var">sorted_pkgs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; [a] -&gt; [a]
+</span><a href="../../base-4.16.4.0/src/Data-OldList.html#sort"><span class="hs-identifier hs-var">sort</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Set a -&gt; [a]
+</span><a href="../../containers-0.6.5.1/src/Data-Set-Internal.html#toList"><span class="hs-identifier hs-var">Set.toList</span></a></span><span> </span><span class="annot"><span class="annottext">Set UnitId
+</span><a href="#local-6989586621681209605"><span class="hs-identifier hs-var">pkgs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-106"></span><span>          </span><span id="local-6989586621681209601"><span class="annot"><span class="annottext">trust_pkgs :: Set UnitId
+</span><a href="#local-6989586621681209601"><span class="hs-identifier hs-var hs-var">trust_pkgs</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ImportAvails -&gt; Set UnitId
+</span><a href="GHC.Tc.Types.html#imp_trust_pkgs"><span class="hs-identifier hs-var">imp_trust_pkgs</span></a></span><span> </span><span class="annot"><span class="annottext">ImportAvails
+</span><a href="#local-6989586621681209630"><span class="hs-identifier hs-var">imports</span></a></span><span>
+</span><span id="line-107"></span><span>          </span><span id="local-6989586621681209599"><span class="annot"><span class="annottext">dep_pkgs' :: [(UnitId, Bool)]
+</span><a href="#local-6989586621681209599"><span class="hs-identifier hs-var hs-var">dep_pkgs'</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#map"><span class="hs-identifier hs-var">map</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621681209598"><span class="annot"><span class="annottext">UnitId
+</span><a href="#local-6989586621681209598"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">UnitId
+</span><a href="#local-6989586621681209598"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">UnitId
+</span><a href="#local-6989586621681209598"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; Set a -&gt; Bool
+</span><a href="../../containers-0.6.5.1/src/Data-Set-Internal.html#member"><span class="hs-operator hs-var">`Set.member`</span></a></span><span> </span><span class="annot"><span class="annottext">Set UnitId
+</span><a href="#local-6989586621681209601"><span class="hs-identifier hs-var">trust_pkgs</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[UnitId]
+</span><a href="#local-6989586621681209603"><span class="hs-identifier hs-var">sorted_pkgs</span></a></span><span>
+</span><span id="line-108"></span><span>
+</span><span id="line-109"></span><span>      </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#return"><span class="hs-identifier hs-var">return</span></a></span><span> </span><span class="annot"><a href="GHC.Unit.Module.Deps.html#Deps"><span class="hs-identifier hs-type">Deps</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">dep_mods :: [ModuleNameWithIsBoot]
+</span><a href="GHC.Unit.Module.Deps.html#dep_mods"><span class="hs-identifier hs-var">dep_mods</span></a></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[ModuleNameWithIsBoot]
+</span><a href="#local-6989586621681209615"><span class="hs-identifier hs-var">dep_mods</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-110"></span><span>                    </span><span class="annot"><span class="annottext">dep_pkgs :: [(UnitId, Bool)]
+</span><a href="#local-6989586621681209594"><span class="hs-identifier hs-var">dep_pkgs</span></a></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[(UnitId, Bool)]
+</span><a href="#local-6989586621681209599"><span class="hs-identifier hs-var">dep_pkgs'</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-111"></span><span>                    </span><span class="annot"><span class="annottext">dep_orphs :: [Module]
+</span><a href="#local-6989586621681209593"><span class="hs-identifier hs-var">dep_orphs</span></a></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Module]
+</span><a href="#local-6989586621681209611"><span class="hs-identifier hs-var">dep_orphs</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-112"></span><span>                    </span><span class="annot"><span class="annottext">dep_plgins :: [ModuleName]
+</span><a href="#local-6989586621681209592"><span class="hs-identifier hs-var">dep_plgins</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[ModuleName]
+</span><a href="#local-6989586621681209627"><span class="hs-identifier hs-var">dep_plgins</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-113"></span><span>                    </span><span class="annot"><span class="annottext">dep_finsts :: [Module]
+</span><a href="#local-6989586621681209591"><span class="hs-identifier hs-var">dep_finsts</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. (a -&gt; a -&gt; Ordering) -&gt; [a] -&gt; [a]
+</span><a href="../../base-4.16.4.0/src/Data-OldList.html#sortBy"><span class="hs-identifier hs-var">sortBy</span></a></span><span> </span><span class="annot"><span class="annottext">Module -&gt; Module -&gt; Ordering
+</span><a href="GHC.Unit.Module.html#stableModuleCmp"><span class="hs-identifier hs-var">stableModuleCmp</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ImportAvails -&gt; [Module]
+</span><a href="GHC.Tc.Types.html#imp_finsts"><span class="hs-identifier hs-var">imp_finsts</span></a></span><span> </span><span class="annot"><span class="annottext">ImportAvails
+</span><a href="#local-6989586621681209630"><span class="hs-identifier hs-var">imports</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-114"></span><span>                    </span><span class="hs-comment">-- sort to get into canonical order</span><span>
+</span><span id="line-115"></span><span>                    </span><span class="hs-comment">-- NB. remember to use lexicographic ordering</span><span>
+</span><span id="line-116"></span><span>
+</span><span id="line-117"></span><span class="annot"><a href="GHC.HsToCore.Usage.html#mkUsedNames"><span class="hs-identifier hs-type">mkUsedNames</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Tc.Types.html#TcGblEnv"><span class="hs-identifier hs-type">TcGblEnv</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Types.Name.Set.html#NameSet"><span class="hs-identifier hs-type">NameSet</span></a></span><span>
+</span><span id="line-118"></span><span id="mkUsedNames"><span class="annot"><span class="annottext">mkUsedNames :: TcGblEnv -&gt; NameSet
+</span><a href="GHC.HsToCore.Usage.html#mkUsedNames"><span class="hs-identifier hs-var hs-var">mkUsedNames</span></a></span></span><span> </span><span class="annot"><a href="GHC.Tc.Types.html#TcGblEnv"><span class="hs-identifier hs-type">TcGblEnv</span></a></span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">tcg_dus :: TcGblEnv -&gt; DefUses
+</span><a href="GHC.Tc.Types.html#tcg_dus"><span class="hs-identifier hs-var">tcg_dus</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621681209587"><span class="annot"><span class="annottext">DefUses
+</span><a href="#local-6989586621681209587"><span class="hs-identifier hs-var">dus</span></a></span></span><span> </span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">DefUses -&gt; NameSet
+</span><a href="GHC.Types.Name.Set.html#allUses"><span class="hs-identifier hs-var">allUses</span></a></span><span> </span><span class="annot"><span class="annottext">DefUses
+</span><a href="#local-6989586621681209587"><span class="hs-identifier hs-var">dus</span></a></span><span>
+</span><span id="line-119"></span><span>
+</span><span id="line-120"></span><span class="annot"><a href="GHC.HsToCore.Usage.html#mkUsageInfo"><span class="hs-identifier hs-type">mkUsageInfo</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Driver.Env.Types.html#HscEnv"><span class="hs-identifier hs-type">HscEnv</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Unit.Types.html#Module"><span class="hs-identifier hs-type">Module</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Imported.html#ImportedMods"><span class="hs-identifier hs-type">ImportedMods</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Types.Name.Set.html#NameSet"><span class="hs-identifier hs-type">NameSet</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-IO.html#FilePath"><span class="hs-identifier hs-type">FilePath</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-121"></span><span>            </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><a href="GHC.Unit.Types.html#Module"><span class="hs-identifier hs-type">Module</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Fingerprint-Type.html#Fingerprint"><span class="hs-identifier hs-type">Fingerprint</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Unit.Module.ModIface.html#ModIface"><span class="hs-identifier hs-type">ModIface</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Unit.Module.Deps.html#Usage"><span class="hs-identifier hs-type">Usage</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-122"></span><span id="mkUsageInfo"><span class="annot"><span class="annottext">mkUsageInfo :: HscEnv
+-&gt; Module
+-&gt; ImportedMods
+-&gt; NameSet
+-&gt; [FilePath]
+-&gt; [(Module, Fingerprint)]
+-&gt; [ModIface]
+-&gt; IO [Usage]
+</span><a href="GHC.HsToCore.Usage.html#mkUsageInfo"><span class="hs-identifier hs-var hs-var">mkUsageInfo</span></a></span></span><span> </span><span id="local-6989586621681209585"><span class="annot"><span class="annottext">HscEnv
+</span><a href="#local-6989586621681209585"><span class="hs-identifier hs-var">hsc_env</span></a></span></span><span> </span><span id="local-6989586621681209584"><span class="annot"><span class="annottext">Module
+</span><a href="#local-6989586621681209584"><span class="hs-identifier hs-var">this_mod</span></a></span></span><span> </span><span id="local-6989586621681209583"><span class="annot"><span class="annottext">ImportedMods
+</span><a href="#local-6989586621681209583"><span class="hs-identifier hs-var">dir_imp_mods</span></a></span></span><span> </span><span id="local-6989586621681209582"><span class="annot"><span class="annottext">NameSet
+</span><a href="#local-6989586621681209582"><span class="hs-identifier hs-var">used_names</span></a></span></span><span> </span><span id="local-6989586621681209581"><span class="annot"><span class="annottext">[FilePath]
+</span><a href="#local-6989586621681209581"><span class="hs-identifier hs-var">dependent_files</span></a></span></span><span> </span><span id="local-6989586621681209580"><span class="annot"><span class="annottext">[(Module, Fingerprint)]
+</span><a href="#local-6989586621681209580"><span class="hs-identifier hs-var">merged</span></a></span></span><span>
+</span><span id="line-123"></span><span>  </span><span id="local-6989586621681209579"><span class="annot"><span class="annottext">[ModIface]
+</span><a href="#local-6989586621681209579"><span class="hs-identifier hs-var">pluginModules</span></a></span></span><span>
+</span><span id="line-124"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-125"></span><span>    </span><span id="local-6989586621681209578"><span class="annot"><span class="annottext">ExternalPackageState
+</span><a href="#local-6989586621681209578"><span class="hs-identifier hs-var">eps</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">HscEnv -&gt; IO ExternalPackageState
+</span><a href="GHC.Driver.Env.html#hscEPS"><span class="hs-identifier hs-var">hscEPS</span></a></span><span> </span><span class="annot"><span class="annottext">HscEnv
+</span><a href="#local-6989586621681209585"><span class="hs-identifier hs-var">hsc_env</span></a></span><span>
+</span><span id="line-126"></span><span>    </span><span id="local-6989586621681209576"><span class="annot"><span class="annottext">[Fingerprint]
+</span><a href="#local-6989586621681209576"><span class="hs-identifier hs-var">hashes</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Traversable t, Monad m) =&gt;
+(a -&gt; m b) -&gt; t a -&gt; m (t b)
+</span><a href="../../base-4.16.4.0/src/Data-Traversable.html#mapM"><span class="hs-identifier hs-var">mapM</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; IO Fingerprint
+</span><a href="../../base-4.16.4.0/src/GHC-Fingerprint.html#getFileHash"><span class="hs-identifier hs-var">getFileHash</span></a></span><span> </span><span class="annot"><span class="annottext">[FilePath]
+</span><a href="#local-6989586621681209581"><span class="hs-identifier hs-var">dependent_files</span></a></span><span>
+</span><span id="line-127"></span><span>    </span><span id="local-6989586621681209573"><span class="annot"><span class="annottext">[[Usage]]
+</span><a href="#local-6989586621681209573"><span class="hs-identifier hs-var">plugin_usages</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Traversable t, Monad m) =&gt;
+(a -&gt; m b) -&gt; t a -&gt; m (t b)
+</span><a href="../../base-4.16.4.0/src/Data-Traversable.html#mapM"><span class="hs-identifier hs-var">mapM</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">HscEnv -&gt; ModIface -&gt; IO [Usage]
+</span><a href="GHC.HsToCore.Usage.html#mkPluginUsage"><span class="hs-identifier hs-var">mkPluginUsage</span></a></span><span> </span><span class="annot"><span class="annottext">HscEnv
+</span><a href="#local-6989586621681209585"><span class="hs-identifier hs-var">hsc_env</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[ModIface]
+</span><a href="#local-6989586621681209579"><span class="hs-identifier hs-var">pluginModules</span></a></span><span>
+</span><span id="line-128"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681209571"><span class="annot"><span class="annottext">mod_usages :: [Usage]
+</span><a href="#local-6989586621681209571"><span class="hs-identifier hs-var hs-var">mod_usages</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PackageIfaceTable
+-&gt; HscEnv -&gt; Module -&gt; ImportedMods -&gt; NameSet -&gt; [Usage]
+</span><a href="GHC.HsToCore.Usage.html#mk_mod_usage_info"><span class="hs-identifier hs-var">mk_mod_usage_info</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ExternalPackageState -&gt; PackageIfaceTable
+</span><a href="GHC.Unit.External.html#eps_PIT"><span class="hs-identifier hs-var">eps_PIT</span></a></span><span> </span><span class="annot"><span class="annottext">ExternalPackageState
+</span><a href="#local-6989586621681209578"><span class="hs-identifier hs-var">eps</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">HscEnv
+</span><a href="#local-6989586621681209585"><span class="hs-identifier hs-var">hsc_env</span></a></span><span> </span><span class="annot"><span class="annottext">Module
+</span><a href="#local-6989586621681209584"><span class="hs-identifier hs-var">this_mod</span></a></span><span>
+</span><span id="line-129"></span><span>                                       </span><span class="annot"><span class="annottext">ImportedMods
+</span><a href="#local-6989586621681209583"><span class="hs-identifier hs-var">dir_imp_mods</span></a></span><span> </span><span class="annot"><span class="annottext">NameSet
+</span><a href="#local-6989586621681209582"><span class="hs-identifier hs-var">used_names</span></a></span><span>
+</span><span id="line-130"></span><span>        </span><span id="local-6989586621681209568"><span class="annot"><span class="annottext">usages :: [Usage]
+</span><a href="#local-6989586621681209568"><span class="hs-identifier hs-var hs-var">usages</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Usage]
+</span><a href="#local-6989586621681209571"><span class="hs-identifier hs-var">mod_usages</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%2B%2B"><span class="hs-operator hs-var">++</span></a></span><span> </span><span class="hs-special">[</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Deps.html#UsageFile"><span class="hs-identifier hs-type">UsageFile</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">usg_file_path :: FilePath
+</span><a href="GHC.Unit.Module.Deps.html#usg_file_path"><span class="hs-identifier hs-var">usg_file_path</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621681209565"><span class="hs-identifier hs-var">f</span></a></span><span>
+</span><span id="line-131"></span><span>                                           </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">usg_file_hash :: Fingerprint
+</span><a href="GHC.Unit.Module.Deps.html#usg_file_hash"><span class="hs-identifier hs-var">usg_file_hash</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Fingerprint
+</span><a href="#local-6989586621681209563"><span class="hs-identifier hs-var">hash</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-132"></span><span>                               </span><span class="hs-glyph">|</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681209565"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621681209565"><span class="hs-identifier hs-var">f</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681209563"><span class="annot"><span class="annottext">Fingerprint
+</span><a href="#local-6989586621681209563"><span class="hs-identifier hs-var">hash</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a b. [a] -&gt; [b] -&gt; [(a, b)]
+</span><a href="../../base-4.16.4.0/src/GHC-List.html#zip"><span class="hs-identifier hs-var">zip</span></a></span><span> </span><span class="annot"><span class="annottext">[FilePath]
+</span><a href="#local-6989586621681209581"><span class="hs-identifier hs-var">dependent_files</span></a></span><span> </span><span class="annot"><span class="annottext">[Fingerprint]
+</span><a href="#local-6989586621681209576"><span class="hs-identifier hs-var">hashes</span></a></span><span> </span><span class="hs-special">]</span><span>
+</span><span id="line-133"></span><span>                            </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%2B%2B"><span class="hs-operator hs-var">++</span></a></span><span> </span><span class="hs-special">[</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Deps.html#UsageMergedRequirement"><span class="hs-identifier hs-type">UsageMergedRequirement</span></a></span><span>
+</span><span id="line-134"></span><span>                                    </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">usg_mod :: Module
+</span><a href="GHC.Unit.Module.Deps.html#usg_mod"><span class="hs-identifier hs-var">usg_mod</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Module
+</span><a href="#local-6989586621681209560"><span class="hs-identifier hs-var">mod</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-135"></span><span>                                      </span><span class="annot"><span class="annottext">usg_mod_hash :: Fingerprint
+</span><a href="GHC.Unit.Module.Deps.html#usg_mod_hash"><span class="hs-identifier hs-var">usg_mod_hash</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Fingerprint
+</span><a href="#local-6989586621681209558"><span class="hs-identifier hs-var">hash</span></a></span><span>
+</span><span id="line-136"></span><span>                                    </span><span class="hs-special">}</span><span>
+</span><span id="line-137"></span><span>                               </span><span class="hs-glyph">|</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681209560"><span class="annot"><span class="annottext">Module
+</span><a href="#local-6989586621681209560"><span class="hs-identifier hs-var">mod</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681209558"><span class="annot"><span class="annottext">Fingerprint
+</span><a href="#local-6989586621681209558"><span class="hs-identifier hs-var">hash</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[(Module, Fingerprint)]
+</span><a href="#local-6989586621681209580"><span class="hs-identifier hs-var">merged</span></a></span><span> </span><span class="hs-special">]</span><span>
+</span><span id="line-138"></span><span>                            </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%2B%2B"><span class="hs-operator hs-var">++</span></a></span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t [a] -&gt; [a]
+</span><a href="../../base-4.16.4.0/src/Data-Foldable.html#concat"><span class="hs-identifier hs-var">concat</span></a></span><span> </span><span class="annot"><span class="annottext">[[Usage]]
+</span><a href="#local-6989586621681209573"><span class="hs-identifier hs-var">plugin_usages</span></a></span><span>
+</span><span id="line-139"></span><span>    </span><span class="annot"><span class="annottext">[Usage]
+</span><a href="#local-6989586621681209568"><span class="hs-identifier hs-var">usages</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. [a] -&gt; b -&gt; b
+</span><a href="GHC.Utils.Misc.html#seqList"><span class="hs-operator hs-var">`seqList`</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#return"><span class="hs-identifier hs-var">return</span></a></span><span> </span><span class="annot"><span class="annottext">[Usage]
+</span><a href="#local-6989586621681209568"><span class="hs-identifier hs-var">usages</span></a></span><span>
+</span><span id="line-140"></span><span>    </span><span class="hs-comment">-- seq the list of Usages returned: occasionally these</span><span>
+</span><span id="line-141"></span><span>    </span><span class="hs-comment">-- don't get evaluated for a while and we can end up hanging on to</span><span>
+</span><span id="line-142"></span><span>    </span><span class="hs-comment">-- the entire collection of Ifaces.</span><span>
+</span><span id="line-143"></span><span>
+</span><span id="line-144"></span><span class="hs-comment">{- Note [Plugin dependencies]
+   ~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Modules for which plugins were used in the compilation process, should be
+recompiled whenever one of those plugins changes. But how do we know if a
+plugin changed from the previous time a module was compiled?
+
+We could try storing the fingerprints of the interface files of plugins in
+the interface file of the module. And see if there are changes between
+compilation runs. However, this is pretty much a non-option because interface
+fingerprints of plugin modules are fairly stable, unless you compile plugins
+with optimisations turned on, and give basically all binders an INLINE pragma.
+
+So instead:
+
+  * For plugins that were built locally: we store the filepath and hash of the
+    object files of the module with the `plugin` binder, and the object files of
+    modules that are dependencies of the plugin module and belong to the same
+    `UnitId` as the plugin
+  * For plugins in an external package: we store the filepath and hash of
+    the dynamic library containing the plugin module.
+
+During recompilation we then compare the hashes of those files again to see
+if anything has changed.
+
+One issue with this approach is that object files are currently (GHC 8.6.1)
+not created fully deterministically, which could sometimes induce accidental
+recompilation of a module for which plugins were used in the compile process.
+
+One way to improve this is to either:
+
+  * Have deterministic object file creation
+  * Create and store implementation hashes, which would be based on the Core
+    of the module and the implementation hashes of its dependencies, and then
+    compare implementation hashes for recompilation. Creation of implementation
+    hashes is however potentially expensive.
+-}</span><span>
+</span><span id="line-181"></span><span class="annot"><a href="GHC.HsToCore.Usage.html#mkPluginUsage"><span class="hs-identifier hs-type">mkPluginUsage</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Driver.Env.Types.html#HscEnv"><span class="hs-identifier hs-type">HscEnv</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Unit.Module.ModIface.html#ModIface"><span class="hs-identifier hs-type">ModIface</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Unit.Module.Deps.html#Usage"><span class="hs-identifier hs-type">Usage</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-182"></span><span id="mkPluginUsage"><span class="annot"><span class="annottext">mkPluginUsage :: HscEnv -&gt; ModIface -&gt; IO [Usage]
+</span><a href="GHC.HsToCore.Usage.html#mkPluginUsage"><span class="hs-identifier hs-var hs-var">mkPluginUsage</span></a></span></span><span> </span><span id="local-6989586621681209555"><span class="annot"><span class="annottext">HscEnv
+</span><a href="#local-6989586621681209555"><span class="hs-identifier hs-var">hsc_env</span></a></span></span><span> </span><span id="local-6989586621681209554"><span class="annot"><span class="annottext">ModIface
+</span><a href="#local-6989586621681209554"><span class="hs-identifier hs-var">pluginModule</span></a></span></span><span>
+</span><span id="line-183"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">UnitState -&gt; ModuleName -&gt; Maybe FastString -&gt; LookupResult
+</span><a href="GHC.Unit.State.html#lookupPluginModuleWithSuggestions"><span class="hs-identifier hs-var">lookupPluginModuleWithSuggestions</span></a></span><span> </span><span class="annot"><span class="annottext">UnitState
+</span><a href="#local-6989586621681209552"><span class="hs-identifier hs-var">pkgs</span></a></span><span> </span><span class="annot"><span class="annottext">ModuleName
+</span><a href="#local-6989586621681209551"><span class="hs-identifier hs-var">pNm</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Nothing"><span class="hs-identifier hs-var">Nothing</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-184"></span><span>    </span><span class="annot"><a href="GHC.Unit.State.html#LookupFound"><span class="hs-identifier hs-type">LookupFound</span></a></span><span> </span><span class="annot"><span class="annottext">Module
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621681209549"><span class="annot"><span class="annottext">UnitInfo
+</span><a href="#local-6989586621681209549"><span class="hs-identifier hs-var">pkg</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ModuleOrigin
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-185"></span><span>    </span><span class="hs-comment">-- The plugin is from an external package:</span><span>
+</span><span id="line-186"></span><span>    </span><span class="hs-comment">-- search for the library files containing the plugin.</span><span>
+</span><span id="line-187"></span><span>      </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681209548"><span class="annot"><span class="annottext">searchPaths :: [FilePath]
+</span><a href="#local-6989586621681209548"><span class="hs-identifier hs-var hs-var">searchPaths</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ways -&gt; [UnitInfo] -&gt; [FilePath]
+</span><a href="GHC.Unit.Info.html#collectLibraryDirs"><span class="hs-identifier hs-var">collectLibraryDirs</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">DynFlags -&gt; Ways
+</span><a href="GHC.Driver.Session.html#ways"><span class="hs-identifier hs-var">ways</span></a></span><span> </span><span class="annot"><span class="annottext">DynFlags
+</span><a href="#local-6989586621681209545"><span class="hs-identifier hs-var">dflags</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">UnitInfo
+</span><a href="#local-6989586621681209549"><span class="hs-identifier hs-var">pkg</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-188"></span><span>          </span><span id="local-6989586621681209544"><span class="annot"><span class="annottext">useDyn :: Bool
+</span><a href="#local-6989586621681209544"><span class="hs-identifier hs-var hs-var">useDyn</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Way
+</span><a href="GHC.Platform.Ways.html#WayDyn"><span class="hs-identifier hs-var">WayDyn</span></a></span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. (Foldable t, Eq a) =&gt; a -&gt; t a -&gt; Bool
+</span><a href="../../base-4.16.4.0/src/Data-Foldable.html#elem"><span class="hs-operator hs-var">`elem`</span></a></span><span> </span><span class="annot"><span class="annottext">DynFlags -&gt; Ways
+</span><a href="GHC.Driver.Session.html#ways"><span class="hs-identifier hs-var">ways</span></a></span><span> </span><span class="annot"><span class="annottext">DynFlags
+</span><a href="#local-6989586621681209545"><span class="hs-identifier hs-var">dflags</span></a></span><span>
+</span><span id="line-189"></span><span>          </span><span id="local-6989586621681209541"><span class="annot"><span class="annottext">suffix :: FilePath
+</span><a href="#local-6989586621681209541"><span class="hs-identifier hs-var hs-var">suffix</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681209544"><span class="hs-identifier hs-var">useDyn</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Platform -&gt; FilePath
+</span><a href="GHC.Platform.html#platformSOExt"><span class="hs-identifier hs-var">platformSOExt</span></a></span><span> </span><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621681209539"><span class="hs-identifier hs-var">platform</span></a></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;a&quot;</span></span><span>
+</span><span id="line-190"></span><span>          </span><span id="local-6989586621681209538"><span class="annot"><span class="annottext">libLocs :: [FilePath]
+</span><a href="#local-6989586621681209538"><span class="hs-identifier hs-var hs-var">libLocs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621681209537"><span class="hs-identifier hs-var">searchPath</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; FilePath -&gt; FilePath
+</span><a href="../../filepath-1.4.2.2/src/System-FilePath-Posix.html#%3C%2F%3E"><span class="hs-operator hs-var">&lt;/&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;lib&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%2B%2B"><span class="hs-operator hs-var">++</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621681209535"><span class="hs-identifier hs-var">libLoc</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; FilePath -&gt; FilePath
+</span><a href="../../filepath-1.4.2.2/src/System-FilePath-Posix.html#%3C.%3E"><span class="hs-operator hs-var">&lt;.&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621681209541"><span class="hs-identifier hs-var">suffix</span></a></span><span>
+</span><span id="line-191"></span><span>                    </span><span class="hs-glyph">|</span><span> </span><span id="local-6989586621681209537"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621681209537"><span class="hs-identifier hs-var">searchPath</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[FilePath]
+</span><a href="#local-6989586621681209548"><span class="hs-identifier hs-var">searchPaths</span></a></span><span>
+</span><span id="line-192"></span><span>                    </span><span class="hs-special">,</span><span> </span><span id="local-6989586621681209535"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621681209535"><span class="hs-identifier hs-var">libLoc</span></a></span></span><span>     </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">GhcNameVersion -&gt; Ways -&gt; UnitInfo -&gt; [FilePath]
+</span><a href="GHC.Unit.Info.html#unitHsLibs"><span class="hs-identifier hs-var">unitHsLibs</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">DynFlags -&gt; GhcNameVersion
+</span><a href="GHC.Driver.Session.html#ghcNameVersion"><span class="hs-identifier hs-var">ghcNameVersion</span></a></span><span> </span><span class="annot"><span class="annottext">DynFlags
+</span><a href="#local-6989586621681209545"><span class="hs-identifier hs-var">dflags</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">DynFlags -&gt; Ways
+</span><a href="GHC.Driver.Session.html#ways"><span class="hs-identifier hs-var">ways</span></a></span><span> </span><span class="annot"><span class="annottext">DynFlags
+</span><a href="#local-6989586621681209545"><span class="hs-identifier hs-var">dflags</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">UnitInfo
+</span><a href="#local-6989586621681209549"><span class="hs-identifier hs-var">pkg</span></a></span><span>
+</span><span id="line-193"></span><span>                    </span><span class="hs-special">]</span><span>
+</span><span id="line-194"></span><span>          </span><span class="hs-comment">-- we also try to find plugin library files by adding WayDyn way,</span><span>
+</span><span id="line-195"></span><span>          </span><span class="hs-comment">-- if it isn't already present (see trac #15492)</span><span>
+</span><span id="line-196"></span><span>          </span><span id="local-6989586621681209531"><span class="annot"><span class="annottext">paths :: [FilePath]
+</span><a href="#local-6989586621681209531"><span class="hs-identifier hs-var hs-var">paths</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-197"></span><span>            </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681209544"><span class="hs-identifier hs-var">useDyn</span></a></span><span>
+</span><span id="line-198"></span><span>              </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">[FilePath]
+</span><a href="#local-6989586621681209538"><span class="hs-identifier hs-var">libLocs</span></a></span><span>
+</span><span id="line-199"></span><span>              </span><span class="hs-keyword">else</span><span>
+</span><span id="line-200"></span><span>                </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681209530"><span class="annot"><span class="annottext">dflags' :: DynFlags
+</span><a href="#local-6989586621681209530"><span class="hs-identifier hs-var hs-var">dflags'</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">DynFlags
+</span><a href="#local-6989586621681209545"><span class="hs-identifier hs-var">dflags</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">targetWays_ :: Ways
+</span><a href="GHC.Driver.Session.html#targetWays_"><span class="hs-identifier hs-var">targetWays_</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Way -&gt; Ways -&gt; Ways
+</span><a href="GHC.Platform.Ways.html#addWay"><span class="hs-identifier hs-var">addWay</span></a></span><span> </span><span class="annot"><span class="annottext">Way
+</span><a href="GHC.Platform.Ways.html#WayDyn"><span class="hs-identifier hs-var">WayDyn</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">DynFlags -&gt; Ways
+</span><a href="GHC.Driver.Session.html#targetWays_"><span class="hs-identifier hs-var">targetWays_</span></a></span><span> </span><span class="annot"><span class="annottext">DynFlags
+</span><a href="#local-6989586621681209545"><span class="hs-identifier hs-var">dflags</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-201"></span><span>                    </span><span id="local-6989586621681209527"><span class="annot"><span class="annottext">dlibLocs :: [FilePath]
+</span><a href="#local-6989586621681209527"><span class="hs-identifier hs-var hs-var">dlibLocs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621681209526"><span class="hs-identifier hs-var">searchPath</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; FilePath -&gt; FilePath
+</span><a href="../../filepath-1.4.2.2/src/System-FilePath-Posix.html#%3C%2F%3E"><span class="hs-operator hs-var">&lt;/&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Platform -&gt; FilePath -&gt; FilePath
+</span><a href="GHC.Platform.html#platformHsSOName"><span class="hs-identifier hs-var">platformHsSOName</span></a></span><span> </span><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621681209539"><span class="hs-identifier hs-var">platform</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621681209524"><span class="hs-identifier hs-var">dlibLoc</span></a></span><span>
+</span><span id="line-202"></span><span>                               </span><span class="hs-glyph">|</span><span> </span><span id="local-6989586621681209526"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621681209526"><span class="hs-identifier hs-var">searchPath</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[FilePath]
+</span><a href="#local-6989586621681209548"><span class="hs-identifier hs-var">searchPaths</span></a></span><span>
+</span><span id="line-203"></span><span>                               </span><span class="hs-special">,</span><span> </span><span id="local-6989586621681209524"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621681209524"><span class="hs-identifier hs-var">dlibLoc</span></a></span></span><span>    </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">GhcNameVersion -&gt; Ways -&gt; UnitInfo -&gt; [FilePath]
+</span><a href="GHC.Unit.Info.html#unitHsLibs"><span class="hs-identifier hs-var">unitHsLibs</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">DynFlags -&gt; GhcNameVersion
+</span><a href="GHC.Driver.Session.html#ghcNameVersion"><span class="hs-identifier hs-var">ghcNameVersion</span></a></span><span> </span><span class="annot"><span class="annottext">DynFlags
+</span><a href="#local-6989586621681209530"><span class="hs-identifier hs-var">dflags'</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">DynFlags -&gt; Ways
+</span><a href="GHC.Driver.Session.html#ways"><span class="hs-identifier hs-var">ways</span></a></span><span> </span><span class="annot"><span class="annottext">DynFlags
+</span><a href="#local-6989586621681209530"><span class="hs-identifier hs-var">dflags'</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">UnitInfo
+</span><a href="#local-6989586621681209549"><span class="hs-identifier hs-var">pkg</span></a></span><span>
+</span><span id="line-204"></span><span>                               </span><span class="hs-special">]</span><span>
+</span><span id="line-205"></span><span>                </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">[FilePath]
+</span><a href="#local-6989586621681209538"><span class="hs-identifier hs-var">libLocs</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%2B%2B"><span class="hs-operator hs-var">++</span></a></span><span> </span><span class="annot"><span class="annottext">[FilePath]
+</span><a href="#local-6989586621681209527"><span class="hs-identifier hs-var">dlibLocs</span></a></span><span>
+</span><span id="line-206"></span><span>      </span><span id="local-6989586621681209523"><span class="annot"><span class="annottext">[FilePath]
+</span><a href="#local-6989586621681209523"><span class="hs-identifier hs-var">files</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a.
+Applicative m =&gt;
+(a -&gt; m Bool) -&gt; [a] -&gt; m [a]
+</span><a href="../../base-4.16.4.0/src/Control-Monad.html#filterM"><span class="hs-identifier hs-var">filterM</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; IO Bool
+</span><a href="../../directory-1.3.6.2/src/System-Directory.html#doesFileExist"><span class="hs-identifier hs-var">doesFileExist</span></a></span><span> </span><span class="annot"><span class="annottext">[FilePath]
+</span><a href="#local-6989586621681209531"><span class="hs-identifier hs-var">paths</span></a></span><span>
+</span><span id="line-207"></span><span>      </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">[FilePath]
+</span><a href="#local-6989586621681209523"><span class="hs-identifier hs-var">files</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-208"></span><span>        </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-209"></span><span>          </span><span class="annot"><span class="annottext">forall a. HasCallStack =&gt; FilePath -&gt; SDoc -&gt; a
+</span><a href="GHC.Utils.Panic.html#pprPanic"><span class="hs-identifier hs-var">pprPanic</span></a></span><span>
+</span><span id="line-210"></span><span>             </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;mkPluginUsage: missing plugin library, tried:\n&quot;</span></span><span>
+</span><span id="line-211"></span><span>              </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%2B%2B"><span class="hs-operator hs-var">++</span></a></span><span> </span><span class="annot"><span class="annottext">[FilePath] -&gt; FilePath
+</span><a href="../../base-4.16.4.0/src/Data-OldList.html#unlines"><span class="hs-identifier hs-var">unlines</span></a></span><span> </span><span class="annot"><span class="annottext">[FilePath]
+</span><a href="#local-6989586621681209531"><span class="hs-identifier hs-var">paths</span></a></span><span>
+</span><span id="line-212"></span><span>             </span><span class="hs-special">)</span><span>
+</span><span id="line-213"></span><span>             </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">ModuleName
+</span><a href="#local-6989586621681209551"><span class="hs-identifier hs-var">pNm</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-214"></span><span>        </span><span class="annot"><span class="annottext">[FilePath]
+</span><span class="hs-identifier">_</span></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Traversable t, Monad m) =&gt;
+(a -&gt; m b) -&gt; t a -&gt; m (t b)
+</span><a href="../../base-4.16.4.0/src/Data-Traversable.html#mapM"><span class="hs-identifier hs-var">mapM</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; IO Usage
+</span><a href="#local-6989586621681209518"><span class="hs-identifier hs-var">hashFile</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Eq a =&gt; [a] -&gt; [a]
+</span><a href="../../base-4.16.4.0/src/Data-OldList.html#nub"><span class="hs-identifier hs-var">nub</span></a></span><span> </span><span class="annot"><span class="annottext">[FilePath]
+</span><a href="#local-6989586621681209523"><span class="hs-identifier hs-var">files</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-215"></span><span>    </span><span class="annot"><span class="annottext">LookupResult
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-216"></span><span>      </span><span id="local-6989586621681209517"><span class="annot"><span class="annottext">FindResult
+</span><a href="#local-6989586621681209517"><span class="hs-identifier hs-var">foundM</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">HscEnv -&gt; ModuleName -&gt; IO FindResult
+</span><a href="GHC.Unit.Finder.html#findPluginModule"><span class="hs-identifier hs-var">findPluginModule</span></a></span><span> </span><span class="annot"><span class="annottext">HscEnv
+</span><a href="#local-6989586621681209555"><span class="hs-identifier hs-var">hsc_env</span></a></span><span> </span><span class="annot"><span class="annottext">ModuleName
+</span><a href="#local-6989586621681209551"><span class="hs-identifier hs-var">pNm</span></a></span><span>
+</span><span id="line-217"></span><span>      </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">FindResult
+</span><a href="#local-6989586621681209517"><span class="hs-identifier hs-var">foundM</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-218"></span><span>      </span><span class="hs-comment">-- The plugin was built locally: look up the object file containing</span><span>
+</span><span id="line-219"></span><span>      </span><span class="hs-comment">-- the `plugin` binder, and all object files belong to modules that are</span><span>
+</span><span id="line-220"></span><span>      </span><span class="hs-comment">-- transitive dependencies of the plugin that belong to the same package.</span><span>
+</span><span id="line-221"></span><span>        </span><span class="annot"><a href="GHC.Unit.Finder.Types.html#Found"><span class="hs-identifier hs-type">Found</span></a></span><span> </span><span id="local-6989586621681209514"><span class="annot"><span class="annottext">ModLocation
+</span><a href="#local-6989586621681209514"><span class="hs-identifier hs-var">ml</span></a></span></span><span> </span><span class="annot"><span class="annottext">Module
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-222"></span><span>          </span><span id="local-6989586621681209513"><span class="annot"><span class="annottext">Usage
+</span><a href="#local-6989586621681209513"><span class="hs-identifier hs-var">pluginObject</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; IO Usage
+</span><a href="#local-6989586621681209518"><span class="hs-identifier hs-var">hashFile</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ModLocation -&gt; FilePath
+</span><a href="GHC.Unit.Module.Location.html#ml_obj_file"><span class="hs-identifier hs-var">ml_obj_file</span></a></span><span> </span><span class="annot"><span class="annottext">ModLocation
+</span><a href="#local-6989586621681209514"><span class="hs-identifier hs-var">ml</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-223"></span><span>          </span><span id="local-6989586621681209511"><span class="annot"><span class="annottext">[Usage]
+</span><a href="#local-6989586621681209511"><span class="hs-identifier hs-var">depObjects</span></a></span></span><span>   </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a. [Maybe a] -&gt; [a]
+</span><a href="../../base-4.16.4.0/src/Data-Maybe.html#catMaybes"><span class="hs-identifier hs-var">catMaybes</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="../../base-4.16.4.0/src/Data-Functor.html#%3C%24%3E"><span class="hs-operator hs-var">&lt;$&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Traversable t, Monad m) =&gt;
+(a -&gt; m b) -&gt; t a -&gt; m (t b)
+</span><a href="../../base-4.16.4.0/src/Data-Traversable.html#mapM"><span class="hs-identifier hs-var">mapM</span></a></span><span> </span><span class="annot"><span class="annottext">ModuleName -&gt; IO (Maybe Usage)
+</span><a href="#local-6989586621681209508"><span class="hs-identifier hs-var">lookupObjectFile</span></a></span><span> </span><span class="annot"><span class="annottext">[ModuleName]
+</span><a href="#local-6989586621681209507"><span class="hs-identifier hs-var">deps</span></a></span><span>
+</span><span id="line-224"></span><span>          </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#return"><span class="hs-identifier hs-var">return</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Eq a =&gt; [a] -&gt; [a]
+</span><a href="../../base-4.16.4.0/src/Data-OldList.html#nub"><span class="hs-identifier hs-var">nub</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Usage
+</span><a href="#local-6989586621681209513"><span class="hs-identifier hs-var">pluginObject</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[Usage]
+</span><a href="#local-6989586621681209511"><span class="hs-identifier hs-var">depObjects</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-225"></span><span>        </span><span class="annot"><span class="annottext">FindResult
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. HasCallStack =&gt; FilePath -&gt; SDoc -&gt; a
+</span><a href="GHC.Utils.Panic.html#pprPanic"><span class="hs-identifier hs-var">pprPanic</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;mkPluginUsage: no object file found&quot;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">ModuleName
+</span><a href="#local-6989586621681209551"><span class="hs-identifier hs-var">pNm</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-226"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-227"></span><span>    </span><span id="local-6989586621681209545"><span class="annot"><span class="annottext">dflags :: DynFlags
+</span><a href="#local-6989586621681209545"><span class="hs-identifier hs-var hs-var">dflags</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HscEnv -&gt; DynFlags
+</span><a href="GHC.Driver.Env.Types.html#hsc_dflags"><span class="hs-identifier hs-var">hsc_dflags</span></a></span><span> </span><span class="annot"><span class="annottext">HscEnv
+</span><a href="#local-6989586621681209555"><span class="hs-identifier hs-var">hsc_env</span></a></span><span>
+</span><span id="line-228"></span><span>    </span><span id="local-6989586621681209539"><span class="annot"><span class="annottext">platform :: Platform
+</span><a href="#local-6989586621681209539"><span class="hs-identifier hs-var hs-var">platform</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">DynFlags -&gt; Platform
+</span><a href="GHC.Driver.Session.html#targetPlatform"><span class="hs-identifier hs-var">targetPlatform</span></a></span><span> </span><span class="annot"><span class="annottext">DynFlags
+</span><a href="#local-6989586621681209545"><span class="hs-identifier hs-var">dflags</span></a></span><span>
+</span><span id="line-229"></span><span>    </span><span id="local-6989586621681209552"><span class="annot"><span class="annottext">pkgs :: UnitState
+</span><a href="#local-6989586621681209552"><span class="hs-identifier hs-var hs-var">pkgs</span></a></span></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HscEnv -&gt; UnitState
+</span><a href="GHC.Driver.Env.html#hsc_units"><span class="hs-identifier hs-var">hsc_units</span></a></span><span> </span><span class="annot"><span class="annottext">HscEnv
+</span><a href="#local-6989586621681209555"><span class="hs-identifier hs-var">hsc_env</span></a></span><span>
+</span><span id="line-230"></span><span>    </span><span id="local-6989586621681209551"><span class="annot"><span class="annottext">pNm :: ModuleName
+</span><a href="#local-6989586621681209551"><span class="hs-identifier hs-var hs-var">pNm</span></a></span></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall unit. GenModule unit -&gt; ModuleName
+</span><a href="GHC.Unit.Types.html#moduleName"><span class="hs-identifier hs-var">moduleName</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">forall (phase :: ModIfacePhase). ModIface_ phase -&gt; Module
+</span><a href="GHC.Unit.Module.ModIface.html#mi_module"><span class="hs-identifier hs-var">mi_module</span></a></span><span> </span><span class="annot"><span class="annottext">ModIface
+</span><a href="#local-6989586621681209554"><span class="hs-identifier hs-var">pluginModule</span></a></span><span>
+</span><span id="line-231"></span><span>    </span><span id="local-6989586621681209502"><span class="annot"><span class="annottext">pPkg :: Unit
+</span><a href="#local-6989586621681209502"><span class="hs-identifier hs-var hs-var">pPkg</span></a></span></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall unit. GenModule unit -&gt; unit
+</span><a href="GHC.Unit.Types.html#moduleUnit"><span class="hs-identifier hs-var">moduleUnit</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">forall (phase :: ModIfacePhase). ModIface_ phase -&gt; Module
+</span><a href="GHC.Unit.Module.ModIface.html#mi_module"><span class="hs-identifier hs-var">mi_module</span></a></span><span> </span><span class="annot"><span class="annottext">ModIface
+</span><a href="#local-6989586621681209554"><span class="hs-identifier hs-var">pluginModule</span></a></span><span>
+</span><span id="line-232"></span><span>    </span><span id="local-6989586621681209507"><span class="annot"><span class="annottext">deps :: [ModuleName]
+</span><a href="#local-6989586621681209507"><span class="hs-identifier hs-var hs-var">deps</span></a></span></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#map"><span class="hs-identifier hs-var">map</span></a></span><span> </span><span class="annot"><span class="annottext">forall mod. GenWithIsBoot mod -&gt; mod
+</span><a href="GHC.Unit.Types.html#gwib_mod"><span class="hs-identifier hs-var">gwib_mod</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span>
+</span><span id="line-233"></span><span>      </span><span class="annot"><span class="annottext">Dependencies -&gt; [ModuleNameWithIsBoot]
+</span><a href="GHC.Unit.Module.Deps.html#dep_mods"><span class="hs-identifier hs-var">dep_mods</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">forall (phase :: ModIfacePhase). ModIface_ phase -&gt; Dependencies
+</span><a href="GHC.Unit.Module.ModIface.html#mi_deps"><span class="hs-identifier hs-var">mi_deps</span></a></span><span> </span><span class="annot"><span class="annottext">ModIface
+</span><a href="#local-6989586621681209554"><span class="hs-identifier hs-var">pluginModule</span></a></span><span>
+</span><span id="line-234"></span><span>
+</span><span id="line-235"></span><span>    </span><span class="hs-comment">-- Lookup object file for a plugin dependency,</span><span>
+</span><span id="line-236"></span><span>    </span><span class="hs-comment">-- from the same package as the plugin.</span><span>
+</span><span id="line-237"></span><span>    </span><span id="local-6989586621681209508"><span class="annot"><span class="annottext">lookupObjectFile :: ModuleName -&gt; IO (Maybe Usage)
+</span><a href="#local-6989586621681209508"><span class="hs-identifier hs-var hs-var">lookupObjectFile</span></a></span></span><span> </span><span id="local-6989586621681209499"><span class="annot"><span class="annottext">ModuleName
+</span><a href="#local-6989586621681209499"><span class="hs-identifier hs-var">nm</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-238"></span><span>      </span><span id="local-6989586621681209498"><span class="annot"><span class="annottext">FindResult
+</span><a href="#local-6989586621681209498"><span class="hs-identifier hs-var">foundM</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">HscEnv -&gt; ModuleName -&gt; Maybe FastString -&gt; IO FindResult
+</span><a href="GHC.Unit.Finder.html#findImportedModule"><span class="hs-identifier hs-var">findImportedModule</span></a></span><span> </span><span class="annot"><span class="annottext">HscEnv
+</span><a href="#local-6989586621681209555"><span class="hs-identifier hs-var">hsc_env</span></a></span><span> </span><span class="annot"><span class="annottext">ModuleName
+</span><a href="#local-6989586621681209499"><span class="hs-identifier hs-var">nm</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Nothing"><span class="hs-identifier hs-var">Nothing</span></a></span><span>
+</span><span id="line-239"></span><span>      </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">FindResult
+</span><a href="#local-6989586621681209498"><span class="hs-identifier hs-var">foundM</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-240"></span><span>        </span><span class="annot"><a href="GHC.Unit.Finder.Types.html#Found"><span class="hs-identifier hs-type">Found</span></a></span><span> </span><span id="local-6989586621681209496"><span class="annot"><span class="annottext">ModLocation
+</span><a href="#local-6989586621681209496"><span class="hs-identifier hs-var">ml</span></a></span></span><span> </span><span id="local-6989586621681209495"><span class="annot"><span class="annottext">Module
+</span><a href="#local-6989586621681209495"><span class="hs-identifier hs-var">m</span></a></span></span><span>
+</span><span id="line-241"></span><span>          </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">forall unit. GenModule unit -&gt; unit
+</span><a href="GHC.Unit.Types.html#moduleUnit"><span class="hs-identifier hs-var">moduleUnit</span></a></span><span> </span><span class="annot"><span class="annottext">Module
+</span><a href="#local-6989586621681209495"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Unit
+</span><a href="#local-6989586621681209502"><span class="hs-identifier hs-var">pPkg</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Just"><span class="hs-identifier hs-var">Just</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="../../base-4.16.4.0/src/Data-Functor.html#%3C%24%3E"><span class="hs-operator hs-var">&lt;$&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; IO Usage
+</span><a href="#local-6989586621681209518"><span class="hs-identifier hs-var">hashFile</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ModLocation -&gt; FilePath
+</span><a href="GHC.Unit.Module.Location.html#ml_obj_file"><span class="hs-identifier hs-var">ml_obj_file</span></a></span><span> </span><span class="annot"><span class="annottext">ModLocation
+</span><a href="#local-6989586621681209496"><span class="hs-identifier hs-var">ml</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-242"></span><span>          </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#otherwise"><span class="hs-identifier hs-var">otherwise</span></a></span><span>              </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#return"><span class="hs-identifier hs-var">return</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Nothing"><span class="hs-identifier hs-var">Nothing</span></a></span><span>
+</span><span id="line-243"></span><span>        </span><span class="annot"><span class="annottext">FindResult
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. HasCallStack =&gt; FilePath -&gt; SDoc -&gt; a
+</span><a href="GHC.Utils.Panic.html#pprPanic"><span class="hs-identifier hs-var">pprPanic</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;mkPluginUsage: no object for dependency&quot;</span></span><span>
+</span><span id="line-244"></span><span>                      </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">ModuleName
+</span><a href="#local-6989586621681209551"><span class="hs-identifier hs-var">pNm</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">ModuleName
+</span><a href="#local-6989586621681209499"><span class="hs-identifier hs-var">nm</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-245"></span><span>
+</span><span id="line-246"></span><span>    </span><span id="local-6989586621681209518"><span class="annot"><span class="annottext">hashFile :: FilePath -&gt; IO Usage
+</span><a href="#local-6989586621681209518"><span class="hs-identifier hs-var hs-var">hashFile</span></a></span></span><span> </span><span id="local-6989586621681209493"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621681209493"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-247"></span><span>      </span><span id="local-6989586621681209492"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681209492"><span class="hs-identifier hs-var">fExist</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; IO Bool
+</span><a href="../../directory-1.3.6.2/src/System-Directory.html#doesFileExist"><span class="hs-identifier hs-var">doesFileExist</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621681209493"><span class="hs-identifier hs-var">f</span></a></span><span>
+</span><span id="line-248"></span><span>      </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681209492"><span class="hs-identifier hs-var">fExist</span></a></span><span>
+</span><span id="line-249"></span><span>         </span><span class="hs-keyword">then</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-250"></span><span>            </span><span id="local-6989586621681209491"><span class="annot"><span class="annottext">Fingerprint
+</span><a href="#local-6989586621681209491"><span class="hs-identifier hs-var">h</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; IO Fingerprint
+</span><a href="../../base-4.16.4.0/src/GHC-Fingerprint.html#getFileHash"><span class="hs-identifier hs-var">getFileHash</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621681209493"><span class="hs-identifier hs-var">f</span></a></span><span>
+</span><span id="line-251"></span><span>            </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#return"><span class="hs-identifier hs-var">return</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FilePath -&gt; Fingerprint -&gt; Usage
+</span><a href="GHC.Unit.Module.Deps.html#UsageFile"><span class="hs-identifier hs-var">UsageFile</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621681209493"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">Fingerprint
+</span><a href="#local-6989586621681209491"><span class="hs-identifier hs-var">h</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-252"></span><span>         </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">forall a. HasCallStack =&gt; FilePath -&gt; SDoc -&gt; a
+</span><a href="GHC.Utils.Panic.html#pprPanic"><span class="hs-identifier hs-var">pprPanic</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;mkPluginUsage: file not found&quot;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">ModuleName
+</span><a href="#local-6989586621681209551"><span class="hs-identifier hs-var">pNm</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621681209493"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-253"></span><span>
+</span><span id="line-254"></span><span class="annot"><a href="GHC.HsToCore.Usage.html#mk_mod_usage_info"><span class="hs-identifier hs-type">mk_mod_usage_info</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Unit.External.html#PackageIfaceTable"><span class="hs-identifier hs-type">PackageIfaceTable</span></a></span><span>
+</span><span id="line-255"></span><span>              </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Driver.Env.Types.html#HscEnv"><span class="hs-identifier hs-type">HscEnv</span></a></span><span>
+</span><span id="line-256"></span><span>              </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Unit.Types.html#Module"><span class="hs-identifier hs-type">Module</span></a></span><span>
+</span><span id="line-257"></span><span>              </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Imported.html#ImportedMods"><span class="hs-identifier hs-type">ImportedMods</span></a></span><span>
+</span><span id="line-258"></span><span>              </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Types.Name.Set.html#NameSet"><span class="hs-identifier hs-type">NameSet</span></a></span><span>
+</span><span id="line-259"></span><span>              </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Unit.Module.Deps.html#Usage"><span class="hs-identifier hs-type">Usage</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-260"></span><span id="mk_mod_usage_info"><span class="annot"><span class="annottext">mk_mod_usage_info :: PackageIfaceTable
+-&gt; HscEnv -&gt; Module -&gt; ImportedMods -&gt; NameSet -&gt; [Usage]
+</span><a href="GHC.HsToCore.Usage.html#mk_mod_usage_info"><span class="hs-identifier hs-var hs-var">mk_mod_usage_info</span></a></span></span><span> </span><span id="local-6989586621681209489"><span class="annot"><span class="annottext">PackageIfaceTable
+</span><a href="#local-6989586621681209489"><span class="hs-identifier hs-var">pit</span></a></span></span><span> </span><span id="local-6989586621681209488"><span class="annot"><span class="annottext">HscEnv
+</span><a href="#local-6989586621681209488"><span class="hs-identifier hs-var">hsc_env</span></a></span></span><span> </span><span id="local-6989586621681209487"><span class="annot"><span class="annottext">Module
+</span><a href="#local-6989586621681209487"><span class="hs-identifier hs-var">this_mod</span></a></span></span><span> </span><span id="local-6989586621681209486"><span class="annot"><span class="annottext">ImportedMods
+</span><a href="#local-6989586621681209486"><span class="hs-identifier hs-var">direct_imports</span></a></span></span><span> </span><span id="local-6989586621681209485"><span class="annot"><span class="annottext">NameSet
+</span><a href="#local-6989586621681209485"><span class="hs-identifier hs-var">used_names</span></a></span></span><span>
+</span><span id="line-261"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; Maybe b) -&gt; [a] -&gt; [b]
+</span><a href="../../base-4.16.4.0/src/Data-Maybe.html#mapMaybe"><span class="hs-identifier hs-var">mapMaybe</span></a></span><span> </span><span class="annot"><span class="annottext">Module -&gt; Maybe Usage
+</span><a href="#local-6989586621681209483"><span class="hs-identifier hs-var">mkUsage</span></a></span><span> </span><span class="annot"><span class="annottext">[Module]
+</span><a href="#local-6989586621681209482"><span class="hs-identifier hs-var">usage_mods</span></a></span><span>
+</span><span id="line-262"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-263"></span><span>    </span><span id="local-6989586621681209481"><span class="annot"><span class="annottext">hpt :: HomePackageTable
+</span><a href="#local-6989586621681209481"><span class="hs-identifier hs-var hs-var">hpt</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HscEnv -&gt; HomePackageTable
+</span><a href="GHC.Driver.Env.Types.html#hsc_HPT"><span class="hs-identifier hs-var">hsc_HPT</span></a></span><span> </span><span class="annot"><span class="annottext">HscEnv
+</span><a href="#local-6989586621681209488"><span class="hs-identifier hs-var">hsc_env</span></a></span><span>
+</span><span id="line-264"></span><span>    </span><span id="local-6989586621681209479"><span class="annot"><span class="annottext">dflags :: DynFlags
+</span><a href="#local-6989586621681209479"><span class="hs-identifier hs-var hs-var">dflags</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HscEnv -&gt; DynFlags
+</span><a href="GHC.Driver.Env.Types.html#hsc_dflags"><span class="hs-identifier hs-var">hsc_dflags</span></a></span><span> </span><span class="annot"><span class="annottext">HscEnv
+</span><a href="#local-6989586621681209488"><span class="hs-identifier hs-var">hsc_env</span></a></span><span>
+</span><span id="line-265"></span><span>    </span><span id="local-6989586621681209478"><span class="annot"><span class="annottext">home_unit :: HomeUnit
+</span><a href="#local-6989586621681209478"><span class="hs-identifier hs-var hs-var">home_unit</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HscEnv -&gt; HomeUnit
+</span><a href="GHC.Driver.Env.html#hsc_home_unit"><span class="hs-identifier hs-var">hsc_home_unit</span></a></span><span> </span><span class="annot"><span class="annottext">HscEnv
+</span><a href="#local-6989586621681209488"><span class="hs-identifier hs-var">hsc_env</span></a></span><span>
+</span><span id="line-266"></span><span>
+</span><span id="line-267"></span><span>    </span><span id="local-6989586621681209476"><span class="annot"><span class="annottext">used_mods :: [Module]
+</span><a href="#local-6989586621681209476"><span class="hs-identifier hs-var hs-var">used_mods</span></a></span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. ModuleEnv a -&gt; [Module]
+</span><a href="GHC.Unit.Module.Env.html#moduleEnvKeys"><span class="hs-identifier hs-var">moduleEnvKeys</span></a></span><span> </span><span class="annot"><span class="annottext">ModuleEnv [OccName]
+</span><a href="#local-6989586621681209474"><span class="hs-identifier hs-var">ent_map</span></a></span><span>
+</span><span id="line-268"></span><span>    </span><span id="local-6989586621681209473"><span class="annot"><span class="annottext">dir_imp_mods :: [Module]
+</span><a href="#local-6989586621681209473"><span class="hs-identifier hs-var hs-var">dir_imp_mods</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. ModuleEnv a -&gt; [Module]
+</span><a href="GHC.Unit.Module.Env.html#moduleEnvKeys"><span class="hs-identifier hs-var">moduleEnvKeys</span></a></span><span> </span><span class="annot"><span class="annottext">ImportedMods
+</span><a href="#local-6989586621681209486"><span class="hs-identifier hs-var">direct_imports</span></a></span><span>
+</span><span id="line-269"></span><span>    </span><span id="local-6989586621681209472"><span class="annot"><span class="annottext">all_mods :: [Module]
+</span><a href="#local-6989586621681209472"><span class="hs-identifier hs-var hs-var">all_mods</span></a></span></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Module]
+</span><a href="#local-6989586621681209476"><span class="hs-identifier hs-var">used_mods</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%2B%2B"><span class="hs-operator hs-var">++</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. (a -&gt; Bool) -&gt; [a] -&gt; [a]
+</span><a href="../../base-4.16.4.0/src/GHC-List.html#filter"><span class="hs-identifier hs-var">filter</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. (Foldable t, Eq a) =&gt; a -&gt; t a -&gt; Bool
+</span><a href="../../base-4.16.4.0/src/Data-Foldable.html#notElem"><span class="hs-operator hs-var">`notElem`</span></a></span><span> </span><span class="annot"><span class="annottext">[Module]
+</span><a href="#local-6989586621681209476"><span class="hs-identifier hs-var">used_mods</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Module]
+</span><a href="#local-6989586621681209473"><span class="hs-identifier hs-var">dir_imp_mods</span></a></span><span>
+</span><span id="line-270"></span><span>    </span><span id="local-6989586621681209482"><span class="annot"><span class="annottext">usage_mods :: [Module]
+</span><a href="#local-6989586621681209482"><span class="hs-identifier hs-var hs-var">usage_mods</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. (a -&gt; a -&gt; Ordering) -&gt; [a] -&gt; [a]
+</span><a href="../../base-4.16.4.0/src/Data-OldList.html#sortBy"><span class="hs-identifier hs-var">sortBy</span></a></span><span> </span><span class="annot"><span class="annottext">Module -&gt; Module -&gt; Ordering
+</span><a href="GHC.Unit.Module.html#stableModuleCmp"><span class="hs-identifier hs-var">stableModuleCmp</span></a></span><span> </span><span class="annot"><span class="annottext">[Module]
+</span><a href="#local-6989586621681209472"><span class="hs-identifier hs-var">all_mods</span></a></span><span>
+</span><span id="line-271"></span><span>                        </span><span class="hs-comment">-- canonical order is imported, to avoid interface-file</span><span>
+</span><span id="line-272"></span><span>                        </span><span class="hs-comment">-- wobblage.</span><span>
+</span><span id="line-273"></span><span>
+</span><span id="line-274"></span><span>    </span><span class="hs-comment">-- ent_map groups together all the things imported and used</span><span>
+</span><span id="line-275"></span><span>    </span><span class="hs-comment">-- from a particular module</span><span>
+</span><span id="line-276"></span><span>    </span><span class="annot"><a href="#local-6989586621681209474"><span class="hs-identifier hs-type">ent_map</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Env.html#ModuleEnv"><span class="hs-identifier hs-type">ModuleEnv</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Types.Name.Occurrence.html#OccName"><span class="hs-identifier hs-type">OccName</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-277"></span><span>    </span><span id="local-6989586621681209474"><span class="annot"><span class="annottext">ent_map :: ModuleEnv [OccName]
+</span><a href="#local-6989586621681209474"><span class="hs-identifier hs-var hs-var">ent_map</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall elt a. (elt -&gt; a -&gt; a) -&gt; a -&gt; UniqSet elt -&gt; a
+</span><a href="GHC.Types.Unique.Set.html#nonDetStrictFoldUniqSet"><span class="hs-identifier hs-var">nonDetStrictFoldUniqSet</span></a></span><span> </span><span class="annot"><span class="annottext">Name -&gt; ModuleEnv [OccName] -&gt; ModuleEnv [OccName]
+</span><a href="#local-6989586621681209469"><span class="hs-identifier hs-var">add_mv</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. ModuleEnv a
+</span><a href="GHC.Unit.Module.Env.html#emptyModuleEnv"><span class="hs-identifier hs-var">emptyModuleEnv</span></a></span><span> </span><span class="annot"><span class="annottext">NameSet
+</span><a href="#local-6989586621681209485"><span class="hs-identifier hs-var">used_names</span></a></span><span>
+</span><span id="line-278"></span><span>     </span><span class="hs-comment">-- nonDetStrictFoldUniqSet is OK here. If you follow the logic, we sort by</span><span>
+</span><span id="line-279"></span><span>     </span><span class="hs-comment">-- OccName in ent_hashs</span><span>
+</span><span id="line-280"></span><span>     </span><span class="hs-keyword">where</span><span>
+</span><span id="line-281"></span><span>      </span><span id="local-6989586621681209469"><span class="annot"><span class="annottext">add_mv :: Name -&gt; ModuleEnv [OccName] -&gt; ModuleEnv [OccName]
+</span><a href="#local-6989586621681209469"><span class="hs-identifier hs-var hs-var">add_mv</span></a></span></span><span> </span><span id="local-6989586621681209467"><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621681209467"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span id="local-6989586621681209466"><span class="annot"><span class="annottext">ModuleEnv [OccName]
+</span><a href="#local-6989586621681209466"><span class="hs-identifier hs-var">mv_map</span></a></span></span><span>
+</span><span id="line-282"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Name -&gt; Bool
+</span><a href="GHC.Types.Name.html#isWiredInName"><span class="hs-identifier hs-var">isWiredInName</span></a></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621681209467"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ModuleEnv [OccName]
+</span><a href="#local-6989586621681209466"><span class="hs-identifier hs-var">mv_map</span></a></span><span>  </span><span class="hs-comment">-- ignore wired-in names</span><span>
+</span><span id="line-283"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#otherwise"><span class="hs-identifier hs-var">otherwise</span></a></span><span>
+</span><span id="line-284"></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Name -&gt; Maybe Module
+</span><a href="GHC.Types.Name.html#nameModule_maybe"><span class="hs-identifier hs-var">nameModule_maybe</span></a></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621681209467"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-285"></span><span>             </span><span class="annot"><span class="annottext">Maybe Module
+</span><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Nothing"><span class="hs-identifier hs-var">Nothing</span></a></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">ASSERT2</span><span class="hs-special">(</span><span> </span><span class="hs-identifier">isSystemName</span><span> </span><span class="hs-identifier">name</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">ppr</span><span> </span><span class="hs-identifier">name</span><span> </span><span class="hs-special">)</span><span> </span><span class="hs-identifier">mv_map</span><span>
+</span><span id="line-286"></span><span>                </span><span class="hs-comment">-- See Note [Internal used_names]</span><span>
+</span><span id="line-287"></span><span>
+</span><span id="line-288"></span><span>             </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Just"><span class="hs-identifier hs-type">Just</span></a></span><span> </span><span id="local-6989586621681209458"><span class="annot"><span class="annottext">Module
+</span><a href="#local-6989586621681209458"><span class="hs-identifier hs-var">mod</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-289"></span><span>                </span><span class="hs-comment">-- See Note [Identity versus semantic module]</span><span>
+</span><span id="line-290"></span><span>                </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681209457"><span class="annot"><span class="annottext">mod' :: Module
+</span><a href="#local-6989586621681209457"><span class="hs-identifier hs-var hs-var">mod'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">forall u. GenModule (GenUnit u) -&gt; Bool
+</span><a href="GHC.Unit.Module.html#isHoleModule"><span class="hs-identifier hs-var">isHoleModule</span></a></span><span> </span><span class="annot"><span class="annottext">Module
+</span><a href="#local-6989586621681209458"><span class="hs-identifier hs-var">mod</span></a></span><span>
+</span><span id="line-291"></span><span>                            </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">HomeUnit -&gt; ModuleName -&gt; Module
+</span><a href="GHC.Unit.Home.html#mkHomeModule"><span class="hs-identifier hs-var">mkHomeModule</span></a></span><span> </span><span class="annot"><span class="annottext">HomeUnit
+</span><a href="#local-6989586621681209478"><span class="hs-identifier hs-var">home_unit</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall unit. GenModule unit -&gt; ModuleName
+</span><a href="GHC.Unit.Types.html#moduleName"><span class="hs-identifier hs-var">moduleName</span></a></span><span> </span><span class="annot"><span class="annottext">Module
+</span><a href="#local-6989586621681209458"><span class="hs-identifier hs-var">mod</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-292"></span><span>                            </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Module
+</span><a href="#local-6989586621681209458"><span class="hs-identifier hs-var">mod</span></a></span><span>
+</span><span id="line-293"></span><span>                </span><span class="hs-comment">-- This lambda function is really just a</span><span>
+</span><span id="line-294"></span><span>                </span><span class="hs-comment">-- specialised (++); originally came about to</span><span>
+</span><span id="line-295"></span><span>                </span><span class="hs-comment">-- avoid quadratic behaviour (trac #2680)</span><span>
+</span><span id="line-296"></span><span>                </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">forall a.
+(a -&gt; a -&gt; a) -&gt; ModuleEnv a -&gt; Module -&gt; a -&gt; ModuleEnv a
+</span><a href="GHC.Unit.Module.Env.html#extendModuleEnvWith"><span class="hs-identifier hs-var">extendModuleEnvWith</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="annot"><span class="annottext">[OccName]
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681209453"><span class="annot"><span class="annottext">[OccName]
+</span><a href="#local-6989586621681209453"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">OccName
+</span><a href="#local-6989586621681209452"><span class="hs-identifier hs-var">occ</span></a></span><span class="annot"><span class="annottext">forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span class="annot"><span class="annottext">[OccName]
+</span><a href="#local-6989586621681209453"><span class="hs-identifier hs-var">xs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ModuleEnv [OccName]
+</span><a href="#local-6989586621681209466"><span class="hs-identifier hs-var">mv_map</span></a></span><span> </span><span class="annot"><span class="annottext">Module
+</span><a href="#local-6989586621681209457"><span class="hs-identifier hs-var">mod'</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">OccName
+</span><a href="#local-6989586621681209452"><span class="hs-identifier hs-var">occ</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-297"></span><span>            </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621681209452"><span class="annot"><span class="annottext">occ :: OccName
+</span><a href="#local-6989586621681209452"><span class="hs-identifier hs-var hs-var">occ</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Name -&gt; OccName
+</span><a href="GHC.Types.Name.html#nameOccName"><span class="hs-identifier hs-var">nameOccName</span></a></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621681209467"><span class="hs-identifier hs-var">name</span></a></span><span>
+</span><span id="line-298"></span><span>
+</span><span id="line-299"></span><span>    </span><span class="hs-comment">-- We want to create a Usage for a home module if</span><span>
+</span><span id="line-300"></span><span>    </span><span class="hs-comment">--  a) we used something from it; has something in used_names</span><span>
+</span><span id="line-301"></span><span>    </span><span class="hs-comment">--  b) we imported it, even if we used nothing from it</span><span>
+</span><span id="line-302"></span><span>    </span><span class="hs-comment">--     (need to recompile if its export list changes: export_fprint)</span><span>
+</span><span id="line-303"></span><span>    </span><span class="annot"><a href="#local-6989586621681209483"><span class="hs-identifier hs-type">mkUsage</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Unit.Types.html#Module"><span class="hs-identifier hs-type">Module</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Maybe"><span class="hs-identifier hs-type">Maybe</span></a></span><span> </span><span class="annot"><a href="GHC.Unit.Module.Deps.html#Usage"><span class="hs-identifier hs-type">Usage</span></a></span><span>
+</span><span id="line-304"></span><span>    </span><span id="local-6989586621681209483"><span class="annot"><span class="annottext">mkUsage :: Module -&gt; Maybe Usage
+</span><a href="#local-6989586621681209483"><span class="hs-identifier hs-var hs-var">mkUsage</span></a></span></span><span> </span><span id="local-6989586621681209450"><span class="annot"><span class="annottext">Module
+</span><a href="#local-6989586621681209450"><span class="hs-identifier hs-var">mod</span></a></span></span><span>
+</span><span id="line-305"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a -&gt; Bool
+</span><a href="../../base-4.16.4.0/src/Data-Maybe.html#isNothing"><span class="hs-identifier hs-var">isNothing</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe ModIface
+</span><a href="#local-6989586621681209448"><span class="hs-identifier hs-var">maybe_iface</span></a></span><span>           </span><span class="hs-comment">-- We can't depend on it if we didn't</span><span>
+</span><span id="line-306"></span><span>                                        </span><span class="hs-comment">-- load its interface.</span><span>
+</span><span id="line-307"></span><span>      </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">Module
+</span><a href="#local-6989586621681209450"><span class="hs-identifier hs-var">mod</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Module
+</span><a href="#local-6989586621681209487"><span class="hs-identifier hs-var">this_mod</span></a></span><span>                </span><span class="hs-comment">-- We don't care about usages of</span><span>
+</span><span id="line-308"></span><span>                                        </span><span class="hs-comment">-- things in *this* module</span><span>
+</span><span id="line-309"></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Nothing"><span class="hs-identifier hs-var">Nothing</span></a></span><span>
+</span><span id="line-310"></span><span>
+</span><span id="line-311"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">HomeUnit -&gt; Module -&gt; Bool
+</span><a href="GHC.Unit.Home.html#isHomeModule"><span class="hs-identifier hs-var">isHomeModule</span></a></span><span> </span><span class="annot"><span class="annottext">HomeUnit
+</span><a href="#local-6989586621681209478"><span class="hs-identifier hs-var">home_unit</span></a></span><span> </span><span class="annot"><span class="annottext">Module
+</span><a href="#local-6989586621681209450"><span class="hs-identifier hs-var">mod</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-312"></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Just"><span class="hs-identifier hs-var">Just</span></a></span><span> </span><span class="annot"><a href="GHC.Unit.Module.Deps.html#UsagePackageModule"><span class="hs-identifier hs-type">UsagePackageModule</span></a></span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">usg_mod :: Module
+</span><a href="GHC.Unit.Module.Deps.html#usg_mod"><span class="hs-identifier hs-var">usg_mod</span></a></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Module
+</span><a href="#local-6989586621681209450"><span class="hs-identifier hs-var">mod</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-313"></span><span>                                 </span><span class="annot"><span class="annottext">usg_mod_hash :: Fingerprint
+</span><a href="GHC.Unit.Module.Deps.html#usg_mod_hash"><span class="hs-identifier hs-var">usg_mod_hash</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Fingerprint
+</span><a href="#local-6989586621681209444"><span class="hs-identifier hs-var">mod_hash</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-314"></span><span>                                 </span><span class="annot"><span class="annottext">usg_safe :: Bool
+</span><a href="GHC.Unit.Module.Deps.html#usg_safe"><span class="hs-identifier hs-var">usg_safe</span></a></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681209442"><span class="hs-identifier hs-var">imp_safe</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-315"></span><span>        </span><span class="hs-comment">-- for package modules, we record the module hash only</span><span>
+</span><span id="line-316"></span><span>
+</span><span id="line-317"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Bool
+</span><a href="../../base-4.16.4.0/src/Data-Foldable.html#null"><span class="hs-identifier hs-var">null</span></a></span><span> </span><span class="annot"><span class="annottext">[OccName]
+</span><a href="#local-6989586621681209440"><span class="hs-identifier hs-var">used_occs</span></a></span><span>
+</span><span id="line-318"></span><span>          </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a -&gt; Bool
+</span><a href="../../base-4.16.4.0/src/Data-Maybe.html#isNothing"><span class="hs-identifier hs-var">isNothing</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Fingerprint
+</span><a href="#local-6989586621681209439"><span class="hs-identifier hs-var">export_hash</span></a></span><span>
+</span><span id="line-319"></span><span>          </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681209438"><span class="hs-identifier hs-var">is_direct_import</span></a></span><span>
+</span><span id="line-320"></span><span>          </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681209437"><span class="hs-identifier hs-var">finsts_mod</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-321"></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Nothing"><span class="hs-identifier hs-var">Nothing</span></a></span><span>                 </span><span class="hs-comment">-- Record no usage info</span><span>
+</span><span id="line-322"></span><span>        </span><span class="hs-comment">-- for directly-imported modules, we always want to record a usage</span><span>
+</span><span id="line-323"></span><span>        </span><span class="hs-comment">-- on the orphan hash.  This is what triggers a recompilation if</span><span>
+</span><span id="line-324"></span><span>        </span><span class="hs-comment">-- an orphan is added or removed somewhere below us in the future.</span><span>
+</span><span id="line-325"></span><span>
+</span><span id="line-326"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#otherwise"><span class="hs-identifier hs-var">otherwise</span></a></span><span>
+</span><span id="line-327"></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Just"><span class="hs-identifier hs-var">Just</span></a></span><span> </span><span class="annot"><a href="GHC.Unit.Module.Deps.html#UsageHomeModule"><span class="hs-identifier hs-type">UsageHomeModule</span></a></span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-328"></span><span>                      </span><span class="annot"><span class="annottext">usg_mod_name :: ModuleName
+</span><a href="GHC.Unit.Module.Deps.html#usg_mod_name"><span class="hs-identifier hs-var">usg_mod_name</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall unit. GenModule unit -&gt; ModuleName
+</span><a href="GHC.Unit.Types.html#moduleName"><span class="hs-identifier hs-var">moduleName</span></a></span><span> </span><span class="annot"><span class="annottext">Module
+</span><a href="#local-6989586621681209450"><span class="hs-identifier hs-var">mod</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-329"></span><span>                      </span><span class="annot"><span class="annottext">usg_mod_hash :: Fingerprint
+</span><a href="GHC.Unit.Module.Deps.html#usg_mod_hash"><span class="hs-identifier hs-var">usg_mod_hash</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Fingerprint
+</span><a href="#local-6989586621681209444"><span class="hs-identifier hs-var">mod_hash</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-330"></span><span>                      </span><span class="annot"><span class="annottext">usg_exports :: Maybe Fingerprint
+</span><a href="GHC.Unit.Module.Deps.html#usg_exports"><span class="hs-identifier hs-var">usg_exports</span></a></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe Fingerprint
+</span><a href="#local-6989586621681209439"><span class="hs-identifier hs-var">export_hash</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-331"></span><span>                      </span><span class="annot"><span class="annottext">usg_entities :: [(OccName, Fingerprint)]
+</span><a href="GHC.Unit.Module.Deps.html#usg_entities"><span class="hs-identifier hs-var">usg_entities</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall k a. Map k a -&gt; [(k, a)]
+</span><a href="../../containers-0.6.5.1/src/Data-Map-Internal.html#toList"><span class="hs-identifier hs-var">Map.toList</span></a></span><span> </span><span class="annot"><span class="annottext">Map OccName Fingerprint
+</span><a href="#local-6989586621681209431"><span class="hs-identifier hs-var">ent_hashs</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-332"></span><span>                      </span><span class="annot"><span class="annottext">usg_safe :: Bool
+</span><a href="GHC.Unit.Module.Deps.html#usg_safe"><span class="hs-identifier hs-var">usg_safe</span></a></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681209442"><span class="hs-identifier hs-var">imp_safe</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-333"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-334"></span><span>        </span><span id="local-6989586621681209448"><span class="annot"><span class="annottext">maybe_iface :: Maybe ModIface
+</span><a href="#local-6989586621681209448"><span class="hs-identifier hs-var hs-var">maybe_iface</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HomePackageTable -&gt; PackageIfaceTable -&gt; Module -&gt; Maybe ModIface
+</span><a href="GHC.Driver.Env.html#lookupIfaceByModule"><span class="hs-identifier hs-var">lookupIfaceByModule</span></a></span><span> </span><span class="annot"><span class="annottext">HomePackageTable
+</span><a href="#local-6989586621681209481"><span class="hs-identifier hs-var">hpt</span></a></span><span> </span><span class="annot"><span class="annottext">PackageIfaceTable
+</span><a href="#local-6989586621681209489"><span class="hs-identifier hs-var">pit</span></a></span><span> </span><span class="annot"><span class="annottext">Module
+</span><a href="#local-6989586621681209450"><span class="hs-identifier hs-var">mod</span></a></span><span>
+</span><span id="line-335"></span><span>                </span><span class="hs-comment">-- In one-shot mode, the interfaces for home-package</span><span>
+</span><span id="line-336"></span><span>                </span><span class="hs-comment">-- modules accumulate in the PIT not HPT.  Sigh.</span><span>
+</span><span id="line-337"></span><span>
+</span><span id="line-338"></span><span>        </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Just"><span class="hs-identifier hs-type">Just</span></a></span><span> </span><span id="local-6989586621681209429"><span class="annot"><span class="annottext">ModIface
+</span><a href="#local-6989586621681209429"><span class="hs-identifier hs-var">iface</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe ModIface
+</span><a href="#local-6989586621681209448"><span class="hs-identifier hs-var">maybe_iface</span></a></span><span>
+</span><span id="line-339"></span><span>        </span><span id="local-6989586621681209437"><span class="annot"><span class="annottext">finsts_mod :: Bool
+</span><a href="#local-6989586621681209437"><span class="hs-identifier hs-var hs-var">finsts_mod</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ModIfaceBackend -&gt; Bool
+</span><a href="GHC.Unit.Module.ModIface.html#mi_finsts"><span class="hs-identifier hs-var">mi_finsts</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (phase :: ModIfacePhase).
+ModIface_ phase -&gt; IfaceBackendExts phase
+</span><a href="GHC.Unit.Module.ModIface.html#mi_final_exts"><span class="hs-identifier hs-var">mi_final_exts</span></a></span><span> </span><span class="annot"><span class="annottext">ModIface
+</span><a href="#local-6989586621681209429"><span class="hs-identifier hs-var">iface</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-340"></span><span>        </span><span id="local-6989586621681209426"><span class="annot"><span class="annottext">hash_env :: OccName -&gt; Maybe (OccName, Fingerprint)
+</span><a href="#local-6989586621681209426"><span class="hs-identifier hs-var hs-var">hash_env</span></a></span></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ModIfaceBackend -&gt; OccName -&gt; Maybe (OccName, Fingerprint)
+</span><a href="GHC.Unit.Module.ModIface.html#mi_hash_fn"><span class="hs-identifier hs-var">mi_hash_fn</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (phase :: ModIfacePhase).
+ModIface_ phase -&gt; IfaceBackendExts phase
+</span><a href="GHC.Unit.Module.ModIface.html#mi_final_exts"><span class="hs-identifier hs-var">mi_final_exts</span></a></span><span> </span><span class="annot"><span class="annottext">ModIface
+</span><a href="#local-6989586621681209429"><span class="hs-identifier hs-var">iface</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-341"></span><span>        </span><span id="local-6989586621681209444"><span class="annot"><span class="annottext">mod_hash :: Fingerprint
+</span><a href="#local-6989586621681209444"><span class="hs-identifier hs-var hs-var">mod_hash</span></a></span></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ModIfaceBackend -&gt; Fingerprint
+</span><a href="GHC.Unit.Module.ModIface.html#mi_mod_hash"><span class="hs-identifier hs-var">mi_mod_hash</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (phase :: ModIfacePhase).
+ModIface_ phase -&gt; IfaceBackendExts phase
+</span><a href="GHC.Unit.Module.ModIface.html#mi_final_exts"><span class="hs-identifier hs-var">mi_final_exts</span></a></span><span> </span><span class="annot"><span class="annottext">ModIface
+</span><a href="#local-6989586621681209429"><span class="hs-identifier hs-var">iface</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-342"></span><span>        </span><span id="local-6989586621681209439"><span class="annot"><span class="annottext">export_hash :: Maybe Fingerprint
+</span><a href="#local-6989586621681209439"><span class="hs-identifier hs-var hs-var">export_hash</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681209423"><span class="hs-identifier hs-var">depend_on_exports</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Just"><span class="hs-identifier hs-var">Just</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ModIfaceBackend -&gt; Fingerprint
+</span><a href="GHC.Unit.Module.ModIface.html#mi_exp_hash"><span class="hs-identifier hs-var">mi_exp_hash</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (phase :: ModIfacePhase).
+ModIface_ phase -&gt; IfaceBackendExts phase
+</span><a href="GHC.Unit.Module.ModIface.html#mi_final_exts"><span class="hs-identifier hs-var">mi_final_exts</span></a></span><span> </span><span class="annot"><span class="annottext">ModIface
+</span><a href="#local-6989586621681209429"><span class="hs-identifier hs-var">iface</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-343"></span><span>                    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#otherwise"><span class="hs-identifier hs-var">otherwise</span></a></span><span>         </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Nothing"><span class="hs-identifier hs-var">Nothing</span></a></span><span>
+</span><span id="line-344"></span><span>
+</span><span id="line-345"></span><span>        </span><span id="local-6989586621681209421"><span class="annot"><span class="annottext">by_is_safe :: ImportedBy -&gt; Bool
+</span><a href="#local-6989586621681209421"><span class="hs-identifier hs-var hs-var">by_is_safe</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Unit.Module.Imported.html#ImportedByUser"><span class="hs-identifier hs-type">ImportedByUser</span></a></span><span> </span><span id="local-6989586621681209419"><span class="annot"><span class="annottext">ImportedModsVal
+</span><a href="#local-6989586621681209419"><span class="hs-identifier hs-var">imv</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ImportedModsVal -&gt; Bool
+</span><a href="GHC.Unit.Module.Imported.html#imv_is_safe"><span class="hs-identifier hs-var">imv_is_safe</span></a></span><span> </span><span class="annot"><span class="annottext">ImportedModsVal
+</span><a href="#local-6989586621681209419"><span class="hs-identifier hs-var">imv</span></a></span><span>
+</span><span id="line-346"></span><span>        </span><span class="annot"><a href="#local-6989586621681209421"><span class="hs-identifier hs-var">by_is_safe</span></a></span><span> </span><span class="annot"><span class="annottext">ImportedBy
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-347"></span><span>        </span><span class="hs-special">(</span><span id="local-6989586621681209438"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681209438"><span class="hs-identifier hs-var">is_direct_import</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681209442"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681209442"><span class="hs-identifier hs-var">imp_safe</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-348"></span><span>            </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">forall a. ModuleEnv a -&gt; Module -&gt; Maybe a
+</span><a href="GHC.Unit.Module.Env.html#lookupModuleEnv"><span class="hs-identifier hs-var">lookupModuleEnv</span></a></span><span> </span><span class="annot"><span class="annottext">ImportedMods
+</span><a href="#local-6989586621681209486"><span class="hs-identifier hs-var">direct_imports</span></a></span><span> </span><span class="annot"><span class="annottext">Module
+</span><a href="#local-6989586621681209450"><span class="hs-identifier hs-var">mod</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-349"></span><span>                </span><span class="hs-comment">-- ezyang: I'm not sure if any is the correct</span><span>
+</span><span id="line-350"></span><span>                </span><span class="hs-comment">-- metric here. If safety was guaranteed to be uniform</span><span>
+</span><span id="line-351"></span><span>                </span><span class="hs-comment">-- across all imports, why did the old code only look</span><span>
+</span><span id="line-352"></span><span>                </span><span class="hs-comment">-- at the first import?</span><span>
+</span><span id="line-353"></span><span>                </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Just"><span class="hs-identifier hs-type">Just</span></a></span><span> </span><span id="local-6989586621681209416"><span class="annot"><span class="annottext">[ImportedBy]
+</span><a href="#local-6989586621681209416"><span class="hs-identifier hs-var">bys</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; (a -&gt; Bool) -&gt; t a -&gt; Bool
+</span><a href="../../base-4.16.4.0/src/Data-Foldable.html#any"><span class="hs-identifier hs-var">any</span></a></span><span> </span><span class="annot"><span class="annottext">ImportedBy -&gt; Bool
+</span><a href="#local-6989586621681209421"><span class="hs-identifier hs-var">by_is_safe</span></a></span><span> </span><span class="annot"><span class="annottext">[ImportedBy]
+</span><a href="#local-6989586621681209416"><span class="hs-identifier hs-var">bys</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-354"></span><span>                </span><span class="annot"><span class="annottext">Maybe [ImportedBy]
+</span><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Nothing"><span class="hs-identifier hs-var">Nothing</span></a></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">DynFlags -&gt; Bool
+</span><a href="GHC.Driver.Session.html#safeImplicitImpsReq"><span class="hs-identifier hs-var">safeImplicitImpsReq</span></a></span><span> </span><span class="annot"><span class="annottext">DynFlags
+</span><a href="#local-6989586621681209479"><span class="hs-identifier hs-var">dflags</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-355"></span><span>                </span><span class="hs-comment">-- Nothing case is for references to entities which were</span><span>
+</span><span id="line-356"></span><span>                </span><span class="hs-comment">-- not directly imported (NB: the &quot;implicit&quot; Prelude import</span><span>
+</span><span id="line-357"></span><span>                </span><span class="hs-comment">-- counts as directly imported!  An entity is not directly</span><span>
+</span><span id="line-358"></span><span>                </span><span class="hs-comment">-- imported if, e.g., we got a reference to it from a</span><span>
+</span><span id="line-359"></span><span>                </span><span class="hs-comment">-- reexport of another module.)</span><span>
+</span><span id="line-360"></span><span>
+</span><span id="line-361"></span><span>        </span><span id="local-6989586621681209440"><span class="annot"><span class="annottext">used_occs :: [OccName]
+</span><a href="#local-6989586621681209440"><span class="hs-identifier hs-var hs-var">used_occs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. ModuleEnv a -&gt; Module -&gt; Maybe a
+</span><a href="GHC.Unit.Module.Env.html#lookupModuleEnv"><span class="hs-identifier hs-var">lookupModuleEnv</span></a></span><span> </span><span class="annot"><span class="annottext">ModuleEnv [OccName]
+</span><a href="#local-6989586621681209474"><span class="hs-identifier hs-var">ent_map</span></a></span><span> </span><span class="annot"><span class="annottext">Module
+</span><a href="#local-6989586621681209450"><span class="hs-identifier hs-var">mod</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a -&gt; a -&gt; a
+</span><a href="GHC.Data.Maybe.html#orElse"><span class="hs-operator hs-var">`orElse`</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-362"></span><span>
+</span><span id="line-363"></span><span>        </span><span class="hs-comment">-- Making a Map here ensures that (a) we remove duplicates</span><span>
+</span><span id="line-364"></span><span>        </span><span class="hs-comment">-- when we have usages on several subordinates of a single parent,</span><span>
+</span><span id="line-365"></span><span>        </span><span class="hs-comment">-- and (b) that the usages emerge in a canonical order, which</span><span>
+</span><span id="line-366"></span><span>        </span><span class="hs-comment">-- is why we use Map rather than OccEnv: Map works</span><span>
+</span><span id="line-367"></span><span>        </span><span class="hs-comment">-- using Ord on the OccNames, which is a lexicographic ordering.</span><span>
+</span><span id="line-368"></span><span>        </span><span class="annot"><a href="#local-6989586621681209431"><span class="hs-identifier hs-type">ent_hashs</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../containers-0.6.5.1/src/Data-Map-Internal.html#Map"><span class="hs-identifier hs-type">Map</span></a></span><span> </span><span class="annot"><a href="GHC.Types.Name.Occurrence.html#OccName"><span class="hs-identifier hs-type">OccName</span></a></span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Fingerprint-Type.html#Fingerprint"><span class="hs-identifier hs-type">Fingerprint</span></a></span><span>
+</span><span id="line-369"></span><span>        </span><span id="local-6989586621681209431"><span class="annot"><span class="annottext">ent_hashs :: Map OccName Fingerprint
+</span><a href="#local-6989586621681209431"><span class="hs-identifier hs-var hs-var">ent_hashs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall k a. Ord k =&gt; [(k, a)] -&gt; Map k a
+</span><a href="../../containers-0.6.5.1/src/Data-Map-Internal.html#fromList"><span class="hs-identifier hs-var">Map.fromList</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#map"><span class="hs-identifier hs-var">map</span></a></span><span> </span><span class="annot"><span class="annottext">OccName -&gt; (OccName, Fingerprint)
+</span><a href="#local-6989586621681209411"><span class="hs-identifier hs-var">lookup_occ</span></a></span><span> </span><span class="annot"><span class="annottext">[OccName]
+</span><a href="#local-6989586621681209440"><span class="hs-identifier hs-var">used_occs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-370"></span><span>
+</span><span id="line-371"></span><span>        </span><span id="local-6989586621681209411"><span class="annot"><span class="annottext">lookup_occ :: OccName -&gt; (OccName, Fingerprint)
+</span><a href="#local-6989586621681209411"><span class="hs-identifier hs-var hs-var">lookup_occ</span></a></span></span><span> </span><span id="local-6989586621681209410"><span class="annot"><span class="annottext">OccName
+</span><a href="#local-6989586621681209410"><span class="hs-identifier hs-var">occ</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-372"></span><span>            </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">OccName -&gt; Maybe (OccName, Fingerprint)
+</span><a href="#local-6989586621681209426"><span class="hs-identifier hs-var">hash_env</span></a></span><span> </span><span class="annot"><span class="annottext">OccName
+</span><a href="#local-6989586621681209410"><span class="hs-identifier hs-var">occ</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-373"></span><span>                </span><span class="annot"><span class="annottext">Maybe (OccName, Fingerprint)
+</span><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Nothing"><span class="hs-identifier hs-var">Nothing</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. HasCallStack =&gt; FilePath -&gt; SDoc -&gt; a
+</span><a href="GHC.Utils.Panic.html#pprPanic"><span class="hs-identifier hs-var">pprPanic</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;mkUsage&quot;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">Module
+</span><a href="#local-6989586621681209450"><span class="hs-identifier hs-var">mod</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">OccName
+</span><a href="#local-6989586621681209410"><span class="hs-identifier hs-var">occ</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">NameSet
+</span><a href="#local-6989586621681209485"><span class="hs-identifier hs-var">used_names</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-374"></span><span>                </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Just"><span class="hs-identifier hs-type">Just</span></a></span><span> </span><span id="local-6989586621681209409"><span class="annot"><span class="annottext">(OccName, Fingerprint)
+</span><a href="#local-6989586621681209409"><span class="hs-identifier hs-var">r</span></a></span></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(OccName, Fingerprint)
+</span><a href="#local-6989586621681209409"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-375"></span><span>
+</span><span id="line-376"></span><span>        </span><span id="local-6989586621681209423"><span class="annot"><span class="annottext">depend_on_exports :: Bool
+</span><a href="#local-6989586621681209423"><span class="hs-identifier hs-var hs-var">depend_on_exports</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681209438"><span class="hs-identifier hs-var">is_direct_import</span></a></span><span>
+</span><span id="line-377"></span><span>        </span><span class="hs-comment">{- True
+              Even if we used 'import M ()', we have to register a
+              usage on the export list because we are sensitive to
+              changes in orphan instances/rules.
+           False
+              In GHC 6.8.x we always returned true, and in
+              fact it recorded a dependency on *all* the
+              modules underneath in the dependency tree.  This
+              happens to make orphans work right, but is too
+              expensive: it'll read too many interface files.
+              The 'isNothing maybe_iface' check above saved us
+              from generating many of these usages (at least in
+              one-shot mode), but that's even more bogus!
+        -}</span><span>
+</span><span id="line-391"></span><span>
+</span><span id="line-392"></span><span class="hs-comment">{-
+Note [Internal used_names]
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+Most of the used_names are External Names, but we can have System
+Names too. Two examples:
+
+* Names arising from Language.Haskell.TH.newName.
+  See Note [Binders in Template Haskell] in GHC.ThToHs (and #5362).
+* The names of auxiliary bindings in derived instances.
+  See Note [Auxiliary binders] in GHC.Tc.Deriv.Generate.
+
+Such Names are always for locally-defined things, for which we don't gather
+usage info, so we can just ignore them in ent_map. Moreover, they are always
+System Names, hence the assert, just as a double check.
+-}</span><span>
+</span><span id="line-407"></span></pre></body></html>

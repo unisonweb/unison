@@ -1,0 +1,639 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- |</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- Module      : Crypto.Store.KeyWrap.AES</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- License     : BSD-style</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- Maintainer  : Olivier Ch&#233;ron &lt;olivier.cheron@gmail.com&gt;</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Stability   : experimental</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- Portability : unknown</span><span>
+</span><span id="line-7"></span><span class="hs-comment">--</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- AES Key Wrap (&lt;https://tools.ietf.org/html/rfc3394 RFC 3394&gt;) and Extended</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- Key Wrap (&lt;https://tools.ietf.org/html/rfc5649 RFC 5649&gt;)</span><span>
+</span><span id="line-10"></span><span class="hs-comment">--</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- Should be used with a cipher from module &quot;Crypto.Cipher.AES&quot;.</span><span>
+</span><span id="line-12"></span><span class="hs-pragma">{-# LANGUAGE BangPatterns #-}</span><span>
+</span><span id="line-13"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Crypto.Store.KeyWrap.AES</span><span>
+</span><span id="line-14"></span><span>    </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Crypto.Store.KeyWrap.AES.html#wrap"><span class="hs-identifier">wrap</span></a></span><span>
+</span><span id="line-15"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.KeyWrap.AES.html#unwrap"><span class="hs-identifier">unwrap</span></a></span><span>
+</span><span id="line-16"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.KeyWrap.AES.html#wrapPad"><span class="hs-identifier">wrapPad</span></a></span><span>
+</span><span id="line-17"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.KeyWrap.AES.html#unwrapPad"><span class="hs-identifier">unwrapPad</span></a></span><span>
+</span><span id="line-18"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Bits</span></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.ByteArray</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ByteArray</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">ByteArrayAccess</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Bytes</span></span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteArray</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">B</span></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.List</span></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Word</span></span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Crypto.Cipher.Types</span></span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Foreign.Storable</span></span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Crypto.Store.Error.html"><span class="hs-identifier">Crypto.Store.Error</span></a></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Crypto.Store.Util.html"><span class="hs-identifier">Crypto.Store.Util</span></a></span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span class="hs-keyword">type</span><span> </span><span id="Chunked"><span class="annot"><a href="Crypto.Store.KeyWrap.AES.html#Chunked"><span class="hs-identifier hs-var">Chunked</span></a></span></span><span> </span><span id="local-6989586621679132772"><span class="annot"><a href="#local-6989586621679132772"><span class="hs-identifier hs-type">ba</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679132772"><span class="hs-identifier hs-type">ba</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-34"></span><span class="hs-keyword">type</span><span> </span><span id="Pair"><span class="annot"><a href="Crypto.Store.KeyWrap.AES.html#Pair"><span class="hs-identifier hs-var">Pair</span></a></span></span><span> </span><span id="local-6989586621679132771"><span class="annot"><a href="#local-6989586621679132771"><span class="hs-identifier hs-type">ba</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679132771"><span class="hs-identifier hs-type">ba</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679132771"><span class="hs-identifier hs-type">ba</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- TODO: should use a low-level AES implementation to reduce allocations</span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span id="local-6989586621679132914"><span id="local-6989586621679132916"><span class="annot"><a href="Crypto.Store.KeyWrap.AES.html#aes%27"><span class="hs-identifier hs-type">aes'</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">BlockCipher</span></span><span> </span><span class="annot"><a href="#local-6989586621679132916"><span class="hs-identifier hs-type">aes</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteArray</span></span><span> </span><span class="annot"><a href="#local-6989586621679132914"><span class="hs-identifier hs-type">ba</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679132916"><span class="hs-identifier hs-type">aes</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.KeyWrap.AES.html#Pair"><span class="hs-identifier hs-type">Pair</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679132914"><span class="hs-identifier hs-type">ba</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679132914"><span class="hs-identifier hs-type">ba</span></a></span></span></span><span>
+</span><span id="line-39"></span><span id="aes%27"><span class="annot"><span class="annottext">aes' :: forall aes ba.
+(BlockCipher aes, ByteArray ba) =&gt;
+aes -&gt; Pair ba -&gt; ba
+</span><a href="Crypto.Store.KeyWrap.AES.html#aes%27"><span class="hs-identifier hs-var hs-var">aes'</span></a></span></span><span> </span><span id="local-6989586621679132764"><span class="annot"><span class="annottext">aes
+</span><a href="#local-6989586621679132764"><span class="hs-identifier hs-var">cipher</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679132763"><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679132763"><span class="hs-identifier hs-var">msb</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679132762"><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679132762"><span class="hs-identifier hs-var">lsb</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall cipher ba.
+(BlockCipher cipher, ByteArray ba) =&gt;
+cipher -&gt; ba -&gt; ba
+</span><span class="hs-identifier hs-var">ecbEncrypt</span></span><span> </span><span class="annot"><span class="annottext">aes
+</span><a href="#local-6989586621679132764"><span class="hs-identifier hs-var">cipher</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall bs. ByteArray bs =&gt; bs -&gt; bs -&gt; bs
+</span><span class="hs-identifier hs-var">B.append</span></span><span> </span><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679132763"><span class="hs-identifier hs-var">msb</span></a></span><span> </span><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679132762"><span class="hs-identifier hs-var">lsb</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span id="local-6989586621679132906"><span id="local-6989586621679132907"><span class="annot"><a href="Crypto.Store.KeyWrap.AES.html#aes"><span class="hs-identifier hs-type">aes</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">BlockCipher</span></span><span> </span><span class="annot"><a href="#local-6989586621679132907"><span class="hs-identifier hs-type">aes</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteArray</span></span><span> </span><span class="annot"><a href="#local-6989586621679132906"><span class="hs-identifier hs-type">ba</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679132907"><span class="hs-identifier hs-type">aes</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.KeyWrap.AES.html#Pair"><span class="hs-identifier hs-type">Pair</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679132906"><span class="hs-identifier hs-type">ba</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.KeyWrap.AES.html#Pair"><span class="hs-identifier hs-type">Pair</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679132906"><span class="hs-identifier hs-type">ba</span></a></span></span></span><span>
+</span><span id="line-42"></span><span id="aes"><span class="annot"><span class="annottext">aes :: forall aes ba.
+(BlockCipher aes, ByteArray ba) =&gt;
+aes -&gt; Pair ba -&gt; Pair ba
+</span><a href="Crypto.Store.KeyWrap.AES.html#aes"><span class="hs-identifier hs-var hs-var">aes</span></a></span></span><span> </span><span id="local-6989586621679132753"><span class="annot"><span class="annottext">aes
+</span><a href="#local-6989586621679132753"><span class="hs-identifier hs-var">cipher</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall bs. ByteArray bs =&gt; Int -&gt; bs -&gt; (bs, bs)
+</span><span class="hs-identifier hs-var">B.splitAt</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall aes ba.
+(BlockCipher aes, ByteArray ba) =&gt;
+aes -&gt; Pair ba -&gt; ba
+</span><a href="Crypto.Store.KeyWrap.AES.html#aes%27"><span class="hs-identifier hs-var">aes'</span></a></span><span> </span><span class="annot"><span class="annottext">aes
+</span><a href="#local-6989586621679132753"><span class="hs-identifier hs-var">cipher</span></a></span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span id="local-6989586621679132898"><span id="local-6989586621679132899"><span class="annot"><a href="Crypto.Store.KeyWrap.AES.html#aesrev%27"><span class="hs-identifier hs-type">aesrev'</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">BlockCipher</span></span><span> </span><span class="annot"><a href="#local-6989586621679132899"><span class="hs-identifier hs-type">aes</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteArray</span></span><span> </span><span class="annot"><a href="#local-6989586621679132898"><span class="hs-identifier hs-type">ba</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679132899"><span class="hs-identifier hs-type">aes</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679132898"><span class="hs-identifier hs-type">ba</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.KeyWrap.AES.html#Pair"><span class="hs-identifier hs-type">Pair</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679132898"><span class="hs-identifier hs-type">ba</span></a></span></span></span><span>
+</span><span id="line-45"></span><span id="aesrev%27"><span class="annot"><span class="annottext">aesrev' :: forall aes ba.
+(BlockCipher aes, ByteArray ba) =&gt;
+aes -&gt; ba -&gt; Pair ba
+</span><a href="Crypto.Store.KeyWrap.AES.html#aesrev%27"><span class="hs-identifier hs-var hs-var">aesrev'</span></a></span></span><span> </span><span id="local-6989586621679132744"><span class="annot"><span class="annottext">aes
+</span><a href="#local-6989586621679132744"><span class="hs-identifier hs-var">cipher</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall bs. ByteArray bs =&gt; Int -&gt; bs -&gt; (bs, bs)
+</span><span class="hs-identifier hs-var">B.splitAt</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall cipher ba.
+(BlockCipher cipher, ByteArray ba) =&gt;
+cipher -&gt; ba -&gt; ba
+</span><span class="hs-identifier hs-var">ecbDecrypt</span></span><span> </span><span class="annot"><span class="annottext">aes
+</span><a href="#local-6989586621679132744"><span class="hs-identifier hs-var">cipher</span></a></span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span id="local-6989586621679132741"><span id="local-6989586621679132742"><span class="annot"><a href="Crypto.Store.KeyWrap.AES.html#aesrev"><span class="hs-identifier hs-type">aesrev</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">BlockCipher</span></span><span> </span><span class="annot"><a href="#local-6989586621679132742"><span class="hs-identifier hs-type">aes</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteArray</span></span><span> </span><span class="annot"><a href="#local-6989586621679132741"><span class="hs-identifier hs-type">ba</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679132742"><span class="hs-identifier hs-type">aes</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.KeyWrap.AES.html#Pair"><span class="hs-identifier hs-type">Pair</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679132741"><span class="hs-identifier hs-type">ba</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.KeyWrap.AES.html#Pair"><span class="hs-identifier hs-type">Pair</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679132741"><span class="hs-identifier hs-type">ba</span></a></span></span></span><span>
+</span><span id="line-48"></span><span id="aesrev"><span class="annot"><span class="annottext">aesrev :: forall aes ba.
+(BlockCipher aes, ByteArray ba) =&gt;
+aes -&gt; Pair ba -&gt; Pair ba
+</span><a href="Crypto.Store.KeyWrap.AES.html#aesrev"><span class="hs-identifier hs-var hs-var">aesrev</span></a></span></span><span> </span><span id="local-6989586621679132734"><span class="annot"><span class="annottext">aes
+</span><a href="#local-6989586621679132734"><span class="hs-identifier hs-var">cipher</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679132733"><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679132733"><span class="hs-identifier hs-var">msb</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679132732"><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679132732"><span class="hs-identifier hs-var">lsb</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall aes ba.
+(BlockCipher aes, ByteArray ba) =&gt;
+aes -&gt; ba -&gt; Pair ba
+</span><a href="Crypto.Store.KeyWrap.AES.html#aesrev%27"><span class="hs-identifier hs-var">aesrev'</span></a></span><span> </span><span class="annot"><span class="annottext">aes
+</span><a href="#local-6989586621679132734"><span class="hs-identifier hs-var">cipher</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall bs. ByteArray bs =&gt; bs -&gt; bs -&gt; bs
+</span><span class="hs-identifier hs-var">B.append</span></span><span> </span><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679132733"><span class="hs-identifier hs-var">msb</span></a></span><span> </span><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679132732"><span class="hs-identifier hs-var">lsb</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span id="local-6989586621679132892"><span id="local-6989586621679132893"><span class="annot"><a href="Crypto.Store.KeyWrap.AES.html#wrapc"><span class="hs-identifier hs-type">wrapc</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">BlockCipher</span></span><span> </span><span class="annot"><a href="#local-6989586621679132893"><span class="hs-identifier hs-type">aes</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteArray</span></span><span> </span><span class="annot"><a href="#local-6989586621679132892"><span class="hs-identifier hs-type">ba</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-51"></span><span>      </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679132893"><span class="hs-identifier hs-type">aes</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679132892"><span class="hs-identifier hs-type">ba</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.KeyWrap.AES.html#Chunked"><span class="hs-identifier hs-type">Chunked</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679132892"><span class="hs-identifier hs-type">ba</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.KeyWrap.AES.html#Chunked"><span class="hs-identifier hs-type">Chunked</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679132892"><span class="hs-identifier hs-type">ba</span></a></span></span></span><span>
+</span><span id="line-52"></span><span id="wrapc"><span class="annot"><span class="annottext">wrapc :: forall aes ba.
+(BlockCipher aes, ByteArray ba) =&gt;
+aes -&gt; ba -&gt; Chunked ba -&gt; Chunked ba
+</span><a href="Crypto.Store.KeyWrap.AES.html#wrapc"><span class="hs-identifier hs-var hs-var">wrapc</span></a></span></span><span> </span><span id="local-6989586621679132720"><span class="annot"><span class="annottext">aes
+</span><a href="#local-6989586621679132720"><span class="hs-identifier hs-var">cipher</span></a></span></span><span> </span><span id="local-6989586621679132719"><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679132719"><span class="hs-identifier hs-var">iiv</span></a></span></span><span> </span><span id="local-6989586621679132718"><span class="annot"><span class="annottext">Chunked ba
+</span><a href="#local-6989586621679132718"><span class="hs-identifier hs-var">list</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b c. (a -&gt; b -&gt; c) -&gt; (a, b) -&gt; c
+</span><span class="hs-identifier hs-var">uncurry</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">:</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) b a.
+Foldable t =&gt;
+(b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><span class="hs-identifier hs-var">foldl'</span></span><span> </span><span class="annot"><span class="annottext">forall {t}. ByteArray t =&gt; (t, [t]) -&gt; Word64 -&gt; (t, [t])
+</span><a href="#local-6989586621679132715"><span class="hs-identifier hs-var">pass</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679132719"><span class="hs-identifier hs-var">iiv</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Chunked ba
+</span><a href="#local-6989586621679132718"><span class="hs-identifier hs-var">list</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">..</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-number">5</span></span><span class="hs-special">]</span><span>
+</span><span id="line-53"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-54"></span><span>    </span><span class="hs-glyph">!</span><span id="local-6989586621679132710"><span class="annot"><span class="annottext">n :: Word64
+</span><a href="#local-6989586621679132710"><span class="hs-identifier hs-var hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">Chunked ba
+</span><a href="#local-6989586621679132718"><span class="hs-identifier hs-var">list</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-55"></span><span>    </span><span id="local-6989586621679132715"><span class="annot"><span class="annottext">pass :: (t, [t]) -&gt; Word64 -&gt; (t, [t])
+</span><a href="#local-6989586621679132715"><span class="hs-identifier hs-var hs-var">pass</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679132703"><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679132703"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679132702"><span class="annot"><span class="annottext">[t]
+</span><a href="#local-6989586621679132702"><span class="hs-identifier hs-var">l</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679132701"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679132701"><span class="hs-identifier hs-var">j</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {t}. ByteArray t =&gt; t -&gt; Word64 -&gt; [t] -&gt; (t, [t])
+</span><a href="#local-6989586621679132700"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679132703"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679132710"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679132701"><span class="hs-identifier hs-var">j</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[t]
+</span><a href="#local-6989586621679132702"><span class="hs-identifier hs-var">l</span></a></span><span>
+</span><span id="line-56"></span><span>    </span><span id="local-6989586621679132700"><span class="annot"><span class="annottext">go :: t -&gt; Word64 -&gt; [t] -&gt; (t, [t])
+</span><a href="#local-6989586621679132700"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span id="local-6989586621679132689"><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679132689"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679132689"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-57"></span><span>    </span><span class="annot"><a href="#local-6989586621679132700"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span id="local-6989586621679132688"><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679132688"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679132687"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679132687"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679132686"><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679132686"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679132685"><span class="annot"><span class="annottext">[t]
+</span><a href="#local-6989586621679132685"><span class="hs-identifier hs-var">rs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-58"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679132682"><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679132682"><span class="hs-identifier hs-var">a'</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679132681"><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679132681"><span class="hs-identifier hs-var">t</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall aes ba.
+(BlockCipher aes, ByteArray ba) =&gt;
+aes -&gt; Pair ba -&gt; Pair ba
+</span><a href="Crypto.Store.KeyWrap.AES.html#aes"><span class="hs-identifier hs-var">aes</span></a></span><span> </span><span class="annot"><span class="annottext">aes
+</span><a href="#local-6989586621679132720"><span class="hs-identifier hs-var">cipher</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679132688"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679132686"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-59"></span><span>         </span><span class="hs-keyword">in</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679132681"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">t -&gt; Word64 -&gt; [t] -&gt; (t, [t])
+</span><a href="#local-6989586621679132700"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall bin bout.
+(ByteArrayAccess bin, ByteArray bout) =&gt;
+bin -&gt; Word64 -&gt; bout
+</span><a href="Crypto.Store.KeyWrap.AES.html#xorWith"><span class="hs-identifier hs-var">xorWith</span></a></span><span> </span><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679132682"><span class="hs-identifier hs-var">a'</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679132687"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Enum a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">succ</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679132687"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[t]
+</span><a href="#local-6989586621679132685"><span class="hs-identifier hs-var">rs</span></a></span><span>
+</span><span id="line-60"></span><span>
+</span><span id="line-61"></span><span id="local-6989586621679132862"><span id="local-6989586621679132863"><span class="annot"><a href="Crypto.Store.KeyWrap.AES.html#unwrapc"><span class="hs-identifier hs-type">unwrapc</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">BlockCipher</span></span><span> </span><span class="annot"><a href="#local-6989586621679132863"><span class="hs-identifier hs-type">aes</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteArray</span></span><span> </span><span class="annot"><a href="#local-6989586621679132862"><span class="hs-identifier hs-type">ba</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-62"></span><span>        </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679132863"><span class="hs-identifier hs-type">aes</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.KeyWrap.AES.html#Chunked"><span class="hs-identifier hs-type">Chunked</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679132862"><span class="hs-identifier hs-type">ba</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="Crypto.Store.Error.html#StoreError"><span class="hs-identifier hs-type">StoreError</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679132862"><span class="hs-identifier hs-type">ba</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.KeyWrap.AES.html#Chunked"><span class="hs-identifier hs-type">Chunked</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679132862"><span class="hs-identifier hs-type">ba</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-63"></span><span id="unwrapc"><span class="annot"><span class="annottext">unwrapc :: forall aes ba.
+(BlockCipher aes, ByteArray ba) =&gt;
+aes -&gt; Chunked ba -&gt; Either StoreError (ba, Chunked ba)
+</span><a href="Crypto.Store.KeyWrap.AES.html#unwrapc"><span class="hs-identifier hs-var hs-var">unwrapc</span></a></span></span><span> </span><span class="annot"><span class="annottext">aes
+</span><span class="hs-identifier">_</span></span><span>      </span><span class="hs-special">[</span><span class="hs-special">]</span><span>         </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; StoreError
+</span><a href="Crypto.Store.Error.html#InvalidInput"><span class="hs-identifier hs-var">InvalidInput</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;KeyWrap.AES: input too short&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-64"></span><span class="annot"><a href="Crypto.Store.KeyWrap.AES.html#unwrapc"><span class="hs-identifier hs-var">unwrapc</span></a></span><span> </span><span id="local-6989586621679132673"><span class="annot"><span class="annottext">aes
+</span><a href="#local-6989586621679132673"><span class="hs-identifier hs-var">cipher</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679132672"><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679132672"><span class="hs-identifier hs-var">iv</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679132671"><span class="annot"><span class="annottext">[ba]
+</span><a href="#local-6989586621679132671"><span class="hs-identifier hs-var">list</span></a></span></span><span class="hs-special">)</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679132670"><span class="hs-identifier hs-var">iiv</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">reverse</span></span><span> </span><span class="annot"><span class="annottext">[ba]
+</span><a href="#local-6989586621679132668"><span class="hs-identifier hs-var">out</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-65"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-66"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621679132670"><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679132670"><span class="hs-identifier hs-var">iiv</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679132668"><span class="annot"><span class="annottext">[ba]
+</span><a href="#local-6989586621679132668"><span class="hs-identifier hs-var">out</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) b a.
+Foldable t =&gt;
+(b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><span class="hs-identifier hs-var">foldl'</span></span><span> </span><span class="annot"><span class="annottext">forall {t}. ByteArray t =&gt; (t, [t]) -&gt; Word64 -&gt; (t, [t])
+</span><a href="#local-6989586621679132662"><span class="hs-identifier hs-var">pass</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679132672"><span class="hs-identifier hs-var">iv</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">reverse</span></span><span> </span><span class="annot"><span class="annottext">[ba]
+</span><a href="#local-6989586621679132671"><span class="hs-identifier hs-var">list</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">reverse</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">..</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-number">5</span></span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-67"></span><span>    </span><span class="hs-glyph">!</span><span id="local-6989586621679132658"><span class="annot"><span class="annottext">n :: Word64
+</span><a href="#local-6989586621679132658"><span class="hs-identifier hs-var hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">[ba]
+</span><a href="#local-6989586621679132671"><span class="hs-identifier hs-var">list</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-68"></span><span>    </span><span id="local-6989586621679132662"><span class="annot"><span class="annottext">pass :: (t, [t]) -&gt; Word64 -&gt; (t, [t])
+</span><a href="#local-6989586621679132662"><span class="hs-identifier hs-var hs-var">pass</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679132653"><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679132653"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679132652"><span class="annot"><span class="annottext">[t]
+</span><a href="#local-6989586621679132652"><span class="hs-identifier hs-var">l</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679132651"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679132651"><span class="hs-identifier hs-var">j</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {t}. ByteArray t =&gt; t -&gt; Word64 -&gt; [t] -&gt; (t, [t])
+</span><a href="#local-6989586621679132650"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679132653"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679132658"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679132651"><span class="hs-identifier hs-var">j</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679132658"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[t]
+</span><a href="#local-6989586621679132652"><span class="hs-identifier hs-var">l</span></a></span><span>
+</span><span id="line-69"></span><span>    </span><span id="local-6989586621679132650"><span class="annot"><span class="annottext">go :: t -&gt; Word64 -&gt; [t] -&gt; (t, [t])
+</span><a href="#local-6989586621679132650"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span id="local-6989586621679132645"><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679132645"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679132645"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-70"></span><span>    </span><span class="annot"><a href="#local-6989586621679132650"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span id="local-6989586621679132644"><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679132644"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679132643"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679132643"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679132642"><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679132642"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679132641"><span class="annot"><span class="annottext">[t]
+</span><a href="#local-6989586621679132641"><span class="hs-identifier hs-var">rs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-71"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679132636"><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679132636"><span class="hs-identifier hs-var">a'</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679132635"><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679132635"><span class="hs-identifier hs-var">t</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall aes ba.
+(BlockCipher aes, ByteArray ba) =&gt;
+aes -&gt; Pair ba -&gt; Pair ba
+</span><a href="Crypto.Store.KeyWrap.AES.html#aesrev"><span class="hs-identifier hs-var">aesrev</span></a></span><span> </span><span class="annot"><span class="annottext">aes
+</span><a href="#local-6989586621679132673"><span class="hs-identifier hs-var">cipher</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall bin bout.
+(ByteArrayAccess bin, ByteArray bout) =&gt;
+bin -&gt; Word64 -&gt; bout
+</span><a href="Crypto.Store.KeyWrap.AES.html#xorWith"><span class="hs-identifier hs-var">xorWith</span></a></span><span> </span><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679132644"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679132643"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679132642"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-72"></span><span>         </span><span class="hs-keyword">in</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679132635"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">t -&gt; Word64 -&gt; [t] -&gt; (t, [t])
+</span><a href="#local-6989586621679132650"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679132636"><span class="hs-identifier hs-var">a'</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Enum a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">pred</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679132643"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[t]
+</span><a href="#local-6989586621679132641"><span class="hs-identifier hs-var">rs</span></a></span><span>
+</span><span id="line-73"></span><span>
+</span><span id="line-74"></span><span class="hs-comment">-- | Wrap a key with the specified AES cipher.</span><span>
+</span><span id="line-75"></span><span id="local-6989586621679132852"><span id="local-6989586621679132853"><span class="annot"><a href="Crypto.Store.KeyWrap.AES.html#wrap"><span class="hs-identifier hs-type">wrap</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">BlockCipher</span></span><span> </span><span class="annot"><a href="#local-6989586621679132853"><span class="hs-identifier hs-type">aes</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteArray</span></span><span> </span><span class="annot"><a href="#local-6989586621679132852"><span class="hs-identifier hs-type">ba</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679132853"><span class="hs-identifier hs-type">aes</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679132852"><span class="hs-identifier hs-type">ba</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="Crypto.Store.Error.html#StoreError"><span class="hs-identifier hs-type">StoreError</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679132852"><span class="hs-identifier hs-type">ba</span></a></span></span></span><span>
+</span><span id="line-76"></span><span id="wrap"><span class="annot"><span class="annottext">wrap :: forall aes ba.
+(BlockCipher aes, ByteArray ba) =&gt;
+aes -&gt; ba -&gt; Either StoreError ba
+</span><a href="Crypto.Store.KeyWrap.AES.html#wrap"><span class="hs-identifier hs-var hs-var">wrap</span></a></span></span><span> </span><span id="local-6989586621679132625"><span class="annot"><span class="annottext">aes
+</span><a href="#local-6989586621679132625"><span class="hs-identifier hs-var">cipher</span></a></span></span><span> </span><span id="local-6989586621679132624"><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679132624"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall ba. ByteArray ba =&gt; Chunked ba -&gt; ba
+</span><a href="Crypto.Store.KeyWrap.AES.html#unchunks"><span class="hs-identifier hs-var">unchunks</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall aes ba.
+(BlockCipher aes, ByteArray ba) =&gt;
+aes -&gt; ba -&gt; Chunked ba -&gt; Chunked ba
+</span><a href="Crypto.Store.KeyWrap.AES.html#wrapc"><span class="hs-identifier hs-var">wrapc</span></a></span><span> </span><span class="annot"><span class="annottext">aes
+</span><a href="#local-6989586621679132625"><span class="hs-identifier hs-var">cipher</span></a></span><span> </span><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679132622"><span class="hs-identifier hs-var">iiv</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall ba. ByteArray ba =&gt; ba -&gt; Either StoreError (Chunked ba)
+</span><a href="Crypto.Store.KeyWrap.AES.html#chunks"><span class="hs-identifier hs-var">chunks</span></a></span><span> </span><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679132624"><span class="hs-identifier hs-var">bs</span></a></span><span>
+</span><span id="line-77"></span><span>  </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679132622"><span class="annot"><span class="annottext">iiv :: ba
+</span><a href="#local-6989586621679132622"><span class="hs-identifier hs-var hs-var">iiv</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall ba. ByteArray ba =&gt; Int -&gt; Word8 -&gt; ba
+</span><span class="hs-identifier hs-var">B.replicate</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0xA6</span></span><span>
+</span><span id="line-78"></span><span>
+</span><span id="line-79"></span><span class="hs-comment">-- | Unwrap an encrypted key with the specified AES cipher.</span><span>
+</span><span id="line-80"></span><span id="local-6989586621679132616"><span id="local-6989586621679132617"><span class="annot"><a href="Crypto.Store.KeyWrap.AES.html#unwrap"><span class="hs-identifier hs-type">unwrap</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">BlockCipher</span></span><span> </span><span class="annot"><a href="#local-6989586621679132617"><span class="hs-identifier hs-type">aes</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteArray</span></span><span> </span><span class="annot"><a href="#local-6989586621679132616"><span class="hs-identifier hs-type">ba</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679132617"><span class="hs-identifier hs-type">aes</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679132616"><span class="hs-identifier hs-type">ba</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="Crypto.Store.Error.html#StoreError"><span class="hs-identifier hs-type">StoreError</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679132616"><span class="hs-identifier hs-type">ba</span></a></span></span></span><span>
+</span><span id="line-81"></span><span id="unwrap"><span class="annot"><span class="annottext">unwrap :: forall aes ba.
+(BlockCipher aes, ByteArray ba) =&gt;
+aes -&gt; ba -&gt; Either StoreError ba
+</span><a href="Crypto.Store.KeyWrap.AES.html#unwrap"><span class="hs-identifier hs-var hs-var">unwrap</span></a></span></span><span> </span><span id="local-6989586621679132603"><span class="annot"><span class="annottext">aes
+</span><a href="#local-6989586621679132603"><span class="hs-identifier hs-var">cipher</span></a></span></span><span> </span><span id="local-6989586621679132602"><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679132602"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall ba. ByteArray ba =&gt; Chunked ba -&gt; ba
+</span><a href="Crypto.Store.KeyWrap.AES.html#unchunks"><span class="hs-identifier hs-var">unchunks</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall {ba} {b}.
+ByteArrayAccess ba =&gt;
+(ba, b) -&gt; Either StoreError b
+</span><a href="#local-6989586621679132601"><span class="hs-identifier hs-var">check</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; (a -&gt; m b) -&gt; m a -&gt; m b
+</span><span class="hs-operator hs-var">=&lt;&lt;</span></span><span> </span><span class="annot"><span class="annottext">forall aes ba.
+(BlockCipher aes, ByteArray ba) =&gt;
+aes -&gt; Chunked ba -&gt; Either StoreError (ba, Chunked ba)
+</span><a href="Crypto.Store.KeyWrap.AES.html#unwrapc"><span class="hs-identifier hs-var">unwrapc</span></a></span><span> </span><span class="annot"><span class="annottext">aes
+</span><a href="#local-6989586621679132603"><span class="hs-identifier hs-var">cipher</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; (a -&gt; m b) -&gt; m a -&gt; m b
+</span><span class="hs-operator hs-var">=&lt;&lt;</span></span><span> </span><span class="annot"><span class="annottext">forall ba. ByteArray ba =&gt; ba -&gt; Either StoreError (Chunked ba)
+</span><a href="Crypto.Store.KeyWrap.AES.html#chunks"><span class="hs-identifier hs-var">chunks</span></a></span><span> </span><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679132602"><span class="hs-identifier hs-var">bs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-82"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-83"></span><span>    </span><span id="local-6989586621679132601"><span class="annot"><span class="annottext">check :: (ba, b) -&gt; Either StoreError b
+</span><a href="#local-6989586621679132601"><span class="hs-identifier hs-var hs-var">check</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679132596"><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679132596"><span class="hs-identifier hs-var">iiv</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679132595"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679132595"><span class="hs-identifier hs-var">out</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-84"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">forall ba. ByteArrayAccess ba =&gt; Word8 -&gt; ba -&gt; Bool
+</span><a href="Crypto.Store.Util.html#constAllEq"><span class="hs-identifier hs-var">constAllEq</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0xA6</span></span><span> </span><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679132596"><span class="hs-identifier hs-var">iiv</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679132595"><span class="hs-identifier hs-var">out</span></a></span><span>
+</span><span id="line-85"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>           </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">StoreError
+</span><a href="Crypto.Store.Error.html#BadChecksum"><span class="hs-identifier hs-var">BadChecksum</span></a></span><span>
+</span><span id="line-86"></span><span>
+</span><span id="line-87"></span><span id="local-6989586621679132847"><span class="annot"><a href="Crypto.Store.KeyWrap.AES.html#chunks"><span class="hs-identifier hs-type">chunks</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteArray</span></span><span> </span><span class="annot"><a href="#local-6989586621679132847"><span class="hs-identifier hs-type">ba</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679132847"><span class="hs-identifier hs-type">ba</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="Crypto.Store.Error.html#StoreError"><span class="hs-identifier hs-type">StoreError</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.KeyWrap.AES.html#Chunked"><span class="hs-identifier hs-type">Chunked</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679132847"><span class="hs-identifier hs-type">ba</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-88"></span><span id="chunks"><span class="annot"><span class="annottext">chunks :: forall ba. ByteArray ba =&gt; ba -&gt; Either StoreError (Chunked ba)
+</span><a href="Crypto.Store.KeyWrap.AES.html#chunks"><span class="hs-identifier hs-var hs-var">chunks</span></a></span></span><span> </span><span id="local-6989586621679132582"><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679132582"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">forall a. ByteArrayAccess a =&gt; a -&gt; Bool
+</span><span class="hs-identifier hs-var">B.null</span></span><span> </span><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679132582"><span class="hs-identifier hs-var">bs</span></a></span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-89"></span><span>          </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">forall ba. ByteArrayAccess ba =&gt; ba -&gt; Int
+</span><span class="hs-identifier hs-var">B.length</span></span><span> </span><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679132582"><span class="hs-identifier hs-var">bs</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; StoreError
+</span><a href="Crypto.Store.Error.html#InvalidInput"><span class="hs-identifier hs-var">InvalidInput</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;KeyWrap.AES: input is not multiple of 8 bytes&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-90"></span><span>          </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679132577"><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679132577"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679132576"><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679132576"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall bs. ByteArray bs =&gt; Int -&gt; bs -&gt; (bs, bs)
+</span><span class="hs-identifier hs-var">B.splitAt</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span> </span><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679132582"><span class="hs-identifier hs-var">bs</span></a></span><span> </span><span class="hs-keyword">in</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679132577"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall ba. ByteArray ba =&gt; ba -&gt; Either StoreError (Chunked ba)
+</span><a href="Crypto.Store.KeyWrap.AES.html#chunks"><span class="hs-identifier hs-var">chunks</span></a></span><span> </span><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679132576"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-91"></span><span>
+</span><span id="line-92"></span><span id="local-6989586621679132848"><span class="annot"><a href="Crypto.Store.KeyWrap.AES.html#unchunks"><span class="hs-identifier hs-type">unchunks</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteArray</span></span><span> </span><span class="annot"><a href="#local-6989586621679132848"><span class="hs-identifier hs-type">ba</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.KeyWrap.AES.html#Chunked"><span class="hs-identifier hs-type">Chunked</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679132848"><span class="hs-identifier hs-type">ba</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679132848"><span class="hs-identifier hs-type">ba</span></a></span></span><span>
+</span><span id="line-93"></span><span id="unchunks"><span class="annot"><span class="annottext">unchunks :: forall ba. ByteArray ba =&gt; Chunked ba -&gt; ba
+</span><a href="Crypto.Store.KeyWrap.AES.html#unchunks"><span class="hs-identifier hs-var hs-var">unchunks</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall bin bout.
+(ByteArrayAccess bin, ByteArray bout) =&gt;
+[bin] -&gt; bout
+</span><span class="hs-identifier hs-var">B.concat</span></span><span>
+</span><span id="line-94"></span><span>
+</span><span id="line-95"></span><span class="annot"><a href="Crypto.Store.KeyWrap.AES.html#padMask"><span class="hs-identifier hs-type">padMask</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bytes</span></span><span>
+</span><span id="line-96"></span><span id="padMask"><span class="annot"><span class="annottext">padMask :: Bytes
+</span><a href="Crypto.Store.KeyWrap.AES.html#padMask"><span class="hs-identifier hs-var hs-var">padMask</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. ByteArray a =&gt; [Word8] -&gt; a
+</span><span class="hs-identifier hs-var">B.pack</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0xA6</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0x59</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0x59</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0xA6</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0x00</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0x00</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0x00</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0x00</span></span><span class="hs-special">]</span><span>
+</span><span id="line-97"></span><span>
+</span><span id="line-98"></span><span id="local-6989586621679132828"><span class="annot"><a href="Crypto.Store.KeyWrap.AES.html#pad"><span class="hs-identifier hs-type">pad</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteArray</span></span><span> </span><span class="annot"><a href="#local-6989586621679132828"><span class="hs-identifier hs-type">ba</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679132828"><span class="hs-identifier hs-type">ba</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="Crypto.Store.Error.html#StoreError"><span class="hs-identifier hs-type">StoreError</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.KeyWrap.AES.html#Pair"><span class="hs-identifier hs-type">Pair</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679132828"><span class="hs-identifier hs-type">ba</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-99"></span><span id="pad"><span class="annot"><span class="annottext">pad :: forall ba. ByteArray ba =&gt; Int -&gt; ba -&gt; Either StoreError (Pair ba)
+</span><a href="Crypto.Store.KeyWrap.AES.html#pad"><span class="hs-identifier hs-var hs-var">pad</span></a></span></span><span> </span><span id="local-6989586621679132559"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679132559"><span class="hs-identifier hs-var">inlen</span></a></span></span><span> </span><span id="local-6989586621679132558"><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679132558"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679132559"><span class="hs-identifier hs-var">inlen</span></a></span><span>  </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; StoreError
+</span><a href="Crypto.Store.Error.html#InvalidInput"><span class="hs-identifier hs-var">InvalidInput</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;KeyWrap.AES: input is empty&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-100"></span><span>             </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679132557"><span class="hs-identifier hs-var">padlen</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679132556"><span class="hs-identifier hs-var">aiv</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679132558"><span class="hs-identifier hs-var">bs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-101"></span><span>             </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679132556"><span class="hs-identifier hs-var">aiv</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679132558"><span class="hs-identifier hs-var">bs</span></a></span><span> </span><span class="annot"><span class="annottext">forall bs. ByteArray bs =&gt; bs -&gt; bs -&gt; bs
+</span><span class="hs-operator hs-var">`B.append`</span></span><span> </span><span class="annot"><span class="annottext">forall ba. ByteArray ba =&gt; Int -&gt; ba
+</span><span class="hs-identifier hs-var">B.zero</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679132557"><span class="hs-identifier hs-var">padlen</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-102"></span><span>  </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679132557"><span class="annot"><span class="annottext">padlen :: Int
+</span><a href="#local-6989586621679132557"><span class="hs-identifier hs-var hs-var">padlen</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">forall a. Integral a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">mod</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679132559"><span class="hs-identifier hs-var">inlen</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span>
+</span><span id="line-103"></span><span>        </span><span id="local-6989586621679132556"><span class="annot"><span class="annottext">aiv :: ba
+</span><a href="#local-6989586621679132556"><span class="hs-identifier hs-var hs-var">aiv</span></a></span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall bin bout.
+(ByteArrayAccess bin, ByteArray bout) =&gt;
+bin -&gt; Word64 -&gt; bout
+</span><a href="Crypto.Store.KeyWrap.AES.html#xorWith"><span class="hs-identifier hs-var">xorWith</span></a></span><span> </span><span class="annot"><span class="annottext">Bytes
+</span><a href="Crypto.Store.KeyWrap.AES.html#padMask"><span class="hs-identifier hs-var">padMask</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679132559"><span class="hs-identifier hs-var">inlen</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-104"></span><span>
+</span><span id="line-105"></span><span id="local-6989586621679132823"><span class="annot"><a href="Crypto.Store.KeyWrap.AES.html#unpad"><span class="hs-identifier hs-type">unpad</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteArray</span></span><span> </span><span class="annot"><a href="#local-6989586621679132823"><span class="hs-identifier hs-type">ba</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.KeyWrap.AES.html#Pair"><span class="hs-identifier hs-type">Pair</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679132823"><span class="hs-identifier hs-type">ba</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="Crypto.Store.Error.html#StoreError"><span class="hs-identifier hs-type">StoreError</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679132823"><span class="hs-identifier hs-type">ba</span></a></span></span><span>
+</span><span id="line-106"></span><span id="unpad"><span class="annot"><span class="annottext">unpad :: forall ba. ByteArray ba =&gt; Int -&gt; Pair ba -&gt; Either StoreError ba
+</span><a href="Crypto.Store.KeyWrap.AES.html#unpad"><span class="hs-identifier hs-var hs-var">unpad</span></a></span></span><span> </span><span id="local-6989586621679132539"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679132539"><span class="hs-identifier hs-var">inlen</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679132538"><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679132538"><span class="hs-identifier hs-var">aiv</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679132537"><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679132537"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-107"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679132536"><span class="hs-identifier hs-var">badlen</span></a></span><span>         </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">StoreError
+</span><a href="Crypto.Store.Error.html#BadChecksum"><span class="hs-identifier hs-var">BadChecksum</span></a></span><span>
+</span><span id="line-108"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">forall ba. ByteArrayAccess ba =&gt; Word8 -&gt; ba -&gt; Bool
+</span><a href="Crypto.Store.Util.html#constAllEq"><span class="hs-identifier hs-var">constAllEq</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679132535"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679132534"><span class="hs-identifier hs-var">bs</span></a></span><span>
+</span><span id="line-109"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">StoreError
+</span><a href="Crypto.Store.Error.html#BadChecksum"><span class="hs-identifier hs-var">BadChecksum</span></a></span><span>
+</span><span id="line-110"></span><span>  </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679132528"><span class="annot"><span class="annottext">aivlen :: Int
+</span><a href="#local-6989586621679132528"><span class="hs-identifier hs-var hs-var">aivlen</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall bx by.
+(ByteArrayAccess bx, ByteArrayAccess by) =&gt;
+bx -&gt; by -&gt; Word64
+</span><a href="Crypto.Store.KeyWrap.AES.html#unxor"><span class="hs-identifier hs-var">unxor</span></a></span><span> </span><span class="annot"><span class="annottext">Bytes
+</span><a href="Crypto.Store.KeyWrap.AES.html#padMask"><span class="hs-identifier hs-var">padMask</span></a></span><span> </span><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679132538"><span class="hs-identifier hs-var">aiv</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-111"></span><span>        </span><span id="local-6989586621679132536"><span class="annot"><span class="annottext">badlen :: Bool
+</span><a href="#local-6989586621679132536"><span class="hs-identifier hs-var hs-var">badlen</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679132539"><span class="hs-identifier hs-var">inlen</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679132528"><span class="hs-identifier hs-var">aivlen</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679132539"><span class="hs-identifier hs-var">inlen</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679132528"><span class="hs-identifier hs-var">aivlen</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">16</span></span><span>
+</span><span id="line-112"></span><span>        </span><span class="hs-special">(</span><span id="local-6989586621679132534"><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679132534"><span class="hs-identifier hs-var">bs</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679132535"><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679132535"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall bs. ByteArray bs =&gt; Int -&gt; bs -&gt; (bs, bs)
+</span><span class="hs-identifier hs-var">B.splitAt</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679132528"><span class="hs-identifier hs-var">aivlen</span></a></span><span> </span><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679132537"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-113"></span><span>
+</span><span id="line-114"></span><span class="hs-comment">-- | Pad and wrap a key with the specified AES cipher.</span><span>
+</span><span id="line-115"></span><span id="local-6989586621679132517"><span id="local-6989586621679132518"><span class="annot"><a href="Crypto.Store.KeyWrap.AES.html#wrapPad"><span class="hs-identifier hs-type">wrapPad</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">BlockCipher</span></span><span> </span><span class="annot"><a href="#local-6989586621679132518"><span class="hs-identifier hs-type">aes</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteArray</span></span><span> </span><span class="annot"><a href="#local-6989586621679132517"><span class="hs-identifier hs-type">ba</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679132518"><span class="hs-identifier hs-type">aes</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679132517"><span class="hs-identifier hs-type">ba</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="Crypto.Store.Error.html#StoreError"><span class="hs-identifier hs-type">StoreError</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679132517"><span class="hs-identifier hs-type">ba</span></a></span></span></span><span>
+</span><span id="line-116"></span><span id="wrapPad"><span class="annot"><span class="annottext">wrapPad :: forall aes ba.
+(BlockCipher aes, ByteArray ba) =&gt;
+aes -&gt; ba -&gt; Either StoreError ba
+</span><a href="Crypto.Store.KeyWrap.AES.html#wrapPad"><span class="hs-identifier hs-var hs-var">wrapPad</span></a></span></span><span> </span><span id="local-6989586621679132510"><span class="annot"><span class="annottext">aes
+</span><a href="#local-6989586621679132510"><span class="hs-identifier hs-var">cipher</span></a></span></span><span> </span><span id="local-6989586621679132509"><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679132509"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {b}. ByteArray b =&gt; (b, b) -&gt; Either StoreError b
+</span><a href="#local-6989586621679132508"><span class="hs-identifier hs-var">doWrap</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; (a -&gt; m b) -&gt; m a -&gt; m b
+</span><span class="hs-operator hs-var">=&lt;&lt;</span></span><span> </span><span class="annot"><span class="annottext">forall ba. ByteArray ba =&gt; Int -&gt; ba -&gt; Either StoreError (Pair ba)
+</span><a href="Crypto.Store.KeyWrap.AES.html#pad"><span class="hs-identifier hs-var">pad</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679132507"><span class="hs-identifier hs-var">inlen</span></a></span><span> </span><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679132509"><span class="hs-identifier hs-var">bs</span></a></span><span>
+</span><span id="line-117"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-118"></span><span>    </span><span id="local-6989586621679132507"><span class="annot"><span class="annottext">inlen :: Int
+</span><a href="#local-6989586621679132507"><span class="hs-identifier hs-var hs-var">inlen</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall ba. ByteArrayAccess ba =&gt; ba -&gt; Int
+</span><span class="hs-identifier hs-var">B.length</span></span><span> </span><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679132509"><span class="hs-identifier hs-var">bs</span></a></span><span>
+</span><span id="line-119"></span><span>    </span><span id="local-6989586621679132508"><span class="annot"><span class="annottext">doWrap :: (b, b) -&gt; Either StoreError b
+</span><a href="#local-6989586621679132508"><span class="hs-identifier hs-var hs-var">doWrap</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679132495"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679132495"><span class="hs-identifier hs-var">aiv</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679132494"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679132494"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-120"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679132507"><span class="hs-identifier hs-var">inlen</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall aes ba.
+(BlockCipher aes, ByteArray ba) =&gt;
+aes -&gt; Pair ba -&gt; ba
+</span><a href="Crypto.Store.KeyWrap.AES.html#aes%27"><span class="hs-identifier hs-var">aes'</span></a></span><span> </span><span class="annot"><span class="annottext">aes
+</span><a href="#local-6989586621679132510"><span class="hs-identifier hs-var">cipher</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679132495"><span class="hs-identifier hs-var">aiv</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679132494"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-121"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall ba. ByteArray ba =&gt; Chunked ba -&gt; ba
+</span><a href="Crypto.Store.KeyWrap.AES.html#unchunks"><span class="hs-identifier hs-var">unchunks</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall aes ba.
+(BlockCipher aes, ByteArray ba) =&gt;
+aes -&gt; ba -&gt; Chunked ba -&gt; Chunked ba
+</span><a href="Crypto.Store.KeyWrap.AES.html#wrapc"><span class="hs-identifier hs-var">wrapc</span></a></span><span> </span><span class="annot"><span class="annottext">aes
+</span><a href="#local-6989586621679132510"><span class="hs-identifier hs-var">cipher</span></a></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679132495"><span class="hs-identifier hs-var">aiv</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall ba. ByteArray ba =&gt; ba -&gt; Either StoreError (Chunked ba)
+</span><a href="Crypto.Store.KeyWrap.AES.html#chunks"><span class="hs-identifier hs-var">chunks</span></a></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679132494"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-122"></span><span>
+</span><span id="line-123"></span><span class="hs-comment">-- | Unwrap and unpad an encrypted key with the specified AES cipher.</span><span>
+</span><span id="line-124"></span><span id="local-6989586621679132491"><span id="local-6989586621679132492"><span class="annot"><a href="Crypto.Store.KeyWrap.AES.html#unwrapPad"><span class="hs-identifier hs-type">unwrapPad</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">BlockCipher</span></span><span> </span><span class="annot"><a href="#local-6989586621679132492"><span class="hs-identifier hs-type">aes</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteArray</span></span><span> </span><span class="annot"><a href="#local-6989586621679132491"><span class="hs-identifier hs-type">ba</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679132492"><span class="hs-identifier hs-type">aes</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679132491"><span class="hs-identifier hs-type">ba</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="Crypto.Store.Error.html#StoreError"><span class="hs-identifier hs-type">StoreError</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679132491"><span class="hs-identifier hs-type">ba</span></a></span></span></span><span>
+</span><span id="line-125"></span><span id="unwrapPad"><span class="annot"><span class="annottext">unwrapPad :: forall aes ba.
+(BlockCipher aes, ByteArray ba) =&gt;
+aes -&gt; ba -&gt; Either StoreError ba
+</span><a href="Crypto.Store.KeyWrap.AES.html#unwrapPad"><span class="hs-identifier hs-var hs-var">unwrapPad</span></a></span></span><span> </span><span id="local-6989586621679132485"><span class="annot"><span class="annottext">aes
+</span><a href="#local-6989586621679132485"><span class="hs-identifier hs-var">cipher</span></a></span></span><span> </span><span id="local-6989586621679132484"><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679132484"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall ba. ByteArray ba =&gt; Int -&gt; Pair ba -&gt; Either StoreError ba
+</span><a href="Crypto.Store.KeyWrap.AES.html#unpad"><span class="hs-identifier hs-var">unpad</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679132483"><span class="hs-identifier hs-var">inlen</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; (a -&gt; m b) -&gt; m a -&gt; m b
+</span><span class="hs-operator hs-var">=&lt;&lt;</span></span><span> </span><span class="annot"><span class="annottext">Either StoreError (ba, ba)
+</span><a href="#local-6989586621679132482"><span class="hs-identifier hs-var">doUnwrap</span></a></span><span>
+</span><span id="line-126"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-127"></span><span>    </span><span id="local-6989586621679132483"><span class="annot"><span class="annottext">inlen :: Int
+</span><a href="#local-6989586621679132483"><span class="hs-identifier hs-var hs-var">inlen</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall ba. ByteArrayAccess ba =&gt; ba -&gt; Int
+</span><span class="hs-identifier hs-var">B.length</span></span><span> </span><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679132484"><span class="hs-identifier hs-var">bs</span></a></span><span>
+</span><span id="line-128"></span><span>    </span><span id="local-6989586621679132482"><span class="annot"><span class="annottext">doUnwrap :: Either StoreError (ba, ba)
+</span><a href="#local-6989586621679132482"><span class="hs-identifier hs-var hs-var">doUnwrap</span></a></span></span><span>
+</span><span id="line-129"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679132483"><span class="hs-identifier hs-var">inlen</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">16</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679132469"><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679132469"><span class="hs-identifier hs-var">aiv</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679132468"><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679132468"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall aes ba.
+(BlockCipher aes, ByteArray ba) =&gt;
+aes -&gt; ba -&gt; Pair ba
+</span><a href="Crypto.Store.KeyWrap.AES.html#aesrev%27"><span class="hs-identifier hs-var">aesrev'</span></a></span><span> </span><span class="annot"><span class="annottext">aes
+</span><a href="#local-6989586621679132485"><span class="hs-identifier hs-var">cipher</span></a></span><span> </span><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679132484"><span class="hs-identifier hs-var">bs</span></a></span><span> </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679132469"><span class="hs-identifier hs-var">aiv</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679132468"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-130"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">forall ba. ByteArray ba =&gt; Chunked ba -&gt; ba
+</span><a href="Crypto.Store.KeyWrap.AES.html#unchunks"><span class="hs-identifier hs-var">unchunks</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall aes ba.
+(BlockCipher aes, ByteArray ba) =&gt;
+aes -&gt; Chunked ba -&gt; Either StoreError (ba, Chunked ba)
+</span><a href="Crypto.Store.KeyWrap.AES.html#unwrapc"><span class="hs-identifier hs-var">unwrapc</span></a></span><span> </span><span class="annot"><span class="annottext">aes
+</span><a href="#local-6989586621679132485"><span class="hs-identifier hs-var">cipher</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; (a -&gt; m b) -&gt; m a -&gt; m b
+</span><span class="hs-operator hs-var">=&lt;&lt;</span></span><span> </span><span class="annot"><span class="annottext">forall ba. ByteArray ba =&gt; ba -&gt; Either StoreError (Chunked ba)
+</span><a href="Crypto.Store.KeyWrap.AES.html#chunks"><span class="hs-identifier hs-var">chunks</span></a></span><span> </span><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679132484"><span class="hs-identifier hs-var">bs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-131"></span><span>
+</span><span id="line-132"></span><span id="local-6989586621679132865"><span id="local-6989586621679132866"><span class="annot"><a href="Crypto.Store.KeyWrap.AES.html#xorWith"><span class="hs-identifier hs-type">xorWith</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ByteArrayAccess</span></span><span> </span><span class="annot"><a href="#local-6989586621679132866"><span class="hs-identifier hs-type">bin</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteArray</span></span><span> </span><span class="annot"><a href="#local-6989586621679132865"><span class="hs-identifier hs-type">bout</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679132866"><span class="hs-identifier hs-type">bin</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679132865"><span class="hs-identifier hs-type">bout</span></a></span></span></span><span>
+</span><span id="line-133"></span><span id="xorWith"><span class="annot"><span class="annottext">xorWith :: forall bin bout.
+(ByteArrayAccess bin, ByteArray bout) =&gt;
+bin -&gt; Word64 -&gt; bout
+</span><a href="Crypto.Store.KeyWrap.AES.html#xorWith"><span class="hs-identifier hs-var hs-var">xorWith</span></a></span></span><span> </span><span id="local-6989586621679132460"><span class="annot"><span class="annottext">bin
+</span><a href="#local-6989586621679132460"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679132459"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679132459"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall bs1 bs2 p.
+(ByteArrayAccess bs1, ByteArray bs2) =&gt;
+bs1 -&gt; (Ptr p -&gt; IO ()) -&gt; bs2
+</span><span class="hs-identifier hs-var">B.copyAndFreeze</span></span><span> </span><span class="annot"><span class="annottext">bin
+</span><a href="#local-6989586621679132460"><span class="hs-identifier hs-var">bs</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679132457"><span class="annot"><span class="annottext">Ptr Any
+</span><a href="#local-6989586621679132457"><span class="hs-identifier hs-var">dst</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall {t} {b}. (Bits t, Integral t) =&gt; Ptr b -&gt; Int -&gt; t -&gt; IO ()
+</span><a href="#local-6989586621679132456"><span class="hs-identifier hs-var">loop</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Any
+</span><a href="#local-6989586621679132457"><span class="hs-identifier hs-var">dst</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679132455"><span class="hs-identifier hs-var">len</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679132459"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-134"></span><span>  </span><span class="hs-keyword">where</span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679132455"><span class="annot"><span class="annottext">len :: Int
+</span><a href="#local-6989586621679132455"><span class="hs-identifier hs-var hs-var">len</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall ba. ByteArrayAccess ba =&gt; ba -&gt; Int
+</span><span class="hs-identifier hs-var">B.length</span></span><span> </span><span class="annot"><span class="annottext">bin
+</span><a href="#local-6989586621679132460"><span class="hs-identifier hs-var">bs</span></a></span><span>
+</span><span id="line-135"></span><span>        </span><span id="local-6989586621679132456"><span class="annot"><span class="annottext">loop :: Ptr b -&gt; Int -&gt; t -&gt; IO ()
+</span><a href="#local-6989586621679132456"><span class="hs-identifier hs-var hs-var">loop</span></a></span></span><span> </span><span class="annot"><span class="annottext">Ptr b
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="annottext">t
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-136"></span><span>        </span><span class="annot"><a href="#local-6989586621679132456"><span class="hs-identifier hs-var">loop</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr b
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">t
+</span><span class="hs-number">0</span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-comment">-- return early (constant-time not needed)</span><span>
+</span><span id="line-137"></span><span>        </span><span class="annot"><a href="#local-6989586621679132456"><span class="hs-identifier hs-var">loop</span></a></span><span> </span><span id="local-6989586621679132424"><span class="annot"><span class="annottext">Ptr b
+</span><a href="#local-6989586621679132424"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span id="local-6989586621679132423"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679132423"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621679132422"><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679132422"><span class="hs-identifier hs-var">j</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-138"></span><span>            </span><span id="local-6989586621679132421"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679132421"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a b. Storable a =&gt; Ptr b -&gt; Int -&gt; IO a
+</span><span class="hs-identifier hs-var">peekByteOff</span></span><span> </span><span class="annot"><span class="annottext">Ptr b
+</span><a href="#local-6989586621679132424"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679132423"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span>
+</span><span id="line-139"></span><span>            </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679132417"><span class="annot"><span class="annottext">mask :: Word8
+</span><a href="#local-6989586621679132417"><span class="hs-identifier hs-var hs-var">mask</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679132422"><span class="hs-identifier hs-var">j</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span>
+</span><span id="line-140"></span><span>            </span><span class="annot"><span class="annottext">forall a b. Storable a =&gt; Ptr b -&gt; Int -&gt; a -&gt; IO ()
+</span><span class="hs-identifier hs-var">pokeByteOff</span></span><span> </span><span class="annot"><span class="annottext">Ptr b
+</span><a href="#local-6989586621679132424"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679132423"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">xor</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679132421"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679132417"><span class="hs-identifier hs-var">mask</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-141"></span><span>            </span><span class="annot"><span class="annottext">Ptr b -&gt; Int -&gt; t -&gt; IO ()
+</span><a href="#local-6989586621679132456"><span class="hs-identifier hs-var">loop</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr b
+</span><a href="#local-6989586621679132424"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679132423"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-identifier hs-var">shiftR</span></span><span> </span><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679132422"><span class="hs-identifier hs-var">j</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span class="hs-special">)</span><span>
+</span><span id="line-142"></span><span>
+</span><span id="line-143"></span><span id="local-6989586621679132820"><span id="local-6989586621679132821"><span class="annot"><a href="Crypto.Store.KeyWrap.AES.html#unxor"><span class="hs-identifier hs-type">unxor</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ByteArrayAccess</span></span><span> </span><span class="annot"><a href="#local-6989586621679132821"><span class="hs-identifier hs-type">bx</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteArrayAccess</span></span><span> </span><span class="annot"><a href="#local-6989586621679132820"><span class="hs-identifier hs-type">by</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679132821"><span class="hs-identifier hs-type">bx</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679132820"><span class="hs-identifier hs-type">by</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span></span></span><span>
+</span><span id="line-144"></span><span id="unxor"><span class="annot"><span class="annottext">unxor :: forall bx by.
+(ByteArrayAccess bx, ByteArrayAccess by) =&gt;
+bx -&gt; by -&gt; Word64
+</span><a href="Crypto.Store.KeyWrap.AES.html#unxor"><span class="hs-identifier hs-var hs-var">unxor</span></a></span></span><span> </span><span id="local-6989586621679132402"><span class="annot"><span class="annottext">bx
+</span><a href="#local-6989586621679132402"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679132401"><span class="annot"><span class="annottext">by
+</span><a href="#local-6989586621679132401"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) b a.
+Foldable t =&gt;
+(b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><span class="hs-identifier hs-var">foldl'</span></span><span> </span><span class="annot"><span class="annottext">forall {a} {a}. (Bits a, Integral a, Num a) =&gt; a -&gt; a -&gt; a
+</span><a href="#local-6989586621679132400"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall a b c. (a -&gt; b -&gt; c) -&gt; [a] -&gt; [b] -&gt; [c]
+</span><span class="hs-identifier hs-var">zipWith</span></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">xor</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. ByteArrayAccess a =&gt; a -&gt; [Word8]
+</span><span class="hs-identifier hs-var">B.unpack</span></span><span> </span><span class="annot"><span class="annottext">bx
+</span><a href="#local-6989586621679132402"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. ByteArrayAccess a =&gt; a -&gt; [Word8]
+</span><span class="hs-identifier hs-var">B.unpack</span></span><span> </span><span class="annot"><span class="annottext">by
+</span><a href="#local-6989586621679132401"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-145"></span><span>  </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679132400"><span class="annot"><span class="annottext">f :: a -&gt; a -&gt; a
+</span><a href="#local-6989586621679132400"><span class="hs-identifier hs-var hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679132390"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679132390"><span class="hs-identifier hs-var">acc</span></a></span></span><span> </span><span id="local-6989586621679132389"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679132389"><span class="hs-identifier hs-var">z</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-identifier hs-var">shiftL</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679132390"><span class="hs-identifier hs-var">acc</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679132389"><span class="hs-identifier hs-var">z</span></a></span><span>
+</span><span id="line-146"></span></pre></body></html>

@@ -1,0 +1,436 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LINE 1 &quot;libraries/unix/System/Posix/Process/Common.hsc&quot; #-}</span><span>
+</span><span id="line-1"></span><span class="hs-pragma">{-# LANGUAGE CApiFFI #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE InterruptibleFFI, RankNTypes #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE Trustworthy #-}</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Module      :  System.Posix.Process.Common</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- Copyright   :  (c) The University of Glasgow 2002</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- License     :  BSD-style (see the file libraries/base/LICENSE)</span><span>
+</span><span id="line-10"></span><span class="hs-comment">--</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- Maintainer  :  libraries@haskell.org</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- Stability   :  provisional</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- Portability :  non-portable (requires POSIX)</span><span>
+</span><span id="line-14"></span><span class="hs-comment">--</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- POSIX process support.  See also the System.Cmd and System.Process</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- modules in the process package.</span><span>
+</span><span id="line-17"></span><span class="hs-comment">--</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">System.Posix.Process.Common</span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-21"></span><span>    </span><span class="hs-comment">-- * Processes</span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span>    </span><span class="hs-comment">-- ** Forking and executing</span><span>
+</span><span id="line-24"></span><span>    </span><span class="hs-identifier">forkProcess</span><span class="hs-special">,</span><span>
+</span><span id="line-25"></span><span>    </span><span class="hs-identifier">forkProcessWithUnmask</span><span class="hs-special">,</span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span>    </span><span class="hs-comment">-- ** Exiting</span><span>
+</span><span id="line-28"></span><span>    </span><span class="hs-identifier">exitImmediately</span><span class="hs-special">,</span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span>    </span><span class="hs-comment">-- ** Process environment</span><span>
+</span><span id="line-31"></span><span>    </span><span class="hs-identifier">getProcessID</span><span class="hs-special">,</span><span>
+</span><span id="line-32"></span><span>    </span><span class="hs-identifier">getParentProcessID</span><span class="hs-special">,</span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span>    </span><span class="hs-comment">-- ** Process groups</span><span>
+</span><span id="line-35"></span><span>    </span><span class="hs-identifier">getProcessGroupID</span><span class="hs-special">,</span><span>
+</span><span id="line-36"></span><span>    </span><span class="hs-identifier">getProcessGroupIDOf</span><span class="hs-special">,</span><span>
+</span><span id="line-37"></span><span>    </span><span class="hs-identifier">createProcessGroupFor</span><span class="hs-special">,</span><span>
+</span><span id="line-38"></span><span>    </span><span class="hs-identifier">joinProcessGroup</span><span class="hs-special">,</span><span>
+</span><span id="line-39"></span><span>    </span><span class="hs-identifier">setProcessGroupIDOf</span><span class="hs-special">,</span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span>    </span><span class="hs-comment">-- ** Sessions</span><span>
+</span><span id="line-42"></span><span>    </span><span class="hs-identifier">createSession</span><span class="hs-special">,</span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span>    </span><span class="hs-comment">-- ** Process times</span><span>
+</span><span id="line-45"></span><span>    </span><span class="hs-identifier">ProcessTimes</span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-46"></span><span>    </span><span class="hs-identifier">getProcessTimes</span><span class="hs-special">,</span><span>
+</span><span id="line-47"></span><span>
+</span><span id="line-48"></span><span>    </span><span class="hs-comment">-- ** Scheduling priority</span><span>
+</span><span id="line-49"></span><span>    </span><span class="hs-identifier">nice</span><span class="hs-special">,</span><span>
+</span><span id="line-50"></span><span>    </span><span class="hs-identifier">getProcessPriority</span><span class="hs-special">,</span><span>
+</span><span id="line-51"></span><span>    </span><span class="hs-identifier">getProcessGroupPriority</span><span class="hs-special">,</span><span>
+</span><span id="line-52"></span><span>    </span><span class="hs-identifier">getUserPriority</span><span class="hs-special">,</span><span>
+</span><span id="line-53"></span><span>    </span><span class="hs-identifier">setProcessPriority</span><span class="hs-special">,</span><span>
+</span><span id="line-54"></span><span>    </span><span class="hs-identifier">setProcessGroupPriority</span><span class="hs-special">,</span><span>
+</span><span id="line-55"></span><span>    </span><span class="hs-identifier">setUserPriority</span><span class="hs-special">,</span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span>    </span><span class="hs-comment">-- ** Process status</span><span>
+</span><span id="line-58"></span><span>    </span><span class="hs-identifier">ProcessStatus</span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-59"></span><span>    </span><span class="hs-identifier">getProcessStatus</span><span class="hs-special">,</span><span>
+</span><span id="line-60"></span><span>    </span><span class="hs-identifier">getAnyProcessStatus</span><span class="hs-special">,</span><span>
+</span><span id="line-61"></span><span>    </span><span class="hs-identifier">getGroupProcessStatus</span><span class="hs-special">,</span><span>
+</span><span id="line-62"></span><span>
+</span><span id="line-63"></span><span>    </span><span class="hs-comment">-- ** Deprecated</span><span>
+</span><span id="line-64"></span><span>    </span><span class="hs-identifier">createProcessGroup</span><span class="hs-special">,</span><span>
+</span><span id="line-65"></span><span>    </span><span class="hs-identifier">setProcessGroupID</span><span class="hs-special">,</span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span> </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-68"></span><span>
+</span><span id="line-69"></span><span>
+</span><span id="line-70"></span><span>
+</span><span id="line-71"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Foreign.C.Error</span><span>
+</span><span id="line-72"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Foreign.C.Types</span><span>
+</span><span id="line-73"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Foreign.Marshal.Alloc</span><span> </span><span class="hs-special">(</span><span> </span><span class="hs-identifier">alloca</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">allocaBytes</span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-74"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Foreign.Ptr</span><span> </span><span class="hs-special">(</span><span> </span><span class="hs-identifier">Ptr</span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-75"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Foreign.StablePtr</span><span> </span><span class="hs-special">(</span><span> </span><span class="hs-identifier">StablePtr</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">newStablePtr</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">freeStablePtr</span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-76"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Foreign.Storable</span><span> </span><span class="hs-special">(</span><span> </span><span class="hs-identifier">Storable</span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-77"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">System.Exit</span><span>
+</span><span id="line-78"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">System.Posix.Process.Internals</span><span>
+</span><span id="line-79"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">System.Posix.Types</span><span>
+</span><span id="line-80"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Control.Monad</span><span>
+</span><span id="line-81"></span><span>
+</span><span id="line-82"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Control.Exception.Base</span><span> </span><span class="hs-special">(</span><span> </span><span class="hs-identifier">bracket</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">getMaskingState</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">MaskingState</span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span> </span><span class="hs-special">)</span><span> </span><span class="hs-comment">-- used by forkProcess</span><span>
+</span><span id="line-83"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">GHC.TopHandler</span><span>   </span><span class="hs-special">(</span><span> </span><span class="hs-identifier">runIO</span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-84"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">GHC.IO</span><span> </span><span class="hs-special">(</span><span> </span><span class="hs-identifier">unsafeUnmask</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">uninterruptibleMask_</span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-85"></span><span>
+</span><span id="line-86"></span><span class="hs-comment">-- -----------------------------------------------------------------------------</span><span>
+</span><span id="line-87"></span><span class="hs-comment">-- Process environment</span><span>
+</span><span id="line-88"></span><span>
+</span><span id="line-89"></span><span class="hs-comment">-- | 'getProcessID' calls @getpid@ to obtain the 'ProcessID' for</span><span>
+</span><span id="line-90"></span><span class="hs-comment">--   the current process.</span><span>
+</span><span id="line-91"></span><span class="hs-identifier">getProcessID</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">ProcessID</span><span>
+</span><span id="line-92"></span><span class="hs-identifier">getProcessID</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">c_getpid</span><span>
+</span><span id="line-93"></span><span>
+</span><span id="line-94"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">ccall</span><span> </span><span class="hs-keyword">unsafe</span><span> </span><span class="hs-string">&quot;getpid&quot;</span><span>
+</span><span id="line-95"></span><span>   </span><span class="hs-identifier">c_getpid</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">CPid</span><span>
+</span><span id="line-96"></span><span>
+</span><span id="line-97"></span><span class="hs-comment">-- | 'getProcessID' calls @getppid@ to obtain the 'ProcessID' for</span><span>
+</span><span id="line-98"></span><span class="hs-comment">--   the parent of the current process.</span><span>
+</span><span id="line-99"></span><span class="hs-identifier">getParentProcessID</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">ProcessID</span><span>
+</span><span id="line-100"></span><span class="hs-identifier">getParentProcessID</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">c_getppid</span><span>
+</span><span id="line-101"></span><span>
+</span><span id="line-102"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">ccall</span><span> </span><span class="hs-keyword">unsafe</span><span> </span><span class="hs-string">&quot;getppid&quot;</span><span>
+</span><span id="line-103"></span><span>  </span><span class="hs-identifier">c_getppid</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">CPid</span><span>
+</span><span id="line-104"></span><span>
+</span><span id="line-105"></span><span class="hs-comment">-- | 'getProcessGroupID' calls @getpgrp@ to obtain the</span><span>
+</span><span id="line-106"></span><span class="hs-comment">--   'ProcessGroupID' for the current process.</span><span>
+</span><span id="line-107"></span><span class="hs-identifier">getProcessGroupID</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">ProcessGroupID</span><span>
+</span><span id="line-108"></span><span class="hs-identifier">getProcessGroupID</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">c_getpgrp</span><span>
+</span><span id="line-109"></span><span>
+</span><span id="line-110"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">ccall</span><span> </span><span class="hs-keyword">unsafe</span><span> </span><span class="hs-string">&quot;getpgrp&quot;</span><span>
+</span><span id="line-111"></span><span>  </span><span class="hs-identifier">c_getpgrp</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">CPid</span><span>
+</span><span id="line-112"></span><span>
+</span><span id="line-113"></span><span class="hs-comment">-- | @'getProcessGroupIDOf' pid@ calls @getpgid@ to obtain the</span><span>
+</span><span id="line-114"></span><span class="hs-comment">--   'ProcessGroupID' for process @pid@.</span><span>
+</span><span id="line-115"></span><span class="hs-identifier">getProcessGroupIDOf</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">ProcessID</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">ProcessGroupID</span><span>
+</span><span id="line-116"></span><span class="hs-identifier">getProcessGroupIDOf</span><span> </span><span class="hs-identifier">pid</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-117"></span><span>  </span><span class="hs-identifier">throwErrnoIfMinus1</span><span> </span><span class="hs-string">&quot;getProcessGroupIDOf&quot;</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">c_getpgid</span><span> </span><span class="hs-identifier">pid</span><span class="hs-special">)</span><span>
+</span><span id="line-118"></span><span>
+</span><span id="line-119"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">ccall</span><span> </span><span class="hs-keyword">unsafe</span><span> </span><span class="hs-string">&quot;getpgid&quot;</span><span>
+</span><span id="line-120"></span><span>  </span><span class="hs-identifier">c_getpgid</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">CPid</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">CPid</span><span>
+</span><span id="line-121"></span><span>
+</span><span id="line-122"></span><span class="hs-comment">{-
+   To be added in the future, after the deprecation period for the
+   existing createProcessGroup has elapsed:
+
+-- | 'createProcessGroup' calls @setpgid(0,0)@ to make
+--   the current process a new process group leader.
+createProcessGroup :: IO ProcessGroupID
+createProcessGroup = do
+  throwErrnoIfMinus1_ &quot;createProcessGroup&quot; (c_setpgid 0 0)
+  pgid &lt;- getProcessGroupID
+  return pgid
+-}</span><span>
+</span><span id="line-134"></span><span>
+</span><span id="line-135"></span><span class="hs-comment">-- | @'createProcessGroupFor' pid@ calls @setpgid@ to make</span><span>
+</span><span id="line-136"></span><span class="hs-comment">--   process @pid@ a new process group leader.</span><span>
+</span><span id="line-137"></span><span class="hs-identifier">createProcessGroupFor</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">ProcessID</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">ProcessGroupID</span><span>
+</span><span id="line-138"></span><span class="hs-identifier">createProcessGroupFor</span><span> </span><span class="hs-identifier">pid</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-139"></span><span>  </span><span class="hs-identifier">throwErrnoIfMinus1_</span><span> </span><span class="hs-string">&quot;createProcessGroupFor&quot;</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">c_setpgid</span><span> </span><span class="hs-identifier">pid</span><span> </span><span class="hs-number">0</span><span class="hs-special">)</span><span>
+</span><span id="line-140"></span><span>  </span><span class="hs-identifier">return</span><span> </span><span class="hs-identifier">pid</span><span>
+</span><span id="line-141"></span><span>
+</span><span id="line-142"></span><span class="hs-comment">-- | @'joinProcessGroup' pgid@ calls @setpgid@ to set the</span><span>
+</span><span id="line-143"></span><span class="hs-comment">--   'ProcessGroupID' of the current process to @pgid@.</span><span>
+</span><span id="line-144"></span><span class="hs-identifier">joinProcessGroup</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">ProcessGroupID</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-145"></span><span class="hs-identifier">joinProcessGroup</span><span> </span><span class="hs-identifier">pgid</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-146"></span><span>  </span><span class="hs-identifier">throwErrnoIfMinus1_</span><span> </span><span class="hs-string">&quot;joinProcessGroup&quot;</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">c_setpgid</span><span> </span><span class="hs-number">0</span><span> </span><span class="hs-identifier">pgid</span><span class="hs-special">)</span><span>
+</span><span id="line-147"></span><span>
+</span><span id="line-148"></span><span class="hs-comment">{-
+   To be added in the future, after the deprecation period for the
+   existing setProcessGroupID has elapsed:
+
+-- | @'setProcessGroupID' pgid@ calls @setpgid@ to set the
+--   'ProcessGroupID' of the current process to @pgid@.
+setProcessGroupID :: ProcessGroupID -&gt; IO ()
+setProcessGroupID pgid =
+  throwErrnoIfMinus1_ &quot;setProcessGroupID&quot; (c_setpgid 0 pgid)
+-}</span><span>
+</span><span id="line-158"></span><span>
+</span><span id="line-159"></span><span class="hs-comment">-- | @'setProcessGroupIDOf' pid pgid@ calls @setpgid@ to set the</span><span>
+</span><span id="line-160"></span><span class="hs-comment">--   'ProcessGroupIDOf' for process @pid@ to @pgid@.</span><span>
+</span><span id="line-161"></span><span class="hs-identifier">setProcessGroupIDOf</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">ProcessID</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">ProcessGroupID</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-162"></span><span class="hs-identifier">setProcessGroupIDOf</span><span> </span><span class="hs-identifier">pid</span><span> </span><span class="hs-identifier">pgid</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-163"></span><span>  </span><span class="hs-identifier">throwErrnoIfMinus1_</span><span> </span><span class="hs-string">&quot;setProcessGroupIDOf&quot;</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">c_setpgid</span><span> </span><span class="hs-identifier">pid</span><span> </span><span class="hs-identifier">pgid</span><span class="hs-special">)</span><span>
+</span><span id="line-164"></span><span>
+</span><span id="line-165"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">ccall</span><span> </span><span class="hs-keyword">unsafe</span><span> </span><span class="hs-string">&quot;setpgid&quot;</span><span>
+</span><span id="line-166"></span><span>  </span><span class="hs-identifier">c_setpgid</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">CPid</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">CPid</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">CInt</span><span>
+</span><span id="line-167"></span><span>
+</span><span id="line-168"></span><span class="hs-comment">-- | 'createSession' calls @setsid@ to create a new session</span><span>
+</span><span id="line-169"></span><span class="hs-comment">--   with the current process as session leader.</span><span>
+</span><span id="line-170"></span><span class="hs-identifier">createSession</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">ProcessGroupID</span><span>
+</span><span id="line-171"></span><span class="hs-identifier">createSession</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">throwErrnoIfMinus1</span><span> </span><span class="hs-string">&quot;createSession&quot;</span><span> </span><span class="hs-identifier">c_setsid</span><span>
+</span><span id="line-172"></span><span>
+</span><span id="line-173"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">ccall</span><span> </span><span class="hs-keyword">unsafe</span><span> </span><span class="hs-string">&quot;setsid&quot;</span><span>
+</span><span id="line-174"></span><span>  </span><span class="hs-identifier">c_setsid</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">CPid</span><span>
+</span><span id="line-175"></span><span>
+</span><span id="line-176"></span><span class="hs-comment">-- -----------------------------------------------------------------------------</span><span>
+</span><span id="line-177"></span><span class="hs-comment">-- Process times</span><span>
+</span><span id="line-178"></span><span>
+</span><span id="line-179"></span><span class="hs-comment">-- All times in clock ticks (see getClockTick)</span><span>
+</span><span id="line-180"></span><span>
+</span><span id="line-181"></span><span class="hs-keyword">data</span><span> </span><span class="hs-identifier">ProcessTimes</span><span>
+</span><span id="line-182"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">ProcessTimes</span><span> </span><span class="hs-special">{</span><span> </span><span class="hs-identifier">elapsedTime</span><span>     </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">ClockTick</span><span>
+</span><span id="line-183"></span><span>                 </span><span class="hs-special">,</span><span> </span><span class="hs-identifier">userTime</span><span>        </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">ClockTick</span><span>
+</span><span id="line-184"></span><span>                 </span><span class="hs-special">,</span><span> </span><span class="hs-identifier">systemTime</span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">ClockTick</span><span>
+</span><span id="line-185"></span><span>                 </span><span class="hs-special">,</span><span> </span><span class="hs-identifier">childUserTime</span><span>   </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">ClockTick</span><span>
+</span><span id="line-186"></span><span>                 </span><span class="hs-special">,</span><span> </span><span class="hs-identifier">childSystemTime</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">ClockTick</span><span>
+</span><span id="line-187"></span><span>                 </span><span class="hs-special">}</span><span>
+</span><span id="line-188"></span><span>
+</span><span id="line-189"></span><span class="hs-comment">-- | 'getProcessTimes' calls @times@ to obtain time-accounting</span><span>
+</span><span id="line-190"></span><span class="hs-comment">--   information for the current process and its children.</span><span>
+</span><span id="line-191"></span><span class="hs-identifier">getProcessTimes</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">ProcessTimes</span><span>
+</span><span id="line-192"></span><span class="hs-identifier">getProcessTimes</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-193"></span><span>   </span><span class="hs-identifier">allocaBytes</span><span> </span><span class="hs-special">(</span><span class="hs-number">32</span><span class="hs-special">)</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-glyph">\</span><span class="hs-identifier">p_tms</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-194"></span><span class="hs-pragma">{-# LINE 194 &quot;libraries/unix/System/Posix/Process/Common.hsc&quot; #-}</span><span>
+</span><span id="line-194"></span><span>     </span><span class="hs-identifier">elapsed</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier">throwErrnoIfMinus1</span><span> </span><span class="hs-string">&quot;getProcessTimes&quot;</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">c_times</span><span> </span><span class="hs-identifier">p_tms</span><span class="hs-special">)</span><span>
+</span><span id="line-195"></span><span>     </span><span class="hs-identifier">ut</span><span>  </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-identifier">hsc_ptr</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">peekByteOff</span><span> </span><span class="hs-identifier">hsc_ptr</span><span> </span><span class="hs-number">0</span><span class="hs-special">)</span><span class="hs-special">)</span><span>  </span><span class="hs-identifier">p_tms</span><span>
+</span><span id="line-196"></span><span class="hs-pragma">{-# LINE 196 &quot;libraries/unix/System/Posix/Process/Common.hsc&quot; #-}</span><span>
+</span><span id="line-196"></span><span>     </span><span class="hs-identifier">st</span><span>  </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-identifier">hsc_ptr</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">peekByteOff</span><span> </span><span class="hs-identifier">hsc_ptr</span><span> </span><span class="hs-number">8</span><span class="hs-special">)</span><span class="hs-special">)</span><span>  </span><span class="hs-identifier">p_tms</span><span>
+</span><span id="line-197"></span><span class="hs-pragma">{-# LINE 197 &quot;libraries/unix/System/Posix/Process/Common.hsc&quot; #-}</span><span>
+</span><span id="line-197"></span><span>     </span><span class="hs-identifier">cut</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-identifier">hsc_ptr</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">peekByteOff</span><span> </span><span class="hs-identifier">hsc_ptr</span><span> </span><span class="hs-number">16</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-identifier">p_tms</span><span>
+</span><span id="line-198"></span><span class="hs-pragma">{-# LINE 198 &quot;libraries/unix/System/Posix/Process/Common.hsc&quot; #-}</span><span>
+</span><span id="line-198"></span><span>     </span><span class="hs-identifier">cst</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-identifier">hsc_ptr</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">peekByteOff</span><span> </span><span class="hs-identifier">hsc_ptr</span><span> </span><span class="hs-number">24</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-identifier">p_tms</span><span>
+</span><span id="line-199"></span><span class="hs-pragma">{-# LINE 199 &quot;libraries/unix/System/Posix/Process/Common.hsc&quot; #-}</span><span>
+</span><span id="line-199"></span><span>     </span><span class="hs-identifier">return</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">ProcessTimes</span><span class="hs-special">{</span><span> </span><span class="hs-identifier">elapsedTime</span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">elapsed</span><span class="hs-special">,</span><span>
+</span><span id="line-200"></span><span>                           </span><span class="hs-identifier">userTime</span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">ut</span><span class="hs-special">,</span><span>
+</span><span id="line-201"></span><span>                           </span><span class="hs-identifier">systemTime</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">st</span><span class="hs-special">,</span><span>
+</span><span id="line-202"></span><span>                           </span><span class="hs-identifier">childUserTime</span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">cut</span><span class="hs-special">,</span><span>
+</span><span id="line-203"></span><span>                           </span><span class="hs-identifier">childSystemTime</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">cst</span><span>
+</span><span id="line-204"></span><span>                          </span><span class="hs-special">}</span><span class="hs-special">)</span><span>
+</span><span id="line-205"></span><span>
+</span><span id="line-206"></span><span class="hs-keyword">data</span><span> </span><span class="hs-pragma">{-# CTYPE</span><span> </span><span class="hs-pragma">&quot;struct tms&quot;</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="hs-identifier">CTms</span><span>
+</span><span id="line-207"></span><span>
+</span><span id="line-208"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">capi</span><span> </span><span class="hs-keyword">unsafe</span><span> </span><span class="hs-string">&quot;HsUnix.h times&quot;</span><span>
+</span><span id="line-209"></span><span>  </span><span class="hs-identifier">c_times</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Ptr</span><span> </span><span class="hs-identifier">CTms</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">CClock</span><span>
+</span><span id="line-210"></span><span>
+</span><span id="line-211"></span><span class="hs-comment">-- -----------------------------------------------------------------------------</span><span>
+</span><span id="line-212"></span><span class="hs-comment">-- Process scheduling priority</span><span>
+</span><span id="line-213"></span><span>
+</span><span id="line-214"></span><span class="hs-identifier">nice</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Int</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-215"></span><span class="hs-identifier">nice</span><span> </span><span class="hs-identifier">prio</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-216"></span><span>  </span><span class="hs-identifier">resetErrno</span><span>
+</span><span id="line-217"></span><span>  </span><span class="hs-identifier">res</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier">c_nice</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">fromIntegral</span><span> </span><span class="hs-identifier">prio</span><span class="hs-special">)</span><span>
+</span><span id="line-218"></span><span>  </span><span class="hs-identifier">when</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">res</span><span> </span><span class="hs-operator">==</span><span> </span><span class="hs-glyph">-</span><span class="hs-number">1</span><span class="hs-special">)</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-219"></span><span>    </span><span class="hs-identifier">err</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier">getErrno</span><span>
+</span><span id="line-220"></span><span>    </span><span class="hs-identifier">when</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">err</span><span> </span><span class="hs-operator">/=</span><span> </span><span class="hs-identifier">eOK</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">throwErrno</span><span> </span><span class="hs-string">&quot;nice&quot;</span><span class="hs-special">)</span><span>
+</span><span id="line-221"></span><span>
+</span><span id="line-222"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">ccall</span><span> </span><span class="hs-keyword">unsafe</span><span> </span><span class="hs-string">&quot;nice&quot;</span><span>
+</span><span id="line-223"></span><span>  </span><span class="hs-identifier">c_nice</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">CInt</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">CInt</span><span>
+</span><span id="line-224"></span><span>
+</span><span id="line-225"></span><span class="hs-identifier">getProcessPriority</span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">ProcessID</span><span>      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">Int</span><span>
+</span><span id="line-226"></span><span class="hs-identifier">getProcessGroupPriority</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">ProcessGroupID</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">Int</span><span>
+</span><span id="line-227"></span><span class="hs-identifier">getUserPriority</span><span>         </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">UserID</span><span>         </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">Int</span><span>
+</span><span id="line-228"></span><span>
+</span><span id="line-229"></span><span class="hs-identifier">getProcessPriority</span><span> </span><span class="hs-identifier">pid</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-230"></span><span>  </span><span class="hs-identifier">r</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier">throwErrnoIfMinus1</span><span> </span><span class="hs-string">&quot;getProcessPriority&quot;</span><span> </span><span class="hs-operator">$</span><span>
+</span><span id="line-231"></span><span>         </span><span class="hs-identifier">c_getpriority</span><span> </span><span class="hs-special">(</span><span class="hs-number">0</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">fromIntegral</span><span> </span><span class="hs-identifier">pid</span><span class="hs-special">)</span><span>
+</span><span id="line-232"></span><span class="hs-pragma">{-# LINE 232 &quot;libraries/unix/System/Posix/Process/Common.hsc&quot; #-}</span><span>
+</span><span id="line-232"></span><span>  </span><span class="hs-identifier">return</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">fromIntegral</span><span> </span><span class="hs-identifier">r</span><span class="hs-special">)</span><span>
+</span><span id="line-233"></span><span>
+</span><span id="line-234"></span><span class="hs-identifier">getProcessGroupPriority</span><span> </span><span class="hs-identifier">pid</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-235"></span><span>  </span><span class="hs-identifier">r</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier">throwErrnoIfMinus1</span><span> </span><span class="hs-string">&quot;getProcessPriority&quot;</span><span> </span><span class="hs-operator">$</span><span>
+</span><span id="line-236"></span><span>         </span><span class="hs-identifier">c_getpriority</span><span> </span><span class="hs-special">(</span><span class="hs-number">1</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">fromIntegral</span><span> </span><span class="hs-identifier">pid</span><span class="hs-special">)</span><span>
+</span><span id="line-237"></span><span class="hs-pragma">{-# LINE 237 &quot;libraries/unix/System/Posix/Process/Common.hsc&quot; #-}</span><span>
+</span><span id="line-237"></span><span>  </span><span class="hs-identifier">return</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">fromIntegral</span><span> </span><span class="hs-identifier">r</span><span class="hs-special">)</span><span>
+</span><span id="line-238"></span><span>
+</span><span id="line-239"></span><span class="hs-identifier">getUserPriority</span><span> </span><span class="hs-identifier">uid</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-240"></span><span>  </span><span class="hs-identifier">r</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier">throwErrnoIfMinus1</span><span> </span><span class="hs-string">&quot;getUserPriority&quot;</span><span> </span><span class="hs-operator">$</span><span>
+</span><span id="line-241"></span><span>         </span><span class="hs-identifier">c_getpriority</span><span> </span><span class="hs-special">(</span><span class="hs-number">2</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">fromIntegral</span><span> </span><span class="hs-identifier">uid</span><span class="hs-special">)</span><span>
+</span><span id="line-242"></span><span class="hs-pragma">{-# LINE 242 &quot;libraries/unix/System/Posix/Process/Common.hsc&quot; #-}</span><span>
+</span><span id="line-242"></span><span>  </span><span class="hs-identifier">return</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">fromIntegral</span><span> </span><span class="hs-identifier">r</span><span class="hs-special">)</span><span>
+</span><span id="line-243"></span><span>
+</span><span id="line-244"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">ccall</span><span> </span><span class="hs-keyword">unsafe</span><span> </span><span class="hs-string">&quot;getpriority&quot;</span><span>
+</span><span id="line-245"></span><span>  </span><span class="hs-identifier">c_getpriority</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">CInt</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">CInt</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">CInt</span><span>
+</span><span id="line-246"></span><span>
+</span><span id="line-247"></span><span class="hs-identifier">setProcessPriority</span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">ProcessID</span><span>      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">Int</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-248"></span><span class="hs-identifier">setProcessGroupPriority</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">ProcessGroupID</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">Int</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-249"></span><span class="hs-identifier">setUserPriority</span><span>         </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">UserID</span><span>         </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">Int</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-250"></span><span>
+</span><span id="line-251"></span><span class="hs-identifier">setProcessPriority</span><span> </span><span class="hs-identifier">pid</span><span> </span><span class="hs-identifier">val</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-252"></span><span>  </span><span class="hs-identifier">throwErrnoIfMinus1_</span><span> </span><span class="hs-string">&quot;setProcessPriority&quot;</span><span> </span><span class="hs-operator">$</span><span>
+</span><span id="line-253"></span><span>    </span><span class="hs-identifier">c_setpriority</span><span> </span><span class="hs-special">(</span><span class="hs-number">0</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">fromIntegral</span><span> </span><span class="hs-identifier">pid</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">fromIntegral</span><span> </span><span class="hs-identifier">val</span><span class="hs-special">)</span><span>
+</span><span id="line-254"></span><span class="hs-pragma">{-# LINE 254 &quot;libraries/unix/System/Posix/Process/Common.hsc&quot; #-}</span><span>
+</span><span id="line-254"></span><span>
+</span><span id="line-255"></span><span class="hs-identifier">setProcessGroupPriority</span><span> </span><span class="hs-identifier">pid</span><span> </span><span class="hs-identifier">val</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-256"></span><span>  </span><span class="hs-identifier">throwErrnoIfMinus1_</span><span> </span><span class="hs-string">&quot;setProcessPriority&quot;</span><span> </span><span class="hs-operator">$</span><span>
+</span><span id="line-257"></span><span>    </span><span class="hs-identifier">c_setpriority</span><span> </span><span class="hs-special">(</span><span class="hs-number">1</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">fromIntegral</span><span> </span><span class="hs-identifier">pid</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">fromIntegral</span><span> </span><span class="hs-identifier">val</span><span class="hs-special">)</span><span>
+</span><span id="line-258"></span><span class="hs-pragma">{-# LINE 258 &quot;libraries/unix/System/Posix/Process/Common.hsc&quot; #-}</span><span>
+</span><span id="line-258"></span><span>
+</span><span id="line-259"></span><span class="hs-identifier">setUserPriority</span><span> </span><span class="hs-identifier">uid</span><span> </span><span class="hs-identifier">val</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-260"></span><span>  </span><span class="hs-identifier">throwErrnoIfMinus1_</span><span> </span><span class="hs-string">&quot;setUserPriority&quot;</span><span> </span><span class="hs-operator">$</span><span>
+</span><span id="line-261"></span><span>    </span><span class="hs-identifier">c_setpriority</span><span> </span><span class="hs-special">(</span><span class="hs-number">2</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">fromIntegral</span><span> </span><span class="hs-identifier">uid</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">fromIntegral</span><span> </span><span class="hs-identifier">val</span><span class="hs-special">)</span><span>
+</span><span id="line-262"></span><span class="hs-pragma">{-# LINE 262 &quot;libraries/unix/System/Posix/Process/Common.hsc&quot; #-}</span><span>
+</span><span id="line-262"></span><span>
+</span><span id="line-263"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">ccall</span><span> </span><span class="hs-keyword">unsafe</span><span> </span><span class="hs-string">&quot;setpriority&quot;</span><span>
+</span><span id="line-264"></span><span>  </span><span class="hs-identifier">c_setpriority</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">CInt</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">CInt</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">CInt</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">CInt</span><span>
+</span><span id="line-265"></span><span>
+</span><span id="line-266"></span><span class="hs-comment">-- -----------------------------------------------------------------------------</span><span>
+</span><span id="line-267"></span><span class="hs-comment">-- Forking, execution</span><span>
+</span><span id="line-268"></span><span>
+</span><span id="line-269"></span><span class="hs-comment">{- | 'forkProcess' corresponds to the POSIX @fork@ system call.
+The 'IO' action passed as an argument is executed in the child process; no other
+threads will be copied to the child process.
+On success, 'forkProcess' returns the child's 'ProcessID' to the parent process;
+in case of an error, an exception is thrown.
+
+The exception masking state of the executed action is inherited
+(c.f. 'forkIO'), see also 'forkProcessWithUnmask' (/since: 2.7.0.0/).
+
+'forkProcess' comes with a giant warning: since any other running
+threads are not copied into the child process, it's easy to go wrong:
+e.g. by accessing some shared resource that was held by another thread
+in the parent.
+-}</span><span>
+</span><span id="line-283"></span><span>
+</span><span id="line-284"></span><span class="hs-identifier">forkProcess</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">ProcessID</span><span>
+</span><span id="line-285"></span><span class="hs-identifier">forkProcess</span><span> </span><span class="hs-identifier">action</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-286"></span><span>  </span><span class="hs-comment">-- wrap action to re-establish caller's masking state, as</span><span>
+</span><span id="line-287"></span><span>  </span><span class="hs-comment">-- 'forkProcessPrim' starts in 'MaskedInterruptible' state by</span><span>
+</span><span id="line-288"></span><span>  </span><span class="hs-comment">-- default; see also #1048</span><span>
+</span><span id="line-289"></span><span>  </span><span class="hs-identifier">mstate</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier">getMaskingState</span><span>
+</span><span id="line-290"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span class="hs-identifier">action'</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="hs-identifier">mstate</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-291"></span><span>          </span><span class="hs-identifier">Unmasked</span><span>              </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">unsafeUnmask</span><span> </span><span class="hs-identifier">action</span><span>
+</span><span id="line-292"></span><span>          </span><span class="hs-identifier">MaskedInterruptible</span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">action</span><span>
+</span><span id="line-293"></span><span>          </span><span class="hs-identifier">MaskedUninterruptible</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">uninterruptibleMask_</span><span> </span><span class="hs-identifier">action</span><span>
+</span><span id="line-294"></span><span>
+</span><span id="line-295"></span><span>  </span><span class="hs-identifier">bracket</span><span>
+</span><span id="line-296"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">newStablePtr</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">runIO</span><span> </span><span class="hs-identifier">action'</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-297"></span><span>    </span><span class="hs-identifier">freeStablePtr</span><span>
+</span><span id="line-298"></span><span>    </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-identifier">stable</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">throwErrnoIfMinus1</span><span> </span><span class="hs-string">&quot;forkProcess&quot;</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">forkProcessPrim</span><span> </span><span class="hs-identifier">stable</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-299"></span><span>
+</span><span id="line-300"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">ccall</span><span> </span><span class="hs-string">&quot;forkProcess&quot;</span><span> </span><span class="hs-identifier">forkProcessPrim</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">StablePtr</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">IO</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">CPid</span><span>
+</span><span id="line-301"></span><span>
+</span><span id="line-302"></span><span class="hs-comment">-- | Variant of 'forkProcess' in the style of 'forkIOWithUnmask'.</span><span>
+</span><span id="line-303"></span><span class="hs-comment">--</span><span>
+</span><span id="line-304"></span><span class="hs-comment">-- @since 2.7.0.0</span><span>
+</span><span id="line-305"></span><span class="hs-identifier">forkProcessWithUnmask</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-keyword">forall</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">ProcessID</span><span>
+</span><span id="line-306"></span><span class="hs-identifier">forkProcessWithUnmask</span><span> </span><span class="hs-identifier">action</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">forkProcess</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">action</span><span> </span><span class="hs-identifier">unsafeUnmask</span><span class="hs-special">)</span><span>
+</span><span id="line-307"></span><span>
+</span><span id="line-308"></span><span class="hs-comment">-- -----------------------------------------------------------------------------</span><span>
+</span><span id="line-309"></span><span class="hs-comment">-- Waiting for process termination</span><span>
+</span><span id="line-310"></span><span>
+</span><span id="line-311"></span><span class="hs-comment">-- | @'getProcessStatus' blk stopped pid@ calls @waitpid@, returning</span><span>
+</span><span id="line-312"></span><span class="hs-comment">--   @'Just' tc@, the 'ProcessStatus' for process @pid@ if it is</span><span>
+</span><span id="line-313"></span><span class="hs-comment">--   available, 'Nothing' otherwise.  If @blk@ is 'False', then</span><span>
+</span><span id="line-314"></span><span class="hs-comment">--   @WNOHANG@ is set in the options for @waitpid@, otherwise not.</span><span>
+</span><span id="line-315"></span><span class="hs-comment">--   If @stopped@ is 'True', then @WUNTRACED@ is set in the</span><span>
+</span><span id="line-316"></span><span class="hs-comment">--   options for @waitpid@, otherwise not.</span><span>
+</span><span id="line-317"></span><span class="hs-identifier">getProcessStatus</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Bool</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">Bool</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">ProcessID</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Maybe</span><span> </span><span class="hs-identifier">ProcessStatus</span><span class="hs-special">)</span><span>
+</span><span id="line-318"></span><span class="hs-identifier">getProcessStatus</span><span> </span><span class="hs-identifier">block</span><span> </span><span class="hs-identifier">stopped</span><span> </span><span class="hs-identifier">pid</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-319"></span><span>  </span><span class="hs-identifier">alloca</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-glyph">\</span><span class="hs-identifier">wstatp</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-320"></span><span>    </span><span class="hs-identifier">pid'</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier">throwErrnoIfMinus1Retry</span><span> </span><span class="hs-string">&quot;getProcessStatus&quot;</span><span>
+</span><span id="line-321"></span><span>                </span><span class="hs-special">(</span><span class="hs-identifier">c_waitpid</span><span> </span><span class="hs-identifier">pid</span><span> </span><span class="hs-identifier">wstatp</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">waitOptions</span><span> </span><span class="hs-identifier">block</span><span> </span><span class="hs-identifier">stopped</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-322"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="hs-identifier">pid'</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-323"></span><span>      </span><span class="hs-number">0</span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">return</span><span> </span><span class="hs-identifier">Nothing</span><span>
+</span><span id="line-324"></span><span>      </span><span class="hs-identifier">_</span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span> </span><span class="hs-identifier">ps</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier">readWaitStatus</span><span> </span><span class="hs-identifier">wstatp</span><span>
+</span><span id="line-325"></span><span>               </span><span class="hs-identifier">return</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Just</span><span> </span><span class="hs-identifier">ps</span><span class="hs-special">)</span><span>
+</span><span id="line-326"></span><span>
+</span><span id="line-327"></span><span class="hs-comment">-- safe/interruptible, because this call might block</span><span>
+</span><span id="line-328"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">ccall</span><span> </span><span class="hs-keyword">interruptible</span><span> </span><span class="hs-string">&quot;waitpid&quot;</span><span>
+</span><span id="line-329"></span><span>  </span><span class="hs-identifier">c_waitpid</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">CPid</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">Ptr</span><span> </span><span class="hs-identifier">CInt</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">CInt</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">CPid</span><span>
+</span><span id="line-330"></span><span>
+</span><span id="line-331"></span><span class="hs-comment">-- | @'getGroupProcessStatus' blk stopped pgid@ calls @waitpid@,</span><span>
+</span><span id="line-332"></span><span class="hs-comment">--   returning @'Just' (pid, tc)@, the 'ProcessID' and 'ProcessStatus'</span><span>
+</span><span id="line-333"></span><span class="hs-comment">--   for any process in group @pgid@ if one is available, or 'Nothing'</span><span>
+</span><span id="line-334"></span><span class="hs-comment">--   if there are child processes but none have exited.  If there are</span><span>
+</span><span id="line-335"></span><span class="hs-comment">--   no child processes, then 'getGroupProcessStatus' raises an</span><span>
+</span><span id="line-336"></span><span class="hs-comment">--   'isDoesNotExistError' exception.</span><span>
+</span><span id="line-337"></span><span class="hs-comment">--</span><span>
+</span><span id="line-338"></span><span class="hs-comment">--   If @blk@ is 'False', then @WNOHANG@ is set in the options for</span><span>
+</span><span id="line-339"></span><span class="hs-comment">--   @waitpid@, otherwise not.  If @stopped@ is 'True', then</span><span>
+</span><span id="line-340"></span><span class="hs-comment">--   @WUNTRACED@ is set in the options for @waitpid@, otherwise not.</span><span>
+</span><span id="line-341"></span><span class="hs-identifier">getGroupProcessStatus</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Bool</span><span>
+</span><span id="line-342"></span><span>                      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">Bool</span><span>
+</span><span id="line-343"></span><span>                      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">ProcessGroupID</span><span>
+</span><span id="line-344"></span><span>                      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Maybe</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">ProcessID</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">ProcessStatus</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-345"></span><span class="hs-identifier">getGroupProcessStatus</span><span> </span><span class="hs-identifier">block</span><span> </span><span class="hs-identifier">stopped</span><span> </span><span class="hs-identifier">pgid</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-346"></span><span>  </span><span class="hs-identifier">alloca</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-glyph">\</span><span class="hs-identifier">wstatp</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-347"></span><span>    </span><span class="hs-identifier">pid</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier">throwErrnoIfMinus1Retry</span><span> </span><span class="hs-string">&quot;getGroupProcessStatus&quot;</span><span>
+</span><span id="line-348"></span><span>                </span><span class="hs-special">(</span><span class="hs-identifier">c_waitpid</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">-</span><span class="hs-identifier">pgid</span><span class="hs-special">)</span><span> </span><span class="hs-identifier">wstatp</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">waitOptions</span><span> </span><span class="hs-identifier">block</span><span> </span><span class="hs-identifier">stopped</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-349"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="hs-identifier">pid</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-350"></span><span>      </span><span class="hs-number">0</span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">return</span><span> </span><span class="hs-identifier">Nothing</span><span>
+</span><span id="line-351"></span><span>      </span><span class="hs-identifier">_</span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span> </span><span class="hs-identifier">ps</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier">readWaitStatus</span><span> </span><span class="hs-identifier">wstatp</span><span>
+</span><span id="line-352"></span><span>               </span><span class="hs-identifier">return</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Just</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">pid</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">ps</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-353"></span><span>
+</span><span id="line-354"></span><span class="hs-comment">-- | @'getAnyProcessStatus' blk stopped@ calls @waitpid@, returning</span><span>
+</span><span id="line-355"></span><span class="hs-comment">--   @'Just' (pid, tc)@, the 'ProcessID' and 'ProcessStatus' for any</span><span>
+</span><span id="line-356"></span><span class="hs-comment">--   child process if a child process has exited, or 'Nothing' if</span><span>
+</span><span id="line-357"></span><span class="hs-comment">--   there are child processes but none have exited.  If there are no</span><span>
+</span><span id="line-358"></span><span class="hs-comment">--   child processes, then 'getAnyProcessStatus' raises an</span><span>
+</span><span id="line-359"></span><span class="hs-comment">--   'isDoesNotExistError' exception.</span><span>
+</span><span id="line-360"></span><span class="hs-comment">--</span><span>
+</span><span id="line-361"></span><span class="hs-comment">--   If @blk@ is 'False', then @WNOHANG@ is set in the options for</span><span>
+</span><span id="line-362"></span><span class="hs-comment">--   @waitpid@, otherwise not.  If @stopped@ is 'True', then</span><span>
+</span><span id="line-363"></span><span class="hs-comment">--   @WUNTRACED@ is set in the options for @waitpid@, otherwise not.</span><span>
+</span><span id="line-364"></span><span class="hs-identifier">getAnyProcessStatus</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Bool</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">Bool</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Maybe</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">ProcessID</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">ProcessStatus</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-365"></span><span class="hs-identifier">getAnyProcessStatus</span><span> </span><span class="hs-identifier">block</span><span> </span><span class="hs-identifier">stopped</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">getGroupProcessStatus</span><span> </span><span class="hs-identifier">block</span><span> </span><span class="hs-identifier">stopped</span><span> </span><span class="hs-number">1</span><span>
+</span><span id="line-366"></span><span>
+</span><span id="line-367"></span><span class="hs-identifier">waitOptions</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Bool</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">Bool</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">CInt</span><span>
+</span><span id="line-368"></span><span class="hs-comment">--             block   stopped</span><span>
+</span><span id="line-369"></span><span class="hs-identifier">waitOptions</span><span> </span><span class="hs-identifier">False</span><span> </span><span class="hs-identifier">False</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-number">1</span><span class="hs-special">)</span><span>
+</span><span id="line-370"></span><span class="hs-pragma">{-# LINE 370 &quot;libraries/unix/System/Posix/Process/Common.hsc&quot; #-}</span><span>
+</span><span id="line-370"></span><span class="hs-identifier">waitOptions</span><span> </span><span class="hs-identifier">False</span><span> </span><span class="hs-identifier">True</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-number">3</span><span class="hs-special">)</span><span>
+</span><span id="line-371"></span><span class="hs-pragma">{-# LINE 371 &quot;libraries/unix/System/Posix/Process/Common.hsc&quot; #-}</span><span>
+</span><span id="line-371"></span><span class="hs-identifier">waitOptions</span><span> </span><span class="hs-identifier">True</span><span>  </span><span class="hs-identifier">False</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-number">0</span><span>
+</span><span id="line-372"></span><span class="hs-identifier">waitOptions</span><span> </span><span class="hs-identifier">True</span><span>  </span><span class="hs-identifier">True</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-number">2</span><span class="hs-special">)</span><span>
+</span><span id="line-373"></span><span class="hs-pragma">{-# LINE 373 &quot;libraries/unix/System/Posix/Process/Common.hsc&quot; #-}</span><span>
+</span><span id="line-373"></span><span>
+</span><span id="line-374"></span><span class="hs-comment">-- Turn a (ptr to a) wait status into a ProcessStatus</span><span>
+</span><span id="line-375"></span><span>
+</span><span id="line-376"></span><span class="hs-identifier">readWaitStatus</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Ptr</span><span> </span><span class="hs-identifier">CInt</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">ProcessStatus</span><span>
+</span><span id="line-377"></span><span class="hs-identifier">readWaitStatus</span><span> </span><span class="hs-identifier">wstatp</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-378"></span><span>  </span><span class="hs-identifier">wstat</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier">peek</span><span> </span><span class="hs-identifier">wstatp</span><span>
+</span><span id="line-379"></span><span>  </span><span class="hs-identifier">decipherWaitStatus</span><span> </span><span class="hs-identifier">wstat</span><span>
+</span><span id="line-380"></span><span>
+</span><span id="line-381"></span><span class="hs-comment">-- -----------------------------------------------------------------------------</span><span>
+</span><span id="line-382"></span><span class="hs-comment">-- Exiting</span><span>
+</span><span id="line-383"></span><span>
+</span><span id="line-384"></span><span class="hs-comment">-- | @'exitImmediately' status@ calls @_exit@ to terminate the process</span><span>
+</span><span id="line-385"></span><span class="hs-comment">--   with the indicated exit @status@.</span><span>
+</span><span id="line-386"></span><span class="hs-comment">--   The operation never returns.</span><span>
+</span><span id="line-387"></span><span class="hs-identifier">exitImmediately</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">ExitCode</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-388"></span><span class="hs-identifier">exitImmediately</span><span> </span><span class="hs-identifier">exitcode</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">c_exit</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">exitcode2Int</span><span> </span><span class="hs-identifier">exitcode</span><span class="hs-special">)</span><span>
+</span><span id="line-389"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-390"></span><span>    </span><span class="hs-identifier">exitcode2Int</span><span> </span><span class="hs-identifier">ExitSuccess</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-number">0</span><span>
+</span><span id="line-391"></span><span>    </span><span class="hs-identifier">exitcode2Int</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">ExitFailure</span><span> </span><span class="hs-identifier">n</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">fromIntegral</span><span> </span><span class="hs-identifier">n</span><span>
+</span><span id="line-392"></span><span>
+</span><span id="line-393"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">ccall</span><span> </span><span class="hs-keyword">unsafe</span><span> </span><span class="hs-string">&quot;exit&quot;</span><span>
+</span><span id="line-394"></span><span>  </span><span class="hs-identifier">c_exit</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">CInt</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-395"></span><span>
+</span><span id="line-396"></span><span class="hs-comment">-- -----------------------------------------------------------------------------</span><span>
+</span><span id="line-397"></span><span class="hs-comment">-- Deprecated or subject to change</span><span>
+</span><span id="line-398"></span><span>
+</span><span id="line-399"></span><span class="hs-pragma">{-# DEPRECATED</span><span> </span><span class="hs-pragma">createProcessGroup</span><span> </span><span class="hs-pragma">&quot;This function is scheduled to be replaced by something different in the future, we therefore recommend that you do not use this version and use 'createProcessGroupFor' instead.&quot;</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="hs-comment">-- deprecated in 7.2</span><span>
+</span><span id="line-400"></span><span class="hs-comment">-- | @'createProcessGroup' pid@ calls @setpgid@ to make</span><span>
+</span><span id="line-401"></span><span class="hs-comment">--   process @pid@ a new process group leader.</span><span>
+</span><span id="line-402"></span><span class="hs-comment">--   This function is currently deprecated,</span><span>
+</span><span id="line-403"></span><span class="hs-comment">--   and might be changed to making the current</span><span>
+</span><span id="line-404"></span><span class="hs-comment">--   process a new process group leader in future versions.</span><span>
+</span><span id="line-405"></span><span class="hs-identifier">createProcessGroup</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">ProcessID</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">ProcessGroupID</span><span>
+</span><span id="line-406"></span><span class="hs-identifier">createProcessGroup</span><span> </span><span class="hs-identifier">pid</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-407"></span><span>  </span><span class="hs-identifier">throwErrnoIfMinus1_</span><span> </span><span class="hs-string">&quot;createProcessGroup&quot;</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">c_setpgid</span><span> </span><span class="hs-identifier">pid</span><span> </span><span class="hs-number">0</span><span class="hs-special">)</span><span>
+</span><span id="line-408"></span><span>  </span><span class="hs-identifier">return</span><span> </span><span class="hs-identifier">pid</span><span>
+</span><span id="line-409"></span><span>
+</span><span id="line-410"></span><span class="hs-pragma">{-# DEPRECATED</span><span> </span><span class="hs-pragma">setProcessGroupID</span><span> </span><span class="hs-pragma">&quot;This function is scheduled to be replaced by something different in the future, we therefore recommend that you do not use this version and use 'setProcessGroupIDOf' instead.&quot;</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="hs-comment">-- deprecated in 7.2</span><span>
+</span><span id="line-411"></span><span class="hs-comment">-- | @'setProcessGroupID' pid pgid@ calls @setpgid@ to set the</span><span>
+</span><span id="line-412"></span><span class="hs-comment">--   'ProcessGroupID' for process @pid@ to @pgid@.</span><span>
+</span><span id="line-413"></span><span class="hs-comment">--   This function is currently deprecated,</span><span>
+</span><span id="line-414"></span><span class="hs-comment">--   and might be changed to setting the 'ProcessGroupID'</span><span>
+</span><span id="line-415"></span><span class="hs-comment">--   for the current process in future versions.</span><span>
+</span><span id="line-416"></span><span class="hs-identifier">setProcessGroupID</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">ProcessID</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">ProcessGroupID</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-417"></span><span class="hs-identifier">setProcessGroupID</span><span> </span><span class="hs-identifier">pid</span><span> </span><span class="hs-identifier">pgid</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-418"></span><span>  </span><span class="hs-identifier">throwErrnoIfMinus1_</span><span> </span><span class="hs-string">&quot;setProcessGroupID&quot;</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">c_setpgid</span><span> </span><span class="hs-identifier">pid</span><span> </span><span class="hs-identifier">pgid</span><span class="hs-special">)</span><span>
+</span><span id="line-419"></span><span>
+</span><span id="line-420"></span><span class="hs-comment">-- -----------------------------------------------------------------------------</span><span>
+</span><span id="line-421"></span></pre></body></html>

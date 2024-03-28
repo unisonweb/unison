@@ -1,0 +1,144 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">NeatInterpolation.String</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="NeatInterpolation.Prelude.html"><span class="hs-identifier">NeatInterpolation.Prelude</span></a></span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="annot"><a href="NeatInterpolation.String.html#unindent"><span class="hs-identifier hs-type">unindent</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Char</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Char</span></span><span class="hs-special">]</span><span>
+</span><span id="line-7"></span><span id="unindent"><span class="annot"><span class="annottext">unindent :: [Char] -&gt; [Char]
+</span><a href="NeatInterpolation.String.html#unindent"><span class="hs-identifier hs-var hs-var">unindent</span></a></span></span><span> </span><span id="local-6989586621679071148"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679071148"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-8"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [[Char]]
+</span><span class="hs-identifier hs-var">lines</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679071148"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-9"></span><span>    </span><span id="local-6989586621679071146"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679071146"><span class="hs-identifier hs-var">head</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679071145"><span class="annot"><span class="annottext">[[Char]]
+</span><a href="#local-6989586621679071145"><span class="hs-identifier hs-var">tail</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span>
+</span><span id="line-10"></span><span>      </span><span class="hs-keyword">let</span><span> </span><span>
+</span><span id="line-11"></span><span>        </span><span id="local-6989586621679071144"><span class="annot"><span class="annottext">unindentedHead :: [Char]
+</span><a href="#local-6989586621679071144"><span class="hs-identifier hs-var hs-var">unindentedHead</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. (a -&gt; Bool) -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">dropWhile</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">' '</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679071146"><span class="hs-identifier hs-var">head</span></a></span><span> </span><span>
+</span><span id="line-12"></span><span>        </span><span id="local-6989586621679071142"><span class="annot"><span class="annottext">minimumTailIndent :: Maybe Int
+</span><a href="#local-6989586621679071142"><span class="hs-identifier hs-var hs-var">minimumTailIndent</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; Maybe Int
+</span><a href="NeatInterpolation.String.html#minimumIndent"><span class="hs-identifier hs-var">minimumIndent</span></a></span><span> </span><span class="annot"><span class="annottext">forall {k} (cat :: k -&gt; k -&gt; *) (b :: k) (c :: k) (a :: k).
+Category cat =&gt;
+cat b c -&gt; cat a b -&gt; cat a c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">[[Char]] -&gt; [Char]
+</span><span class="hs-identifier hs-var">unlines</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[[Char]]
+</span><a href="#local-6989586621679071145"><span class="hs-identifier hs-var">tail</span></a></span><span>
+</span><span id="line-13"></span><span>        </span><span id="local-6989586621679071138"><span class="annot"><span class="annottext">unindentedTail :: [[Char]]
+</span><a href="#local-6989586621679071138"><span class="hs-identifier hs-var hs-var">unindentedTail</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Maybe Int
+</span><a href="#local-6989586621679071142"><span class="hs-identifier hs-var">minimumTailIndent</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-14"></span><span>          </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679071137"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679071137"><span class="hs-identifier hs-var">indent</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Int -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">drop</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679071137"><span class="hs-identifier hs-var">indent</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[[Char]]
+</span><a href="#local-6989586621679071145"><span class="hs-identifier hs-var">tail</span></a></span><span>
+</span><span id="line-15"></span><span>          </span><span class="annot"><span class="annottext">Maybe Int
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[[Char]]
+</span><a href="#local-6989586621679071145"><span class="hs-identifier hs-var">tail</span></a></span><span>
+</span><span id="line-16"></span><span>      </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">[[Char]] -&gt; [Char]
+</span><span class="hs-identifier hs-var">unlines</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679071144"><span class="hs-identifier hs-var">unindentedHead</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[[Char]]
+</span><a href="#local-6989586621679071138"><span class="hs-identifier hs-var">unindentedTail</span></a></span><span>
+</span><span id="line-17"></span><span>    </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="annot"><a href="NeatInterpolation.String.html#trim"><span class="hs-identifier hs-type">trim</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Char</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Char</span></span><span class="hs-special">]</span><span>
+</span><span id="line-20"></span><span id="trim"><span class="annot"><span class="annottext">trim :: [Char] -&gt; [Char]
+</span><a href="NeatInterpolation.String.html#trim"><span class="hs-identifier hs-var hs-var">trim</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. (a -&gt; Bool) -&gt; [a] -&gt; [a]
+</span><a href="NeatInterpolation.String.html#dropWhileRev"><span class="hs-identifier hs-var">dropWhileRev</span></a></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isSpace</span></span><span> </span><span class="annot"><span class="annottext">forall {k} (cat :: k -&gt; k -&gt; *) (b :: k) (c :: k) (a :: k).
+Category cat =&gt;
+cat b c -&gt; cat a b -&gt; cat a c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall a. (a -&gt; Bool) -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">dropWhile</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isSpace</span></span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span id="local-6989586621679071132"><span class="annot"><a href="NeatInterpolation.String.html#dropWhileRev"><span class="hs-identifier hs-type">dropWhileRev</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679071132"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679071132"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679071132"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span></span><span>
+</span><span id="line-23"></span><span id="dropWhileRev"><span class="annot"><span class="annottext">dropWhileRev :: forall a. (a -&gt; Bool) -&gt; [a] -&gt; [a]
+</span><a href="NeatInterpolation.String.html#dropWhileRev"><span class="hs-identifier hs-var hs-var">dropWhileRev</span></a></span></span><span> </span><span id="local-6989586621679071127"><span class="annot"><span class="annottext">a -&gt; Bool
+</span><a href="#local-6989586621679071127"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a b.
+Foldable t =&gt;
+(a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><span class="hs-identifier hs-var">foldr</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679071125"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679071125"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679071124"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679071124"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">a -&gt; Bool
+</span><a href="#local-6989586621679071127"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679071125"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">null</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679071124"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679071125"><span class="hs-identifier hs-var">x</span></a></span><span class="annot"><span class="annottext">forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679071124"><span class="hs-identifier hs-var">xs</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span class="annot"><a href="NeatInterpolation.String.html#tabsToSpaces"><span class="hs-identifier hs-type">tabsToSpaces</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Char</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Char</span></span><span class="hs-special">]</span><span>
+</span><span id="line-26"></span><span id="tabsToSpaces"><span class="annot"><span class="annottext">tabsToSpaces :: [Char] -&gt; [Char]
+</span><a href="NeatInterpolation.String.html#tabsToSpaces"><span class="hs-identifier hs-var hs-var">tabsToSpaces</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'\t'</span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679071120"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679071120"><span class="hs-identifier hs-var">tail</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;    &quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char]
+</span><a href="NeatInterpolation.String.html#tabsToSpaces"><span class="hs-identifier hs-var">tabsToSpaces</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679071120"><span class="hs-identifier hs-var">tail</span></a></span><span>
+</span><span id="line-27"></span><span class="annot"><a href="NeatInterpolation.String.html#tabsToSpaces"><span class="hs-identifier hs-var">tabsToSpaces</span></a></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679071119"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679071119"><span class="hs-identifier hs-var">head</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679071118"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679071118"><span class="hs-identifier hs-var">tail</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679071119"><span class="hs-identifier hs-var">head</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char]
+</span><a href="NeatInterpolation.String.html#tabsToSpaces"><span class="hs-identifier hs-var">tabsToSpaces</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679071118"><span class="hs-identifier hs-var">tail</span></a></span><span>
+</span><span id="line-28"></span><span class="annot"><a href="NeatInterpolation.String.html#tabsToSpaces"><span class="hs-identifier hs-var">tabsToSpaces</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="annot"><a href="NeatInterpolation.String.html#minimumIndent"><span class="hs-identifier hs-type">minimumIndent</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Char</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-31"></span><span id="minimumIndent"><span class="annot"><span class="annottext">minimumIndent :: [Char] -&gt; Maybe Int
+</span><a href="NeatInterpolation.String.html#minimumIndent"><span class="hs-identifier hs-var hs-var">minimumIndent</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span>
+</span><span id="line-32"></span><span>  </span><span class="annot"><span class="annottext">forall a. [a] -&gt; Maybe a
+</span><span class="hs-identifier hs-var">listToMaybe</span></span><span> </span><span class="annot"><span class="annottext">forall {k} (cat :: k -&gt; k -&gt; *) (b :: k) (c :: k) (a :: k).
+Category cat =&gt;
+cat b c -&gt; cat a b -&gt; cat a c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">sort</span></span><span> </span><span class="annot"><span class="annottext">forall {k} (cat :: k -&gt; k -&gt; *) (b :: k) (c :: k) (a :: k).
+Category cat =&gt;
+cat b c -&gt; cat a b -&gt; cat a c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; Int
+</span><a href="NeatInterpolation.String.html#lineIndent"><span class="hs-identifier hs-var">lineIndent</span></a></span><span> </span><span>
+</span><span id="line-33"></span><span>    </span><span class="annot"><span class="annottext">forall {k} (cat :: k -&gt; k -&gt; *) (b :: k) (c :: k) (a :: k).
+Category cat =&gt;
+cat b c -&gt; cat a b -&gt; cat a c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall a. (a -&gt; Bool) -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">filter</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="annot"><span class="annottext">forall {k} (cat :: k -&gt; k -&gt; *) (b :: k) (c :: k) (a :: k).
+Category cat =&gt;
+cat b c -&gt; cat a b -&gt; cat a c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">null</span></span><span> </span><span class="annot"><span class="annottext">forall {k} (cat :: k -&gt; k -&gt; *) (b :: k) (c :: k) (a :: k).
+Category cat =&gt;
+cat b c -&gt; cat a b -&gt; cat a c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall a. (a -&gt; Bool) -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">dropWhile</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isSpace</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall {k} (cat :: k -&gt; k -&gt; *) (b :: k) (c :: k) (a :: k).
+Category cat =&gt;
+cat b c -&gt; cat a b -&gt; cat a c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [[Char]]
+</span><span class="hs-identifier hs-var">lines</span></span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span class="hs-comment">-- | Amount of preceding spaces on first line</span><span>
+</span><span id="line-36"></span><span class="annot"><a href="NeatInterpolation.String.html#lineIndent"><span class="hs-identifier hs-type">lineIndent</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Char</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-37"></span><span id="lineIndent"><span class="annot"><span class="annottext">lineIndent :: [Char] -&gt; Int
+</span><a href="NeatInterpolation.String.html#lineIndent"><span class="hs-identifier hs-var hs-var">lineIndent</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">forall {k} (cat :: k -&gt; k -&gt; *) (b :: k) (c :: k) (a :: k).
+Category cat =&gt;
+cat b c -&gt; cat a b -&gt; cat a c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall a. (a -&gt; Bool) -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">takeWhile</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">' '</span></span><span class="hs-special">)</span><span>
+</span><span id="line-38"></span></pre></body></html>

@@ -1,0 +1,1067 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span id="local-6989586621679036556"><span id="local-6989586621679036557"><span id="local-6989586621679036558"><span id="local-6989586621679036559"><span id="local-6989586621679036560"><span id="local-6989586621679036561"><span id="local-6989586621679036562"><span id="local-6989586621679036563"><span id="local-6989586621679036564"><span id="local-6989586621679036565"><span id="local-6989586621679036566"><span id="local-6989586621679036567"><span id="local-6989586621679036568"><span id="local-6989586621679036569"><span id="local-6989586621679036570"><span id="local-6989586621679036571"><span id="local-6989586621679036572"><span id="local-6989586621679036573"></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-cpp">#include &quot;Common-Safe-Haskell.hs&quot;
+</span><span>
+</span><span id="line-3"></span><span class="hs-comment">{-| The \'ANSI\' standards refer to the visual style of displaying characters as
+their \'graphic rendition\'. The style includes the color of a character or its
+background, the intensity (bold, normal or faint) of a character, or whether the
+character is italic or underlined (single or double), blinking (slowly or
+rapidly) or visible or not. The \'ANSI\' codes to establish the graphic
+rendition for subsequent text are referred to as SELECT GRAPHIC RENDITION (SGR).
+
+This module exports types and functions used to represent SGR aspects. See also
+'System.Console.ANSI.setSGR' and related functions.
+-}</span><span>
+</span><span id="line-13"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">System.Console.ANSI.Types</span><span>
+</span><span id="line-14"></span><span>  </span><span class="hs-special">(</span><span>
+</span><span id="line-15"></span><span>  </span><span class="hs-comment">-- * Types used to represent SGR aspects</span><span>
+</span><span id="line-16"></span><span>    </span><span class="annot"><a href="System.Console.ANSI.Types.html#SGR"><span class="hs-identifier">SGR</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Console.ANSI.Types.html#ConsoleLayer"><span class="hs-identifier">ConsoleLayer</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Console.ANSI.Types.html#Color"><span class="hs-identifier">Color</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Console.ANSI.Types.html#ColorIntensity"><span class="hs-identifier">ColorIntensity</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Console.ANSI.Types.html#ConsoleIntensity"><span class="hs-identifier">ConsoleIntensity</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Console.ANSI.Types.html#Underlining"><span class="hs-identifier">Underlining</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Console.ANSI.Types.html#BlinkSpeed"><span class="hs-identifier">BlinkSpeed</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span>  </span><span class="hs-comment">-- * Constructors of xterm 256-color palette indices</span><span>
+</span><span id="line-24"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Console.ANSI.Types.html#xterm6LevelRGB"><span class="hs-identifier">xterm6LevelRGB</span></a></span><span>
+</span><span id="line-25"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Console.ANSI.Types.html#xterm24LevelGray"><span class="hs-identifier">xterm24LevelGray</span></a></span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Console.ANSI.Types.html#xtermSystem"><span class="hs-identifier">xtermSystem</span></a></span><span>
+</span><span id="line-27"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Ix</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Ix</span></span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Word</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Word8</span></span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Colour</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Colour</span></span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="hs-comment">-- | ANSI's eight standard colors. They come in two intensities, which are</span><span>
+</span><span id="line-35"></span><span class="hs-comment">-- controlled by 'ColorIntensity'. Many terminals allow the colors of the</span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- standard palette to be customised, so that, for example,</span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- @setSGR [ SetColor Foreground Vivid Green ]@ may not result in bright green</span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- characters.</span><span>
+</span><span id="line-39"></span><span class="hs-keyword">data</span><span> </span><span id="Color"><span class="annot"><a href="System.Console.ANSI.Types.html#Color"><span class="hs-identifier hs-var">Color</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Black"><span class="annot"><a href="System.Console.ANSI.Types.html#Black"><span class="hs-identifier hs-var">Black</span></a></span></span><span>
+</span><span id="line-40"></span><span>           </span><span class="hs-glyph">|</span><span> </span><span id="Red"><span class="annot"><a href="System.Console.ANSI.Types.html#Red"><span class="hs-identifier hs-var">Red</span></a></span></span><span>
+</span><span id="line-41"></span><span>           </span><span class="hs-glyph">|</span><span> </span><span id="Green"><span class="annot"><a href="System.Console.ANSI.Types.html#Green"><span class="hs-identifier hs-var">Green</span></a></span></span><span>
+</span><span id="line-42"></span><span>           </span><span class="hs-glyph">|</span><span> </span><span id="Yellow"><span class="annot"><a href="System.Console.ANSI.Types.html#Yellow"><span class="hs-identifier hs-var">Yellow</span></a></span></span><span>
+</span><span id="line-43"></span><span>           </span><span class="hs-glyph">|</span><span> </span><span id="Blue"><span class="annot"><a href="System.Console.ANSI.Types.html#Blue"><span class="hs-identifier hs-var">Blue</span></a></span></span><span>
+</span><span id="line-44"></span><span>           </span><span class="hs-glyph">|</span><span> </span><span id="Magenta"><span class="annot"><a href="System.Console.ANSI.Types.html#Magenta"><span class="hs-identifier hs-var">Magenta</span></a></span></span><span>
+</span><span id="line-45"></span><span>           </span><span class="hs-glyph">|</span><span> </span><span id="Cyan"><span class="annot"><a href="System.Console.ANSI.Types.html#Cyan"><span class="hs-identifier hs-var">Cyan</span></a></span></span><span>
+</span><span id="line-46"></span><span>           </span><span class="hs-glyph">|</span><span> </span><span id="White"><span class="annot"><a href="System.Console.ANSI.Types.html#White"><span class="hs-identifier hs-var">White</span></a></span></span><span>
+</span><span id="line-47"></span><span>           </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679036495"><span id="local-6989586621679036497"><span class="annot"><span class="annottext">Color -&gt; Color -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: Color -&gt; Color -&gt; Bool
+$c/= :: Color -&gt; Color -&gt; Bool
+== :: Color -&gt; Color -&gt; Bool
+$c== :: Color -&gt; Color -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679036475"><span id="local-6989586621679036477"><span id="local-6989586621679036480"><span id="local-6989586621679036483"><span id="local-6989586621679036486"><span id="local-6989586621679036488"><span id="local-6989586621679036490"><span class="annot"><span class="annottext">Eq Color
+Color -&gt; Color -&gt; Bool
+Color -&gt; Color -&gt; Ordering
+Color -&gt; Color -&gt; Color
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: Color -&gt; Color -&gt; Color
+$cmin :: Color -&gt; Color -&gt; Color
+max :: Color -&gt; Color -&gt; Color
+$cmax :: Color -&gt; Color -&gt; Color
+&gt;= :: Color -&gt; Color -&gt; Bool
+$c&gt;= :: Color -&gt; Color -&gt; Bool
+&gt; :: Color -&gt; Color -&gt; Bool
+$c&gt; :: Color -&gt; Color -&gt; Bool
+&lt;= :: Color -&gt; Color -&gt; Bool
+$c&lt;= :: Color -&gt; Color -&gt; Bool
+&lt; :: Color -&gt; Color -&gt; Bool
+$c&lt; :: Color -&gt; Color -&gt; Bool
+compare :: Color -&gt; Color -&gt; Ordering
+$ccompare :: Color -&gt; Color -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679036470"><span id="local-6989586621679036472"><span class="annot"><span class="annottext">Color
+forall a. a -&gt; a -&gt; Bounded a
+maxBound :: Color
+$cmaxBound :: Color
+minBound :: Color
+$cminBound :: Color
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Bounded</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679036433"><span id="local-6989586621679036435"><span id="local-6989586621679036439"><span id="local-6989586621679036443"><span id="local-6989586621679036445"><span id="local-6989586621679036453"><span id="local-6989586621679036459"><span id="local-6989586621679036466"><span class="annot"><span class="annottext">Int -&gt; Color
+Color -&gt; Int
+Color -&gt; [Color]
+Color -&gt; Color
+Color -&gt; Color -&gt; [Color]
+Color -&gt; Color -&gt; Color -&gt; [Color]
+forall a.
+(a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (Int -&gt; a)
+-&gt; (a -&gt; Int)
+-&gt; (a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; a -&gt; [a])
+-&gt; Enum a
+enumFromThenTo :: Color -&gt; Color -&gt; Color -&gt; [Color]
+$cenumFromThenTo :: Color -&gt; Color -&gt; Color -&gt; [Color]
+enumFromTo :: Color -&gt; Color -&gt; [Color]
+$cenumFromTo :: Color -&gt; Color -&gt; [Color]
+enumFromThen :: Color -&gt; Color -&gt; [Color]
+$cenumFromThen :: Color -&gt; Color -&gt; [Color]
+enumFrom :: Color -&gt; [Color]
+$cenumFrom :: Color -&gt; [Color]
+fromEnum :: Color -&gt; Int
+$cfromEnum :: Color -&gt; Int
+toEnum :: Int -&gt; Color
+$ctoEnum :: Int -&gt; Color
+pred :: Color -&gt; Color
+$cpred :: Color -&gt; Color
+succ :: Color -&gt; Color
+$csucc :: Color -&gt; Color
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Enum</span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679036426"><span id="local-6989586621679036428"><span id="local-6989586621679036430"><span class="annot"><span class="annottext">Int -&gt; Color -&gt; ShowS
+[Color] -&gt; ShowS
+Color -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [Color] -&gt; ShowS
+$cshowList :: [Color] -&gt; ShowS
+show :: Color -&gt; String
+$cshow :: Color -&gt; String
+showsPrec :: Int -&gt; Color -&gt; ShowS
+$cshowsPrec :: Int -&gt; Color -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679036407"><span id="local-6989586621679036418"><span id="local-6989586621679036421"><span id="local-6989586621679036423"><span class="annot"><span class="annottext">ReadPrec [Color]
+ReadPrec Color
+Int -&gt; ReadS Color
+ReadS [Color]
+forall a.
+(Int -&gt; ReadS a)
+-&gt; ReadS [a] -&gt; ReadPrec a -&gt; ReadPrec [a] -&gt; Read a
+readListPrec :: ReadPrec [Color]
+$creadListPrec :: ReadPrec [Color]
+readPrec :: ReadPrec Color
+$creadPrec :: ReadPrec Color
+readList :: ReadS [Color]
+$creadList :: ReadS [Color]
+readsPrec :: Int -&gt; ReadS Color
+$creadsPrec :: Int -&gt; ReadS Color
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Read</span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679036390"><span id="local-6989586621679036392"><span id="local-6989586621679036394"><span id="local-6989586621679036396"><span id="local-6989586621679036398"><span id="local-6989586621679036401"><span class="annot"><span class="annottext">Ord Color
+(Color, Color) -&gt; Int
+(Color, Color) -&gt; [Color]
+(Color, Color) -&gt; Color -&gt; Bool
+(Color, Color) -&gt; Color -&gt; Int
+forall a.
+Ord a
+-&gt; ((a, a) -&gt; [a])
+-&gt; ((a, a) -&gt; a -&gt; Int)
+-&gt; ((a, a) -&gt; a -&gt; Int)
+-&gt; ((a, a) -&gt; a -&gt; Bool)
+-&gt; ((a, a) -&gt; Int)
+-&gt; ((a, a) -&gt; Int)
+-&gt; Ix a
+unsafeRangeSize :: (Color, Color) -&gt; Int
+$cunsafeRangeSize :: (Color, Color) -&gt; Int
+rangeSize :: (Color, Color) -&gt; Int
+$crangeSize :: (Color, Color) -&gt; Int
+inRange :: (Color, Color) -&gt; Color -&gt; Bool
+$cinRange :: (Color, Color) -&gt; Color -&gt; Bool
+unsafeIndex :: (Color, Color) -&gt; Color -&gt; Int
+$cunsafeIndex :: (Color, Color) -&gt; Color -&gt; Int
+index :: (Color, Color) -&gt; Color -&gt; Int
+$cindex :: (Color, Color) -&gt; Color -&gt; Int
+range :: (Color, Color) -&gt; [Color]
+$crange :: (Color, Color) -&gt; [Color]
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ix</span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- | ANSI's standard colors come in two intensities</span><span>
+</span><span id="line-50"></span><span class="hs-keyword">data</span><span> </span><span id="ColorIntensity"><span class="annot"><a href="System.Console.ANSI.Types.html#ColorIntensity"><span class="hs-identifier hs-var">ColorIntensity</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Dull"><span class="annot"><a href="System.Console.ANSI.Types.html#Dull"><span class="hs-identifier hs-var">Dull</span></a></span></span><span>
+</span><span id="line-51"></span><span>                    </span><span class="hs-glyph">|</span><span> </span><span id="Vivid"><span class="annot"><a href="System.Console.ANSI.Types.html#Vivid"><span class="hs-identifier hs-var">Vivid</span></a></span></span><span>
+</span><span id="line-52"></span><span>                    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679036383"><span id="local-6989586621679036385"><span class="annot"><span class="annottext">ColorIntensity -&gt; ColorIntensity -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: ColorIntensity -&gt; ColorIntensity -&gt; Bool
+$c/= :: ColorIntensity -&gt; ColorIntensity -&gt; Bool
+== :: ColorIntensity -&gt; ColorIntensity -&gt; Bool
+$c== :: ColorIntensity -&gt; ColorIntensity -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679036364"><span id="local-6989586621679036366"><span id="local-6989586621679036369"><span id="local-6989586621679036372"><span id="local-6989586621679036375"><span id="local-6989586621679036377"><span id="local-6989586621679036379"><span class="annot"><span class="annottext">Eq ColorIntensity
+ColorIntensity -&gt; ColorIntensity -&gt; Bool
+ColorIntensity -&gt; ColorIntensity -&gt; Ordering
+ColorIntensity -&gt; ColorIntensity -&gt; ColorIntensity
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: ColorIntensity -&gt; ColorIntensity -&gt; ColorIntensity
+$cmin :: ColorIntensity -&gt; ColorIntensity -&gt; ColorIntensity
+max :: ColorIntensity -&gt; ColorIntensity -&gt; ColorIntensity
+$cmax :: ColorIntensity -&gt; ColorIntensity -&gt; ColorIntensity
+&gt;= :: ColorIntensity -&gt; ColorIntensity -&gt; Bool
+$c&gt;= :: ColorIntensity -&gt; ColorIntensity -&gt; Bool
+&gt; :: ColorIntensity -&gt; ColorIntensity -&gt; Bool
+$c&gt; :: ColorIntensity -&gt; ColorIntensity -&gt; Bool
+&lt;= :: ColorIntensity -&gt; ColorIntensity -&gt; Bool
+$c&lt;= :: ColorIntensity -&gt; ColorIntensity -&gt; Bool
+&lt; :: ColorIntensity -&gt; ColorIntensity -&gt; Bool
+$c&lt; :: ColorIntensity -&gt; ColorIntensity -&gt; Bool
+compare :: ColorIntensity -&gt; ColorIntensity -&gt; Ordering
+$ccompare :: ColorIntensity -&gt; ColorIntensity -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679036360"><span id="local-6989586621679036362"><span class="annot"><span class="annottext">ColorIntensity
+forall a. a -&gt; a -&gt; Bounded a
+maxBound :: ColorIntensity
+$cmaxBound :: ColorIntensity
+minBound :: ColorIntensity
+$cminBound :: ColorIntensity
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Bounded</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679036326"><span id="local-6989586621679036328"><span id="local-6989586621679036332"><span id="local-6989586621679036335"><span id="local-6989586621679036337"><span id="local-6989586621679036345"><span id="local-6989586621679036351"><span id="local-6989586621679036357"><span class="annot"><span class="annottext">Int -&gt; ColorIntensity
+ColorIntensity -&gt; Int
+ColorIntensity -&gt; [ColorIntensity]
+ColorIntensity -&gt; ColorIntensity
+ColorIntensity -&gt; ColorIntensity -&gt; [ColorIntensity]
+ColorIntensity
+-&gt; ColorIntensity -&gt; ColorIntensity -&gt; [ColorIntensity]
+forall a.
+(a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (Int -&gt; a)
+-&gt; (a -&gt; Int)
+-&gt; (a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; a -&gt; [a])
+-&gt; Enum a
+enumFromThenTo :: ColorIntensity
+-&gt; ColorIntensity -&gt; ColorIntensity -&gt; [ColorIntensity]
+$cenumFromThenTo :: ColorIntensity
+-&gt; ColorIntensity -&gt; ColorIntensity -&gt; [ColorIntensity]
+enumFromTo :: ColorIntensity -&gt; ColorIntensity -&gt; [ColorIntensity]
+$cenumFromTo :: ColorIntensity -&gt; ColorIntensity -&gt; [ColorIntensity]
+enumFromThen :: ColorIntensity -&gt; ColorIntensity -&gt; [ColorIntensity]
+$cenumFromThen :: ColorIntensity -&gt; ColorIntensity -&gt; [ColorIntensity]
+enumFrom :: ColorIntensity -&gt; [ColorIntensity]
+$cenumFrom :: ColorIntensity -&gt; [ColorIntensity]
+fromEnum :: ColorIntensity -&gt; Int
+$cfromEnum :: ColorIntensity -&gt; Int
+toEnum :: Int -&gt; ColorIntensity
+$ctoEnum :: Int -&gt; ColorIntensity
+pred :: ColorIntensity -&gt; ColorIntensity
+$cpred :: ColorIntensity -&gt; ColorIntensity
+succ :: ColorIntensity -&gt; ColorIntensity
+$csucc :: ColorIntensity -&gt; ColorIntensity
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Enum</span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679036320"><span id="local-6989586621679036322"><span id="local-6989586621679036324"><span class="annot"><span class="annottext">Int -&gt; ColorIntensity -&gt; ShowS
+[ColorIntensity] -&gt; ShowS
+ColorIntensity -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [ColorIntensity] -&gt; ShowS
+$cshowList :: [ColorIntensity] -&gt; ShowS
+show :: ColorIntensity -&gt; String
+$cshow :: ColorIntensity -&gt; String
+showsPrec :: Int -&gt; ColorIntensity -&gt; ShowS
+$cshowsPrec :: Int -&gt; ColorIntensity -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679036309"><span id="local-6989586621679036313"><span id="local-6989586621679036316"><span id="local-6989586621679036318"><span class="annot"><span class="annottext">ReadPrec [ColorIntensity]
+ReadPrec ColorIntensity
+Int -&gt; ReadS ColorIntensity
+ReadS [ColorIntensity]
+forall a.
+(Int -&gt; ReadS a)
+-&gt; ReadS [a] -&gt; ReadPrec a -&gt; ReadPrec [a] -&gt; Read a
+readListPrec :: ReadPrec [ColorIntensity]
+$creadListPrec :: ReadPrec [ColorIntensity]
+readPrec :: ReadPrec ColorIntensity
+$creadPrec :: ReadPrec ColorIntensity
+readList :: ReadS [ColorIntensity]
+$creadList :: ReadS [ColorIntensity]
+readsPrec :: Int -&gt; ReadS ColorIntensity
+$creadsPrec :: Int -&gt; ReadS ColorIntensity
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Read</span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679036293"><span id="local-6989586621679036295"><span id="local-6989586621679036297"><span id="local-6989586621679036299"><span id="local-6989586621679036301"><span id="local-6989586621679036304"><span class="annot"><span class="annottext">Ord ColorIntensity
+(ColorIntensity, ColorIntensity) -&gt; Int
+(ColorIntensity, ColorIntensity) -&gt; [ColorIntensity]
+(ColorIntensity, ColorIntensity) -&gt; ColorIntensity -&gt; Bool
+(ColorIntensity, ColorIntensity) -&gt; ColorIntensity -&gt; Int
+forall a.
+Ord a
+-&gt; ((a, a) -&gt; [a])
+-&gt; ((a, a) -&gt; a -&gt; Int)
+-&gt; ((a, a) -&gt; a -&gt; Int)
+-&gt; ((a, a) -&gt; a -&gt; Bool)
+-&gt; ((a, a) -&gt; Int)
+-&gt; ((a, a) -&gt; Int)
+-&gt; Ix a
+unsafeRangeSize :: (ColorIntensity, ColorIntensity) -&gt; Int
+$cunsafeRangeSize :: (ColorIntensity, ColorIntensity) -&gt; Int
+rangeSize :: (ColorIntensity, ColorIntensity) -&gt; Int
+$crangeSize :: (ColorIntensity, ColorIntensity) -&gt; Int
+inRange :: (ColorIntensity, ColorIntensity) -&gt; ColorIntensity -&gt; Bool
+$cinRange :: (ColorIntensity, ColorIntensity) -&gt; ColorIntensity -&gt; Bool
+unsafeIndex :: (ColorIntensity, ColorIntensity) -&gt; ColorIntensity -&gt; Int
+$cunsafeIndex :: (ColorIntensity, ColorIntensity) -&gt; ColorIntensity -&gt; Int
+index :: (ColorIntensity, ColorIntensity) -&gt; ColorIntensity -&gt; Int
+$cindex :: (ColorIntensity, ColorIntensity) -&gt; ColorIntensity -&gt; Int
+range :: (ColorIntensity, ColorIntensity) -&gt; [ColorIntensity]
+$crange :: (ColorIntensity, ColorIntensity) -&gt; [ColorIntensity]
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ix</span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-53"></span><span>
+</span><span id="line-54"></span><span class="hs-comment">-- | ANSI colors can be set on two different layers</span><span>
+</span><span id="line-55"></span><span class="hs-keyword">data</span><span> </span><span id="ConsoleLayer"><span class="annot"><a href="System.Console.ANSI.Types.html#ConsoleLayer"><span class="hs-identifier hs-var">ConsoleLayer</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Foreground"><span class="annot"><a href="System.Console.ANSI.Types.html#Foreground"><span class="hs-identifier hs-var">Foreground</span></a></span></span><span>
+</span><span id="line-56"></span><span>                  </span><span class="hs-glyph">|</span><span> </span><span id="Background"><span class="annot"><a href="System.Console.ANSI.Types.html#Background"><span class="hs-identifier hs-var">Background</span></a></span></span><span>
+</span><span id="line-57"></span><span>                  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679036287"><span id="local-6989586621679036289"><span class="annot"><span class="annottext">ConsoleLayer -&gt; ConsoleLayer -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: ConsoleLayer -&gt; ConsoleLayer -&gt; Bool
+$c/= :: ConsoleLayer -&gt; ConsoleLayer -&gt; Bool
+== :: ConsoleLayer -&gt; ConsoleLayer -&gt; Bool
+$c== :: ConsoleLayer -&gt; ConsoleLayer -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679036268"><span id="local-6989586621679036270"><span id="local-6989586621679036273"><span id="local-6989586621679036276"><span id="local-6989586621679036279"><span id="local-6989586621679036281"><span id="local-6989586621679036283"><span class="annot"><span class="annottext">Eq ConsoleLayer
+ConsoleLayer -&gt; ConsoleLayer -&gt; Bool
+ConsoleLayer -&gt; ConsoleLayer -&gt; Ordering
+ConsoleLayer -&gt; ConsoleLayer -&gt; ConsoleLayer
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: ConsoleLayer -&gt; ConsoleLayer -&gt; ConsoleLayer
+$cmin :: ConsoleLayer -&gt; ConsoleLayer -&gt; ConsoleLayer
+max :: ConsoleLayer -&gt; ConsoleLayer -&gt; ConsoleLayer
+$cmax :: ConsoleLayer -&gt; ConsoleLayer -&gt; ConsoleLayer
+&gt;= :: ConsoleLayer -&gt; ConsoleLayer -&gt; Bool
+$c&gt;= :: ConsoleLayer -&gt; ConsoleLayer -&gt; Bool
+&gt; :: ConsoleLayer -&gt; ConsoleLayer -&gt; Bool
+$c&gt; :: ConsoleLayer -&gt; ConsoleLayer -&gt; Bool
+&lt;= :: ConsoleLayer -&gt; ConsoleLayer -&gt; Bool
+$c&lt;= :: ConsoleLayer -&gt; ConsoleLayer -&gt; Bool
+&lt; :: ConsoleLayer -&gt; ConsoleLayer -&gt; Bool
+$c&lt; :: ConsoleLayer -&gt; ConsoleLayer -&gt; Bool
+compare :: ConsoleLayer -&gt; ConsoleLayer -&gt; Ordering
+$ccompare :: ConsoleLayer -&gt; ConsoleLayer -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679036264"><span id="local-6989586621679036266"><span class="annot"><span class="annottext">ConsoleLayer
+forall a. a -&gt; a -&gt; Bounded a
+maxBound :: ConsoleLayer
+$cmaxBound :: ConsoleLayer
+minBound :: ConsoleLayer
+$cminBound :: ConsoleLayer
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Bounded</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679036230"><span id="local-6989586621679036232"><span id="local-6989586621679036236"><span id="local-6989586621679036239"><span id="local-6989586621679036241"><span id="local-6989586621679036249"><span id="local-6989586621679036255"><span id="local-6989586621679036261"><span class="annot"><span class="annottext">Int -&gt; ConsoleLayer
+ConsoleLayer -&gt; Int
+ConsoleLayer -&gt; [ConsoleLayer]
+ConsoleLayer -&gt; ConsoleLayer
+ConsoleLayer -&gt; ConsoleLayer -&gt; [ConsoleLayer]
+ConsoleLayer -&gt; ConsoleLayer -&gt; ConsoleLayer -&gt; [ConsoleLayer]
+forall a.
+(a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (Int -&gt; a)
+-&gt; (a -&gt; Int)
+-&gt; (a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; a -&gt; [a])
+-&gt; Enum a
+enumFromThenTo :: ConsoleLayer -&gt; ConsoleLayer -&gt; ConsoleLayer -&gt; [ConsoleLayer]
+$cenumFromThenTo :: ConsoleLayer -&gt; ConsoleLayer -&gt; ConsoleLayer -&gt; [ConsoleLayer]
+enumFromTo :: ConsoleLayer -&gt; ConsoleLayer -&gt; [ConsoleLayer]
+$cenumFromTo :: ConsoleLayer -&gt; ConsoleLayer -&gt; [ConsoleLayer]
+enumFromThen :: ConsoleLayer -&gt; ConsoleLayer -&gt; [ConsoleLayer]
+$cenumFromThen :: ConsoleLayer -&gt; ConsoleLayer -&gt; [ConsoleLayer]
+enumFrom :: ConsoleLayer -&gt; [ConsoleLayer]
+$cenumFrom :: ConsoleLayer -&gt; [ConsoleLayer]
+fromEnum :: ConsoleLayer -&gt; Int
+$cfromEnum :: ConsoleLayer -&gt; Int
+toEnum :: Int -&gt; ConsoleLayer
+$ctoEnum :: Int -&gt; ConsoleLayer
+pred :: ConsoleLayer -&gt; ConsoleLayer
+$cpred :: ConsoleLayer -&gt; ConsoleLayer
+succ :: ConsoleLayer -&gt; ConsoleLayer
+$csucc :: ConsoleLayer -&gt; ConsoleLayer
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Enum</span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679036224"><span id="local-6989586621679036226"><span id="local-6989586621679036228"><span class="annot"><span class="annottext">Int -&gt; ConsoleLayer -&gt; ShowS
+[ConsoleLayer] -&gt; ShowS
+ConsoleLayer -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [ConsoleLayer] -&gt; ShowS
+$cshowList :: [ConsoleLayer] -&gt; ShowS
+show :: ConsoleLayer -&gt; String
+$cshow :: ConsoleLayer -&gt; String
+showsPrec :: Int -&gt; ConsoleLayer -&gt; ShowS
+$cshowsPrec :: Int -&gt; ConsoleLayer -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679036213"><span id="local-6989586621679036217"><span id="local-6989586621679036220"><span id="local-6989586621679036222"><span class="annot"><span class="annottext">ReadPrec [ConsoleLayer]
+ReadPrec ConsoleLayer
+Int -&gt; ReadS ConsoleLayer
+ReadS [ConsoleLayer]
+forall a.
+(Int -&gt; ReadS a)
+-&gt; ReadS [a] -&gt; ReadPrec a -&gt; ReadPrec [a] -&gt; Read a
+readListPrec :: ReadPrec [ConsoleLayer]
+$creadListPrec :: ReadPrec [ConsoleLayer]
+readPrec :: ReadPrec ConsoleLayer
+$creadPrec :: ReadPrec ConsoleLayer
+readList :: ReadS [ConsoleLayer]
+$creadList :: ReadS [ConsoleLayer]
+readsPrec :: Int -&gt; ReadS ConsoleLayer
+$creadsPrec :: Int -&gt; ReadS ConsoleLayer
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Read</span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679036197"><span id="local-6989586621679036199"><span id="local-6989586621679036201"><span id="local-6989586621679036203"><span id="local-6989586621679036205"><span id="local-6989586621679036208"><span class="annot"><span class="annottext">Ord ConsoleLayer
+(ConsoleLayer, ConsoleLayer) -&gt; Int
+(ConsoleLayer, ConsoleLayer) -&gt; [ConsoleLayer]
+(ConsoleLayer, ConsoleLayer) -&gt; ConsoleLayer -&gt; Bool
+(ConsoleLayer, ConsoleLayer) -&gt; ConsoleLayer -&gt; Int
+forall a.
+Ord a
+-&gt; ((a, a) -&gt; [a])
+-&gt; ((a, a) -&gt; a -&gt; Int)
+-&gt; ((a, a) -&gt; a -&gt; Int)
+-&gt; ((a, a) -&gt; a -&gt; Bool)
+-&gt; ((a, a) -&gt; Int)
+-&gt; ((a, a) -&gt; Int)
+-&gt; Ix a
+unsafeRangeSize :: (ConsoleLayer, ConsoleLayer) -&gt; Int
+$cunsafeRangeSize :: (ConsoleLayer, ConsoleLayer) -&gt; Int
+rangeSize :: (ConsoleLayer, ConsoleLayer) -&gt; Int
+$crangeSize :: (ConsoleLayer, ConsoleLayer) -&gt; Int
+inRange :: (ConsoleLayer, ConsoleLayer) -&gt; ConsoleLayer -&gt; Bool
+$cinRange :: (ConsoleLayer, ConsoleLayer) -&gt; ConsoleLayer -&gt; Bool
+unsafeIndex :: (ConsoleLayer, ConsoleLayer) -&gt; ConsoleLayer -&gt; Int
+$cunsafeIndex :: (ConsoleLayer, ConsoleLayer) -&gt; ConsoleLayer -&gt; Int
+index :: (ConsoleLayer, ConsoleLayer) -&gt; ConsoleLayer -&gt; Int
+$cindex :: (ConsoleLayer, ConsoleLayer) -&gt; ConsoleLayer -&gt; Int
+range :: (ConsoleLayer, ConsoleLayer) -&gt; [ConsoleLayer]
+$crange :: (ConsoleLayer, ConsoleLayer) -&gt; [ConsoleLayer]
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ix</span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-58"></span><span>
+</span><span id="line-59"></span><span class="hs-comment">-- | ANSI blink speeds: values other than 'NoBlink' are not widely supported</span><span>
+</span><span id="line-60"></span><span class="hs-keyword">data</span><span> </span><span id="BlinkSpeed"><span class="annot"><a href="System.Console.ANSI.Types.html#BlinkSpeed"><span class="hs-identifier hs-var">BlinkSpeed</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="SlowBlink"><span class="annot"><a href="System.Console.ANSI.Types.html#SlowBlink"><span class="hs-identifier hs-var">SlowBlink</span></a></span></span><span> </span><span class="hs-comment">-- ^ Less than 150 blinks per minute</span><span>
+</span><span id="line-61"></span><span>                </span><span class="hs-glyph">|</span><span> </span><span id="RapidBlink"><span class="annot"><a href="System.Console.ANSI.Types.html#RapidBlink"><span class="hs-identifier hs-var">RapidBlink</span></a></span></span><span> </span><span class="hs-comment">-- ^ More than 150 blinks per minute</span><span>
+</span><span id="line-62"></span><span>                </span><span class="hs-glyph">|</span><span> </span><span id="NoBlink"><span class="annot"><a href="System.Console.ANSI.Types.html#NoBlink"><span class="hs-identifier hs-var">NoBlink</span></a></span></span><span>
+</span><span id="line-63"></span><span>                </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679036190"><span id="local-6989586621679036192"><span class="annot"><span class="annottext">BlinkSpeed -&gt; BlinkSpeed -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: BlinkSpeed -&gt; BlinkSpeed -&gt; Bool
+$c/= :: BlinkSpeed -&gt; BlinkSpeed -&gt; Bool
+== :: BlinkSpeed -&gt; BlinkSpeed -&gt; Bool
+$c== :: BlinkSpeed -&gt; BlinkSpeed -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679036171"><span id="local-6989586621679036173"><span id="local-6989586621679036176"><span id="local-6989586621679036179"><span id="local-6989586621679036182"><span id="local-6989586621679036184"><span id="local-6989586621679036186"><span class="annot"><span class="annottext">Eq BlinkSpeed
+BlinkSpeed -&gt; BlinkSpeed -&gt; Bool
+BlinkSpeed -&gt; BlinkSpeed -&gt; Ordering
+BlinkSpeed -&gt; BlinkSpeed -&gt; BlinkSpeed
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: BlinkSpeed -&gt; BlinkSpeed -&gt; BlinkSpeed
+$cmin :: BlinkSpeed -&gt; BlinkSpeed -&gt; BlinkSpeed
+max :: BlinkSpeed -&gt; BlinkSpeed -&gt; BlinkSpeed
+$cmax :: BlinkSpeed -&gt; BlinkSpeed -&gt; BlinkSpeed
+&gt;= :: BlinkSpeed -&gt; BlinkSpeed -&gt; Bool
+$c&gt;= :: BlinkSpeed -&gt; BlinkSpeed -&gt; Bool
+&gt; :: BlinkSpeed -&gt; BlinkSpeed -&gt; Bool
+$c&gt; :: BlinkSpeed -&gt; BlinkSpeed -&gt; Bool
+&lt;= :: BlinkSpeed -&gt; BlinkSpeed -&gt; Bool
+$c&lt;= :: BlinkSpeed -&gt; BlinkSpeed -&gt; Bool
+&lt; :: BlinkSpeed -&gt; BlinkSpeed -&gt; Bool
+$c&lt; :: BlinkSpeed -&gt; BlinkSpeed -&gt; Bool
+compare :: BlinkSpeed -&gt; BlinkSpeed -&gt; Ordering
+$ccompare :: BlinkSpeed -&gt; BlinkSpeed -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679036167"><span id="local-6989586621679036169"><span class="annot"><span class="annottext">BlinkSpeed
+forall a. a -&gt; a -&gt; Bounded a
+maxBound :: BlinkSpeed
+$cmaxBound :: BlinkSpeed
+minBound :: BlinkSpeed
+$cminBound :: BlinkSpeed
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Bounded</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679036133"><span id="local-6989586621679036135"><span id="local-6989586621679036139"><span id="local-6989586621679036142"><span id="local-6989586621679036144"><span id="local-6989586621679036152"><span id="local-6989586621679036158"><span id="local-6989586621679036164"><span class="annot"><span class="annottext">Int -&gt; BlinkSpeed
+BlinkSpeed -&gt; Int
+BlinkSpeed -&gt; [BlinkSpeed]
+BlinkSpeed -&gt; BlinkSpeed
+BlinkSpeed -&gt; BlinkSpeed -&gt; [BlinkSpeed]
+BlinkSpeed -&gt; BlinkSpeed -&gt; BlinkSpeed -&gt; [BlinkSpeed]
+forall a.
+(a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (Int -&gt; a)
+-&gt; (a -&gt; Int)
+-&gt; (a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; a -&gt; [a])
+-&gt; Enum a
+enumFromThenTo :: BlinkSpeed -&gt; BlinkSpeed -&gt; BlinkSpeed -&gt; [BlinkSpeed]
+$cenumFromThenTo :: BlinkSpeed -&gt; BlinkSpeed -&gt; BlinkSpeed -&gt; [BlinkSpeed]
+enumFromTo :: BlinkSpeed -&gt; BlinkSpeed -&gt; [BlinkSpeed]
+$cenumFromTo :: BlinkSpeed -&gt; BlinkSpeed -&gt; [BlinkSpeed]
+enumFromThen :: BlinkSpeed -&gt; BlinkSpeed -&gt; [BlinkSpeed]
+$cenumFromThen :: BlinkSpeed -&gt; BlinkSpeed -&gt; [BlinkSpeed]
+enumFrom :: BlinkSpeed -&gt; [BlinkSpeed]
+$cenumFrom :: BlinkSpeed -&gt; [BlinkSpeed]
+fromEnum :: BlinkSpeed -&gt; Int
+$cfromEnum :: BlinkSpeed -&gt; Int
+toEnum :: Int -&gt; BlinkSpeed
+$ctoEnum :: Int -&gt; BlinkSpeed
+pred :: BlinkSpeed -&gt; BlinkSpeed
+$cpred :: BlinkSpeed -&gt; BlinkSpeed
+succ :: BlinkSpeed -&gt; BlinkSpeed
+$csucc :: BlinkSpeed -&gt; BlinkSpeed
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Enum</span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679036127"><span id="local-6989586621679036129"><span id="local-6989586621679036131"><span class="annot"><span class="annottext">Int -&gt; BlinkSpeed -&gt; ShowS
+[BlinkSpeed] -&gt; ShowS
+BlinkSpeed -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [BlinkSpeed] -&gt; ShowS
+$cshowList :: [BlinkSpeed] -&gt; ShowS
+show :: BlinkSpeed -&gt; String
+$cshow :: BlinkSpeed -&gt; String
+showsPrec :: Int -&gt; BlinkSpeed -&gt; ShowS
+$cshowsPrec :: Int -&gt; BlinkSpeed -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679036115"><span id="local-6989586621679036120"><span id="local-6989586621679036123"><span id="local-6989586621679036125"><span class="annot"><span class="annottext">ReadPrec [BlinkSpeed]
+ReadPrec BlinkSpeed
+Int -&gt; ReadS BlinkSpeed
+ReadS [BlinkSpeed]
+forall a.
+(Int -&gt; ReadS a)
+-&gt; ReadS [a] -&gt; ReadPrec a -&gt; ReadPrec [a] -&gt; Read a
+readListPrec :: ReadPrec [BlinkSpeed]
+$creadListPrec :: ReadPrec [BlinkSpeed]
+readPrec :: ReadPrec BlinkSpeed
+$creadPrec :: ReadPrec BlinkSpeed
+readList :: ReadS [BlinkSpeed]
+$creadList :: ReadS [BlinkSpeed]
+readsPrec :: Int -&gt; ReadS BlinkSpeed
+$creadsPrec :: Int -&gt; ReadS BlinkSpeed
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Read</span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679036099"><span id="local-6989586621679036101"><span id="local-6989586621679036103"><span id="local-6989586621679036105"><span id="local-6989586621679036107"><span id="local-6989586621679036110"><span class="annot"><span class="annottext">Ord BlinkSpeed
+(BlinkSpeed, BlinkSpeed) -&gt; Int
+(BlinkSpeed, BlinkSpeed) -&gt; [BlinkSpeed]
+(BlinkSpeed, BlinkSpeed) -&gt; BlinkSpeed -&gt; Bool
+(BlinkSpeed, BlinkSpeed) -&gt; BlinkSpeed -&gt; Int
+forall a.
+Ord a
+-&gt; ((a, a) -&gt; [a])
+-&gt; ((a, a) -&gt; a -&gt; Int)
+-&gt; ((a, a) -&gt; a -&gt; Int)
+-&gt; ((a, a) -&gt; a -&gt; Bool)
+-&gt; ((a, a) -&gt; Int)
+-&gt; ((a, a) -&gt; Int)
+-&gt; Ix a
+unsafeRangeSize :: (BlinkSpeed, BlinkSpeed) -&gt; Int
+$cunsafeRangeSize :: (BlinkSpeed, BlinkSpeed) -&gt; Int
+rangeSize :: (BlinkSpeed, BlinkSpeed) -&gt; Int
+$crangeSize :: (BlinkSpeed, BlinkSpeed) -&gt; Int
+inRange :: (BlinkSpeed, BlinkSpeed) -&gt; BlinkSpeed -&gt; Bool
+$cinRange :: (BlinkSpeed, BlinkSpeed) -&gt; BlinkSpeed -&gt; Bool
+unsafeIndex :: (BlinkSpeed, BlinkSpeed) -&gt; BlinkSpeed -&gt; Int
+$cunsafeIndex :: (BlinkSpeed, BlinkSpeed) -&gt; BlinkSpeed -&gt; Int
+index :: (BlinkSpeed, BlinkSpeed) -&gt; BlinkSpeed -&gt; Int
+$cindex :: (BlinkSpeed, BlinkSpeed) -&gt; BlinkSpeed -&gt; Int
+range :: (BlinkSpeed, BlinkSpeed) -&gt; [BlinkSpeed]
+$crange :: (BlinkSpeed, BlinkSpeed) -&gt; [BlinkSpeed]
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ix</span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-64"></span><span>
+</span><span id="line-65"></span><span class="hs-comment">-- | ANSI text underlining</span><span>
+</span><span id="line-66"></span><span class="hs-keyword">data</span><span> </span><span id="Underlining"><span class="annot"><a href="System.Console.ANSI.Types.html#Underlining"><span class="hs-identifier hs-var">Underlining</span></a></span></span><span>
+</span><span id="line-67"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="SingleUnderline"><span class="annot"><a href="System.Console.ANSI.Types.html#SingleUnderline"><span class="hs-identifier hs-var">SingleUnderline</span></a></span></span><span>
+</span><span id="line-68"></span><span>  </span><span class="hs-comment">-- | Not widely supported. Not supported natively on Windows 10</span><span>
+</span><span id="line-69"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="DoubleUnderline"><span class="annot"><a href="System.Console.ANSI.Types.html#DoubleUnderline"><span class="hs-identifier hs-var">DoubleUnderline</span></a></span></span><span>
+</span><span id="line-70"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="NoUnderline"><span class="annot"><a href="System.Console.ANSI.Types.html#NoUnderline"><span class="hs-identifier hs-var">NoUnderline</span></a></span></span><span>
+</span><span id="line-71"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679036092"><span id="local-6989586621679036094"><span class="annot"><span class="annottext">Underlining -&gt; Underlining -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: Underlining -&gt; Underlining -&gt; Bool
+$c/= :: Underlining -&gt; Underlining -&gt; Bool
+== :: Underlining -&gt; Underlining -&gt; Bool
+$c== :: Underlining -&gt; Underlining -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679036073"><span id="local-6989586621679036075"><span id="local-6989586621679036078"><span id="local-6989586621679036081"><span id="local-6989586621679036084"><span id="local-6989586621679036086"><span id="local-6989586621679036088"><span class="annot"><span class="annottext">Eq Underlining
+Underlining -&gt; Underlining -&gt; Bool
+Underlining -&gt; Underlining -&gt; Ordering
+Underlining -&gt; Underlining -&gt; Underlining
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: Underlining -&gt; Underlining -&gt; Underlining
+$cmin :: Underlining -&gt; Underlining -&gt; Underlining
+max :: Underlining -&gt; Underlining -&gt; Underlining
+$cmax :: Underlining -&gt; Underlining -&gt; Underlining
+&gt;= :: Underlining -&gt; Underlining -&gt; Bool
+$c&gt;= :: Underlining -&gt; Underlining -&gt; Bool
+&gt; :: Underlining -&gt; Underlining -&gt; Bool
+$c&gt; :: Underlining -&gt; Underlining -&gt; Bool
+&lt;= :: Underlining -&gt; Underlining -&gt; Bool
+$c&lt;= :: Underlining -&gt; Underlining -&gt; Bool
+&lt; :: Underlining -&gt; Underlining -&gt; Bool
+$c&lt; :: Underlining -&gt; Underlining -&gt; Bool
+compare :: Underlining -&gt; Underlining -&gt; Ordering
+$ccompare :: Underlining -&gt; Underlining -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679036069"><span id="local-6989586621679036071"><span class="annot"><span class="annottext">Underlining
+forall a. a -&gt; a -&gt; Bounded a
+maxBound :: Underlining
+$cmaxBound :: Underlining
+minBound :: Underlining
+$cminBound :: Underlining
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Bounded</span></span></span></span><span> </span><span class="hs-special">,</span><span id="local-6989586621679036035"><span id="local-6989586621679036037"><span id="local-6989586621679036041"><span id="local-6989586621679036044"><span id="local-6989586621679036046"><span id="local-6989586621679036054"><span id="local-6989586621679036060"><span id="local-6989586621679036066"><span class="annot"><span class="annottext">Int -&gt; Underlining
+Underlining -&gt; Int
+Underlining -&gt; [Underlining]
+Underlining -&gt; Underlining
+Underlining -&gt; Underlining -&gt; [Underlining]
+Underlining -&gt; Underlining -&gt; Underlining -&gt; [Underlining]
+forall a.
+(a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (Int -&gt; a)
+-&gt; (a -&gt; Int)
+-&gt; (a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; a -&gt; [a])
+-&gt; Enum a
+enumFromThenTo :: Underlining -&gt; Underlining -&gt; Underlining -&gt; [Underlining]
+$cenumFromThenTo :: Underlining -&gt; Underlining -&gt; Underlining -&gt; [Underlining]
+enumFromTo :: Underlining -&gt; Underlining -&gt; [Underlining]
+$cenumFromTo :: Underlining -&gt; Underlining -&gt; [Underlining]
+enumFromThen :: Underlining -&gt; Underlining -&gt; [Underlining]
+$cenumFromThen :: Underlining -&gt; Underlining -&gt; [Underlining]
+enumFrom :: Underlining -&gt; [Underlining]
+$cenumFrom :: Underlining -&gt; [Underlining]
+fromEnum :: Underlining -&gt; Int
+$cfromEnum :: Underlining -&gt; Int
+toEnum :: Int -&gt; Underlining
+$ctoEnum :: Int -&gt; Underlining
+pred :: Underlining -&gt; Underlining
+$cpred :: Underlining -&gt; Underlining
+succ :: Underlining -&gt; Underlining
+$csucc :: Underlining -&gt; Underlining
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Enum</span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679036029"><span id="local-6989586621679036031"><span id="local-6989586621679036033"><span class="annot"><span class="annottext">Int -&gt; Underlining -&gt; ShowS
+[Underlining] -&gt; ShowS
+Underlining -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [Underlining] -&gt; ShowS
+$cshowList :: [Underlining] -&gt; ShowS
+show :: Underlining -&gt; String
+$cshow :: Underlining -&gt; String
+showsPrec :: Int -&gt; Underlining -&gt; ShowS
+$cshowsPrec :: Int -&gt; Underlining -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679036017"><span id="local-6989586621679036022"><span id="local-6989586621679036025"><span id="local-6989586621679036027"><span class="annot"><span class="annottext">ReadPrec [Underlining]
+ReadPrec Underlining
+Int -&gt; ReadS Underlining
+ReadS [Underlining]
+forall a.
+(Int -&gt; ReadS a)
+-&gt; ReadS [a] -&gt; ReadPrec a -&gt; ReadPrec [a] -&gt; Read a
+readListPrec :: ReadPrec [Underlining]
+$creadListPrec :: ReadPrec [Underlining]
+readPrec :: ReadPrec Underlining
+$creadPrec :: ReadPrec Underlining
+readList :: ReadS [Underlining]
+$creadList :: ReadS [Underlining]
+readsPrec :: Int -&gt; ReadS Underlining
+$creadsPrec :: Int -&gt; ReadS Underlining
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Read</span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679036001"><span id="local-6989586621679036003"><span id="local-6989586621679036005"><span id="local-6989586621679036007"><span id="local-6989586621679036009"><span id="local-6989586621679036012"><span class="annot"><span class="annottext">Ord Underlining
+(Underlining, Underlining) -&gt; Int
+(Underlining, Underlining) -&gt; [Underlining]
+(Underlining, Underlining) -&gt; Underlining -&gt; Bool
+(Underlining, Underlining) -&gt; Underlining -&gt; Int
+forall a.
+Ord a
+-&gt; ((a, a) -&gt; [a])
+-&gt; ((a, a) -&gt; a -&gt; Int)
+-&gt; ((a, a) -&gt; a -&gt; Int)
+-&gt; ((a, a) -&gt; a -&gt; Bool)
+-&gt; ((a, a) -&gt; Int)
+-&gt; ((a, a) -&gt; Int)
+-&gt; Ix a
+unsafeRangeSize :: (Underlining, Underlining) -&gt; Int
+$cunsafeRangeSize :: (Underlining, Underlining) -&gt; Int
+rangeSize :: (Underlining, Underlining) -&gt; Int
+$crangeSize :: (Underlining, Underlining) -&gt; Int
+inRange :: (Underlining, Underlining) -&gt; Underlining -&gt; Bool
+$cinRange :: (Underlining, Underlining) -&gt; Underlining -&gt; Bool
+unsafeIndex :: (Underlining, Underlining) -&gt; Underlining -&gt; Int
+$cunsafeIndex :: (Underlining, Underlining) -&gt; Underlining -&gt; Int
+index :: (Underlining, Underlining) -&gt; Underlining -&gt; Int
+$cindex :: (Underlining, Underlining) -&gt; Underlining -&gt; Int
+range :: (Underlining, Underlining) -&gt; [Underlining]
+$crange :: (Underlining, Underlining) -&gt; [Underlining]
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ix</span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-72"></span><span>
+</span><span id="line-73"></span><span class="hs-comment">-- | ANSI general console intensity: usually treated as setting the font style</span><span>
+</span><span id="line-74"></span><span class="hs-comment">-- (e.g. 'BoldIntensity' causes text to be bold)</span><span>
+</span><span id="line-75"></span><span class="hs-keyword">data</span><span> </span><span id="ConsoleIntensity"><span class="annot"><a href="System.Console.ANSI.Types.html#ConsoleIntensity"><span class="hs-identifier hs-var">ConsoleIntensity</span></a></span></span><span>
+</span><span id="line-76"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="BoldIntensity"><span class="annot"><a href="System.Console.ANSI.Types.html#BoldIntensity"><span class="hs-identifier hs-var">BoldIntensity</span></a></span></span><span>
+</span><span id="line-77"></span><span>  </span><span class="hs-comment">-- | Not widely supported: sometimes treated as concealing text. Not supported</span><span>
+</span><span id="line-78"></span><span>  </span><span class="hs-comment">-- natively on Windows 10</span><span>
+</span><span id="line-79"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="FaintIntensity"><span class="annot"><a href="System.Console.ANSI.Types.html#FaintIntensity"><span class="hs-identifier hs-var">FaintIntensity</span></a></span></span><span>
+</span><span id="line-80"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="NormalIntensity"><span class="annot"><a href="System.Console.ANSI.Types.html#NormalIntensity"><span class="hs-identifier hs-var">NormalIntensity</span></a></span></span><span>
+</span><span id="line-81"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679035994"><span id="local-6989586621679035996"><span class="annot"><span class="annottext">ConsoleIntensity -&gt; ConsoleIntensity -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: ConsoleIntensity -&gt; ConsoleIntensity -&gt; Bool
+$c/= :: ConsoleIntensity -&gt; ConsoleIntensity -&gt; Bool
+== :: ConsoleIntensity -&gt; ConsoleIntensity -&gt; Bool
+$c== :: ConsoleIntensity -&gt; ConsoleIntensity -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679035975"><span id="local-6989586621679035977"><span id="local-6989586621679035980"><span id="local-6989586621679035983"><span id="local-6989586621679035986"><span id="local-6989586621679035988"><span id="local-6989586621679035990"><span class="annot"><span class="annottext">Eq ConsoleIntensity
+ConsoleIntensity -&gt; ConsoleIntensity -&gt; Bool
+ConsoleIntensity -&gt; ConsoleIntensity -&gt; Ordering
+ConsoleIntensity -&gt; ConsoleIntensity -&gt; ConsoleIntensity
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: ConsoleIntensity -&gt; ConsoleIntensity -&gt; ConsoleIntensity
+$cmin :: ConsoleIntensity -&gt; ConsoleIntensity -&gt; ConsoleIntensity
+max :: ConsoleIntensity -&gt; ConsoleIntensity -&gt; ConsoleIntensity
+$cmax :: ConsoleIntensity -&gt; ConsoleIntensity -&gt; ConsoleIntensity
+&gt;= :: ConsoleIntensity -&gt; ConsoleIntensity -&gt; Bool
+$c&gt;= :: ConsoleIntensity -&gt; ConsoleIntensity -&gt; Bool
+&gt; :: ConsoleIntensity -&gt; ConsoleIntensity -&gt; Bool
+$c&gt; :: ConsoleIntensity -&gt; ConsoleIntensity -&gt; Bool
+&lt;= :: ConsoleIntensity -&gt; ConsoleIntensity -&gt; Bool
+$c&lt;= :: ConsoleIntensity -&gt; ConsoleIntensity -&gt; Bool
+&lt; :: ConsoleIntensity -&gt; ConsoleIntensity -&gt; Bool
+$c&lt; :: ConsoleIntensity -&gt; ConsoleIntensity -&gt; Bool
+compare :: ConsoleIntensity -&gt; ConsoleIntensity -&gt; Ordering
+$ccompare :: ConsoleIntensity -&gt; ConsoleIntensity -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679035971"><span id="local-6989586621679035973"><span class="annot"><span class="annottext">ConsoleIntensity
+forall a. a -&gt; a -&gt; Bounded a
+maxBound :: ConsoleIntensity
+$cmaxBound :: ConsoleIntensity
+minBound :: ConsoleIntensity
+$cminBound :: ConsoleIntensity
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Bounded</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679035937"><span id="local-6989586621679035939"><span id="local-6989586621679035943"><span id="local-6989586621679035946"><span id="local-6989586621679035948"><span id="local-6989586621679035956"><span id="local-6989586621679035962"><span id="local-6989586621679035968"><span class="annot"><span class="annottext">Int -&gt; ConsoleIntensity
+ConsoleIntensity -&gt; Int
+ConsoleIntensity -&gt; [ConsoleIntensity]
+ConsoleIntensity -&gt; ConsoleIntensity
+ConsoleIntensity -&gt; ConsoleIntensity -&gt; [ConsoleIntensity]
+ConsoleIntensity
+-&gt; ConsoleIntensity -&gt; ConsoleIntensity -&gt; [ConsoleIntensity]
+forall a.
+(a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (Int -&gt; a)
+-&gt; (a -&gt; Int)
+-&gt; (a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; a -&gt; [a])
+-&gt; Enum a
+enumFromThenTo :: ConsoleIntensity
+-&gt; ConsoleIntensity -&gt; ConsoleIntensity -&gt; [ConsoleIntensity]
+$cenumFromThenTo :: ConsoleIntensity
+-&gt; ConsoleIntensity -&gt; ConsoleIntensity -&gt; [ConsoleIntensity]
+enumFromTo :: ConsoleIntensity -&gt; ConsoleIntensity -&gt; [ConsoleIntensity]
+$cenumFromTo :: ConsoleIntensity -&gt; ConsoleIntensity -&gt; [ConsoleIntensity]
+enumFromThen :: ConsoleIntensity -&gt; ConsoleIntensity -&gt; [ConsoleIntensity]
+$cenumFromThen :: ConsoleIntensity -&gt; ConsoleIntensity -&gt; [ConsoleIntensity]
+enumFrom :: ConsoleIntensity -&gt; [ConsoleIntensity]
+$cenumFrom :: ConsoleIntensity -&gt; [ConsoleIntensity]
+fromEnum :: ConsoleIntensity -&gt; Int
+$cfromEnum :: ConsoleIntensity -&gt; Int
+toEnum :: Int -&gt; ConsoleIntensity
+$ctoEnum :: Int -&gt; ConsoleIntensity
+pred :: ConsoleIntensity -&gt; ConsoleIntensity
+$cpred :: ConsoleIntensity -&gt; ConsoleIntensity
+succ :: ConsoleIntensity -&gt; ConsoleIntensity
+$csucc :: ConsoleIntensity -&gt; ConsoleIntensity
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Enum</span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679035931"><span id="local-6989586621679035933"><span id="local-6989586621679035935"><span class="annot"><span class="annottext">Int -&gt; ConsoleIntensity -&gt; ShowS
+[ConsoleIntensity] -&gt; ShowS
+ConsoleIntensity -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [ConsoleIntensity] -&gt; ShowS
+$cshowList :: [ConsoleIntensity] -&gt; ShowS
+show :: ConsoleIntensity -&gt; String
+$cshow :: ConsoleIntensity -&gt; String
+showsPrec :: Int -&gt; ConsoleIntensity -&gt; ShowS
+$cshowsPrec :: Int -&gt; ConsoleIntensity -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679035919"><span id="local-6989586621679035924"><span id="local-6989586621679035927"><span id="local-6989586621679035929"><span class="annot"><span class="annottext">ReadPrec [ConsoleIntensity]
+ReadPrec ConsoleIntensity
+Int -&gt; ReadS ConsoleIntensity
+ReadS [ConsoleIntensity]
+forall a.
+(Int -&gt; ReadS a)
+-&gt; ReadS [a] -&gt; ReadPrec a -&gt; ReadPrec [a] -&gt; Read a
+readListPrec :: ReadPrec [ConsoleIntensity]
+$creadListPrec :: ReadPrec [ConsoleIntensity]
+readPrec :: ReadPrec ConsoleIntensity
+$creadPrec :: ReadPrec ConsoleIntensity
+readList :: ReadS [ConsoleIntensity]
+$creadList :: ReadS [ConsoleIntensity]
+readsPrec :: Int -&gt; ReadS ConsoleIntensity
+$creadsPrec :: Int -&gt; ReadS ConsoleIntensity
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Read</span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679035903"><span id="local-6989586621679035905"><span id="local-6989586621679035907"><span id="local-6989586621679035909"><span id="local-6989586621679035911"><span id="local-6989586621679035914"><span class="annot"><span class="annottext">Ord ConsoleIntensity
+(ConsoleIntensity, ConsoleIntensity) -&gt; Int
+(ConsoleIntensity, ConsoleIntensity) -&gt; [ConsoleIntensity]
+(ConsoleIntensity, ConsoleIntensity) -&gt; ConsoleIntensity -&gt; Bool
+(ConsoleIntensity, ConsoleIntensity) -&gt; ConsoleIntensity -&gt; Int
+forall a.
+Ord a
+-&gt; ((a, a) -&gt; [a])
+-&gt; ((a, a) -&gt; a -&gt; Int)
+-&gt; ((a, a) -&gt; a -&gt; Int)
+-&gt; ((a, a) -&gt; a -&gt; Bool)
+-&gt; ((a, a) -&gt; Int)
+-&gt; ((a, a) -&gt; Int)
+-&gt; Ix a
+unsafeRangeSize :: (ConsoleIntensity, ConsoleIntensity) -&gt; Int
+$cunsafeRangeSize :: (ConsoleIntensity, ConsoleIntensity) -&gt; Int
+rangeSize :: (ConsoleIntensity, ConsoleIntensity) -&gt; Int
+$crangeSize :: (ConsoleIntensity, ConsoleIntensity) -&gt; Int
+inRange :: (ConsoleIntensity, ConsoleIntensity) -&gt; ConsoleIntensity -&gt; Bool
+$cinRange :: (ConsoleIntensity, ConsoleIntensity) -&gt; ConsoleIntensity -&gt; Bool
+unsafeIndex :: (ConsoleIntensity, ConsoleIntensity) -&gt; ConsoleIntensity -&gt; Int
+$cunsafeIndex :: (ConsoleIntensity, ConsoleIntensity) -&gt; ConsoleIntensity -&gt; Int
+index :: (ConsoleIntensity, ConsoleIntensity) -&gt; ConsoleIntensity -&gt; Int
+$cindex :: (ConsoleIntensity, ConsoleIntensity) -&gt; ConsoleIntensity -&gt; Int
+range :: (ConsoleIntensity, ConsoleIntensity) -&gt; [ConsoleIntensity]
+$crange :: (ConsoleIntensity, ConsoleIntensity) -&gt; [ConsoleIntensity]
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ix</span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-82"></span><span>
+</span><span id="line-83"></span><span class="hs-comment">-- | ANSI Select Graphic Rendition (SGR) command</span><span>
+</span><span id="line-84"></span><span class="hs-comment">--</span><span>
+</span><span id="line-85"></span><span class="hs-comment">-- In respect of colors, there are three alternative commands:</span><span>
+</span><span id="line-86"></span><span class="hs-comment">--</span><span>
+</span><span id="line-87"></span><span class="hs-comment">-- (1) the \'ANSI\' standards allow for eight standard colors (with two</span><span>
+</span><span id="line-88"></span><span class="hs-comment">-- intensities). Windows and many other terminals (including xterm) allow the</span><span>
+</span><span id="line-89"></span><span class="hs-comment">-- user to redefine the standard colors (so, for example 'Vivid' 'Green' may not</span><span>
+</span><span id="line-90"></span><span class="hs-comment">-- correspond to bright green;</span><span>
+</span><span id="line-91"></span><span class="hs-comment">--</span><span>
+</span><span id="line-92"></span><span class="hs-comment">-- (2) an extension of the standard that allows true colors (24 bit color depth)</span><span>
+</span><span id="line-93"></span><span class="hs-comment">-- in RGB space. This is usually the best alternative for more colors; and</span><span>
+</span><span id="line-94"></span><span class="hs-comment">--</span><span>
+</span><span id="line-95"></span><span class="hs-comment">-- (3) another extension that allows a palette of 256 colors, each color</span><span>
+</span><span id="line-96"></span><span class="hs-comment">-- specified by an index. Xterm provides a protocol for a palette of 256 colors</span><span>
+</span><span id="line-97"></span><span class="hs-comment">-- that many other terminals, including Windows 10, follow. Some terminals</span><span>
+</span><span id="line-98"></span><span class="hs-comment">-- (including xterm) allow the user to redefine some or all of the palette</span><span>
+</span><span id="line-99"></span><span class="hs-comment">-- colors.</span><span>
+</span><span id="line-100"></span><span class="hs-keyword">data</span><span> </span><span id="SGR"><span class="annot"><a href="System.Console.ANSI.Types.html#SGR"><span class="hs-identifier hs-var">SGR</span></a></span></span><span>
+</span><span id="line-101"></span><span>  </span><span class="hs-comment">-- | Default rendition, cancels the effect of any preceding occurrence of SGR</span><span>
+</span><span id="line-102"></span><span>  </span><span class="hs-comment">-- (implementation-defined)</span><span>
+</span><span id="line-103"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="Reset"><span class="annot"><a href="System.Console.ANSI.Types.html#Reset"><span class="hs-identifier hs-var">Reset</span></a></span></span><span>
+</span><span id="line-104"></span><span>  </span><span class="hs-comment">-- | Set the character intensity. Partially supported natively on Windows 10</span><span>
+</span><span id="line-105"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="SetConsoleIntensity"><span class="annot"><a href="System.Console.ANSI.Types.html#SetConsoleIntensity"><span class="hs-identifier hs-var">SetConsoleIntensity</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="System.Console.ANSI.Types.html#ConsoleIntensity"><span class="hs-identifier hs-type">ConsoleIntensity</span></a></span><span>
+</span><span id="line-106"></span><span>  </span><span class="hs-comment">-- | Set italicized. Not widely supported: sometimes treated as swapping</span><span>
+</span><span id="line-107"></span><span>  </span><span class="hs-comment">-- foreground and background. Not supported natively on Windows 10</span><span>
+</span><span id="line-108"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="SetItalicized"><span class="annot"><a href="System.Console.ANSI.Types.html#SetItalicized"><span class="hs-identifier hs-var">SetItalicized</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-109"></span><span>  </span><span class="hs-comment">-- | Set or clear underlining. Partially supported natively on Windows 10</span><span>
+</span><span id="line-110"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="SetUnderlining"><span class="annot"><a href="System.Console.ANSI.Types.html#SetUnderlining"><span class="hs-identifier hs-var">SetUnderlining</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="System.Console.ANSI.Types.html#Underlining"><span class="hs-identifier hs-type">Underlining</span></a></span><span>
+</span><span id="line-111"></span><span>  </span><span class="hs-comment">-- | Set or clear character blinking. Not supported natively on Windows 10</span><span>
+</span><span id="line-112"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="SetBlinkSpeed"><span class="annot"><a href="System.Console.ANSI.Types.html#SetBlinkSpeed"><span class="hs-identifier hs-var">SetBlinkSpeed</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="System.Console.ANSI.Types.html#BlinkSpeed"><span class="hs-identifier hs-type">BlinkSpeed</span></a></span><span>
+</span><span id="line-113"></span><span>  </span><span class="hs-comment">-- | Set revealed or concealed. Not widely supported. Not supported natively</span><span>
+</span><span id="line-114"></span><span>  </span><span class="hs-comment">-- on Windows 10</span><span>
+</span><span id="line-115"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="SetVisible"><span class="annot"><a href="System.Console.ANSI.Types.html#SetVisible"><span class="hs-identifier hs-var">SetVisible</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-116"></span><span>  </span><span class="hs-comment">-- | Set negative or positive image. Supported natively on Windows 10</span><span>
+</span><span id="line-117"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="SetSwapForegroundBackground"><span class="annot"><a href="System.Console.ANSI.Types.html#SetSwapForegroundBackground"><span class="hs-identifier hs-var">SetSwapForegroundBackground</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-118"></span><span>  </span><span class="hs-comment">-- | Set a color from the standard palette of 16 colors (8 colors by 2</span><span>
+</span><span id="line-119"></span><span>  </span><span class="hs-comment">-- color intensities). Many terminals allow the palette colors to be</span><span>
+</span><span id="line-120"></span><span>  </span><span class="hs-comment">-- customised</span><span>
+</span><span id="line-121"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="SetColor"><span class="annot"><a href="System.Console.ANSI.Types.html#SetColor"><span class="hs-identifier hs-var">SetColor</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="System.Console.ANSI.Types.html#ConsoleLayer"><span class="hs-identifier hs-type">ConsoleLayer</span></a></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="System.Console.ANSI.Types.html#ColorIntensity"><span class="hs-identifier hs-type">ColorIntensity</span></a></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="System.Console.ANSI.Types.html#Color"><span class="hs-identifier hs-type">Color</span></a></span><span>
+</span><span id="line-122"></span><span>  </span><span class="hs-comment">-- | Set a true color (24 bit color depth). Supported natively on Windows 10</span><span>
+</span><span id="line-123"></span><span>  </span><span class="hs-comment">-- from the Creators Update (April 2017)</span><span>
+</span><span id="line-124"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-125"></span><span>  </span><span class="hs-comment">-- @since 0.7</span><span>
+</span><span id="line-126"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="SetRGBColor"><span class="annot"><a href="System.Console.ANSI.Types.html#SetRGBColor"><span class="hs-identifier hs-var">SetRGBColor</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="System.Console.ANSI.Types.html#ConsoleLayer"><span class="hs-identifier hs-type">ConsoleLayer</span></a></span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Colour</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Float</span></span><span class="hs-special">)</span><span>
+</span><span id="line-127"></span><span>  </span><span class="hs-comment">-- | Set a color from a palette of 256 colors using a numerical index</span><span>
+</span><span id="line-128"></span><span>  </span><span class="hs-comment">-- (0-based). Supported natively on Windows 10 from the Creators Update (April</span><span>
+</span><span id="line-129"></span><span>  </span><span class="hs-comment">-- 2017) but not on legacy Windows native terminals. See 'xtermSystem',</span><span>
+</span><span id="line-130"></span><span>  </span><span class="hs-comment">-- 'xterm6LevelRGB' and 'xterm24LevelGray' to construct indices based on</span><span>
+</span><span id="line-131"></span><span>  </span><span class="hs-comment">-- xterm's standard protocol for a 256-color palette.</span><span>
+</span><span id="line-132"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-133"></span><span>  </span><span class="hs-comment">-- @since 0.9</span><span>
+</span><span id="line-134"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="SetPaletteColor"><span class="annot"><a href="System.Console.ANSI.Types.html#SetPaletteColor"><span class="hs-identifier hs-var">SetPaletteColor</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="System.Console.ANSI.Types.html#ConsoleLayer"><span class="hs-identifier hs-type">ConsoleLayer</span></a></span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span>
+</span><span id="line-135"></span><span>  </span><span class="hs-comment">-- | Set a color to the default (implementation-defined)</span><span>
+</span><span id="line-136"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-137"></span><span>  </span><span class="hs-comment">-- @since 0.10</span><span>
+</span><span id="line-138"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="SetDefaultColor"><span class="annot"><a href="System.Console.ANSI.Types.html#SetDefaultColor"><span class="hs-identifier hs-var">SetDefaultColor</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="System.Console.ANSI.Types.html#ConsoleLayer"><span class="hs-identifier hs-type">ConsoleLayer</span></a></span><span>
+</span><span id="line-139"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679035870"><span id="local-6989586621679035890"><span class="annot"><span class="annottext">SGR -&gt; SGR -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: SGR -&gt; SGR -&gt; Bool
+$c/= :: SGR -&gt; SGR -&gt; Bool
+== :: SGR -&gt; SGR -&gt; Bool
+$c== :: SGR -&gt; SGR -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679035834"><span id="local-6989586621679035836"><span id="local-6989586621679035867"><span class="annot"><span class="annottext">Int -&gt; SGR -&gt; ShowS
+[SGR] -&gt; ShowS
+SGR -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [SGR] -&gt; ShowS
+$cshowList :: [SGR] -&gt; ShowS
+show :: SGR -&gt; String
+$cshow :: SGR -&gt; String
+showsPrec :: Int -&gt; SGR -&gt; ShowS
+$cshowsPrec :: Int -&gt; SGR -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679035768"><span id="local-6989586621679035825"><span id="local-6989586621679035828"><span id="local-6989586621679035830"><span class="annot"><span class="annottext">ReadPrec [SGR]
+ReadPrec SGR
+Int -&gt; ReadS SGR
+ReadS [SGR]
+forall a.
+(Int -&gt; ReadS a)
+-&gt; ReadS [a] -&gt; ReadPrec a -&gt; ReadPrec [a] -&gt; Read a
+readListPrec :: ReadPrec [SGR]
+$creadListPrec :: ReadPrec [SGR]
+readPrec :: ReadPrec SGR
+$creadPrec :: ReadPrec SGR
+readList :: ReadS [SGR]
+$creadList :: ReadS [SGR]
+readsPrec :: Int -&gt; ReadS SGR
+$creadsPrec :: Int -&gt; ReadS SGR
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Read</span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-140"></span><span>
+</span><span id="line-141"></span><span class="hs-comment">-- | Given xterm's standard protocol for a 256-color palette, returns the index</span><span>
+</span><span id="line-142"></span><span class="hs-comment">-- to that part of the palette which is a 6 level (6x6x6) color cube of 216 RGB</span><span>
+</span><span id="line-143"></span><span class="hs-comment">-- colors. Throws an error if any of the red, green or blue channels is outside</span><span>
+</span><span id="line-144"></span><span class="hs-comment">-- the range 0 to 5. An example of use is:</span><span>
+</span><span id="line-145"></span><span class="hs-comment">--</span><span>
+</span><span id="line-146"></span><span class="hs-comment">-- &gt;&gt;&gt; setSGR [ SetPaletteColor $ xterm6LevelRGB 5 2 0 ] -- Dark Orange</span><span>
+</span><span id="line-147"></span><span class="hs-comment">--</span><span>
+</span><span id="line-148"></span><span class="hs-comment">-- @since 0.9</span><span>
+</span><span id="line-149"></span><span class="annot"><a href="System.Console.ANSI.Types.html#xterm6LevelRGB"><span class="hs-identifier hs-type">xterm6LevelRGB</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span>
+</span><span id="line-150"></span><span id="xterm6LevelRGB"><span class="annot"><span class="annottext">xterm6LevelRGB :: Int -&gt; Int -&gt; Int -&gt; Word8
+</span><a href="System.Console.ANSI.Types.html#xterm6LevelRGB"><span class="hs-identifier hs-var hs-var">xterm6LevelRGB</span></a></span></span><span> </span><span id="local-6989586621679035765"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679035765"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span id="local-6989586621679035764"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679035764"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span id="local-6989586621679035763"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679035763"><span class="hs-identifier hs-var">b</span></a></span></span><span>
+</span><span id="line-151"></span><span>  </span><span class="hs-comment">-- RGB colors are represented by index:</span><span>
+</span><span id="line-152"></span><span>  </span><span class="hs-comment">-- 16 + 36 &#215; r + 6 &#215; g + b (0 &#8804; r, g, b &#8804; 5)</span><span>
+</span><span id="line-153"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679035765"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679035765"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">6</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679035764"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679035764"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">6</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679035763"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679035763"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">6</span></span><span>
+</span><span id="line-154"></span><span>  </span><span class="hs-glyph">=</span><span>  </span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">16</span></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">36</span></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679035765"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">6</span></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679035764"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679035763"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-155"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>
+</span><span id="line-156"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. HasCallStack =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679035765"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot; &quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679035764"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot; &quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679035763"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot; (r g b) is &quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span>
+</span><span id="line-157"></span><span>            </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;outside of a 6 level (6x6x6) color cube.&quot;</span></span><span>
+</span><span id="line-158"></span><span>
+</span><span id="line-159"></span><span class="hs-comment">-- | Given xterm's standard protocol for a 256-color palette, returns the index</span><span>
+</span><span id="line-160"></span><span class="hs-comment">-- to that part of the palette which is a spectrum of 24 grays, from dark</span><span>
+</span><span id="line-161"></span><span class="hs-comment">-- gray (0) to near white (23) (black and white are themselves excluded). Throws</span><span>
+</span><span id="line-162"></span><span class="hs-comment">-- an error if the gray is outside of the range 0 to 23. An example of use is:</span><span>
+</span><span id="line-163"></span><span class="hs-comment">--</span><span>
+</span><span id="line-164"></span><span class="hs-comment">-- &gt;&gt;&gt; setSGR [ SetPaletteColor $ xterm24LevelGray 12 ] -- Gray50</span><span>
+</span><span id="line-165"></span><span class="hs-comment">--</span><span>
+</span><span id="line-166"></span><span class="hs-comment">-- @since 0.9</span><span>
+</span><span id="line-167"></span><span class="annot"><a href="System.Console.ANSI.Types.html#xterm24LevelGray"><span class="hs-identifier hs-type">xterm24LevelGray</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span>
+</span><span id="line-168"></span><span id="xterm24LevelGray"><span class="annot"><span class="annottext">xterm24LevelGray :: Int -&gt; Word8
+</span><a href="System.Console.ANSI.Types.html#xterm24LevelGray"><span class="hs-identifier hs-var hs-var">xterm24LevelGray</span></a></span></span><span> </span><span id="local-6989586621679035756"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679035756"><span class="hs-identifier hs-var">y</span></a></span></span><span>
+</span><span id="line-169"></span><span>  </span><span class="hs-comment">-- Grayscale colors are represented by index:</span><span>
+</span><span id="line-170"></span><span>  </span><span class="hs-comment">-- 232 + g (0 &#8804; g &#8804; 23)</span><span>
+</span><span id="line-171"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679035756"><span class="hs-identifier hs-var">y</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679035756"><span class="hs-identifier hs-var">y</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">24</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">232</span></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679035756"><span class="hs-identifier hs-var">y</span></a></span><span>
+</span><span id="line-172"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>
+</span><span id="line-173"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. HasCallStack =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679035756"><span class="hs-identifier hs-var">y</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot; (gray) is outside of the range 0 to 23.&quot;</span></span><span>
+</span><span id="line-174"></span><span>
+</span><span id="line-175"></span><span class="hs-comment">-- | Given xterm's standard protocol for a 256-color palette, returns the index</span><span>
+</span><span id="line-176"></span><span class="hs-comment">-- to that part of the palette which corresponds to the \'ANSI\' standards' 16</span><span>
+</span><span id="line-177"></span><span class="hs-comment">-- standard, or \'system\', colors (eight colors in two intensities). An example</span><span>
+</span><span id="line-178"></span><span class="hs-comment">-- of use is:</span><span>
+</span><span id="line-179"></span><span class="hs-comment">--</span><span>
+</span><span id="line-180"></span><span class="hs-comment">-- &gt;&gt;&gt; setSGR [ SetPaletteColor $ xtermSystem Vivid Green ]</span><span>
+</span><span id="line-181"></span><span class="hs-comment">--</span><span>
+</span><span id="line-182"></span><span class="hs-comment">-- @since 0.9</span><span>
+</span><span id="line-183"></span><span class="annot"><a href="System.Console.ANSI.Types.html#xtermSystem"><span class="hs-identifier hs-type">xtermSystem</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.Console.ANSI.Types.html#ColorIntensity"><span class="hs-identifier hs-type">ColorIntensity</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="System.Console.ANSI.Types.html#Color"><span class="hs-identifier hs-type">Color</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span>
+</span><span id="line-184"></span><span id="xtermSystem"><span class="annot"><span class="annottext">xtermSystem :: ColorIntensity -&gt; Color -&gt; Word8
+</span><a href="System.Console.ANSI.Types.html#xtermSystem"><span class="hs-identifier hs-var hs-var">xtermSystem</span></a></span></span><span> </span><span id="local-6989586621679035755"><span class="annot"><span class="annottext">ColorIntensity
+</span><a href="#local-6989586621679035755"><span class="hs-identifier hs-var">intensity</span></a></span></span><span> </span><span id="local-6989586621679035754"><span class="annot"><span class="annottext">Color
+</span><a href="#local-6989586621679035754"><span class="hs-identifier hs-var">color</span></a></span></span><span>
+</span><span id="line-185"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">ColorIntensity
+</span><a href="#local-6989586621679035755"><span class="hs-identifier hs-var">intensity</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">ColorIntensity
+</span><a href="System.Console.ANSI.Types.html#Dull"><span class="hs-identifier hs-var">Dull</span></a></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679035753"><span class="hs-identifier hs-var">index</span></a></span><span>
+</span><span id="line-186"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>          </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679035753"><span class="hs-identifier hs-var">index</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">8</span></span><span>
+</span><span id="line-187"></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-188"></span><span>  </span><span id="local-6989586621679035753"><span class="annot"><span class="annottext">index :: Word8
+</span><a href="#local-6989586621679035753"><span class="hs-identifier hs-var hs-var">index</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall a. Enum a =&gt; a -&gt; Int
+</span><span class="hs-identifier hs-var">fromEnum</span></span><span> </span><span class="annot"><span class="annottext">Color
+</span><a href="#local-6989586621679035754"><span class="hs-identifier hs-var">color</span></a></span><span>
+</span><span id="line-189"></span></pre></body></html>

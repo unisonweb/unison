@@ -1,0 +1,228 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE RankNTypes #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE Safe #-}</span><span class="hs-cpp">
+#include &quot;free-common.h&quot;
+</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- Module      :  Control.Applicative.Free.Final</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- Copyright   :  (C) 2012-2013 Edward Kmett</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- License     :  BSD-style (see the file LICENSE)</span><span>
+</span><span id="line-11"></span><span class="hs-comment">--</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- Maintainer  :  Edward Kmett &lt;ekmett@gmail.com&gt;</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- Stability   :  provisional</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- Portability :  GADTs, Rank2Types</span><span>
+</span><span id="line-15"></span><span class="hs-comment">--</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- Final encoding of free 'Applicative' functors.</span><span>
+</span><span id="line-17"></span><span class="hs-comment">----------------------------------------------------------------------------</span><span>
+</span><span id="line-18"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Control.Applicative.Free.Final</span><span>
+</span><span id="line-19"></span><span>  </span><span class="hs-special">(</span><span>
+</span><span id="line-20"></span><span>  </span><span class="hs-comment">-- | Compared to the free monad, they are less expressive. However, they are also more</span><span>
+</span><span id="line-21"></span><span>  </span><span class="hs-comment">-- flexible to inspect and interpret, as the number of ways in which</span><span>
+</span><span id="line-22"></span><span>  </span><span class="hs-comment">-- the values can be nested is more limited.</span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span>    </span><span class="annot"><a href="Control.Applicative.Free.Final.html#Ap"><span class="hs-identifier">Ap</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Applicative.Free.Final.html#runAp"><span class="hs-identifier">runAp</span></a></span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Applicative.Free.Final.html#runAp_"><span class="hs-identifier">runAp_</span></a></span><span>
+</span><span id="line-27"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Applicative.Free.Final.html#liftAp"><span class="hs-identifier">liftAp</span></a></span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Applicative.Free.Final.html#hoistAp"><span class="hs-identifier">hoistAp</span></a></span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Applicative.Free.Final.html#retractAp"><span class="hs-identifier">retractAp</span></a></span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span>  </span><span class="hs-comment">-- * Examples</span><span>
+</span><span id="line-32"></span><span>  </span><span class="hs-comment">-- $examples</span><span>
+</span><span id="line-33"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Applicative</span></span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Functor.Apply</span></span><span class="hs-cpp">
+
+#if !(MIN_VERSION_base(4,8,0))
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Monoid</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-42"></span><span class="hs-comment">-- | The free 'Applicative' for a 'Functor' @f@.</span><span>
+</span><span id="line-43"></span><span class="hs-keyword">newtype</span><span> </span><span id="Ap"><span class="annot"><a href="Control.Applicative.Free.Final.html#Ap"><span class="hs-identifier hs-var">Ap</span></a></span></span><span> </span><span id="local-6989586621679122671"><span class="annot"><a href="#local-6989586621679122671"><span class="hs-identifier hs-type">f</span></a></span></span><span> </span><span id="local-6989586621679122670"><span class="annot"><a href="#local-6989586621679122670"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Ap"><span class="annot"><a href="Control.Applicative.Free.Final.html#Ap"><span class="hs-identifier hs-var">Ap</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="_runAp"><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a.
+Ap f a
+-&gt; forall (g :: * -&gt; *).
+   Applicative g =&gt;
+   (forall x. f x -&gt; g x) -&gt; g a
+</span><a href="Control.Applicative.Free.Final.html#_runAp"><span class="hs-identifier hs-var hs-var">_runAp</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679122669"><span class="annot"><a href="#local-6989586621679122669"><span class="hs-identifier hs-type">g</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Applicative</span></span><span> </span><span class="annot"><a href="#local-6989586621679122669"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679122668"><span class="annot"><a href="#local-6989586621679122668"><span class="hs-identifier hs-type">x</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="#local-6989586621679122671"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679122668"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679122669"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679122668"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679122669"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679122670"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span class="hs-comment">-- | Given a natural transformation from @f@ to @g@, this gives a canonical monoidal natural transformation from @'Ap' f@ to @g@.</span><span>
+</span><span id="line-46"></span><span class="hs-comment">--</span><span>
+</span><span id="line-47"></span><span class="hs-comment">-- prop&gt; runAp t == retractApp . hoistApp t</span><span>
+</span><span id="line-48"></span><span id="local-6989586621679122661"><span id="local-6989586621679122663"><span id="local-6989586621679122664"><span class="annot"><a href="Control.Applicative.Free.Final.html#runAp"><span class="hs-identifier hs-type">runAp</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Applicative</span></span><span> </span><span class="annot"><a href="#local-6989586621679122664"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679122662"><span class="annot"><a href="#local-6989586621679122662"><span class="hs-identifier hs-type">x</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="#local-6989586621679122663"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679122662"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679122664"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679122662"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Applicative.Free.Final.html#Ap"><span class="hs-identifier hs-type">Ap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679122663"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679122661"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679122664"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679122661"><span class="hs-identifier hs-type">a</span></a></span></span></span></span><span>
+</span><span id="line-49"></span><span id="runAp"><span class="annot"><span class="annottext">runAp :: forall (g :: * -&gt; *) (f :: * -&gt; *) a.
+Applicative g =&gt;
+(forall x. f x -&gt; g x) -&gt; Ap f a -&gt; g a
+</span><a href="Control.Applicative.Free.Final.html#runAp"><span class="hs-identifier hs-var hs-var">runAp</span></a></span></span><span> </span><span id="local-6989586621679122557"><span class="annot"><span class="annottext">forall x. f x -&gt; g x
+</span><a href="#local-6989586621679122557"><span class="hs-identifier hs-var">phi</span></a></span></span><span> </span><span id="local-6989586621679122556"><span class="annot"><span class="annottext">Ap f a
+</span><a href="#local-6989586621679122556"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a.
+Ap f a
+-&gt; forall (g :: * -&gt; *).
+   Applicative g =&gt;
+   (forall x. f x -&gt; g x) -&gt; g a
+</span><a href="Control.Applicative.Free.Final.html#_runAp"><span class="hs-identifier hs-var">_runAp</span></a></span><span> </span><span class="annot"><span class="annottext">Ap f a
+</span><a href="#local-6989586621679122556"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">forall x. f x -&gt; g x
+</span><a href="#local-6989586621679122557"><span class="hs-identifier hs-var">phi</span></a></span><span>
+</span><span id="line-50"></span><span>
+</span><span id="line-51"></span><span class="hs-comment">-- | Perform a monoidal analysis over free applicative value.</span><span>
+</span><span id="line-52"></span><span class="hs-comment">--</span><span>
+</span><span id="line-53"></span><span class="hs-comment">-- Example:</span><span>
+</span><span id="line-54"></span><span class="hs-comment">--</span><span>
+</span><span id="line-55"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-56"></span><span class="hs-comment">-- count :: Ap f a -&gt; Int</span><span>
+</span><span id="line-57"></span><span class="hs-comment">-- count = getSum . runAp_ (\\_ -&gt; Sum 1)</span><span>
+</span><span id="line-58"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-59"></span><span id="local-6989586621679122654"><span id="local-6989586621679122656"><span id="local-6989586621679122657"><span class="annot"><a href="Control.Applicative.Free.Final.html#runAp_"><span class="hs-identifier hs-type">runAp_</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monoid</span></span><span> </span><span class="annot"><a href="#local-6989586621679122657"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679122655"><span class="annot"><a href="#local-6989586621679122655"><span class="hs-identifier hs-type">a</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="#local-6989586621679122656"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679122655"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679122657"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Applicative.Free.Final.html#Ap"><span class="hs-identifier hs-type">Ap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679122656"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679122654"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679122657"><span class="hs-identifier hs-type">m</span></a></span></span></span></span><span>
+</span><span id="line-60"></span><span id="runAp_"><span class="annot"><span class="annottext">runAp_ :: forall m (f :: * -&gt; *) b.
+Monoid m =&gt;
+(forall a. f a -&gt; m) -&gt; Ap f b -&gt; m
+</span><a href="Control.Applicative.Free.Final.html#runAp_"><span class="hs-identifier hs-var hs-var">runAp_</span></a></span></span><span> </span><span id="local-6989586621679122552"><span class="annot"><span class="annottext">forall a. f a -&gt; m
+</span><a href="#local-6989586621679122552"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {k} a (b :: k). Const a b -&gt; a
+</span><span class="hs-identifier hs-var">getConst</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall (g :: * -&gt; *) (f :: * -&gt; *) a.
+Applicative g =&gt;
+(forall x. f x -&gt; g x) -&gt; Ap f a -&gt; g a
+</span><a href="Control.Applicative.Free.Final.html#runAp"><span class="hs-identifier hs-var">runAp</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall {k} a (b :: k). a -&gt; Const a b
+</span><span class="hs-identifier hs-var">Const</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall a. f a -&gt; m
+</span><a href="#local-6989586621679122552"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679122546"><span id="local-6989586621679122633"><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Applicative.Free.Final.html#Ap"><span class="hs-identifier hs-type">Ap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679122633"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-63"></span><span>  </span><span id="local-6989586621679122544"><span class="annot"><span class="annottext">fmap :: forall a b. (a -&gt; b) -&gt; Ap f a -&gt; Ap f b
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">fmap</span></span></span><span> </span><span id="local-6989586621679122543"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679122543"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Applicative.Free.Final.html#Ap"><span class="hs-identifier hs-type">Ap</span></a></span><span> </span><span id="local-6989586621679122542"><span class="annot"><span class="annottext">forall (g :: * -&gt; *).
+Applicative g =&gt;
+(forall x. f x -&gt; g x) -&gt; g a
+</span><a href="#local-6989586621679122542"><span class="hs-identifier hs-var">g</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a.
+(forall (g :: * -&gt; *).
+ Applicative g =&gt;
+ (forall x. f x -&gt; g x) -&gt; g a)
+-&gt; Ap f a
+</span><a href="Control.Applicative.Free.Final.html#Ap"><span class="hs-identifier hs-var">Ap</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679122536"><span class="annot"><span class="annottext">forall x. f x -&gt; g x
+</span><a href="#local-6989586621679122536"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679122543"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (g :: * -&gt; *).
+Applicative g =&gt;
+(forall x. f x -&gt; g x) -&gt; g a
+</span><a href="#local-6989586621679122542"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">forall x. f x -&gt; g x
+</span><a href="#local-6989586621679122536"><span class="hs-identifier hs-var">k</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-64"></span><span>
+</span><span id="line-65"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679122527"><span id="local-6989586621679122529"><span id="local-6989586621679122531"><span id="local-6989586621679122618"><span class="annot"><span class="hs-identifier hs-type">Apply</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Applicative.Free.Final.html#Ap"><span class="hs-identifier hs-type">Ap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679122618"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-66"></span><span>  </span><span class="annot"><a href="Control.Applicative.Free.Final.html#Ap"><span class="hs-identifier hs-type">Ap</span></a></span><span> </span><span id="local-6989586621679122525"><span class="annot"><span class="annottext">forall (g :: * -&gt; *).
+Applicative g =&gt;
+(forall x. f x -&gt; g x) -&gt; g (a -&gt; b)
+</span><a href="#local-6989586621679122525"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679122524"><span class="annot"><span class="annottext">&lt;.&gt; :: forall a b. Ap f (a -&gt; b) -&gt; Ap f a -&gt; Ap f b
+</span><span class="hs-operator hs-var hs-var hs-var hs-var">&lt;.&gt;</span></span></span><span> </span><span class="annot"><a href="Control.Applicative.Free.Final.html#Ap"><span class="hs-identifier hs-type">Ap</span></a></span><span> </span><span id="local-6989586621679122522"><span class="annot"><span class="annottext">forall (g :: * -&gt; *).
+Applicative g =&gt;
+(forall x. f x -&gt; g x) -&gt; g a
+</span><a href="#local-6989586621679122522"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a.
+(forall (g :: * -&gt; *).
+ Applicative g =&gt;
+ (forall x. f x -&gt; g x) -&gt; g a)
+-&gt; Ap f a
+</span><a href="Control.Applicative.Free.Final.html#Ap"><span class="hs-identifier hs-var">Ap</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679122517"><span class="annot"><span class="annottext">forall x. f x -&gt; g x
+</span><a href="#local-6989586621679122517"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (g :: * -&gt; *).
+Applicative g =&gt;
+(forall x. f x -&gt; g x) -&gt; g (a -&gt; b)
+</span><a href="#local-6989586621679122525"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">forall x. f x -&gt; g x
+</span><a href="#local-6989586621679122517"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall (g :: * -&gt; *).
+Applicative g =&gt;
+(forall x. f x -&gt; g x) -&gt; g a
+</span><a href="#local-6989586621679122522"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall x. f x -&gt; g x
+</span><a href="#local-6989586621679122517"><span class="hs-identifier hs-var">k</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-67"></span><span>
+</span><span id="line-68"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679122507"><span id="local-6989586621679122509"><span id="local-6989586621679122511"><span id="local-6989586621679122604"><span class="annot"><span class="hs-identifier hs-type">Applicative</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Applicative.Free.Final.html#Ap"><span class="hs-identifier hs-type">Ap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679122604"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-69"></span><span>  </span><span id="local-6989586621679122505"><span class="annot"><span class="annottext">pure :: forall a. a -&gt; Ap f a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">pure</span></span></span><span> </span><span id="local-6989586621679122504"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679122504"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a.
+(forall (g :: * -&gt; *).
+ Applicative g =&gt;
+ (forall x. f x -&gt; g x) -&gt; g a)
+-&gt; Ap f a
+</span><a href="Control.Applicative.Free.Final.html#Ap"><span class="hs-identifier hs-var">Ap</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="annot"><span class="annottext">forall x. f x -&gt; g x
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679122504"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-70"></span><span>  </span><span class="annot"><a href="Control.Applicative.Free.Final.html#Ap"><span class="hs-identifier hs-type">Ap</span></a></span><span> </span><span id="local-6989586621679122501"><span class="annot"><span class="annottext">forall (g :: * -&gt; *).
+Applicative g =&gt;
+(forall x. f x -&gt; g x) -&gt; g (a -&gt; b)
+</span><a href="#local-6989586621679122501"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679122500"><span class="annot"><span class="annottext">&lt;*&gt; :: forall a b. Ap f (a -&gt; b) -&gt; Ap f a -&gt; Ap f b
+</span><span class="hs-operator hs-var hs-var hs-var hs-var">&lt;*&gt;</span></span></span><span> </span><span class="annot"><a href="Control.Applicative.Free.Final.html#Ap"><span class="hs-identifier hs-type">Ap</span></a></span><span> </span><span id="local-6989586621679122499"><span class="annot"><span class="annottext">forall (g :: * -&gt; *).
+Applicative g =&gt;
+(forall x. f x -&gt; g x) -&gt; g a
+</span><a href="#local-6989586621679122499"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a.
+(forall (g :: * -&gt; *).
+ Applicative g =&gt;
+ (forall x. f x -&gt; g x) -&gt; g a)
+-&gt; Ap f a
+</span><a href="Control.Applicative.Free.Final.html#Ap"><span class="hs-identifier hs-var">Ap</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679122494"><span class="annot"><span class="annottext">forall x. f x -&gt; g x
+</span><a href="#local-6989586621679122494"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (g :: * -&gt; *).
+Applicative g =&gt;
+(forall x. f x -&gt; g x) -&gt; g (a -&gt; b)
+</span><a href="#local-6989586621679122501"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">forall x. f x -&gt; g x
+</span><a href="#local-6989586621679122494"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall (g :: * -&gt; *).
+Applicative g =&gt;
+(forall x. f x -&gt; g x) -&gt; g a
+</span><a href="#local-6989586621679122499"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall x. f x -&gt; g x
+</span><a href="#local-6989586621679122494"><span class="hs-identifier hs-var">k</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-71"></span><span>
+</span><span id="line-72"></span><span class="hs-comment">-- | A version of 'lift' that can be used with just a 'Functor' for @f@.</span><span>
+</span><span id="line-73"></span><span id="local-6989586621679122597"><span id="local-6989586621679122598"><span class="annot"><a href="Control.Applicative.Free.Final.html#liftAp"><span class="hs-identifier hs-type">liftAp</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679122598"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679122597"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Applicative.Free.Final.html#Ap"><span class="hs-identifier hs-type">Ap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679122598"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679122597"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-74"></span><span id="liftAp"><span class="annot"><span class="annottext">liftAp :: forall (f :: * -&gt; *) a. f a -&gt; Ap f a
+</span><a href="Control.Applicative.Free.Final.html#liftAp"><span class="hs-identifier hs-var hs-var">liftAp</span></a></span></span><span> </span><span id="local-6989586621679122493"><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679122493"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a.
+(forall (g :: * -&gt; *).
+ Applicative g =&gt;
+ (forall x. f x -&gt; g x) -&gt; g a)
+-&gt; Ap f a
+</span><a href="Control.Applicative.Free.Final.html#Ap"><span class="hs-identifier hs-var">Ap</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679122491"><span class="annot"><span class="annottext">forall x. f x -&gt; g x
+</span><a href="#local-6989586621679122491"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall x. f x -&gt; g x
+</span><a href="#local-6989586621679122491"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679122493"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span><span class="hs-comment">-- | Given a natural transformation from @f@ to @g@ this gives a monoidal natural transformation from @Ap f@ to @Ap g@.</span><span>
+</span><span id="line-77"></span><span id="local-6989586621679122590"><span id="local-6989586621679122591"><span id="local-6989586621679122593"><span class="annot"><a href="Control.Applicative.Free.Final.html#hoistAp"><span class="hs-identifier hs-type">hoistAp</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679122592"><span class="annot"><a href="#local-6989586621679122592"><span class="hs-identifier hs-type">a</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="#local-6989586621679122593"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679122592"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679122591"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679122592"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Applicative.Free.Final.html#Ap"><span class="hs-identifier hs-type">Ap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679122593"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679122590"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Applicative.Free.Final.html#Ap"><span class="hs-identifier hs-type">Ap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679122591"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679122590"><span class="hs-identifier hs-type">b</span></a></span></span></span></span><span>
+</span><span id="line-78"></span><span id="hoistAp"><span class="annot"><span class="annottext">hoistAp :: forall (f :: * -&gt; *) (g :: * -&gt; *) b.
+(forall a. f a -&gt; g a) -&gt; Ap f b -&gt; Ap g b
+</span><a href="Control.Applicative.Free.Final.html#hoistAp"><span class="hs-identifier hs-var hs-var">hoistAp</span></a></span></span><span> </span><span id="local-6989586621679122490"><span class="annot"><span class="annottext">forall a. f a -&gt; g a
+</span><a href="#local-6989586621679122490"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Applicative.Free.Final.html#Ap"><span class="hs-identifier hs-type">Ap</span></a></span><span> </span><span id="local-6989586621679122489"><span class="annot"><span class="annottext">forall (g :: * -&gt; *).
+Applicative g =&gt;
+(forall x. f x -&gt; g x) -&gt; g b
+</span><a href="#local-6989586621679122489"><span class="hs-identifier hs-var">g</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a.
+(forall (g :: * -&gt; *).
+ Applicative g =&gt;
+ (forall x. f x -&gt; g x) -&gt; g a)
+-&gt; Ap f a
+</span><a href="Control.Applicative.Free.Final.html#Ap"><span class="hs-identifier hs-var">Ap</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679122486"><span class="annot"><span class="annottext">forall x. g x -&gt; g x
+</span><a href="#local-6989586621679122486"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (g :: * -&gt; *).
+Applicative g =&gt;
+(forall x. f x -&gt; g x) -&gt; g b
+</span><a href="#local-6989586621679122489"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall x. g x -&gt; g x
+</span><a href="#local-6989586621679122486"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall a. f a -&gt; g a
+</span><a href="#local-6989586621679122490"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-79"></span><span>
+</span><span id="line-80"></span><span class="hs-comment">-- | Interprets the free applicative functor over f using the semantics for</span><span>
+</span><span id="line-81"></span><span class="hs-comment">--   `pure` and `&lt;*&gt;` given by the Applicative instance for f.</span><span>
+</span><span id="line-82"></span><span class="hs-comment">--</span><span>
+</span><span id="line-83"></span><span class="hs-comment">--   prop&gt; retractApp == runAp id</span><span>
+</span><span id="line-84"></span><span id="local-6989586621679122583"><span id="local-6989586621679122584"><span class="annot"><a href="Control.Applicative.Free.Final.html#retractAp"><span class="hs-identifier hs-type">retractAp</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Applicative</span></span><span> </span><span class="annot"><a href="#local-6989586621679122584"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Control.Applicative.Free.Final.html#Ap"><span class="hs-identifier hs-type">Ap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679122584"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679122583"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679122584"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679122583"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-85"></span><span id="retractAp"><span class="annot"><span class="annottext">retractAp :: forall (f :: * -&gt; *) a. Applicative f =&gt; Ap f a -&gt; f a
+</span><a href="Control.Applicative.Free.Final.html#retractAp"><span class="hs-identifier hs-var hs-var">retractAp</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Applicative.Free.Final.html#Ap"><span class="hs-identifier hs-type">Ap</span></a></span><span> </span><span id="local-6989586621679122483"><span class="annot"><span class="annottext">forall (g :: * -&gt; *).
+Applicative g =&gt;
+(forall x. f x -&gt; g x) -&gt; g a
+</span><a href="#local-6989586621679122483"><span class="hs-identifier hs-var">g</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (g :: * -&gt; *).
+Applicative g =&gt;
+(forall x. f x -&gt; g x) -&gt; g a
+</span><a href="#local-6989586621679122483"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span>
+</span><span id="line-86"></span><span>
+</span><span id="line-87"></span><span class="hs-comment">{- $examples
+
+&lt;examples/ValidationForm.hs Validation form&gt;
+
+-}</span><span>
+</span><span id="line-92"></span></pre></body></html>

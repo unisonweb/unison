@@ -1,0 +1,286 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DeriveGeneric #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">GHC.Exts.Heap.ProfInfo.Types</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Prelude.html#"><span class="hs-identifier">Prelude</span></a></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Data-Word.html#"><span class="hs-identifier">Data.Word</span></a></span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Generics.html#"><span class="hs-identifier">GHC.Generics</span></a></span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- | This is a somewhat faithful representation of StgTSOProfInfo. See</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- &lt;https://gitlab.haskell.org/ghc/ghc/blob/master/includes/rts/storage/TSO.h&gt;</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- for more details on this data structure.</span><span>
+</span><span id="line-12"></span><span id="local-6989586621679071045"><span id="local-6989586621679071046"></span></span><span class="hs-keyword">data</span><span> </span><span id="StgTSOProfInfo"><span class="annot"><a href="GHC.Exts.Heap.ProfInfo.Types.html#StgTSOProfInfo"><span class="hs-identifier hs-var">StgTSOProfInfo</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="StgTSOProfInfo"><span class="annot"><a href="GHC.Exts.Heap.ProfInfo.Types.html#StgTSOProfInfo"><span class="hs-identifier hs-var">StgTSOProfInfo</span></a></span></span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-13"></span><span>    </span><span id="cccs"><span class="annot"><span class="annottext">StgTSOProfInfo -&gt; Maybe CostCentreStack
+</span><a href="GHC.Exts.Heap.ProfInfo.Types.html#cccs"><span class="hs-identifier hs-var hs-var">cccs</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Maybe"><span class="hs-identifier hs-type">Maybe</span></a></span><span> </span><span class="annot"><a href="GHC.Exts.Heap.ProfInfo.Types.html#CostCentreStack"><span class="hs-identifier hs-type">CostCentreStack</span></a></span><span>
+</span><span id="line-14"></span><span class="hs-special">}</span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679071032"><span id="local-6989586621679071034"><span id="local-6989586621679071041"><span class="annot"><span class="annottext">Int -&gt; StgTSOProfInfo -&gt; ShowS
+[StgTSOProfInfo] -&gt; ShowS
+StgTSOProfInfo -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [StgTSOProfInfo] -&gt; ShowS
+$cshowList :: [StgTSOProfInfo] -&gt; ShowS
+show :: StgTSOProfInfo -&gt; String
+$cshow :: StgTSOProfInfo -&gt; String
+showsPrec :: Int -&gt; StgTSOProfInfo -&gt; ShowS
+$cshowsPrec :: Int -&gt; StgTSOProfInfo -&gt; ShowS
+</span><a href="../../base-4.16.4.0/src/GHC-Show.html#Show"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></a></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall x. Rep StgTSOProfInfo x -&gt; StgTSOProfInfo
+forall x. StgTSOProfInfo -&gt; Rep StgTSOProfInfo x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cto :: forall x. Rep StgTSOProfInfo x -&gt; StgTSOProfInfo
+$cfrom :: forall x. StgTSOProfInfo -&gt; Rep StgTSOProfInfo x
+</span><a href="../../base-4.16.4.0/src/GHC-Generics.html#Generic"><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></a></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679071020"><span id="local-6989586621679071025"><span class="annot"><span class="annottext">StgTSOProfInfo -&gt; StgTSOProfInfo -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: StgTSOProfInfo -&gt; StgTSOProfInfo -&gt; Bool
+$c/= :: StgTSOProfInfo -&gt; StgTSOProfInfo -&gt; Bool
+== :: StgTSOProfInfo -&gt; StgTSOProfInfo -&gt; Bool
+$c== :: StgTSOProfInfo -&gt; StgTSOProfInfo -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#Eq"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></a></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679070995"><span id="local-6989586621679070997"><span id="local-6989586621679071000"><span id="local-6989586621679071003"><span id="local-6989586621679071006"><span id="local-6989586621679071010"><span id="local-6989586621679071015"><span class="annot"><span class="annottext">Eq StgTSOProfInfo
+StgTSOProfInfo -&gt; StgTSOProfInfo -&gt; Bool
+StgTSOProfInfo -&gt; StgTSOProfInfo -&gt; Ordering
+StgTSOProfInfo -&gt; StgTSOProfInfo -&gt; StgTSOProfInfo
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: StgTSOProfInfo -&gt; StgTSOProfInfo -&gt; StgTSOProfInfo
+$cmin :: StgTSOProfInfo -&gt; StgTSOProfInfo -&gt; StgTSOProfInfo
+max :: StgTSOProfInfo -&gt; StgTSOProfInfo -&gt; StgTSOProfInfo
+$cmax :: StgTSOProfInfo -&gt; StgTSOProfInfo -&gt; StgTSOProfInfo
+&gt;= :: StgTSOProfInfo -&gt; StgTSOProfInfo -&gt; Bool
+$c&gt;= :: StgTSOProfInfo -&gt; StgTSOProfInfo -&gt; Bool
+&gt; :: StgTSOProfInfo -&gt; StgTSOProfInfo -&gt; Bool
+$c&gt; :: StgTSOProfInfo -&gt; StgTSOProfInfo -&gt; Bool
+&lt;= :: StgTSOProfInfo -&gt; StgTSOProfInfo -&gt; Bool
+$c&lt;= :: StgTSOProfInfo -&gt; StgTSOProfInfo -&gt; Bool
+&lt; :: StgTSOProfInfo -&gt; StgTSOProfInfo -&gt; Bool
+$c&lt; :: StgTSOProfInfo -&gt; StgTSOProfInfo -&gt; Bool
+compare :: StgTSOProfInfo -&gt; StgTSOProfInfo -&gt; Ordering
+$ccompare :: StgTSOProfInfo -&gt; StgTSOProfInfo -&gt; Ordering
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#Ord"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></a></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- | This is a somewhat faithful representation of CostCentreStack. See</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- &lt;https://gitlab.haskell.org/ghc/ghc/blob/master/includes/rts/prof/CCS.h&gt;</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- for more details on this data structure.</span><span>
+</span><span id="line-19"></span><span id="local-6989586621679070992"><span id="local-6989586621679070993"></span></span><span class="hs-keyword">data</span><span> </span><span id="CostCentreStack"><span class="annot"><a href="GHC.Exts.Heap.ProfInfo.Types.html#CostCentreStack"><span class="hs-identifier hs-var">CostCentreStack</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="CostCentreStack"><span class="annot"><a href="GHC.Exts.Heap.ProfInfo.Types.html#CostCentreStack"><span class="hs-identifier hs-var">CostCentreStack</span></a></span></span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-20"></span><span>    </span><span id="ccs_ccsID"><span class="annot"><span class="annottext">CostCentreStack -&gt; Int
+</span><a href="GHC.Exts.Heap.ProfInfo.Types.html#ccs_ccsID"><span class="hs-identifier hs-var hs-var">ccs_ccsID</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#Int"><span class="hs-identifier hs-type">Int</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-21"></span><span>    </span><span id="ccs_cc"><span class="annot"><span class="annottext">CostCentreStack -&gt; CostCentre
+</span><a href="GHC.Exts.Heap.ProfInfo.Types.html#ccs_cc"><span class="hs-identifier hs-var hs-var">ccs_cc</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Exts.Heap.ProfInfo.Types.html#CostCentre"><span class="hs-identifier hs-type">CostCentre</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-22"></span><span>    </span><span id="ccs_prevStack"><span class="annot"><span class="annottext">CostCentreStack -&gt; Maybe CostCentreStack
+</span><a href="GHC.Exts.Heap.ProfInfo.Types.html#ccs_prevStack"><span class="hs-identifier hs-var hs-var">ccs_prevStack</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Maybe"><span class="hs-identifier hs-type">Maybe</span></a></span><span> </span><span class="annot"><a href="GHC.Exts.Heap.ProfInfo.Types.html#CostCentreStack"><span class="hs-identifier hs-type">CostCentreStack</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-23"></span><span>    </span><span id="ccs_indexTable"><span class="annot"><span class="annottext">CostCentreStack -&gt; Maybe IndexTable
+</span><a href="GHC.Exts.Heap.ProfInfo.Types.html#ccs_indexTable"><span class="hs-identifier hs-var hs-var">ccs_indexTable</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Maybe"><span class="hs-identifier hs-type">Maybe</span></a></span><span> </span><span class="annot"><a href="GHC.Exts.Heap.ProfInfo.Types.html#IndexTable"><span class="hs-identifier hs-type">IndexTable</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-24"></span><span>    </span><span id="ccs_root"><span class="annot"><span class="annottext">CostCentreStack -&gt; Maybe CostCentreStack
+</span><a href="GHC.Exts.Heap.ProfInfo.Types.html#ccs_root"><span class="hs-identifier hs-var hs-var">ccs_root</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Maybe"><span class="hs-identifier hs-type">Maybe</span></a></span><span> </span><span class="annot"><a href="GHC.Exts.Heap.ProfInfo.Types.html#CostCentreStack"><span class="hs-identifier hs-type">CostCentreStack</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-25"></span><span>    </span><span id="ccs_depth"><span class="annot"><span class="annottext">CostCentreStack -&gt; Word
+</span><a href="GHC.Exts.Heap.ProfInfo.Types.html#ccs_depth"><span class="hs-identifier hs-var hs-var">ccs_depth</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#Word"><span class="hs-identifier hs-type">Word</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-26"></span><span>    </span><span id="ccs_scc_count"><span class="annot"><span class="annottext">CostCentreStack -&gt; Word64
+</span><a href="GHC.Exts.Heap.ProfInfo.Types.html#ccs_scc_count"><span class="hs-identifier hs-var hs-var">ccs_scc_count</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Word.html#Word64"><span class="hs-identifier hs-type">Word64</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-27"></span><span>    </span><span id="ccs_selected"><span class="annot"><span class="annottext">CostCentreStack -&gt; Word
+</span><a href="GHC.Exts.Heap.ProfInfo.Types.html#ccs_selected"><span class="hs-identifier hs-var hs-var">ccs_selected</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#Word"><span class="hs-identifier hs-type">Word</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-28"></span><span>    </span><span id="ccs_time_ticks"><span class="annot"><span class="annottext">CostCentreStack -&gt; Word
+</span><a href="GHC.Exts.Heap.ProfInfo.Types.html#ccs_time_ticks"><span class="hs-identifier hs-var hs-var">ccs_time_ticks</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#Word"><span class="hs-identifier hs-type">Word</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-29"></span><span>    </span><span id="ccs_mem_alloc"><span class="annot"><span class="annottext">CostCentreStack -&gt; Word64
+</span><a href="GHC.Exts.Heap.ProfInfo.Types.html#ccs_mem_alloc"><span class="hs-identifier hs-var hs-var">ccs_mem_alloc</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Word.html#Word64"><span class="hs-identifier hs-type">Word64</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-30"></span><span>    </span><span id="ccs_inherited_alloc"><span class="annot"><span class="annottext">CostCentreStack -&gt; Word64
+</span><a href="GHC.Exts.Heap.ProfInfo.Types.html#ccs_inherited_alloc"><span class="hs-identifier hs-var hs-var">ccs_inherited_alloc</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Word.html#Word64"><span class="hs-identifier hs-type">Word64</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-31"></span><span>    </span><span id="ccs_inherited_ticks"><span class="annot"><span class="annottext">CostCentreStack -&gt; Word
+</span><a href="GHC.Exts.Heap.ProfInfo.Types.html#ccs_inherited_ticks"><span class="hs-identifier hs-var hs-var">ccs_inherited_ticks</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#Word"><span class="hs-identifier hs-type">Word</span></a></span><span>
+</span><span id="line-32"></span><span class="hs-special">}</span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679070955"><span id="local-6989586621679070957"><span id="local-6989586621679070977"><span class="annot"><span class="annottext">Int -&gt; CostCentreStack -&gt; ShowS
+[CostCentreStack] -&gt; ShowS
+CostCentreStack -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [CostCentreStack] -&gt; ShowS
+$cshowList :: [CostCentreStack] -&gt; ShowS
+show :: CostCentreStack -&gt; String
+$cshow :: CostCentreStack -&gt; String
+showsPrec :: Int -&gt; CostCentreStack -&gt; ShowS
+$cshowsPrec :: Int -&gt; CostCentreStack -&gt; ShowS
+</span><a href="../../base-4.16.4.0/src/GHC-Show.html#Show"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></a></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall x. Rep CostCentreStack x -&gt; CostCentreStack
+forall x. CostCentreStack -&gt; Rep CostCentreStack x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cto :: forall x. Rep CostCentreStack x -&gt; CostCentreStack
+$cfrom :: forall x. CostCentreStack -&gt; Rep CostCentreStack x
+</span><a href="../../base-4.16.4.0/src/GHC-Generics.html#Generic"><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></a></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679070931"><span id="local-6989586621679070950"><span class="annot"><span class="annottext">CostCentreStack -&gt; CostCentreStack -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: CostCentreStack -&gt; CostCentreStack -&gt; Bool
+$c/= :: CostCentreStack -&gt; CostCentreStack -&gt; Bool
+== :: CostCentreStack -&gt; CostCentreStack -&gt; Bool
+$c== :: CostCentreStack -&gt; CostCentreStack -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#Eq"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></a></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679070882"><span id="local-6989586621679070884"><span id="local-6989586621679070887"><span id="local-6989586621679070890"><span id="local-6989586621679070893"><span id="local-6989586621679070909"><span id="local-6989586621679070927"><span class="annot"><span class="annottext">Eq CostCentreStack
+CostCentreStack -&gt; CostCentreStack -&gt; Bool
+CostCentreStack -&gt; CostCentreStack -&gt; Ordering
+CostCentreStack -&gt; CostCentreStack -&gt; CostCentreStack
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: CostCentreStack -&gt; CostCentreStack -&gt; CostCentreStack
+$cmin :: CostCentreStack -&gt; CostCentreStack -&gt; CostCentreStack
+max :: CostCentreStack -&gt; CostCentreStack -&gt; CostCentreStack
+$cmax :: CostCentreStack -&gt; CostCentreStack -&gt; CostCentreStack
+&gt;= :: CostCentreStack -&gt; CostCentreStack -&gt; Bool
+$c&gt;= :: CostCentreStack -&gt; CostCentreStack -&gt; Bool
+&gt; :: CostCentreStack -&gt; CostCentreStack -&gt; Bool
+$c&gt; :: CostCentreStack -&gt; CostCentreStack -&gt; Bool
+&lt;= :: CostCentreStack -&gt; CostCentreStack -&gt; Bool
+$c&lt;= :: CostCentreStack -&gt; CostCentreStack -&gt; Bool
+&lt; :: CostCentreStack -&gt; CostCentreStack -&gt; Bool
+$c&lt; :: CostCentreStack -&gt; CostCentreStack -&gt; Bool
+compare :: CostCentreStack -&gt; CostCentreStack -&gt; Ordering
+$ccompare :: CostCentreStack -&gt; CostCentreStack -&gt; Ordering
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#Ord"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></a></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="hs-comment">-- | This is a somewhat faithful representation of CostCentre. See</span><span>
+</span><span id="line-35"></span><span class="hs-comment">-- &lt;https://gitlab.haskell.org/ghc/ghc/blob/master/includes/rts/prof/CCS.h&gt;</span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- for more details on this data structure.</span><span>
+</span><span id="line-37"></span><span id="local-6989586621679070880"><span id="local-6989586621679070881"></span></span><span class="hs-keyword">data</span><span> </span><span id="CostCentre"><span class="annot"><a href="GHC.Exts.Heap.ProfInfo.Types.html#CostCentre"><span class="hs-identifier hs-var">CostCentre</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="CostCentre"><span class="annot"><a href="GHC.Exts.Heap.ProfInfo.Types.html#CostCentre"><span class="hs-identifier hs-var">CostCentre</span></a></span></span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-38"></span><span>    </span><span id="cc_ccID"><span class="annot"><span class="annottext">CostCentre -&gt; Int
+</span><a href="GHC.Exts.Heap.ProfInfo.Types.html#cc_ccID"><span class="hs-identifier hs-var hs-var">cc_ccID</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#Int"><span class="hs-identifier hs-type">Int</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-39"></span><span>    </span><span id="cc_label"><span class="annot"><span class="annottext">CostCentre -&gt; String
+</span><a href="GHC.Exts.Heap.ProfInfo.Types.html#cc_label"><span class="hs-identifier hs-var hs-var">cc_label</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Base.html#String"><span class="hs-identifier hs-type">String</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-40"></span><span>    </span><span id="cc_module"><span class="annot"><span class="annottext">CostCentre -&gt; String
+</span><a href="GHC.Exts.Heap.ProfInfo.Types.html#cc_module"><span class="hs-identifier hs-var hs-var">cc_module</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Base.html#String"><span class="hs-identifier hs-type">String</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-41"></span><span>    </span><span id="cc_srcloc"><span class="annot"><span class="annottext">CostCentre -&gt; Maybe String
+</span><a href="GHC.Exts.Heap.ProfInfo.Types.html#cc_srcloc"><span class="hs-identifier hs-var hs-var">cc_srcloc</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Maybe"><span class="hs-identifier hs-type">Maybe</span></a></span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Base.html#String"><span class="hs-identifier hs-type">String</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-42"></span><span>    </span><span id="cc_mem_alloc"><span class="annot"><span class="annottext">CostCentre -&gt; Word64
+</span><a href="GHC.Exts.Heap.ProfInfo.Types.html#cc_mem_alloc"><span class="hs-identifier hs-var hs-var">cc_mem_alloc</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Word.html#Word64"><span class="hs-identifier hs-type">Word64</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-43"></span><span>    </span><span id="cc_time_ticks"><span class="annot"><span class="annottext">CostCentre -&gt; Word
+</span><a href="GHC.Exts.Heap.ProfInfo.Types.html#cc_time_ticks"><span class="hs-identifier hs-var hs-var">cc_time_ticks</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#Word"><span class="hs-identifier hs-type">Word</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-44"></span><span>    </span><span id="cc_is_caf"><span class="annot"><span class="annottext">CostCentre -&gt; Bool
+</span><a href="GHC.Exts.Heap.ProfInfo.Types.html#cc_is_caf"><span class="hs-identifier hs-var hs-var">cc_is_caf</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#Bool"><span class="hs-identifier hs-type">Bool</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-45"></span><span>    </span><span id="cc_link"><span class="annot"><span class="annottext">CostCentre -&gt; Maybe CostCentre
+</span><a href="GHC.Exts.Heap.ProfInfo.Types.html#cc_link"><span class="hs-identifier hs-var hs-var">cc_link</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Maybe"><span class="hs-identifier hs-type">Maybe</span></a></span><span> </span><span class="annot"><a href="GHC.Exts.Heap.ProfInfo.Types.html#CostCentre"><span class="hs-identifier hs-type">CostCentre</span></a></span><span>
+</span><span id="line-46"></span><span class="hs-special">}</span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679070852"><span id="local-6989586621679070854"><span id="local-6989586621679070869"><span class="annot"><span class="annottext">Int -&gt; CostCentre -&gt; ShowS
+[CostCentre] -&gt; ShowS
+CostCentre -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [CostCentre] -&gt; ShowS
+$cshowList :: [CostCentre] -&gt; ShowS
+show :: CostCentre -&gt; String
+$cshow :: CostCentre -&gt; String
+showsPrec :: Int -&gt; CostCentre -&gt; ShowS
+$cshowsPrec :: Int -&gt; CostCentre -&gt; ShowS
+</span><a href="../../base-4.16.4.0/src/GHC-Show.html#Show"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></a></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall x. Rep CostCentre x -&gt; CostCentre
+forall x. CostCentre -&gt; Rep CostCentre x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cto :: forall x. Rep CostCentre x -&gt; CostCentre
+$cfrom :: forall x. CostCentre -&gt; Rep CostCentre x
+</span><a href="../../base-4.16.4.0/src/GHC-Generics.html#Generic"><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></a></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679070832"><span id="local-6989586621679070846"><span class="annot"><span class="annottext">CostCentre -&gt; CostCentre -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: CostCentre -&gt; CostCentre -&gt; Bool
+$c/= :: CostCentre -&gt; CostCentre -&gt; Bool
+== :: CostCentre -&gt; CostCentre -&gt; Bool
+$c== :: CostCentre -&gt; CostCentre -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#Eq"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></a></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679070790"><span id="local-6989586621679070792"><span id="local-6989586621679070795"><span id="local-6989586621679070798"><span id="local-6989586621679070801"><span id="local-6989586621679070813"><span id="local-6989586621679070827"><span class="annot"><span class="annottext">Eq CostCentre
+CostCentre -&gt; CostCentre -&gt; Bool
+CostCentre -&gt; CostCentre -&gt; Ordering
+CostCentre -&gt; CostCentre -&gt; CostCentre
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: CostCentre -&gt; CostCentre -&gt; CostCentre
+$cmin :: CostCentre -&gt; CostCentre -&gt; CostCentre
+max :: CostCentre -&gt; CostCentre -&gt; CostCentre
+$cmax :: CostCentre -&gt; CostCentre -&gt; CostCentre
+&gt;= :: CostCentre -&gt; CostCentre -&gt; Bool
+$c&gt;= :: CostCentre -&gt; CostCentre -&gt; Bool
+&gt; :: CostCentre -&gt; CostCentre -&gt; Bool
+$c&gt; :: CostCentre -&gt; CostCentre -&gt; Bool
+&lt;= :: CostCentre -&gt; CostCentre -&gt; Bool
+$c&lt;= :: CostCentre -&gt; CostCentre -&gt; Bool
+&lt; :: CostCentre -&gt; CostCentre -&gt; Bool
+$c&lt; :: CostCentre -&gt; CostCentre -&gt; Bool
+compare :: CostCentre -&gt; CostCentre -&gt; Ordering
+$ccompare :: CostCentre -&gt; CostCentre -&gt; Ordering
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#Ord"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></a></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-47"></span><span>
+</span><span id="line-48"></span><span class="hs-comment">-- | This is a somewhat faithful representation of IndexTable. See</span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- &lt;https://gitlab.haskell.org/ghc/ghc/blob/master/includes/rts/prof/CCS.h&gt;</span><span>
+</span><span id="line-50"></span><span class="hs-comment">-- for more details on this data structure.</span><span>
+</span><span id="line-51"></span><span id="local-6989586621679070787"><span id="local-6989586621679070788"></span></span><span class="hs-keyword">data</span><span> </span><span id="IndexTable"><span class="annot"><a href="GHC.Exts.Heap.ProfInfo.Types.html#IndexTable"><span class="hs-identifier hs-var">IndexTable</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="IndexTable"><span class="annot"><a href="GHC.Exts.Heap.ProfInfo.Types.html#IndexTable"><span class="hs-identifier hs-var">IndexTable</span></a></span></span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-52"></span><span>    </span><span id="it_cc"><span class="annot"><span class="annottext">IndexTable -&gt; CostCentre
+</span><a href="GHC.Exts.Heap.ProfInfo.Types.html#it_cc"><span class="hs-identifier hs-var hs-var">it_cc</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Exts.Heap.ProfInfo.Types.html#CostCentre"><span class="hs-identifier hs-type">CostCentre</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-53"></span><span>    </span><span id="it_ccs"><span class="annot"><span class="annottext">IndexTable -&gt; Maybe CostCentreStack
+</span><a href="GHC.Exts.Heap.ProfInfo.Types.html#it_ccs"><span class="hs-identifier hs-var hs-var">it_ccs</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Maybe"><span class="hs-identifier hs-type">Maybe</span></a></span><span> </span><span class="annot"><a href="GHC.Exts.Heap.ProfInfo.Types.html#CostCentreStack"><span class="hs-identifier hs-type">CostCentreStack</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-54"></span><span>    </span><span id="it_next"><span class="annot"><span class="annottext">IndexTable -&gt; Maybe IndexTable
+</span><a href="GHC.Exts.Heap.ProfInfo.Types.html#it_next"><span class="hs-identifier hs-var hs-var">it_next</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Maybe"><span class="hs-identifier hs-type">Maybe</span></a></span><span> </span><span class="annot"><a href="GHC.Exts.Heap.ProfInfo.Types.html#IndexTable"><span class="hs-identifier hs-type">IndexTable</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-55"></span><span>    </span><span id="it_back_edge"><span class="annot"><span class="annottext">IndexTable -&gt; Bool
+</span><a href="GHC.Exts.Heap.ProfInfo.Types.html#it_back_edge"><span class="hs-identifier hs-var hs-var">it_back_edge</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#Bool"><span class="hs-identifier hs-type">Bool</span></a></span><span>
+</span><span id="line-56"></span><span class="hs-special">}</span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679070769"><span id="local-6989586621679070771"><span id="local-6989586621679070780"><span class="annot"><span class="annottext">Int -&gt; IndexTable -&gt; ShowS
+[IndexTable] -&gt; ShowS
+IndexTable -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [IndexTable] -&gt; ShowS
+$cshowList :: [IndexTable] -&gt; ShowS
+show :: IndexTable -&gt; String
+$cshow :: IndexTable -&gt; String
+showsPrec :: Int -&gt; IndexTable -&gt; ShowS
+$cshowsPrec :: Int -&gt; IndexTable -&gt; ShowS
+</span><a href="../../base-4.16.4.0/src/GHC-Show.html#Show"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></a></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall x. Rep IndexTable x -&gt; IndexTable
+forall x. IndexTable -&gt; Rep IndexTable x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cto :: forall x. Rep IndexTable x -&gt; IndexTable
+$cfrom :: forall x. IndexTable -&gt; Rep IndexTable x
+</span><a href="../../base-4.16.4.0/src/GHC-Generics.html#Generic"><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></a></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679070756"><span id="local-6989586621679070764"><span class="annot"><span class="annottext">IndexTable -&gt; IndexTable -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: IndexTable -&gt; IndexTable -&gt; Bool
+$c/= :: IndexTable -&gt; IndexTable -&gt; Bool
+== :: IndexTable -&gt; IndexTable -&gt; Bool
+$c== :: IndexTable -&gt; IndexTable -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#Eq"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></a></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679070725"><span id="local-6989586621679070727"><span id="local-6989586621679070730"><span id="local-6989586621679070733"><span id="local-6989586621679070736"><span id="local-6989586621679070744"><span id="local-6989586621679070752"><span class="annot"><span class="annottext">Eq IndexTable
+IndexTable -&gt; IndexTable -&gt; Bool
+IndexTable -&gt; IndexTable -&gt; Ordering
+IndexTable -&gt; IndexTable -&gt; IndexTable
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: IndexTable -&gt; IndexTable -&gt; IndexTable
+$cmin :: IndexTable -&gt; IndexTable -&gt; IndexTable
+max :: IndexTable -&gt; IndexTable -&gt; IndexTable
+$cmax :: IndexTable -&gt; IndexTable -&gt; IndexTable
+&gt;= :: IndexTable -&gt; IndexTable -&gt; Bool
+$c&gt;= :: IndexTable -&gt; IndexTable -&gt; Bool
+&gt; :: IndexTable -&gt; IndexTable -&gt; Bool
+$c&gt; :: IndexTable -&gt; IndexTable -&gt; Bool
+&lt;= :: IndexTable -&gt; IndexTable -&gt; Bool
+$c&lt;= :: IndexTable -&gt; IndexTable -&gt; Bool
+&lt; :: IndexTable -&gt; IndexTable -&gt; Bool
+$c&lt; :: IndexTable -&gt; IndexTable -&gt; Bool
+compare :: IndexTable -&gt; IndexTable -&gt; Ordering
+$ccompare :: IndexTable -&gt; IndexTable -&gt; Ordering
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#Ord"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></a></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-57"></span></pre></body></html>

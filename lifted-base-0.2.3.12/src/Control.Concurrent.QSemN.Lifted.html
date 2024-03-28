@@ -1,0 +1,79 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# OPTIONS_GHC -fno-warn-deprecations #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE NoImplicitPrelude #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE FlexibleContexts #-}</span><span class="hs-cpp">
+
+#if __GLASGOW_HASKELL__ &gt;= 702
+</span><span class="hs-pragma">{-# LANGUAGE Safe #-}</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-10"></span><span class="hs-comment">{- |
+Module      :  Control.Concurrent.QSemN.Lifted
+Copyright   :  Liyang HU, Bas van Dijk
+License     :  BSD-style
+
+Maintainer  :  Bas van Dijk &lt;v.dijk.bas@gmail.com&gt;
+Stability   :  experimental
+
+This is a wrapped version of &quot;Control.Concurrent.QSemN&quot; with types
+generalised from 'IO' to all monads in 'MonadBase'.
+-}</span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Control.Concurrent.QSemN.Lifted</span><span>
+</span><span id="line-23"></span><span>    </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier">QSemN</span></span><span>
+</span><span id="line-24"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Concurrent.QSemN.Lifted.html#newQSemN"><span class="hs-identifier">newQSemN</span></a></span><span>
+</span><span id="line-25"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Concurrent.QSemN.Lifted.html#waitQSemN"><span class="hs-identifier">waitQSemN</span></a></span><span>
+</span><span id="line-26"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Concurrent.QSemN.Lifted.html#signalQSemN"><span class="hs-identifier">signalQSemN</span></a></span><span>
+</span><span id="line-27"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- Imports</span><span>
+</span><span id="line-31"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span class="hs-comment">-- from base:</span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Concurrent.QSemN</span></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier">QSemN</span></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Control.Concurrent.QSemN</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">QSemN</span></span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Int</span></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier">Int</span></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-37"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.IO</span></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier">IO</span></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-38"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-operator">(.)</span></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- from transformers-base:</span><span>
+</span><span id="line-41"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Base</span></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier">MonadBase</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">liftBase</span></span><span> </span><span class="hs-special">)</span><span class="hs-cpp">
+
+#include &quot;inlinable.h&quot;
+</span><span>
+</span><span id="line-45"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-46"></span><span class="hs-comment">-- * QSemNs</span><span>
+</span><span id="line-47"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- | Generalized version of 'QSemN.newQSemN'.</span><span>
+</span><span id="line-50"></span><span id="local-6989586621679037164"><span class="annot"><a href="Control.Concurrent.QSemN.Lifted.html#newQSemN"><span class="hs-identifier hs-type">newQSemN</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadBase</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679037164"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679037164"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">QSemN</span></span></span><span>
+</span><span id="line-51"></span><span id="newQSemN"><span class="annot"><span class="annottext">newQSemN :: forall (m :: * -&gt; *). MonadBase IO m =&gt; Int -&gt; m QSemN
+</span><a href="Control.Concurrent.QSemN.Lifted.html#newQSemN"><span class="hs-identifier hs-var hs-var">newQSemN</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (b :: * -&gt; *) (m :: * -&gt; *) &#945;. MonadBase b m =&gt; b &#945; -&gt; m &#945;
+</span><span class="hs-identifier hs-var">liftBase</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; IO QSemN
+</span><span class="hs-identifier hs-var">QSemN.newQSemN</span></span><span>
+</span><span id="line-52"></span><span class="hs-pragma">{-# INLINABLE</span><span> </span><span class="annot"><a href="Control.Concurrent.QSemN.Lifted.html#newQSemN"><span class="hs-pragma hs-type">newQSemN</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-53"></span><span>
+</span><span id="line-54"></span><span class="hs-comment">-- | Generalized version of 'QSemN.waitQSemN'.</span><span>
+</span><span id="line-55"></span><span id="local-6989586621679037154"><span class="annot"><a href="Control.Concurrent.QSemN.Lifted.html#waitQSemN"><span class="hs-identifier hs-type">waitQSemN</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadBase</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679037154"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">QSemN</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679037154"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-56"></span><span id="waitQSemN"><span class="annot"><span class="annottext">waitQSemN :: forall (m :: * -&gt; *). MonadBase IO m =&gt; QSemN -&gt; Int -&gt; m ()
+</span><a href="Control.Concurrent.QSemN.Lifted.html#waitQSemN"><span class="hs-identifier hs-var hs-var">waitQSemN</span></a></span></span><span> </span><span id="local-6989586621679037141"><span class="annot"><span class="annottext">QSemN
+</span><a href="#local-6989586621679037141"><span class="hs-identifier hs-var">sem</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (b :: * -&gt; *) (m :: * -&gt; *) &#945;. MonadBase b m =&gt; b &#945; -&gt; m &#945;
+</span><span class="hs-identifier hs-var">liftBase</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">QSemN -&gt; Int -&gt; IO ()
+</span><span class="hs-identifier hs-var">QSemN.waitQSemN</span></span><span> </span><span class="annot"><span class="annottext">QSemN
+</span><a href="#local-6989586621679037141"><span class="hs-identifier hs-var">sem</span></a></span><span>
+</span><span id="line-57"></span><span class="hs-pragma">{-# INLINABLE</span><span> </span><span class="annot"><a href="Control.Concurrent.QSemN.Lifted.html#waitQSemN"><span class="hs-pragma hs-type">waitQSemN</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-58"></span><span>
+</span><span id="line-59"></span><span class="hs-comment">-- | Generalized version of 'QSemN.signalQSemN'.</span><span>
+</span><span id="line-60"></span><span id="local-6989586621679037139"><span class="annot"><a href="Control.Concurrent.QSemN.Lifted.html#signalQSemN"><span class="hs-identifier hs-type">signalQSemN</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadBase</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679037139"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">QSemN</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679037139"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-61"></span><span id="signalQSemN"><span class="annot"><span class="annottext">signalQSemN :: forall (m :: * -&gt; *). MonadBase IO m =&gt; QSemN -&gt; Int -&gt; m ()
+</span><a href="Control.Concurrent.QSemN.Lifted.html#signalQSemN"><span class="hs-identifier hs-var hs-var">signalQSemN</span></a></span></span><span> </span><span id="local-6989586621679037136"><span class="annot"><span class="annottext">QSemN
+</span><a href="#local-6989586621679037136"><span class="hs-identifier hs-var">sem</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (b :: * -&gt; *) (m :: * -&gt; *) &#945;. MonadBase b m =&gt; b &#945; -&gt; m &#945;
+</span><span class="hs-identifier hs-var">liftBase</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">QSemN -&gt; Int -&gt; IO ()
+</span><span class="hs-identifier hs-var">QSemN.signalQSemN</span></span><span> </span><span class="annot"><span class="annottext">QSemN
+</span><a href="#local-6989586621679037136"><span class="hs-identifier hs-var">sem</span></a></span><span>
+</span><span id="line-62"></span><span class="hs-pragma">{-# INLINABLE</span><span> </span><span class="annot"><a href="Control.Concurrent.QSemN.Lifted.html#signalQSemN"><span class="hs-pragma hs-type">signalQSemN</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-63"></span></pre></body></html>

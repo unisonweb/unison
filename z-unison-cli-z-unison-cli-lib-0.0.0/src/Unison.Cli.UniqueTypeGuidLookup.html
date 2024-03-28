@@ -1,0 +1,77 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- | This module contains functionality related to computing a &quot;unique type guid lookup&quot; function, which resolves a</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- name to a unique type's GUID to reuse.</span><span>
+</span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Unison.Cli.UniqueTypeGuidLookup</span><span>
+</span><span id="line-4"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.Cli.UniqueTypeGuidLookup.html#loadUniqueTypeGuid"><span class="hs-identifier">loadUniqueTypeGuid</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-5"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Lens</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">unsnoc</span></span><span class="hs-special">)</span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Foldable</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Foldable</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">fromJust</span></span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">U.Codebase.Branch</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Codebase.Branch</span></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">U.Codebase.Sqlite.Operations</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Operations</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Codebase.Path</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Path</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Codebase.UniqueTypeGuidLookup</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Codebase</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Name</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Name</span></span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.NameSegment</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">NameSegment</span></span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.NameSegment</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">NameSegment</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Prelude</span></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Sqlite</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Sqlite</span></span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="annot"><a href="Unison.Cli.UniqueTypeGuidLookup.html#loadUniqueTypeGuid"><span class="hs-identifier hs-type">loadUniqueTypeGuid</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Path.Absolute</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Sqlite.Transaction</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span id="loadUniqueTypeGuid"><span class="annot"><span class="annottext">loadUniqueTypeGuid :: Absolute -&gt; Name -&gt; Transaction (Maybe Text)
+</span><a href="Unison.Cli.UniqueTypeGuidLookup.html#loadUniqueTypeGuid"><span class="hs-identifier hs-var hs-var">loadUniqueTypeGuid</span></a></span></span><span> </span><span id="local-6989586621679582009"><span class="annot"><span class="annottext">Absolute
+</span><a href="#local-6989586621679582009"><span class="hs-identifier hs-var">currentPath</span></a></span></span><span> </span><span id="local-6989586621679582008"><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679582008"><span class="hs-identifier hs-var">name0</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-23"></span><span>  </span><span class="hs-comment">-- First, resolve the current path and the (probably/hopefully relative) name of the unique type to the full path</span><span>
+</span><span id="line-24"></span><span>  </span><span class="hs-comment">-- to the unique type, plus its final distinguished name segment.</span><span>
+</span><span id="line-25"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679582007"><span class="annot"><span class="annottext">Seq NameSegment
+</span><a href="#local-6989586621679582007"><span class="hs-identifier hs-var">branchPath</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679582006"><span class="annot"><span class="annottext">NameSegment
+</span><a href="#local-6989586621679582006"><span class="hs-identifier hs-var">name</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-26"></span><span>        </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679582008"><span class="hs-identifier hs-var">name0</span></a></span><span>
+</span><span id="line-27"></span><span>          </span><span class="annot"><span class="annottext">forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">Name -&gt; Path'
+</span><span class="hs-identifier hs-var">Path.fromName'</span></span><span>
+</span><span id="line-28"></span><span>          </span><span class="annot"><span class="annottext">forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">forall l r o. Resolve l r o =&gt; l -&gt; r -&gt; o
+</span><span class="hs-identifier hs-var">Path.resolve</span></span><span> </span><span class="annot"><span class="annottext">Absolute
+</span><a href="#local-6989586621679582009"><span class="hs-identifier hs-var">currentPath</span></a></span><span>
+</span><span id="line-29"></span><span>          </span><span class="annot"><span class="annottext">forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">Absolute -&gt; Path
+</span><span class="hs-identifier hs-var">Path.unabsolute</span></span><span>
+</span><span id="line-30"></span><span>          </span><span class="annot"><span class="annottext">forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">Path -&gt; Seq NameSegment
+</span><span class="hs-identifier hs-var">Path.toSeq</span></span><span>
+</span><span id="line-31"></span><span>          </span><span class="annot"><span class="annottext">forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">forall s a. Snoc s s a a =&gt; s -&gt; Maybe (s, a)
+</span><span class="hs-identifier hs-var">unsnoc</span></span><span>
+</span><span id="line-32"></span><span>          </span><span class="hs-comment">-- This is safe because we were handed a Name, which can't be empty</span><span>
+</span><span id="line-33"></span><span>          </span><span class="annot"><span class="annottext">forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">forall a. HasCallStack =&gt; Maybe a -&gt; a
+</span><span class="hs-identifier hs-var">fromJust</span></span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span>  </span><span class="hs-comment">-- Define an operation to load a branch by its full path from the root namespace.</span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-37"></span><span>  </span><span class="hs-comment">-- This ought to probably lean somewhat on a cache (so long as the caller is aware of the cache, and discrads it at</span><span>
+</span><span id="line-38"></span><span>  </span><span class="hs-comment">-- an appropriate time, such as after the current unison file finishes parsing).</span><span>
+</span><span id="line-39"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span class="annot"><a href="#local-6989586621679582000"><span class="hs-identifier hs-type">loadBranchAtPath</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">NameSegment</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Sqlite.Transaction</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Codebase.Branch.Branch</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Sqlite.Transaction</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-40"></span><span>      </span><span id="local-6989586621679582000"><span class="annot"><span class="annottext">loadBranchAtPath :: [NameSegment] -&gt; Transaction (Maybe (Branch Transaction))
+</span><a href="#local-6989586621679582000"><span class="hs-identifier hs-var hs-var">loadBranchAtPath</span></a></span></span><span> </span><span id="local-6989586621679581999"><span class="annot"><span class="annottext">[NameSegment]
+</span><a href="#local-6989586621679581999"><span class="hs-identifier hs-var">segments</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-41"></span><span>        </span><span class="annot"><span class="annottext">Maybe CausalHash
+-&gt; TextPathSegments -&gt; Transaction (Maybe (Branch Transaction))
+</span><span class="hs-identifier hs-var">Operations.loadBranchAtPath</span></span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">NameSegment -&gt; Text
+</span><span class="hs-identifier hs-var">NameSegment.toUnescapedText</span></span><span> </span><span class="annot"><span class="annottext">[NameSegment]
+</span><a href="#local-6989586621679581999"><span class="hs-identifier hs-var">segments</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span>  </span><span class="annot"><span class="annottext">([NameSegment] -&gt; Transaction (Maybe (Branch Transaction)))
+-&gt; [NameSegment] -&gt; NameSegment -&gt; Transaction (Maybe Text)
+</span><span class="hs-identifier hs-var">Codebase.loadUniqueTypeGuid</span></span><span> </span><span class="annot"><span class="annottext">[NameSegment] -&gt; Transaction (Maybe (Branch Transaction))
+</span><a href="#local-6989586621679582000"><span class="hs-identifier hs-var">loadBranchAtPath</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; [a]
+</span><span class="hs-identifier hs-var">Foldable.toList</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">Seq</span></span><span> </span><span class="annot"><span class="annottext">Seq NameSegment
+</span><a href="#local-6989586621679582007"><span class="hs-identifier hs-var">branchPath</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">NameSegment
+</span><a href="#local-6989586621679582006"><span class="hs-identifier hs-var">name</span></a></span><span>
+</span><span id="line-44"></span></pre></body></html>

@@ -1,0 +1,659 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span id="local-6989586621681075614"><span id="local-6989586621681075615"><span id="local-6989586621681075616"><span id="local-6989586621681075617"></span></span></span></span><span class="hs-pragma">{-# LANGUAGE CPP                  #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE ConstraintKinds      #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE DeriveDataTypeable   #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE FlexibleContexts     #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LANGUAGE FlexibleInstances    #-}</span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# LANGUAGE TypeFamilies         #-}</span><span>
+</span><span id="line-7"></span><span class="hs-pragma">{-# LANGUAGE UndecidableInstances #-}</span><span> </span><span class="hs-comment">-- Wrinkle in Note [Trees That Grow]</span><span>
+</span><span id="line-8"></span><span>                                      </span><span class="hs-comment">-- in module Language.Haskell.Syntax.Extension</span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-comment">{-
+(c) The University of Glasgow 2006
+(c) The GRASP/AQUA Project, Glasgow University, 1992-1998
+
+-}</span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- See Note [Language.Haskell.Syntax.* Hierarchy] for why not GHC.Hs.*</span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- | Source-language literals</span><span>
+</span><span id="line-19"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Language.Haskell.Syntax.Lit</span><span> </span><span class="hs-keyword">where</span><span class="hs-cpp">
+
+#include &quot;HsVersions.h&quot;
+</span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Prelude.html"><span class="hs-identifier">GHC.Prelude</span></a></span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="hs-pragma">{-# SOURCE</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html"><span class="hs-identifier">Language.Haskell.Syntax.Expr</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html#HsExpr"><span class="hs-identifier">HsExpr</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Basic.html"><span class="hs-identifier">GHC.Types.Basic</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.Basic.html#PprPrec"><span class="hs-identifier">PprPrec</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Types.Basic.html#topPrec"><span class="hs-identifier">topPrec</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.SourceText.html"><span class="hs-identifier">GHC.Types.SourceText</span></a></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Core.Type.html"><span class="hs-identifier">GHC.Core.Type</span></a></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html"><span class="hs-identifier">GHC.Utils.Outputable</span></a></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Panic.html"><span class="hs-identifier">GHC.Utils.Panic</span></a></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Data.FastString.html"><span class="hs-identifier">GHC.Data.FastString</span></a></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Extension.html"><span class="hs-identifier">Language.Haskell.Syntax.Extension</span></a></span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../bytestring-0.11.4.0/src/Data-ByteString.html#"><span class="hs-identifier">Data.ByteString</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../bytestring-0.11.4.0/src/Data-ByteString-Internal-Type.html#ByteString"><span class="hs-identifier">ByteString</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Data-Data.html#"><span class="hs-identifier">Data.Data</span></a></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Data-Data.html#Fixity"><span class="hs-identifier">Fixity</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="hs-comment">{-
+************************************************************************
+*                                                                      *
+\subsection[HsLit]{Literals}
+*                                                                      *
+************************************************************************
+-}</span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span class="hs-comment">-- Note [Literal source text] in GHC.Types.Basic for SourceText fields in</span><span>
+</span><span id="line-46"></span><span class="hs-comment">-- the following</span><span>
+</span><span id="line-47"></span><span class="hs-comment">-- Note [Trees that grow] in Language.Haskell.Syntax.Extension for the Xxxxx fields in the following</span><span>
+</span><span id="line-48"></span><span class="hs-comment">-- | Haskell Literal</span><span>
+</span><span id="line-49"></span><span class="hs-keyword">data</span><span> </span><span id="HsLit"><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsLit"><span class="hs-identifier hs-var">HsLit</span></a></span></span><span> </span><span id="local-6989586621681075611"><span class="annot"><a href="#local-6989586621681075611"><span class="hs-identifier hs-type">x</span></a></span></span><span>
+</span><span id="line-50"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="HsChar"><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsChar"><span class="hs-identifier hs-var">HsChar</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Extension.html#XHsChar"><span class="hs-identifier hs-type">XHsChar</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681075611"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-comment">{- SourceText -}</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Char</span></span><span>
+</span><span id="line-51"></span><span>      </span><span class="hs-comment">-- ^ Character</span><span>
+</span><span id="line-52"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="HsCharPrim"><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsCharPrim"><span class="hs-identifier hs-var">HsCharPrim</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Extension.html#XHsCharPrim"><span class="hs-identifier hs-type">XHsCharPrim</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681075611"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-comment">{- SourceText -}</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Char</span></span><span>
+</span><span id="line-53"></span><span>      </span><span class="hs-comment">-- ^ Unboxed character</span><span>
+</span><span id="line-54"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="HsString"><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsString"><span class="hs-identifier hs-var">HsString</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Extension.html#XHsString"><span class="hs-identifier hs-type">XHsString</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681075611"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-comment">{- SourceText -}</span><span> </span><span class="annot"><a href="GHC.Data.FastString.html#FastString"><span class="hs-identifier hs-type">FastString</span></a></span><span>
+</span><span id="line-55"></span><span>      </span><span class="hs-comment">-- ^ String</span><span>
+</span><span id="line-56"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="HsStringPrim"><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsStringPrim"><span class="hs-identifier hs-var">HsStringPrim</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Extension.html#XHsStringPrim"><span class="hs-identifier hs-type">XHsStringPrim</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681075611"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-comment">{- SourceText -}</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="../../bytestring-0.11.4.0/src/Data-ByteString-Internal-Type.html#ByteString"><span class="hs-identifier hs-type">ByteString</span></a></span><span>
+</span><span id="line-57"></span><span>      </span><span class="hs-comment">-- ^ Packed bytes</span><span>
+</span><span id="line-58"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="HsInt"><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsInt"><span class="hs-identifier hs-var">HsInt</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Extension.html#XHsInt"><span class="hs-identifier hs-type">XHsInt</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681075611"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span><span>  </span><span class="annot"><a href="GHC.Types.SourceText.html#IntegralLit"><span class="hs-identifier hs-type">IntegralLit</span></a></span><span>
+</span><span id="line-59"></span><span>      </span><span class="hs-comment">-- ^ Genuinely an Int; arises from</span><span>
+</span><span id="line-60"></span><span>      </span><span class="hs-comment">-- &quot;GHC.Tc.Deriv.Generate&quot;, and from TRANSLATION</span><span>
+</span><span id="line-61"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="HsIntPrim"><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsIntPrim"><span class="hs-identifier hs-var">HsIntPrim</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Extension.html#XHsIntPrim"><span class="hs-identifier hs-type">XHsIntPrim</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681075611"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-comment">{- SourceText -}</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span>
+</span><span id="line-62"></span><span>      </span><span class="hs-comment">-- ^ literal @Int#@</span><span>
+</span><span id="line-63"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="HsWordPrim"><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsWordPrim"><span class="hs-identifier hs-var">HsWordPrim</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Extension.html#XHsWordPrim"><span class="hs-identifier hs-type">XHsWordPrim</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681075611"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-comment">{- SourceText -}</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span>
+</span><span id="line-64"></span><span>      </span><span class="hs-comment">-- ^ literal @Word#@</span><span>
+</span><span id="line-65"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="HsInt64Prim"><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsInt64Prim"><span class="hs-identifier hs-var">HsInt64Prim</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Extension.html#XHsInt64Prim"><span class="hs-identifier hs-type">XHsInt64Prim</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681075611"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-comment">{- SourceText -}</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span>
+</span><span id="line-66"></span><span>      </span><span class="hs-comment">-- ^ literal @Int64#@</span><span>
+</span><span id="line-67"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="HsWord64Prim"><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsWord64Prim"><span class="hs-identifier hs-var">HsWord64Prim</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Extension.html#XHsWord64Prim"><span class="hs-identifier hs-type">XHsWord64Prim</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681075611"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-comment">{- SourceText -}</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span>
+</span><span id="line-68"></span><span>      </span><span class="hs-comment">-- ^ literal @Word64#@</span><span>
+</span><span id="line-69"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="HsInteger"><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsInteger"><span class="hs-identifier hs-var">HsInteger</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Extension.html#XHsInteger"><span class="hs-identifier hs-type">XHsInteger</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681075611"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-comment">{- SourceText -}</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span> </span><span class="annot"><a href="GHC.Core.TyCo.Rep.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span>
+</span><span id="line-70"></span><span>      </span><span class="hs-comment">-- ^ Genuinely an integer; arises only</span><span>
+</span><span id="line-71"></span><span>      </span><span class="hs-comment">-- from TRANSLATION (overloaded</span><span>
+</span><span id="line-72"></span><span>      </span><span class="hs-comment">-- literals are done with HsOverLit)</span><span>
+</span><span id="line-73"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="HsRat"><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsRat"><span class="hs-identifier hs-var">HsRat</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Extension.html#XHsRat"><span class="hs-identifier hs-type">XHsRat</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681075611"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span><span>  </span><span class="annot"><a href="GHC.Types.SourceText.html#FractionalLit"><span class="hs-identifier hs-type">FractionalLit</span></a></span><span> </span><span class="annot"><a href="GHC.Core.TyCo.Rep.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span>
+</span><span id="line-74"></span><span>      </span><span class="hs-comment">-- ^ Genuinely a rational; arises only from</span><span>
+</span><span id="line-75"></span><span>      </span><span class="hs-comment">-- TRANSLATION (overloaded literals are</span><span>
+</span><span id="line-76"></span><span>      </span><span class="hs-comment">-- done with HsOverLit)</span><span>
+</span><span id="line-77"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="HsFloatPrim"><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsFloatPrim"><span class="hs-identifier hs-var">HsFloatPrim</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Extension.html#XHsFloatPrim"><span class="hs-identifier hs-type">XHsFloatPrim</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681075611"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span><span>   </span><span class="annot"><a href="GHC.Types.SourceText.html#FractionalLit"><span class="hs-identifier hs-type">FractionalLit</span></a></span><span>
+</span><span id="line-78"></span><span>      </span><span class="hs-comment">-- ^ Unboxed Float</span><span>
+</span><span id="line-79"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="HsDoublePrim"><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsDoublePrim"><span class="hs-identifier hs-var">HsDoublePrim</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Extension.html#XHsDoublePrim"><span class="hs-identifier hs-type">XHsDoublePrim</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681075611"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="GHC.Types.SourceText.html#FractionalLit"><span class="hs-identifier hs-type">FractionalLit</span></a></span><span>
+</span><span id="line-80"></span><span>      </span><span class="hs-comment">-- ^ Unboxed Double</span><span>
+</span><span id="line-81"></span><span>
+</span><span id="line-82"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="XLit"><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#XLit"><span class="hs-identifier hs-var">XLit</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Extension.html#XXLit"><span class="hs-identifier hs-type">XXLit</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681075611"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-83"></span><span>
+</span><span id="line-84"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621681075594"><span id="local-6989586621681075758"><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsLit"><span class="hs-identifier hs-type">HsLit</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681075758"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-85"></span><span>  </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsChar"><span class="hs-identifier hs-type">HsChar</span></a></span><span> </span><span class="annot"><span class="annottext">XHsChar x
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681075573"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621681075573"><span class="hs-identifier hs-var">x1</span></a></span></span><span class="hs-special">)</span><span>       </span><span id="local-6989586621681075572"><span class="annot"><span class="annottext">== :: HsLit x -&gt; HsLit x -&gt; Bool
+</span><span class="hs-operator hs-var hs-var hs-var hs-var">==</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsChar"><span class="hs-identifier hs-type">HsChar</span></a></span><span> </span><span class="annot"><span class="annottext">XHsChar x
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681075571"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621681075571"><span class="hs-identifier hs-var">x2</span></a></span></span><span class="hs-special">)</span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621681075573"><span class="hs-identifier hs-var">x1</span></a></span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621681075571"><span class="hs-identifier hs-var">x2</span></a></span><span>
+</span><span id="line-86"></span><span>  </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsCharPrim"><span class="hs-identifier hs-type">HsCharPrim</span></a></span><span> </span><span class="annot"><span class="annottext">XHsCharPrim x
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681075570"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621681075570"><span class="hs-identifier hs-var">x1</span></a></span></span><span class="hs-special">)</span><span>   </span><span class="annot"><span class="hs-operator hs-var">==</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsCharPrim"><span class="hs-identifier hs-type">HsCharPrim</span></a></span><span> </span><span class="annot"><span class="annottext">XHsCharPrim x
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681075569"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621681075569"><span class="hs-identifier hs-var">x2</span></a></span></span><span class="hs-special">)</span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621681075570"><span class="hs-identifier hs-var">x1</span></a></span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621681075569"><span class="hs-identifier hs-var">x2</span></a></span><span>
+</span><span id="line-87"></span><span>  </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsString"><span class="hs-identifier hs-type">HsString</span></a></span><span> </span><span class="annot"><span class="annottext">XHsString x
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681075568"><span class="annot"><span class="annottext">FastString
+</span><a href="#local-6989586621681075568"><span class="hs-identifier hs-var">x1</span></a></span></span><span class="hs-special">)</span><span>     </span><span class="annot"><span class="hs-operator hs-var">==</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsString"><span class="hs-identifier hs-type">HsString</span></a></span><span> </span><span class="annot"><span class="annottext">XHsString x
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681075567"><span class="annot"><span class="annottext">FastString
+</span><a href="#local-6989586621681075567"><span class="hs-identifier hs-var">x2</span></a></span></span><span class="hs-special">)</span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FastString
+</span><a href="#local-6989586621681075568"><span class="hs-identifier hs-var">x1</span></a></span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span class="annot"><span class="annottext">FastString
+</span><a href="#local-6989586621681075567"><span class="hs-identifier hs-var">x2</span></a></span><span>
+</span><span id="line-88"></span><span>  </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsStringPrim"><span class="hs-identifier hs-type">HsStringPrim</span></a></span><span> </span><span class="annot"><span class="annottext">XHsStringPrim x
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681075566"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621681075566"><span class="hs-identifier hs-var">x1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-operator hs-var">==</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsStringPrim"><span class="hs-identifier hs-type">HsStringPrim</span></a></span><span> </span><span class="annot"><span class="annottext">XHsStringPrim x
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681075565"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621681075565"><span class="hs-identifier hs-var">x2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621681075566"><span class="hs-identifier hs-var">x1</span></a></span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621681075565"><span class="hs-identifier hs-var">x2</span></a></span><span>
+</span><span id="line-89"></span><span>  </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsInt"><span class="hs-identifier hs-type">HsInt</span></a></span><span> </span><span class="annot"><span class="annottext">XHsInt x
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681075564"><span class="annot"><span class="annottext">IntegralLit
+</span><a href="#local-6989586621681075564"><span class="hs-identifier hs-var">x1</span></a></span></span><span class="hs-special">)</span><span>        </span><span class="annot"><span class="hs-operator hs-var">==</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsInt"><span class="hs-identifier hs-type">HsInt</span></a></span><span> </span><span class="annot"><span class="annottext">XHsInt x
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681075563"><span class="annot"><span class="annottext">IntegralLit
+</span><a href="#local-6989586621681075563"><span class="hs-identifier hs-var">x2</span></a></span></span><span class="hs-special">)</span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IntegralLit
+</span><a href="#local-6989586621681075564"><span class="hs-identifier hs-var">x1</span></a></span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span class="annot"><span class="annottext">IntegralLit
+</span><a href="#local-6989586621681075563"><span class="hs-identifier hs-var">x2</span></a></span><span>
+</span><span id="line-90"></span><span>  </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsIntPrim"><span class="hs-identifier hs-type">HsIntPrim</span></a></span><span> </span><span class="annot"><span class="annottext">XHsIntPrim x
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681075562"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621681075562"><span class="hs-identifier hs-var">x1</span></a></span></span><span class="hs-special">)</span><span>    </span><span class="annot"><span class="hs-operator hs-var">==</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsIntPrim"><span class="hs-identifier hs-type">HsIntPrim</span></a></span><span> </span><span class="annot"><span class="annottext">XHsIntPrim x
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681075561"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621681075561"><span class="hs-identifier hs-var">x2</span></a></span></span><span class="hs-special">)</span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621681075562"><span class="hs-identifier hs-var">x1</span></a></span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621681075561"><span class="hs-identifier hs-var">x2</span></a></span><span>
+</span><span id="line-91"></span><span>  </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsWordPrim"><span class="hs-identifier hs-type">HsWordPrim</span></a></span><span> </span><span class="annot"><span class="annottext">XHsWordPrim x
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681075560"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621681075560"><span class="hs-identifier hs-var">x1</span></a></span></span><span class="hs-special">)</span><span>   </span><span class="annot"><span class="hs-operator hs-var">==</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsWordPrim"><span class="hs-identifier hs-type">HsWordPrim</span></a></span><span> </span><span class="annot"><span class="annottext">XHsWordPrim x
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681075559"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621681075559"><span class="hs-identifier hs-var">x2</span></a></span></span><span class="hs-special">)</span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621681075560"><span class="hs-identifier hs-var">x1</span></a></span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621681075559"><span class="hs-identifier hs-var">x2</span></a></span><span>
+</span><span id="line-92"></span><span>  </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsInt64Prim"><span class="hs-identifier hs-type">HsInt64Prim</span></a></span><span> </span><span class="annot"><span class="annottext">XHsInt64Prim x
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681075558"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621681075558"><span class="hs-identifier hs-var">x1</span></a></span></span><span class="hs-special">)</span><span>  </span><span class="annot"><span class="hs-operator hs-var">==</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsInt64Prim"><span class="hs-identifier hs-type">HsInt64Prim</span></a></span><span> </span><span class="annot"><span class="annottext">XHsInt64Prim x
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681075557"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621681075557"><span class="hs-identifier hs-var">x2</span></a></span></span><span class="hs-special">)</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621681075558"><span class="hs-identifier hs-var">x1</span></a></span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621681075557"><span class="hs-identifier hs-var">x2</span></a></span><span>
+</span><span id="line-93"></span><span>  </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsWord64Prim"><span class="hs-identifier hs-type">HsWord64Prim</span></a></span><span> </span><span class="annot"><span class="annottext">XHsWord64Prim x
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681075556"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621681075556"><span class="hs-identifier hs-var">x1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-operator hs-var">==</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsWord64Prim"><span class="hs-identifier hs-type">HsWord64Prim</span></a></span><span> </span><span class="annot"><span class="annottext">XHsWord64Prim x
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681075555"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621681075555"><span class="hs-identifier hs-var">x2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621681075556"><span class="hs-identifier hs-var">x1</span></a></span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621681075555"><span class="hs-identifier hs-var">x2</span></a></span><span>
+</span><span id="line-94"></span><span>  </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsInteger"><span class="hs-identifier hs-type">HsInteger</span></a></span><span> </span><span class="annot"><span class="annottext">XHsInteger x
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681075554"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621681075554"><span class="hs-identifier hs-var">x1</span></a></span></span><span> </span><span class="annot"><span class="annottext">Type
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>  </span><span class="annot"><span class="hs-operator hs-var">==</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsInteger"><span class="hs-identifier hs-type">HsInteger</span></a></span><span> </span><span class="annot"><span class="annottext">XHsInteger x
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681075553"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621681075553"><span class="hs-identifier hs-var">x2</span></a></span></span><span> </span><span class="annot"><span class="annottext">Type
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621681075554"><span class="hs-identifier hs-var">x1</span></a></span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621681075553"><span class="hs-identifier hs-var">x2</span></a></span><span>
+</span><span id="line-95"></span><span>  </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsRat"><span class="hs-identifier hs-type">HsRat</span></a></span><span> </span><span class="annot"><span class="annottext">XHsRat x
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681075552"><span class="annot"><span class="annottext">FractionalLit
+</span><a href="#local-6989586621681075552"><span class="hs-identifier hs-var">x1</span></a></span></span><span> </span><span class="annot"><span class="annottext">Type
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>      </span><span class="annot"><span class="hs-operator hs-var">==</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsRat"><span class="hs-identifier hs-type">HsRat</span></a></span><span> </span><span class="annot"><span class="annottext">XHsRat x
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681075551"><span class="annot"><span class="annottext">FractionalLit
+</span><a href="#local-6989586621681075551"><span class="hs-identifier hs-var">x2</span></a></span></span><span> </span><span class="annot"><span class="annottext">Type
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FractionalLit
+</span><a href="#local-6989586621681075552"><span class="hs-identifier hs-var">x1</span></a></span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span class="annot"><span class="annottext">FractionalLit
+</span><a href="#local-6989586621681075551"><span class="hs-identifier hs-var">x2</span></a></span><span>
+</span><span id="line-96"></span><span>  </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsFloatPrim"><span class="hs-identifier hs-type">HsFloatPrim</span></a></span><span> </span><span class="annot"><span class="annottext">XHsFloatPrim x
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681075550"><span class="annot"><span class="annottext">FractionalLit
+</span><a href="#local-6989586621681075550"><span class="hs-identifier hs-var">x1</span></a></span></span><span class="hs-special">)</span><span>  </span><span class="annot"><span class="hs-operator hs-var">==</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsFloatPrim"><span class="hs-identifier hs-type">HsFloatPrim</span></a></span><span> </span><span class="annot"><span class="annottext">XHsFloatPrim x
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681075549"><span class="annot"><span class="annottext">FractionalLit
+</span><a href="#local-6989586621681075549"><span class="hs-identifier hs-var">x2</span></a></span></span><span class="hs-special">)</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FractionalLit
+</span><a href="#local-6989586621681075550"><span class="hs-identifier hs-var">x1</span></a></span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span class="annot"><span class="annottext">FractionalLit
+</span><a href="#local-6989586621681075549"><span class="hs-identifier hs-var">x2</span></a></span><span>
+</span><span id="line-97"></span><span>  </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsDoublePrim"><span class="hs-identifier hs-type">HsDoublePrim</span></a></span><span> </span><span class="annot"><span class="annottext">XHsDoublePrim x
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681075548"><span class="annot"><span class="annottext">FractionalLit
+</span><a href="#local-6989586621681075548"><span class="hs-identifier hs-var">x1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-operator hs-var">==</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsDoublePrim"><span class="hs-identifier hs-type">HsDoublePrim</span></a></span><span> </span><span class="annot"><span class="annottext">XHsDoublePrim x
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681075547"><span class="annot"><span class="annottext">FractionalLit
+</span><a href="#local-6989586621681075547"><span class="hs-identifier hs-var">x2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FractionalLit
+</span><a href="#local-6989586621681075548"><span class="hs-identifier hs-var">x1</span></a></span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span class="annot"><span class="annottext">FractionalLit
+</span><a href="#local-6989586621681075547"><span class="hs-identifier hs-var">x2</span></a></span><span>
+</span><span id="line-98"></span><span>  </span><span class="annot"><span class="annottext">HsLit x
+</span><span class="hs-identifier">_</span></span><span>                   </span><span class="annot"><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">HsLit x
+</span><span class="hs-identifier">_</span></span><span>                   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-99"></span><span>
+</span><span id="line-100"></span><span class="hs-comment">-- | Haskell Overloaded Literal</span><span>
+</span><span id="line-101"></span><span class="hs-keyword">data</span><span> </span><span id="HsOverLit"><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsOverLit"><span class="hs-identifier hs-var">HsOverLit</span></a></span></span><span> </span><span id="local-6989586621681075739"><span class="annot"><a href="#local-6989586621681075739"><span class="hs-identifier hs-type">p</span></a></span></span><span>
+</span><span id="line-102"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="OverLit"><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#OverLit"><span class="hs-identifier hs-var">OverLit</span></a></span></span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-103"></span><span>      </span><span id="ol_ext"><span class="annot"><span class="annottext">forall p. HsOverLit p -&gt; XOverLit p
+</span><a href="Language.Haskell.Syntax.Lit.html#ol_ext"><span class="hs-identifier hs-var hs-var">ol_ext</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Extension.html#XOverLit"><span class="hs-identifier hs-type">XOverLit</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681075739"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-104"></span><span>      </span><span id="ol_val"><span class="annot"><span class="annottext">forall p. HsOverLit p -&gt; OverLitVal
+</span><a href="Language.Haskell.Syntax.Lit.html#ol_val"><span class="hs-identifier hs-var hs-var">ol_val</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#OverLitVal"><span class="hs-identifier hs-type">OverLitVal</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-105"></span><span>      </span><span id="ol_witness"><span class="annot"><span class="annottext">forall p. HsOverLit p -&gt; HsExpr p
+</span><a href="Language.Haskell.Syntax.Lit.html#ol_witness"><span class="hs-identifier hs-var hs-var">ol_witness</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html#HsExpr"><span class="hs-identifier hs-type">HsExpr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681075739"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">}</span><span>         </span><span class="hs-comment">-- Note [Overloaded literal witnesses]</span><span>
+</span><span id="line-106"></span><span>
+</span><span id="line-107"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="XOverLit"><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#XOverLit"><span class="hs-identifier hs-var">XOverLit</span></a></span></span><span>
+</span><span id="line-108"></span><span>      </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Extension.html#XXOverLit"><span class="hs-identifier hs-type">XXOverLit</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681075739"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-109"></span><span>
+</span><span id="line-110"></span><span class="hs-comment">-- Note [Literal source text] in GHC.Types.Basic for SourceText fields in</span><span>
+</span><span id="line-111"></span><span class="hs-comment">-- the following</span><span>
+</span><span id="line-112"></span><span class="hs-comment">-- | Overloaded Literal Value</span><span>
+</span><span id="line-113"></span><span class="hs-keyword">data</span><span> </span><span id="OverLitVal"><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#OverLitVal"><span class="hs-identifier hs-var">OverLitVal</span></a></span></span><span>
+</span><span id="line-114"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="HsIntegral"><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsIntegral"><span class="hs-identifier hs-var">HsIntegral</span></a></span></span><span>   </span><span class="hs-glyph">!</span><span class="annot"><a href="GHC.Types.SourceText.html#IntegralLit"><span class="hs-identifier hs-type">IntegralLit</span></a></span><span>            </span><span class="hs-comment">-- ^ Integer-looking literals;</span><span>
+</span><span id="line-115"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="HsFractional"><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsFractional"><span class="hs-identifier hs-var">HsFractional</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GHC.Types.SourceText.html#FractionalLit"><span class="hs-identifier hs-type">FractionalLit</span></a></span><span>          </span><span class="hs-comment">-- ^ Frac-looking literals</span><span>
+</span><span id="line-116"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="HsIsString"><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsIsString"><span class="hs-identifier hs-var">HsIsString</span></a></span></span><span>   </span><span class="hs-glyph">!</span><span class="annot"><a href="GHC.Types.SourceText.html#SourceText"><span class="hs-identifier hs-type">SourceText</span></a></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GHC.Data.FastString.html#FastString"><span class="hs-identifier hs-type">FastString</span></a></span><span> </span><span class="hs-comment">-- ^ String-looking literals</span><span>
+</span><span id="line-117"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621681075497"><span id="local-6989586621681075499"><span id="local-6989586621681075501"><span id="local-6989586621681075503"><span id="local-6989586621681075505"><span id="local-6989586621681075507"><span id="local-6989586621681075509"><span id="local-6989586621681075511"><span id="local-6989586621681075513"><span id="local-6989586621681075515"><span id="local-6989586621681075517"><span id="local-6989586621681075519"><span id="local-6989586621681075525"><span id="local-6989586621681075535"><span class="annot"><span class="annottext">Typeable OverLitVal
+OverLitVal -&gt; DataType
+OverLitVal -&gt; Constr
+(forall b. Data b =&gt; b -&gt; b) -&gt; OverLitVal -&gt; OverLitVal
+forall a.
+Typeable a
+-&gt; (forall (c :: * -&gt; *).
+    (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+    -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; OverLitVal -&gt; u
+forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; OverLitVal -&gt; [u]
+forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; OverLitVal -&gt; r
+forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; OverLitVal -&gt; r
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; OverLitVal -&gt; m OverLitVal
+forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; OverLitVal -&gt; m OverLitVal
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c OverLitVal
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; OverLitVal -&gt; c OverLitVal
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c OverLitVal)
+forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c OverLitVal)
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; OverLitVal -&gt; m OverLitVal
+$cgmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; OverLitVal -&gt; m OverLitVal
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; OverLitVal -&gt; m OverLitVal
+$cgmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; OverLitVal -&gt; m OverLitVal
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; OverLitVal -&gt; m OverLitVal
+$cgmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; OverLitVal -&gt; m OverLitVal
+gmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; OverLitVal -&gt; u
+$cgmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; OverLitVal -&gt; u
+gmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; OverLitVal -&gt; [u]
+$cgmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; OverLitVal -&gt; [u]
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; OverLitVal -&gt; r
+$cgmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; OverLitVal -&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; OverLitVal -&gt; r
+$cgmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; OverLitVal -&gt; r
+gmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; OverLitVal -&gt; OverLitVal
+$cgmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; OverLitVal -&gt; OverLitVal
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c OverLitVal)
+$cdataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c OverLitVal)
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c OverLitVal)
+$cdataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c OverLitVal)
+dataTypeOf :: OverLitVal -&gt; DataType
+$cdataTypeOf :: OverLitVal -&gt; DataType
+toConstr :: OverLitVal -&gt; Constr
+$ctoConstr :: OverLitVal -&gt; Constr
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c OverLitVal
+$cgunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c OverLitVal
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; OverLitVal -&gt; c OverLitVal
+$cgfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; OverLitVal -&gt; c OverLitVal
+</span><a href="../../base-4.16.4.0/src/Data-Data.html#Data"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data</span></a></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span>
+</span><span id="line-118"></span><span>
+</span><span id="line-119"></span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#negateOverLitVal"><span class="hs-identifier hs-type">negateOverLitVal</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#OverLitVal"><span class="hs-identifier hs-type">OverLitVal</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#OverLitVal"><span class="hs-identifier hs-type">OverLitVal</span></a></span><span>
+</span><span id="line-120"></span><span id="negateOverLitVal"><span class="annot"><span class="annottext">negateOverLitVal :: OverLitVal -&gt; OverLitVal
+</span><a href="Language.Haskell.Syntax.Lit.html#negateOverLitVal"><span class="hs-identifier hs-var hs-var">negateOverLitVal</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsIntegral"><span class="hs-identifier hs-type">HsIntegral</span></a></span><span> </span><span id="local-6989586621681075494"><span class="annot"><span class="annottext">IntegralLit
+</span><a href="#local-6989586621681075494"><span class="hs-identifier hs-var">i</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IntegralLit -&gt; OverLitVal
+</span><a href="Language.Haskell.Syntax.Lit.html#HsIntegral"><span class="hs-identifier hs-var">HsIntegral</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IntegralLit -&gt; IntegralLit
+</span><a href="GHC.Types.SourceText.html#negateIntegralLit"><span class="hs-identifier hs-var">negateIntegralLit</span></a></span><span> </span><span class="annot"><span class="annottext">IntegralLit
+</span><a href="#local-6989586621681075494"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-121"></span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#negateOverLitVal"><span class="hs-identifier hs-var">negateOverLitVal</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsFractional"><span class="hs-identifier hs-type">HsFractional</span></a></span><span> </span><span id="local-6989586621681075492"><span class="annot"><span class="annottext">FractionalLit
+</span><a href="#local-6989586621681075492"><span class="hs-identifier hs-var">f</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FractionalLit -&gt; OverLitVal
+</span><a href="Language.Haskell.Syntax.Lit.html#HsFractional"><span class="hs-identifier hs-var">HsFractional</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FractionalLit -&gt; FractionalLit
+</span><a href="GHC.Types.SourceText.html#negateFractionalLit"><span class="hs-identifier hs-var">negateFractionalLit</span></a></span><span> </span><span class="annot"><span class="annottext">FractionalLit
+</span><a href="#local-6989586621681075492"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-122"></span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#negateOverLitVal"><span class="hs-identifier hs-var">negateOverLitVal</span></a></span><span> </span><span class="annot"><span class="annottext">OverLitVal
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. String -&gt; a
+</span><a href="GHC.Utils.Panic.Plain.html#panic"><span class="hs-identifier hs-var">panic</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;negateOverLitVal: argument is not a number&quot;</span></span><span>
+</span><span id="line-123"></span><span>
+</span><span id="line-124"></span><span class="hs-comment">{-
+Note [Overloaded literal witnesses]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+*Before* type checking, the HsExpr in an HsOverLit is the
+name of the coercion function, 'fromInteger' or 'fromRational'.
+*After* type checking, it is a witness for the literal, such as
+        (fromInteger 3) or lit_78
+This witness should replace the literal.
+
+This dual role is unusual, because we're replacing 'fromInteger' with
+a call to fromInteger.  Reason: it allows commoning up of the fromInteger
+calls, which wouldn't be possible if the desugarer made the application.
+
+The PostTcType in each branch records the type the overload literal is
+found to have.
+-}</span><span>
+</span><span id="line-140"></span><span>
+</span><span id="line-141"></span><span class="hs-comment">-- Comparison operations are needed when grouping literals</span><span>
+</span><span id="line-142"></span><span class="hs-comment">-- for compiling pattern-matching (module GHC.HsToCore.Match.Literal)</span><span>
+</span><span id="line-143"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621681075487"><span id="local-6989586621681075696"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Extension.html#XXOverLit"><span class="hs-identifier hs-type">XXOverLit</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681075696"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsOverLit"><span class="hs-identifier hs-type">HsOverLit</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681075696"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-144"></span><span>  </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#OverLit"><span class="hs-identifier hs-type">OverLit</span></a></span><span> </span><span class="annot"><span class="annottext">XOverLit p
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681075484"><span class="annot"><span class="annottext">OverLitVal
+</span><a href="#local-6989586621681075484"><span class="hs-identifier hs-var">val1</span></a></span></span><span> </span><span class="annot"><span class="annottext">HsExpr p
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621681075483"><span class="annot"><span class="annottext">== :: HsOverLit p -&gt; HsOverLit p -&gt; Bool
+</span><span class="hs-operator hs-var hs-var hs-var hs-var">==</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#OverLit"><span class="hs-identifier hs-type">OverLit</span></a></span><span> </span><span class="annot"><span class="annottext">XOverLit p
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681075482"><span class="annot"><span class="annottext">OverLitVal
+</span><a href="#local-6989586621681075482"><span class="hs-identifier hs-var">val2</span></a></span></span><span> </span><span class="annot"><span class="annottext">HsExpr p
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">OverLitVal
+</span><a href="#local-6989586621681075484"><span class="hs-identifier hs-var">val1</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">OverLitVal
+</span><a href="#local-6989586621681075482"><span class="hs-identifier hs-var">val2</span></a></span><span>
+</span><span id="line-145"></span><span>  </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#XOverLit"><span class="hs-identifier hs-type">XOverLit</span></a></span><span>  </span><span id="local-6989586621681075481"><span class="annot"><span class="annottext">XXOverLit p
+</span><a href="#local-6989586621681075481"><span class="hs-identifier hs-var">val1</span></a></span></span><span class="hs-special">)</span><span>   </span><span class="annot"><span class="hs-operator hs-var">==</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#XOverLit"><span class="hs-identifier hs-type">XOverLit</span></a></span><span>  </span><span id="local-6989586621681075480"><span class="annot"><span class="annottext">XXOverLit p
+</span><a href="#local-6989586621681075480"><span class="hs-identifier hs-var">val2</span></a></span></span><span class="hs-special">)</span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">XXOverLit p
+</span><a href="#local-6989586621681075481"><span class="hs-identifier hs-var">val1</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">XXOverLit p
+</span><a href="#local-6989586621681075480"><span class="hs-identifier hs-var">val2</span></a></span><span>
+</span><span id="line-146"></span><span>  </span><span class="annot"><span class="annottext">HsOverLit p
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">HsOverLit p
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. String -&gt; a
+</span><a href="GHC.Utils.Panic.Plain.html#panic"><span class="hs-identifier hs-var">panic</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Eq HsOverLit&quot;</span></span><span>
+</span><span id="line-147"></span><span>
+</span><span id="line-148"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621681075477"><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#OverLitVal"><span class="hs-identifier hs-type">OverLitVal</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-149"></span><span>  </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsIntegral"><span class="hs-identifier hs-type">HsIntegral</span></a></span><span>   </span><span id="local-6989586621681075473"><span class="annot"><span class="annottext">IntegralLit
+</span><a href="#local-6989586621681075473"><span class="hs-identifier hs-var">i1</span></a></span></span><span class="hs-special">)</span><span>   </span><span id="local-6989586621681075472"><span class="annot"><span class="annottext">== :: OverLitVal -&gt; OverLitVal -&gt; Bool
+</span><span class="hs-operator hs-var hs-var hs-var hs-var">==</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsIntegral"><span class="hs-identifier hs-type">HsIntegral</span></a></span><span>   </span><span id="local-6989586621681075471"><span class="annot"><span class="annottext">IntegralLit
+</span><a href="#local-6989586621681075471"><span class="hs-identifier hs-var">i2</span></a></span></span><span class="hs-special">)</span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IntegralLit
+</span><a href="#local-6989586621681075473"><span class="hs-identifier hs-var">i1</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">IntegralLit
+</span><a href="#local-6989586621681075471"><span class="hs-identifier hs-var">i2</span></a></span><span>
+</span><span id="line-150"></span><span>  </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsFractional"><span class="hs-identifier hs-type">HsFractional</span></a></span><span> </span><span id="local-6989586621681075470"><span class="annot"><span class="annottext">FractionalLit
+</span><a href="#local-6989586621681075470"><span class="hs-identifier hs-var">f1</span></a></span></span><span class="hs-special">)</span><span>   </span><span class="annot"><span class="hs-operator hs-var">==</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsFractional"><span class="hs-identifier hs-type">HsFractional</span></a></span><span> </span><span id="local-6989586621681075469"><span class="annot"><span class="annottext">FractionalLit
+</span><a href="#local-6989586621681075469"><span class="hs-identifier hs-var">f2</span></a></span></span><span class="hs-special">)</span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FractionalLit
+</span><a href="#local-6989586621681075470"><span class="hs-identifier hs-var">f1</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">FractionalLit
+</span><a href="#local-6989586621681075469"><span class="hs-identifier hs-var">f2</span></a></span><span>
+</span><span id="line-151"></span><span>  </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsIsString"><span class="hs-identifier hs-type">HsIsString</span></a></span><span> </span><span class="annot"><span class="annottext">SourceText
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681075468"><span class="annot"><span class="annottext">FastString
+</span><a href="#local-6989586621681075468"><span class="hs-identifier hs-var">s1</span></a></span></span><span class="hs-special">)</span><span>   </span><span class="annot"><span class="hs-operator hs-var">==</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsIsString"><span class="hs-identifier hs-type">HsIsString</span></a></span><span> </span><span class="annot"><span class="annottext">SourceText
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681075467"><span class="annot"><span class="annottext">FastString
+</span><a href="#local-6989586621681075467"><span class="hs-identifier hs-var">s2</span></a></span></span><span class="hs-special">)</span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FastString
+</span><a href="#local-6989586621681075468"><span class="hs-identifier hs-var">s1</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">FastString
+</span><a href="#local-6989586621681075467"><span class="hs-identifier hs-var">s2</span></a></span><span>
+</span><span id="line-152"></span><span>  </span><span class="annot"><span class="annottext">OverLitVal
+</span><span class="hs-identifier">_</span></span><span>                   </span><span class="annot"><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">OverLitVal
+</span><span class="hs-identifier">_</span></span><span>                   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-153"></span><span>
+</span><span id="line-154"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621681075452"><span id="local-6989586621681075454"><span id="local-6989586621681075456"><span id="local-6989586621681075458"><span id="local-6989586621681075460"><span id="local-6989586621681075462"><span id="local-6989586621681075694"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Extension.html#XXOverLit"><span class="hs-identifier hs-type">XXOverLit</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681075694"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsOverLit"><span class="hs-identifier hs-type">HsOverLit</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681075694"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span></span></span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-155"></span><span>  </span><span id="local-6989586621681075448"><span class="annot"><span class="annottext">compare :: HsOverLit p -&gt; HsOverLit p -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">compare</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#OverLit"><span class="hs-identifier hs-type">OverLit</span></a></span><span> </span><span class="annot"><span class="annottext">XOverLit p
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681075446"><span class="annot"><span class="annottext">OverLitVal
+</span><a href="#local-6989586621681075446"><span class="hs-identifier hs-var">val1</span></a></span></span><span> </span><span class="annot"><span class="annottext">HsExpr p
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#OverLit"><span class="hs-identifier hs-type">OverLit</span></a></span><span> </span><span class="annot"><span class="annottext">XOverLit p
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681075445"><span class="annot"><span class="annottext">OverLitVal
+</span><a href="#local-6989586621681075445"><span class="hs-identifier hs-var">val2</span></a></span></span><span> </span><span class="annot"><span class="annottext">HsExpr p
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">OverLitVal
+</span><a href="#local-6989586621681075446"><span class="hs-identifier hs-var">val1</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Ordering
+</span><span class="hs-operator hs-var">`compare`</span></span><span> </span><span class="annot"><span class="annottext">OverLitVal
+</span><a href="#local-6989586621681075445"><span class="hs-identifier hs-var">val2</span></a></span><span>
+</span><span id="line-156"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">compare</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#XOverLit"><span class="hs-identifier hs-type">XOverLit</span></a></span><span>  </span><span id="local-6989586621681075444"><span class="annot"><span class="annottext">XXOverLit p
+</span><a href="#local-6989586621681075444"><span class="hs-identifier hs-var">val1</span></a></span></span><span class="hs-special">)</span><span>   </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#XOverLit"><span class="hs-identifier hs-type">XOverLit</span></a></span><span>  </span><span id="local-6989586621681075443"><span class="annot"><span class="annottext">XXOverLit p
+</span><a href="#local-6989586621681075443"><span class="hs-identifier hs-var">val2</span></a></span></span><span class="hs-special">)</span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">XXOverLit p
+</span><a href="#local-6989586621681075444"><span class="hs-identifier hs-var">val1</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Ordering
+</span><span class="hs-operator hs-var">`compare`</span></span><span> </span><span class="annot"><span class="annottext">XXOverLit p
+</span><a href="#local-6989586621681075443"><span class="hs-identifier hs-var">val2</span></a></span><span>
+</span><span id="line-157"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">compare</span></span><span> </span><span class="annot"><span class="annottext">HsOverLit p
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">HsOverLit p
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. String -&gt; a
+</span><a href="GHC.Utils.Panic.Plain.html#panic"><span class="hs-identifier hs-var">panic</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Ord HsOverLit&quot;</span></span><span>
+</span><span id="line-158"></span><span>
+</span><span id="line-159"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621681075428"><span id="local-6989586621681075430"><span id="local-6989586621681075432"><span id="local-6989586621681075434"><span id="local-6989586621681075436"><span id="local-6989586621681075438"><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#OverLitVal"><span class="hs-identifier hs-type">OverLitVal</span></a></span></span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-160"></span><span>  </span><span id="local-6989586621681075423"><span class="annot"><span class="annottext">compare :: OverLitVal -&gt; OverLitVal -&gt; Ordering
+</span><a href="#local-6989586621681075423"><span class="hs-identifier hs-var hs-var hs-var hs-var">compare</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsIntegral"><span class="hs-identifier hs-type">HsIntegral</span></a></span><span> </span><span id="local-6989586621681075422"><span class="annot"><span class="annottext">IntegralLit
+</span><a href="#local-6989586621681075422"><span class="hs-identifier hs-var">i1</span></a></span></span><span class="hs-special">)</span><span>     </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsIntegral"><span class="hs-identifier hs-type">HsIntegral</span></a></span><span> </span><span id="local-6989586621681075421"><span class="annot"><span class="annottext">IntegralLit
+</span><a href="#local-6989586621681075421"><span class="hs-identifier hs-var">i2</span></a></span></span><span class="hs-special">)</span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IntegralLit
+</span><a href="#local-6989586621681075422"><span class="hs-identifier hs-var">i1</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Ordering
+</span><span class="hs-operator hs-var">`compare`</span></span><span> </span><span class="annot"><span class="annottext">IntegralLit
+</span><a href="#local-6989586621681075421"><span class="hs-identifier hs-var">i2</span></a></span><span>
+</span><span id="line-161"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">compare</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsIntegral"><span class="hs-identifier hs-type">HsIntegral</span></a></span><span> </span><span class="annot"><span class="annottext">IntegralLit
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>      </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsFractional"><span class="hs-identifier hs-type">HsFractional</span></a></span><span> </span><span class="annot"><span class="annottext">FractionalLit
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier hs-var">LT</span></span><span>
+</span><span id="line-162"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">compare</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsIntegral"><span class="hs-identifier hs-type">HsIntegral</span></a></span><span> </span><span class="annot"><span class="annottext">IntegralLit
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>      </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsIsString"><span class="hs-identifier hs-type">HsIsString</span></a></span><span> </span><span class="annot"><span class="annottext">SourceText
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">FastString
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier hs-var">LT</span></span><span>
+</span><span id="line-163"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">compare</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsFractional"><span class="hs-identifier hs-type">HsFractional</span></a></span><span> </span><span id="local-6989586621681075420"><span class="annot"><span class="annottext">FractionalLit
+</span><a href="#local-6989586621681075420"><span class="hs-identifier hs-var">f1</span></a></span></span><span class="hs-special">)</span><span>   </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsFractional"><span class="hs-identifier hs-type">HsFractional</span></a></span><span> </span><span id="local-6989586621681075419"><span class="annot"><span class="annottext">FractionalLit
+</span><a href="#local-6989586621681075419"><span class="hs-identifier hs-var">f2</span></a></span></span><span class="hs-special">)</span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FractionalLit
+</span><a href="#local-6989586621681075420"><span class="hs-identifier hs-var">f1</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Ordering
+</span><span class="hs-operator hs-var">`compare`</span></span><span> </span><span class="annot"><span class="annottext">FractionalLit
+</span><a href="#local-6989586621681075419"><span class="hs-identifier hs-var">f2</span></a></span><span>
+</span><span id="line-164"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">compare</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsFractional"><span class="hs-identifier hs-type">HsFractional</span></a></span><span> </span><span class="annot"><span class="annottext">FractionalLit
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>    </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsIntegral"><span class="hs-identifier hs-type">HsIntegral</span></a></span><span>   </span><span class="annot"><span class="annottext">IntegralLit
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier hs-var">GT</span></span><span>
+</span><span id="line-165"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">compare</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsFractional"><span class="hs-identifier hs-type">HsFractional</span></a></span><span> </span><span class="annot"><span class="annottext">FractionalLit
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>    </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsIsString"><span class="hs-identifier hs-type">HsIsString</span></a></span><span> </span><span class="annot"><span class="annottext">SourceText
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">FastString
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier hs-var">LT</span></span><span>
+</span><span id="line-166"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">compare</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsIsString"><span class="hs-identifier hs-type">HsIsString</span></a></span><span> </span><span class="annot"><span class="annottext">SourceText
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681075418"><span class="annot"><span class="annottext">FastString
+</span><a href="#local-6989586621681075418"><span class="hs-identifier hs-var">s1</span></a></span></span><span class="hs-special">)</span><span>   </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsIsString"><span class="hs-identifier hs-type">HsIsString</span></a></span><span> </span><span class="annot"><span class="annottext">SourceText
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681075417"><span class="annot"><span class="annottext">FastString
+</span><a href="#local-6989586621681075417"><span class="hs-identifier hs-var">s2</span></a></span></span><span class="hs-special">)</span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FastString
+</span><a href="#local-6989586621681075418"><span class="hs-identifier hs-var">s1</span></a></span><span> </span><span class="annot"><span class="annottext">FastString -&gt; FastString -&gt; Ordering
+</span><a href="GHC.Data.FastString.html#uniqCompareFS"><span class="hs-operator hs-var">`uniqCompareFS`</span></a></span><span> </span><span class="annot"><span class="annottext">FastString
+</span><a href="#local-6989586621681075417"><span class="hs-identifier hs-var">s2</span></a></span><span>
+</span><span id="line-167"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">compare</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsIsString"><span class="hs-identifier hs-type">HsIsString</span></a></span><span> </span><span class="annot"><span class="annottext">SourceText
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">FastString
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>    </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsIntegral"><span class="hs-identifier hs-type">HsIntegral</span></a></span><span>   </span><span class="annot"><span class="annottext">IntegralLit
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier hs-var">GT</span></span><span>
+</span><span id="line-168"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">compare</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsIsString"><span class="hs-identifier hs-type">HsIsString</span></a></span><span> </span><span class="annot"><span class="annottext">SourceText
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">FastString
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>    </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsFractional"><span class="hs-identifier hs-type">HsFractional</span></a></span><span> </span><span class="annot"><span class="annottext">FractionalLit
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier hs-var">GT</span></span><span>
+</span><span id="line-169"></span><span>
+</span><span id="line-170"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#Outputable"><span class="hs-identifier hs-type">Outputable</span></a></span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#OverLitVal"><span class="hs-identifier hs-type">OverLitVal</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-171"></span><span>  </span><span id="local-6989586621681075410"><span class="annot"><span class="annottext">ppr :: OverLitVal -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var hs-var hs-var hs-var">ppr</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsIntegral"><span class="hs-identifier hs-type">HsIntegral</span></a></span><span> </span><span id="local-6989586621681075408"><span class="annot"><span class="annottext">IntegralLit
+</span><a href="#local-6989586621681075408"><span class="hs-identifier hs-var">i</span></a></span></span><span class="hs-special">)</span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SourceText -&gt; SDoc -&gt; SDoc
+</span><a href="GHC.Types.SourceText.html#pprWithSourceText"><span class="hs-identifier hs-var">pprWithSourceText</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IntegralLit -&gt; SourceText
+</span><a href="GHC.Types.SourceText.html#il_text"><span class="hs-identifier hs-var">il_text</span></a></span><span> </span><span class="annot"><span class="annottext">IntegralLit
+</span><a href="#local-6989586621681075408"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#integer"><span class="hs-identifier hs-var">integer</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IntegralLit -&gt; Integer
+</span><a href="GHC.Types.SourceText.html#il_value"><span class="hs-identifier hs-var">il_value</span></a></span><span> </span><span class="annot"><span class="annottext">IntegralLit
+</span><a href="#local-6989586621681075408"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-172"></span><span>  </span><span class="annot"><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsFractional"><span class="hs-identifier hs-type">HsFractional</span></a></span><span> </span><span id="local-6989586621681075403"><span class="annot"><span class="annottext">FractionalLit
+</span><a href="#local-6989586621681075403"><span class="hs-identifier hs-var">f</span></a></span></span><span class="hs-special">)</span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">FractionalLit
+</span><a href="#local-6989586621681075403"><span class="hs-identifier hs-var">f</span></a></span><span>
+</span><span id="line-173"></span><span>  </span><span class="annot"><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsIsString"><span class="hs-identifier hs-type">HsIsString</span></a></span><span> </span><span id="local-6989586621681075402"><span class="annot"><span class="annottext">SourceText
+</span><a href="#local-6989586621681075402"><span class="hs-identifier hs-var">st</span></a></span></span><span> </span><span id="local-6989586621681075401"><span class="annot"><span class="annottext">FastString
+</span><a href="#local-6989586621681075401"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">)</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SourceText -&gt; SDoc -&gt; SDoc
+</span><a href="GHC.Types.SourceText.html#pprWithSourceText"><span class="hs-identifier hs-var">pprWithSourceText</span></a></span><span> </span><span class="annot"><span class="annottext">SourceText
+</span><a href="#local-6989586621681075402"><span class="hs-identifier hs-var">st</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FastString -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#pprHsString"><span class="hs-identifier hs-var">pprHsString</span></a></span><span> </span><span class="annot"><span class="annottext">FastString
+</span><a href="#local-6989586621681075401"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-174"></span><span>
+</span><span id="line-175"></span><span class="hs-comment">-- | @'hsLitNeedsParens' p l@ returns 'True' if a literal @l@ needs</span><span>
+</span><span id="line-176"></span><span class="hs-comment">-- to be parenthesized under precedence @p@.</span><span>
+</span><span id="line-177"></span><span id="local-6989586621681075689"><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#hsLitNeedsParens"><span class="hs-identifier hs-type">hsLitNeedsParens</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Types.Basic.html#PprPrec"><span class="hs-identifier hs-type">PprPrec</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsLit"><span class="hs-identifier hs-type">HsLit</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681075689"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span><span>
+</span><span id="line-178"></span><span id="hsLitNeedsParens"><span class="annot"><span class="annottext">hsLitNeedsParens :: forall x. PprPrec -&gt; HsLit x -&gt; Bool
+</span><a href="Language.Haskell.Syntax.Lit.html#hsLitNeedsParens"><span class="hs-identifier hs-var hs-var">hsLitNeedsParens</span></a></span></span><span> </span><span id="local-6989586621681075382"><span class="annot"><span class="annottext">PprPrec
+</span><a href="#local-6989586621681075382"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HsLit x -&gt; Bool
+</span><a href="#local-6989586621681075381"><span class="hs-identifier hs-var">go</span></a></span><span>
+</span><span id="line-179"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-180"></span><span>    </span><span id="local-6989586621681075381"><span class="annot"><span class="annottext">go :: HsLit x -&gt; Bool
+</span><a href="#local-6989586621681075381"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsChar"><span class="hs-identifier hs-type">HsChar</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-181"></span><span>    </span><span class="annot"><a href="#local-6989586621681075381"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsCharPrim"><span class="hs-identifier hs-type">HsCharPrim</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-182"></span><span>    </span><span class="annot"><a href="#local-6989586621681075381"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsString"><span class="hs-identifier hs-type">HsString</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-183"></span><span>    </span><span class="annot"><a href="#local-6989586621681075381"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsStringPrim"><span class="hs-identifier hs-type">HsStringPrim</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-184"></span><span>    </span><span class="annot"><a href="#local-6989586621681075381"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsInt"><span class="hs-identifier hs-type">HsInt</span></a></span><span> </span><span class="annot"><span class="annottext">XHsInt x
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681075380"><span class="annot"><span class="annottext">IntegralLit
+</span><a href="#local-6989586621681075380"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PprPrec
+</span><a href="#local-6989586621681075382"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">PprPrec
+</span><a href="GHC.Types.Basic.html#topPrec"><span class="hs-identifier hs-var">topPrec</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">IntegralLit -&gt; Bool
+</span><a href="GHC.Types.SourceText.html#il_neg"><span class="hs-identifier hs-var">il_neg</span></a></span><span> </span><span class="annot"><span class="annottext">IntegralLit
+</span><a href="#local-6989586621681075380"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-185"></span><span>    </span><span class="annot"><a href="#local-6989586621681075381"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsIntPrim"><span class="hs-identifier hs-type">HsIntPrim</span></a></span><span> </span><span class="annot"><span class="annottext">XHsIntPrim x
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681075376"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621681075376"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PprPrec
+</span><a href="#local-6989586621681075382"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">PprPrec
+</span><a href="GHC.Types.Basic.html#topPrec"><span class="hs-identifier hs-var">topPrec</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621681075376"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-186"></span><span>    </span><span class="annot"><a href="#local-6989586621681075381"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsWordPrim"><span class="hs-identifier hs-type">HsWordPrim</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-187"></span><span>    </span><span class="annot"><a href="#local-6989586621681075381"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsInt64Prim"><span class="hs-identifier hs-type">HsInt64Prim</span></a></span><span> </span><span class="annot"><span class="annottext">XHsInt64Prim x
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681075374"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621681075374"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PprPrec
+</span><a href="#local-6989586621681075382"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">PprPrec
+</span><a href="GHC.Types.Basic.html#topPrec"><span class="hs-identifier hs-var">topPrec</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621681075374"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-188"></span><span>    </span><span class="annot"><a href="#local-6989586621681075381"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsWord64Prim"><span class="hs-identifier hs-type">HsWord64Prim</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-189"></span><span>    </span><span class="annot"><a href="#local-6989586621681075381"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsInteger"><span class="hs-identifier hs-type">HsInteger</span></a></span><span> </span><span class="annot"><span class="annottext">XHsInteger x
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681075373"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621681075373"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="annot"><span class="annottext">Type
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PprPrec
+</span><a href="#local-6989586621681075382"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">PprPrec
+</span><a href="GHC.Types.Basic.html#topPrec"><span class="hs-identifier hs-var">topPrec</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621681075373"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-190"></span><span>    </span><span class="annot"><a href="#local-6989586621681075381"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsRat"><span class="hs-identifier hs-type">HsRat</span></a></span><span> </span><span class="annot"><span class="annottext">XHsRat x
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681075372"><span class="annot"><span class="annottext">FractionalLit
+</span><a href="#local-6989586621681075372"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="annot"><span class="annottext">Type
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PprPrec
+</span><a href="#local-6989586621681075382"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">PprPrec
+</span><a href="GHC.Types.Basic.html#topPrec"><span class="hs-identifier hs-var">topPrec</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">FractionalLit -&gt; Bool
+</span><a href="GHC.Types.SourceText.html#fl_neg"><span class="hs-identifier hs-var">fl_neg</span></a></span><span> </span><span class="annot"><span class="annottext">FractionalLit
+</span><a href="#local-6989586621681075372"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-191"></span><span>    </span><span class="annot"><a href="#local-6989586621681075381"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsFloatPrim"><span class="hs-identifier hs-type">HsFloatPrim</span></a></span><span> </span><span class="annot"><span class="annottext">XHsFloatPrim x
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681075370"><span class="annot"><span class="annottext">FractionalLit
+</span><a href="#local-6989586621681075370"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PprPrec
+</span><a href="#local-6989586621681075382"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">PprPrec
+</span><a href="GHC.Types.Basic.html#topPrec"><span class="hs-identifier hs-var">topPrec</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">FractionalLit -&gt; Bool
+</span><a href="GHC.Types.SourceText.html#fl_neg"><span class="hs-identifier hs-var">fl_neg</span></a></span><span> </span><span class="annot"><span class="annottext">FractionalLit
+</span><a href="#local-6989586621681075370"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-192"></span><span>    </span><span class="annot"><a href="#local-6989586621681075381"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsDoublePrim"><span class="hs-identifier hs-type">HsDoublePrim</span></a></span><span> </span><span class="annot"><span class="annottext">XHsDoublePrim x
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681075369"><span class="annot"><span class="annottext">FractionalLit
+</span><a href="#local-6989586621681075369"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PprPrec
+</span><a href="#local-6989586621681075382"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">PprPrec
+</span><a href="GHC.Types.Basic.html#topPrec"><span class="hs-identifier hs-var">topPrec</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">FractionalLit -&gt; Bool
+</span><a href="GHC.Types.SourceText.html#fl_neg"><span class="hs-identifier hs-var">fl_neg</span></a></span><span> </span><span class="annot"><span class="annottext">FractionalLit
+</span><a href="#local-6989586621681075369"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-193"></span><span>    </span><span class="annot"><a href="#local-6989586621681075381"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#XLit"><span class="hs-identifier hs-type">XLit</span></a></span><span> </span><span class="annot"><span class="annottext">XXLit x
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>           </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-194"></span><span>
+</span><span id="line-195"></span><span class="hs-comment">-- | @'hsOverLitNeedsParens' p ol@ returns 'True' if an overloaded literal</span><span>
+</span><span id="line-196"></span><span class="hs-comment">-- @ol@ needs to be parenthesized under precedence @p@.</span><span>
+</span><span id="line-197"></span><span id="local-6989586621681075686"><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#hsOverLitNeedsParens"><span class="hs-identifier hs-type">hsOverLitNeedsParens</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Types.Basic.html#PprPrec"><span class="hs-identifier hs-type">PprPrec</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsOverLit"><span class="hs-identifier hs-type">HsOverLit</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681075686"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span><span>
+</span><span id="line-198"></span><span id="hsOverLitNeedsParens"><span class="annot"><span class="annottext">hsOverLitNeedsParens :: forall x. PprPrec -&gt; HsOverLit x -&gt; Bool
+</span><a href="Language.Haskell.Syntax.Lit.html#hsOverLitNeedsParens"><span class="hs-identifier hs-var hs-var">hsOverLitNeedsParens</span></a></span></span><span> </span><span id="local-6989586621681075365"><span class="annot"><span class="annottext">PprPrec
+</span><a href="#local-6989586621681075365"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#OverLit"><span class="hs-identifier hs-type">OverLit</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">ol_val :: forall p. HsOverLit p -&gt; OverLitVal
+</span><a href="Language.Haskell.Syntax.Lit.html#ol_val"><span class="hs-identifier hs-var">ol_val</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621681075364"><span class="annot"><span class="annottext">OverLitVal
+</span><a href="#local-6989586621681075364"><span class="hs-identifier hs-var">olv</span></a></span></span><span> </span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">OverLitVal -&gt; Bool
+</span><a href="#local-6989586621681075363"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">OverLitVal
+</span><a href="#local-6989586621681075364"><span class="hs-identifier hs-var">olv</span></a></span><span>
+</span><span id="line-199"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-200"></span><span>    </span><span class="annot"><a href="#local-6989586621681075363"><span class="hs-identifier hs-type">go</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#OverLitVal"><span class="hs-identifier hs-type">OverLitVal</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-201"></span><span>    </span><span id="local-6989586621681075363"><span class="annot"><span class="annottext">go :: OverLitVal -&gt; Bool
+</span><a href="#local-6989586621681075363"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsIntegral"><span class="hs-identifier hs-type">HsIntegral</span></a></span><span> </span><span id="local-6989586621681075362"><span class="annot"><span class="annottext">IntegralLit
+</span><a href="#local-6989586621681075362"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PprPrec
+</span><a href="#local-6989586621681075365"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">PprPrec
+</span><a href="GHC.Types.Basic.html#topPrec"><span class="hs-identifier hs-var">topPrec</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">IntegralLit -&gt; Bool
+</span><a href="GHC.Types.SourceText.html#il_neg"><span class="hs-identifier hs-var">il_neg</span></a></span><span> </span><span class="annot"><span class="annottext">IntegralLit
+</span><a href="#local-6989586621681075362"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-202"></span><span>    </span><span class="annot"><a href="#local-6989586621681075363"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsFractional"><span class="hs-identifier hs-type">HsFractional</span></a></span><span> </span><span id="local-6989586621681075361"><span class="annot"><span class="annottext">FractionalLit
+</span><a href="#local-6989586621681075361"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PprPrec
+</span><a href="#local-6989586621681075365"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">PprPrec
+</span><a href="GHC.Types.Basic.html#topPrec"><span class="hs-identifier hs-var">topPrec</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">FractionalLit -&gt; Bool
+</span><a href="GHC.Types.SourceText.html#fl_neg"><span class="hs-identifier hs-var">fl_neg</span></a></span><span> </span><span class="annot"><span class="annottext">FractionalLit
+</span><a href="#local-6989586621681075361"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-203"></span><span>    </span><span class="annot"><a href="#local-6989586621681075363"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#HsIsString"><span class="hs-identifier hs-type">HsIsString</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-204"></span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#hsOverLitNeedsParens"><span class="hs-identifier hs-var">hsOverLitNeedsParens</span></a></span><span> </span><span class="annot"><span class="annottext">PprPrec
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html#XOverLit"><span class="hs-identifier hs-type">XOverLit</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-205"></span></pre></body></html>

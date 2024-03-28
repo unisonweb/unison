@@ -1,0 +1,111 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE RecordWildCards #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Network.HTTP2.Arch.Cache</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.OrdPSQ</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">OrdPSQ</span></span><span class="hs-special">)</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.OrdPSQ</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">PSQ</span></span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">type</span><span> </span><span id="Priority"><span class="annot"><a href="Network.HTTP2.Arch.Cache.html#Priority"><span class="hs-identifier hs-var">Priority</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">data</span><span> </span><span id="Cache"><span class="annot"><a href="Network.HTTP2.Arch.Cache.html#Cache"><span class="hs-identifier hs-var">Cache</span></a></span></span><span> </span><span id="local-6989586621679096151"><span class="annot"><a href="#local-6989586621679096151"><span class="hs-identifier hs-type">k</span></a></span></span><span> </span><span id="local-6989586621679096150"><span class="annot"><a href="#local-6989586621679096150"><span class="hs-identifier hs-type">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Cache"><span class="annot"><a href="Network.HTTP2.Arch.Cache.html#Cache"><span class="hs-identifier hs-var">Cache</span></a></span></span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-11"></span><span>    </span><span id="cLimit"><span class="annot"><span class="annottext">forall k v. Cache k v -&gt; Int
+</span><a href="Network.HTTP2.Arch.Cache.html#cLimit"><span class="hs-identifier hs-var hs-var">cLimit</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-12"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="cSize"><span class="annot"><span class="annottext">forall k v. Cache k v -&gt; Int
+</span><a href="Network.HTTP2.Arch.Cache.html#cSize"><span class="hs-identifier hs-var hs-var">cSize</span></a></span></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-13"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="cTick"><span class="annot"><span class="annottext">forall k v. Cache k v -&gt; Int
+</span><a href="Network.HTTP2.Arch.Cache.html#cTick"><span class="hs-identifier hs-var hs-var">cTick</span></a></span></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP2.Arch.Cache.html#Priority"><span class="hs-identifier hs-type">Priority</span></a></span><span>
+</span><span id="line-14"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="cQueue"><span class="annot"><span class="annottext">forall k v. Cache k v -&gt; OrdPSQ k Int v
+</span><a href="Network.HTTP2.Arch.Cache.html#cQueue"><span class="hs-identifier hs-var hs-var">cQueue</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">OrdPSQ</span></span><span> </span><span class="annot"><a href="#local-6989586621679096151"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="Network.HTTP2.Arch.Cache.html#Priority"><span class="hs-identifier hs-type">Priority</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679096150"><span class="hs-identifier hs-type">v</span></a></span><span>
+</span><span id="line-15"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span id="local-6989586621679096138"><span id="local-6989586621679096139"><span class="annot"><a href="Network.HTTP2.Arch.Cache.html#emptyCache"><span class="hs-identifier hs-type">emptyCache</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP2.Arch.Cache.html#Cache"><span class="hs-identifier hs-type">Cache</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679096139"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679096138"><span class="hs-identifier hs-type">v</span></a></span></span></span><span>
+</span><span id="line-18"></span><span id="emptyCache"><span class="annot"><span class="annottext">emptyCache :: forall k v. Int -&gt; Cache k v
+</span><a href="Network.HTTP2.Arch.Cache.html#emptyCache"><span class="hs-identifier hs-var hs-var">emptyCache</span></a></span></span><span> </span><span id="local-6989586621679096100"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679096100"><span class="hs-identifier hs-var">lim</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall k v. Int -&gt; Int -&gt; Int -&gt; OrdPSQ k Int v -&gt; Cache k v
+</span><a href="Network.HTTP2.Arch.Cache.html#Cache"><span class="hs-identifier hs-var">Cache</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679096100"><span class="hs-identifier hs-var">lim</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">forall k p v. OrdPSQ k p v
+</span><span class="hs-identifier hs-var">PSQ.empty</span></span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span id="local-6989586621679096133"><span id="local-6989586621679096134"><span class="annot"><a href="Network.HTTP2.Arch.Cache.html#insert"><span class="hs-identifier hs-type">insert</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679096134"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679096134"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679096133"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP2.Arch.Cache.html#Cache"><span class="hs-identifier hs-type">Cache</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679096134"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679096133"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP2.Arch.Cache.html#Cache"><span class="hs-identifier hs-type">Cache</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679096134"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679096133"><span class="hs-identifier hs-type">v</span></a></span></span></span><span>
+</span><span id="line-21"></span><span id="insert"><span class="annot"><span class="annottext">insert :: forall k v. Ord k =&gt; k -&gt; v -&gt; Cache k v -&gt; Cache k v
+</span><a href="Network.HTTP2.Arch.Cache.html#insert"><span class="hs-identifier hs-var hs-var">insert</span></a></span></span><span> </span><span id="local-6989586621679096087"><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621679096087"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span id="local-6989586621679096086"><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621679096086"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span id="local-6989586621679096085"><span class="annot"><span class="annottext">c :: Cache k v
+</span><a href="#local-6989586621679096085"><span class="hs-identifier hs-var">c</span></a></span></span><span class="hs-glyph">@</span><span class="annot"><a href="Network.HTTP2.Arch.Cache.html#Cache"><span class="hs-identifier hs-type">Cache</span></a></span><span class="hs-special">{</span><span id="local-6989586621679096081"><span id="local-6989586621679096082"><span id="local-6989586621679096083"><span id="local-6989586621679096084"><span class="annot"><span class="annottext">Int
+OrdPSQ k Int v
+cQueue :: OrdPSQ k Int v
+cTick :: Int
+cSize :: Int
+cLimit :: Int
+cQueue :: forall k v. Cache k v -&gt; OrdPSQ k Int v
+cTick :: forall k v. Cache k v -&gt; Int
+cSize :: forall k v. Cache k v -&gt; Int
+cLimit :: forall k v. Cache k v -&gt; Int
+</span><a href="#local-6989586621679096081"><span class="hs-glyph hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">..</span></a></span></span></span></span></span><span class="hs-special">}</span><span>
+</span><span id="line-22"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679096083"><span class="hs-identifier hs-var">cSize</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679096084"><span class="hs-identifier hs-var">cLimit</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679096075"><span class="annot"><span class="annottext">q :: OrdPSQ k Int v
+</span><a href="#local-6989586621679096075"><span class="hs-identifier hs-var hs-var">q</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall k p v.
+(Ord k, Ord p) =&gt;
+k -&gt; p -&gt; v -&gt; OrdPSQ k p v -&gt; OrdPSQ k p v
+</span><span class="hs-identifier hs-var">PSQ.insert</span></span><span> </span><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621679096087"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679096082"><span class="hs-identifier hs-var">cTick</span></a></span><span> </span><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621679096086"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall k p v. (Ord k, Ord p) =&gt; OrdPSQ k p v -&gt; OrdPSQ k p v
+</span><span class="hs-identifier hs-var">PSQ.deleteMin</span></span><span> </span><span class="annot"><span class="annottext">OrdPSQ k Int v
+</span><a href="#local-6989586621679096081"><span class="hs-identifier hs-var">cQueue</span></a></span><span>
+</span><span id="line-23"></span><span>                      </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">Cache k v
+</span><a href="#local-6989586621679096085"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">cTick :: Int
+</span><a href="Network.HTTP2.Arch.Cache.html#cTick"><span class="hs-identifier hs-var">cTick</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679096082"><span class="hs-identifier hs-var">cTick</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">cQueue :: OrdPSQ k Int v
+</span><a href="Network.HTTP2.Arch.Cache.html#cQueue"><span class="hs-identifier hs-var">cQueue</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">OrdPSQ k Int v
+</span><a href="#local-6989586621679096075"><span class="hs-identifier hs-var">q</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-24"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679096069"><span class="annot"><span class="annottext">q :: OrdPSQ k Int v
+</span><a href="#local-6989586621679096069"><span class="hs-identifier hs-var hs-var">q</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall k p v.
+(Ord k, Ord p) =&gt;
+k -&gt; p -&gt; v -&gt; OrdPSQ k p v -&gt; OrdPSQ k p v
+</span><span class="hs-identifier hs-var">PSQ.insert</span></span><span> </span><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621679096087"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679096082"><span class="hs-identifier hs-var">cTick</span></a></span><span> </span><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621679096086"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">OrdPSQ k Int v
+</span><a href="#local-6989586621679096081"><span class="hs-identifier hs-var">cQueue</span></a></span><span>
+</span><span id="line-25"></span><span>                      </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">Cache k v
+</span><a href="#local-6989586621679096085"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">cTick :: Int
+</span><a href="Network.HTTP2.Arch.Cache.html#cTick"><span class="hs-identifier hs-var">cTick</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679096082"><span class="hs-identifier hs-var">cTick</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">cQueue :: OrdPSQ k Int v
+</span><a href="Network.HTTP2.Arch.Cache.html#cQueue"><span class="hs-identifier hs-var">cQueue</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">OrdPSQ k Int v
+</span><a href="#local-6989586621679096069"><span class="hs-identifier hs-var">q</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">cSize :: Int
+</span><a href="Network.HTTP2.Arch.Cache.html#cSize"><span class="hs-identifier hs-var">cSize</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679096083"><span class="hs-identifier hs-var">cSize</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span id="local-6989586621679096118"><span id="local-6989586621679096119"><span class="annot"><a href="Network.HTTP2.Arch.Cache.html#lookup"><span class="hs-identifier hs-type">lookup</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679096119"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679096119"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP2.Arch.Cache.html#Cache"><span class="hs-identifier hs-type">Cache</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679096119"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679096118"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679096118"><span class="hs-identifier hs-type">v</span></a></span></span></span><span>
+</span><span id="line-28"></span><span id="lookup"><span class="annot"><span class="annottext">lookup :: forall k v. Ord k =&gt; k -&gt; Cache k v -&gt; Maybe v
+</span><a href="Network.HTTP2.Arch.Cache.html#lookup"><span class="hs-identifier hs-var hs-var">lookup</span></a></span></span><span> </span><span id="local-6989586621679096063"><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621679096063"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="annot"><a href="Network.HTTP2.Arch.Cache.html#Cache"><span class="hs-identifier hs-type">Cache</span></a></span><span class="hs-special">{</span><span id="local-6989586621679096059"><span id="local-6989586621679096060"><span id="local-6989586621679096061"><span id="local-6989586621679096062"><span class="annot"><span class="annottext">Int
+OrdPSQ k Int v
+cQueue :: OrdPSQ k Int v
+cTick :: Int
+cSize :: Int
+cLimit :: Int
+cQueue :: forall k v. Cache k v -&gt; OrdPSQ k Int v
+cTick :: forall k v. Cache k v -&gt; Int
+cSize :: forall k v. Cache k v -&gt; Int
+cLimit :: forall k v. Cache k v -&gt; Int
+</span><a href="#local-6989586621679096059"><span class="hs-glyph hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">..</span></a></span></span></span></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (a, b) -&gt; b
+</span><span class="hs-identifier hs-var">snd</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall k p v. Ord k =&gt; k -&gt; OrdPSQ k p v -&gt; Maybe (p, v)
+</span><span class="hs-identifier hs-var">PSQ.lookup</span></span><span> </span><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621679096063"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">OrdPSQ k Int v
+</span><a href="#local-6989586621679096059"><span class="hs-identifier hs-var">cQueue</span></a></span><span>
+</span><span id="line-29"></span></pre></body></html>

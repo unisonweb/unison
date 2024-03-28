@@ -1,0 +1,188 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- THIS IS A GENERATED FILE, DO NOT EDIT</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-imports #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-matches #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-deprecations #-}</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.TextDocumentSyncKind</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Hashable</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html"><span class="hs-identifier">Language.LSP.Protocol.Utils.Misc</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prettyprinter</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Aeson.html"><span class="hs-identifier">Data.Row.Aeson</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Hashable.html"><span class="hs-identifier">Data.Row.Hashable</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Hashable</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Set</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.String</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html"><span class="hs-identifier">Language.LSP.Protocol.Types.Common</span></a></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html"><span class="hs-identifier">Language.LSP.Protocol.Types.LspEnum</span></a></span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-comment">{-|
+Defines how the host (editor) should sync
+document changes to the language server.
+-}</span><span>
+</span><span id="line-25"></span><span id="local-6989586621682134346"><span id="local-6989586621682134347"></span></span><span class="hs-keyword">data</span><span> </span><span id="TextDocumentSyncKind"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.TextDocumentSyncKind.html#TextDocumentSyncKind"><span class="hs-identifier hs-var">TextDocumentSyncKind</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span>
+</span><span id="line-26"></span><span>    </span><span class="hs-comment">{-|
+  Documents should not be synced at all.
+  -}</span><span>
+</span><span id="line-29"></span><span>  </span><span id="TextDocumentSyncKind_None"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.TextDocumentSyncKind.html#TextDocumentSyncKind_None"><span class="hs-identifier hs-var">TextDocumentSyncKind_None</span></a></span></span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-comment">{-|
+  Documents are synced by always sending the full content
+  of the document.
+  -}</span><span>
+</span><span id="line-34"></span><span>  </span><span id="TextDocumentSyncKind_Full"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.TextDocumentSyncKind.html#TextDocumentSyncKind_Full"><span class="hs-identifier hs-var">TextDocumentSyncKind_Full</span></a></span></span><span>
+</span><span id="line-35"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-comment">{-|
+  Documents are synced by sending the full content on open.
+  After that only incremental updates to the document are
+  send.
+  -}</span><span>
+</span><span id="line-40"></span><span>  </span><span id="TextDocumentSyncKind_Incremental"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.TextDocumentSyncKind.html#TextDocumentSyncKind_Incremental"><span class="hs-identifier hs-var">TextDocumentSyncKind_Incremental</span></a></span></span><span>
+</span><span id="line-41"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682134337"><span id="local-6989586621682134339"><span id="local-6989586621682134341"><span class="annot"><span class="annottext">Int -&gt; TextDocumentSyncKind -&gt; ShowS
+[TextDocumentSyncKind] -&gt; ShowS
+TextDocumentSyncKind -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [TextDocumentSyncKind] -&gt; ShowS
+$cshowList :: [TextDocumentSyncKind] -&gt; ShowS
+show :: TextDocumentSyncKind -&gt; String
+$cshow :: TextDocumentSyncKind -&gt; String
+showsPrec :: Int -&gt; TextDocumentSyncKind -&gt; ShowS
+$cshowsPrec :: Int -&gt; TextDocumentSyncKind -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682134332"><span id="local-6989586621682134334"><span class="annot"><span class="annottext">TextDocumentSyncKind -&gt; TextDocumentSyncKind -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: TextDocumentSyncKind -&gt; TextDocumentSyncKind -&gt; Bool
+$c/= :: TextDocumentSyncKind -&gt; TextDocumentSyncKind -&gt; Bool
+== :: TextDocumentSyncKind -&gt; TextDocumentSyncKind -&gt; Bool
+$c== :: TextDocumentSyncKind -&gt; TextDocumentSyncKind -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682134312"><span id="local-6989586621682134314"><span id="local-6989586621682134317"><span id="local-6989586621682134320"><span id="local-6989586621682134323"><span id="local-6989586621682134325"><span id="local-6989586621682134327"><span class="annot"><span class="annottext">Eq TextDocumentSyncKind
+TextDocumentSyncKind -&gt; TextDocumentSyncKind -&gt; Bool
+TextDocumentSyncKind -&gt; TextDocumentSyncKind -&gt; Ordering
+TextDocumentSyncKind
+-&gt; TextDocumentSyncKind -&gt; TextDocumentSyncKind
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: TextDocumentSyncKind
+-&gt; TextDocumentSyncKind -&gt; TextDocumentSyncKind
+$cmin :: TextDocumentSyncKind
+-&gt; TextDocumentSyncKind -&gt; TextDocumentSyncKind
+max :: TextDocumentSyncKind
+-&gt; TextDocumentSyncKind -&gt; TextDocumentSyncKind
+$cmax :: TextDocumentSyncKind
+-&gt; TextDocumentSyncKind -&gt; TextDocumentSyncKind
+&gt;= :: TextDocumentSyncKind -&gt; TextDocumentSyncKind -&gt; Bool
+$c&gt;= :: TextDocumentSyncKind -&gt; TextDocumentSyncKind -&gt; Bool
+&gt; :: TextDocumentSyncKind -&gt; TextDocumentSyncKind -&gt; Bool
+$c&gt; :: TextDocumentSyncKind -&gt; TextDocumentSyncKind -&gt; Bool
+&lt;= :: TextDocumentSyncKind -&gt; TextDocumentSyncKind -&gt; Bool
+$c&lt;= :: TextDocumentSyncKind -&gt; TextDocumentSyncKind -&gt; Bool
+&lt; :: TextDocumentSyncKind -&gt; TextDocumentSyncKind -&gt; Bool
+$c&lt; :: TextDocumentSyncKind -&gt; TextDocumentSyncKind -&gt; Bool
+compare :: TextDocumentSyncKind -&gt; TextDocumentSyncKind -&gt; Ordering
+$ccompare :: TextDocumentSyncKind -&gt; TextDocumentSyncKind -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall x. Rep TextDocumentSyncKind x -&gt; TextDocumentSyncKind
+forall x. TextDocumentSyncKind -&gt; Rep TextDocumentSyncKind x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cto :: forall x. Rep TextDocumentSyncKind x -&gt; TextDocumentSyncKind
+$cfrom :: forall x. TextDocumentSyncKind -&gt; Rep TextDocumentSyncKind x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">anyclass</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682134306"><span class="annot"><span class="annottext">TextDocumentSyncKind -&gt; ()
+forall a. (a -&gt; ()) -&gt; NFData a
+rnf :: TextDocumentSyncKind -&gt; ()
+$crnf :: TextDocumentSyncKind -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682134299"><span id="local-6989586621682134301"><span class="annot"><span class="annottext">Eq TextDocumentSyncKind
+Int -&gt; TextDocumentSyncKind -&gt; Int
+TextDocumentSyncKind -&gt; Int
+forall a. Eq a -&gt; (Int -&gt; a -&gt; Int) -&gt; (a -&gt; Int) -&gt; Hashable a
+hash :: TextDocumentSyncKind -&gt; Int
+$chash :: TextDocumentSyncKind -&gt; Int
+hashWithSalt :: Int -&gt; TextDocumentSyncKind -&gt; Int
+$chashWithSalt :: Int -&gt; TextDocumentSyncKind -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Hashable</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-43"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span> </span><span id="local-6989586621682134274"><span id="local-6989586621682134281"><span id="local-6989586621682134288"><span id="local-6989586621682134296"><span class="annot"><span class="annottext">[TextDocumentSyncKind] -&gt; Encoding
+[TextDocumentSyncKind] -&gt; Value
+TextDocumentSyncKind -&gt; Encoding
+TextDocumentSyncKind -&gt; Value
+forall a.
+(a -&gt; Value)
+-&gt; (a -&gt; Encoding)
+-&gt; ([a] -&gt; Value)
+-&gt; ([a] -&gt; Encoding)
+-&gt; ToJSON a
+toEncodingList :: [TextDocumentSyncKind] -&gt; Encoding
+$ctoEncodingList :: [TextDocumentSyncKind] -&gt; Encoding
+toJSONList :: [TextDocumentSyncKind] -&gt; Value
+$ctoJSONList :: [TextDocumentSyncKind] -&gt; Value
+toEncoding :: TextDocumentSyncKind -&gt; Encoding
+$ctoEncoding :: TextDocumentSyncKind -&gt; Encoding
+toJSON :: TextDocumentSyncKind -&gt; Value
+$ctoJSON :: TextDocumentSyncKind -&gt; Value
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Aeson.ToJSON</span></span></span></span></span></span><span>
+</span><span id="line-44"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="local-6989586621682134250"><span id="local-6989586621682134259"><span class="annot"><span class="annottext">Value -&gt; Parser [TextDocumentSyncKind]
+Value -&gt; Parser TextDocumentSyncKind
+forall a.
+(Value -&gt; Parser a) -&gt; (Value -&gt; Parser [a]) -&gt; FromJSON a
+parseJSONList :: Value -&gt; Parser [TextDocumentSyncKind]
+$cparseJSONList :: Value -&gt; Parser [TextDocumentSyncKind]
+parseJSON :: Value -&gt; Parser TextDocumentSyncKind
+$cparseJSON :: Value -&gt; Parser TextDocumentSyncKind
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Aeson.FromJSON</span></span></span></span><span> </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">via</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#AsLspEnum"><span class="hs-identifier hs-type">Language.LSP.Protocol.Types.LspEnum.AsLspEnum</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.TextDocumentSyncKind.html#TextDocumentSyncKind"><span class="hs-identifier hs-type">TextDocumentSyncKind</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#UInt"><span class="hs-identifier hs-type">Language.LSP.Protocol.Types.Common.UInt</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-45"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621682134230"><span id="local-6989586621682134236"><span class="annot"><span class="annottext">forall ann. [TextDocumentSyncKind] -&gt; Doc ann
+forall ann. TextDocumentSyncKind -&gt; Doc ann
+forall a.
+(forall ann. a -&gt; Doc ann)
+-&gt; (forall ann. [a] -&gt; Doc ann) -&gt; Pretty a
+prettyList :: forall ann. [TextDocumentSyncKind] -&gt; Doc ann
+$cprettyList :: forall ann. [TextDocumentSyncKind] -&gt; Doc ann
+pretty :: forall ann. TextDocumentSyncKind -&gt; Doc ann
+$cpretty :: forall ann. TextDocumentSyncKind -&gt; Doc ann
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Pretty</span></span></span></span><span> </span><span class="hs-keyword">via</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html#ViaJSON"><span class="hs-identifier hs-type">ViaJSON</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.TextDocumentSyncKind.html#TextDocumentSyncKind"><span class="hs-identifier hs-type">TextDocumentSyncKind</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#LspEnum"><span class="hs-identifier hs-type">Language.LSP.Protocol.Types.LspEnum.LspEnum</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.TextDocumentSyncKind.html#TextDocumentSyncKind"><span class="hs-identifier hs-type">TextDocumentSyncKind</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-48"></span><span>  </span><span id="local-6989586621682134219"><span class="annot"><span class="annottext">knownValues :: Set TextDocumentSyncKind
+</span><a href="Language.LSP.Protocol.Types.LspEnum.html#knownValues"><span class="hs-identifier hs-var hs-var hs-var hs-var">knownValues</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; [a] -&gt; Set a
+</span><span class="hs-identifier hs-var">Data.Set.fromList</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">TextDocumentSyncKind
+</span><a href="Language.LSP.Protocol.Internal.Types.TextDocumentSyncKind.html#TextDocumentSyncKind_None"><span class="hs-identifier hs-var">TextDocumentSyncKind_None</span></a></span><span>
+</span><span id="line-49"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">TextDocumentSyncKind
+</span><a href="Language.LSP.Protocol.Internal.Types.TextDocumentSyncKind.html#TextDocumentSyncKind_Full"><span class="hs-identifier hs-var">TextDocumentSyncKind_Full</span></a></span><span>
+</span><span id="line-50"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">TextDocumentSyncKind
+</span><a href="Language.LSP.Protocol.Internal.Types.TextDocumentSyncKind.html#TextDocumentSyncKind_Incremental"><span class="hs-identifier hs-var">TextDocumentSyncKind_Incremental</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-51"></span><span>  </span><span class="hs-keyword">type</span><span> </span><span id="EnumBaseType"><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#EnumBaseType"><span class="hs-identifier hs-var">EnumBaseType</span></a></span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.TextDocumentSyncKind.html#TextDocumentSyncKind"><span class="hs-identifier hs-type">TextDocumentSyncKind</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#UInt"><span class="hs-identifier hs-type">Language.LSP.Protocol.Types.Common.UInt</span></a></span><span>
+</span><span id="line-52"></span><span>  </span><span id="local-6989586621682134212"><span class="annot"><span class="annottext">toEnumBaseType :: TextDocumentSyncKind -&gt; EnumBaseType TextDocumentSyncKind
+</span><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var hs-var hs-var hs-var">toEnumBaseType</span></a></span></span><span> </span><span class="annot"><span class="annottext">TextDocumentSyncKind
+</span><a href="Language.LSP.Protocol.Internal.Types.TextDocumentSyncKind.html#TextDocumentSyncKind_None"><span class="hs-identifier hs-var">TextDocumentSyncKind_None</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UInt
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-53"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">TextDocumentSyncKind
+</span><a href="Language.LSP.Protocol.Internal.Types.TextDocumentSyncKind.html#TextDocumentSyncKind_Full"><span class="hs-identifier hs-var">TextDocumentSyncKind_Full</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UInt
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-54"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">TextDocumentSyncKind
+</span><a href="Language.LSP.Protocol.Internal.Types.TextDocumentSyncKind.html#TextDocumentSyncKind_Incremental"><span class="hs-identifier hs-var">TextDocumentSyncKind_Incremental</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UInt
+</span><span class="hs-number">2</span></span><span>
+</span><span id="line-55"></span><span>  </span><span id="local-6989586621682134199"><span class="annot"><span class="annottext">fromEnumBaseType :: EnumBaseType TextDocumentSyncKind -&gt; Maybe TextDocumentSyncKind
+</span><a href="Language.LSP.Protocol.Types.LspEnum.html#fromEnumBaseType"><span class="hs-identifier hs-var hs-var hs-var hs-var">fromEnumBaseType</span></a></span></span><span> </span><span class="annot"><span class="annottext">EnumBaseType TextDocumentSyncKind
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">TextDocumentSyncKind
+</span><a href="Language.LSP.Protocol.Internal.Types.TextDocumentSyncKind.html#TextDocumentSyncKind_None"><span class="hs-identifier hs-var">TextDocumentSyncKind_None</span></a></span><span>
+</span><span id="line-56"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromEnumBaseType"><span class="hs-identifier hs-var">fromEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType TextDocumentSyncKind
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">TextDocumentSyncKind
+</span><a href="Language.LSP.Protocol.Internal.Types.TextDocumentSyncKind.html#TextDocumentSyncKind_Full"><span class="hs-identifier hs-var">TextDocumentSyncKind_Full</span></a></span><span>
+</span><span id="line-57"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromEnumBaseType"><span class="hs-identifier hs-var">fromEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType TextDocumentSyncKind
+</span><span class="hs-number">2</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">TextDocumentSyncKind
+</span><a href="Language.LSP.Protocol.Internal.Types.TextDocumentSyncKind.html#TextDocumentSyncKind_Incremental"><span class="hs-identifier hs-var">TextDocumentSyncKind_Incremental</span></a></span><span>
+</span><span id="line-58"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromEnumBaseType"><span class="hs-identifier hs-var">fromEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType TextDocumentSyncKind
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span>
+</span><span id="line-61"></span></pre></body></html>

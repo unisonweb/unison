@@ -1,0 +1,249 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- THIS IS A GENERATED FILE, DO NOT EDIT</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-imports #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-matches #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-deprecations #-}</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.DocumentSymbol</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Hashable</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html"><span class="hs-identifier">Language.LSP.Protocol.Utils.Misc</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prettyprinter</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Aeson.html"><span class="hs-identifier">Data.Row.Aeson</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Hashable.html"><span class="hs-identifier">Data.Row.Hashable</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Hashable</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.Range.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.Range</span></a></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.SymbolKind.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.SymbolKind</span></a></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.SymbolTag.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.SymbolTag</span></a></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html"><span class="hs-identifier">Language.LSP.Protocol.Types.Common</span></a></span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="hs-comment">{-|
+Represents programming constructs like variables, classes, interfaces etc.
+that appear in a document. Document symbols can be hierarchical and they
+have two ranges: one that encloses its definition and one that points to
+its most interesting range, e.g. the range of an identifier.
+-}</span><span>
+</span><span id="line-28"></span><span id="local-6989586621682188838"><span id="local-6989586621682188839"></span></span><span class="hs-keyword">data</span><span> </span><span id="DocumentSymbol"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.DocumentSymbol.html#DocumentSymbol"><span class="hs-identifier hs-var">DocumentSymbol</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="DocumentSymbol"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.DocumentSymbol.html#DocumentSymbol"><span class="hs-identifier hs-var">DocumentSymbol</span></a></span></span><span> </span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-special">{</span><span> </span><span class="hs-comment">{-|
+  The name of this symbol. Will be displayed in the user interface and therefore must not be
+  an empty string or a string only consisting of white spaces.
+  -}</span><span>
+</span><span id="line-33"></span><span>  </span><span id="%24sel%3A_name%3ADocumentSymbol"><span class="annot"><span class="annottext">DocumentSymbol -&gt; Text
+</span><a href="Language.LSP.Protocol.Internal.Types.DocumentSymbol.html#%24sel%3A_name%3ADocumentSymbol"><span class="hs-identifier hs-var hs-var">_name</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Data.Text.Text</span></span><span>
+</span><span id="line-34"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-comment">{-|
+  More detail for this symbol, e.g the signature of a function.
+  -}</span><span>
+</span><span id="line-37"></span><span>  </span><span id="%24sel%3A_detail%3ADocumentSymbol"><span class="annot"><span class="annottext">DocumentSymbol -&gt; Maybe Text
+</span><a href="Language.LSP.Protocol.Internal.Types.DocumentSymbol.html#%24sel%3A_detail%3ADocumentSymbol"><span class="hs-identifier hs-var hs-var">_detail</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Data.Text.Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-38"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-comment">{-|
+  The kind of this symbol.
+  -}</span><span>
+</span><span id="line-41"></span><span>  </span><span id="%24sel%3A_kind%3ADocumentSymbol"><span class="annot"><span class="annottext">DocumentSymbol -&gt; SymbolKind
+</span><a href="Language.LSP.Protocol.Internal.Types.DocumentSymbol.html#%24sel%3A_kind%3ADocumentSymbol"><span class="hs-identifier hs-var hs-var">_kind</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.SymbolKind.html#SymbolKind"><span class="hs-identifier hs-type">Language.LSP.Protocol.Internal.Types.SymbolKind.SymbolKind</span></a></span><span>
+</span><span id="line-42"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-comment">{-|
+  Tags for this document symbol.
+
+  @since 3.16.0
+  -}</span><span>
+</span><span id="line-47"></span><span>  </span><span id="%24sel%3A_tags%3ADocumentSymbol"><span class="annot"><span class="annottext">DocumentSymbol -&gt; Maybe [SymbolTag]
+</span><a href="Language.LSP.Protocol.Internal.Types.DocumentSymbol.html#%24sel%3A_tags%3ADocumentSymbol"><span class="hs-identifier hs-var hs-var">_tags</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.SymbolTag.html#SymbolTag"><span class="hs-identifier hs-type">Language.LSP.Protocol.Internal.Types.SymbolTag.SymbolTag</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-48"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-comment">{-|
+  Indicates if this symbol is deprecated.
+
+  @deprecated Use tags instead
+  -}</span><span>
+</span><span id="line-53"></span><span>  </span><span id="%24sel%3A_deprecated%3ADocumentSymbol"><span class="annot"><span class="annottext">DocumentSymbol -&gt; Maybe Bool
+</span><a href="Language.LSP.Protocol.Internal.Types.DocumentSymbol.html#%24sel%3A_deprecated%3ADocumentSymbol"><span class="hs-identifier hs-var hs-var">_deprecated</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span>
+</span><span id="line-54"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-comment">{-|
+  The range enclosing this symbol not including leading/trailing whitespace but everything else
+  like comments. This information is typically used to determine if the clients cursor is
+  inside the symbol to reveal in the symbol in the UI.
+  -}</span><span>
+</span><span id="line-59"></span><span>  </span><span id="%24sel%3A_range%3ADocumentSymbol"><span class="annot"><span class="annottext">DocumentSymbol -&gt; Range
+</span><a href="Language.LSP.Protocol.Internal.Types.DocumentSymbol.html#%24sel%3A_range%3ADocumentSymbol"><span class="hs-identifier hs-var hs-var">_range</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.Range.html#Range"><span class="hs-identifier hs-type">Language.LSP.Protocol.Internal.Types.Range.Range</span></a></span><span>
+</span><span id="line-60"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-comment">{-|
+  The range that should be selected and revealed when this symbol is being picked, e.g the name of a function.
+  Must be contained by the `range`.
+  -}</span><span>
+</span><span id="line-64"></span><span>  </span><span id="%24sel%3A_selectionRange%3ADocumentSymbol"><span class="annot"><span class="annottext">DocumentSymbol -&gt; Range
+</span><a href="Language.LSP.Protocol.Internal.Types.DocumentSymbol.html#%24sel%3A_selectionRange%3ADocumentSymbol"><span class="hs-identifier hs-var hs-var">_selectionRange</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.Range.html#Range"><span class="hs-identifier hs-type">Language.LSP.Protocol.Internal.Types.Range.Range</span></a></span><span>
+</span><span id="line-65"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-comment">{-|
+  Children of this symbol, e.g. properties of a class.
+  -}</span><span>
+</span><span id="line-68"></span><span>  </span><span id="%24sel%3A_children%3ADocumentSymbol"><span class="annot"><span class="annottext">DocumentSymbol -&gt; Maybe [DocumentSymbol]
+</span><a href="Language.LSP.Protocol.Internal.Types.DocumentSymbol.html#%24sel%3A_children%3ADocumentSymbol"><span class="hs-identifier hs-var hs-var">_children</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.DocumentSymbol.html#DocumentSymbol"><span class="hs-identifier hs-type">Language.LSP.Protocol.Internal.Types.DocumentSymbol.DocumentSymbol</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-69"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-70"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682188806"><span id="local-6989586621682188808"><span id="local-6989586621682188827"><span class="annot"><span class="annottext">Int -&gt; DocumentSymbol -&gt; ShowS
+[DocumentSymbol] -&gt; ShowS
+DocumentSymbol -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [DocumentSymbol] -&gt; ShowS
+$cshowList :: [DocumentSymbol] -&gt; ShowS
+show :: DocumentSymbol -&gt; String
+$cshow :: DocumentSymbol -&gt; String
+showsPrec :: Int -&gt; DocumentSymbol -&gt; ShowS
+$cshowsPrec :: Int -&gt; DocumentSymbol -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682188781"><span id="local-6989586621682188798"><span class="annot"><span class="annottext">DocumentSymbol -&gt; DocumentSymbol -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: DocumentSymbol -&gt; DocumentSymbol -&gt; Bool
+$c/= :: DocumentSymbol -&gt; DocumentSymbol -&gt; Bool
+== :: DocumentSymbol -&gt; DocumentSymbol -&gt; Bool
+$c== :: DocumentSymbol -&gt; DocumentSymbol -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682188730"><span id="local-6989586621682188732"><span id="local-6989586621682188735"><span id="local-6989586621682188738"><span id="local-6989586621682188741"><span id="local-6989586621682188754"><span id="local-6989586621682188771"><span class="annot"><span class="annottext">Eq DocumentSymbol
+DocumentSymbol -&gt; DocumentSymbol -&gt; Bool
+DocumentSymbol -&gt; DocumentSymbol -&gt; Ordering
+DocumentSymbol -&gt; DocumentSymbol -&gt; DocumentSymbol
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: DocumentSymbol -&gt; DocumentSymbol -&gt; DocumentSymbol
+$cmin :: DocumentSymbol -&gt; DocumentSymbol -&gt; DocumentSymbol
+max :: DocumentSymbol -&gt; DocumentSymbol -&gt; DocumentSymbol
+$cmax :: DocumentSymbol -&gt; DocumentSymbol -&gt; DocumentSymbol
+&gt;= :: DocumentSymbol -&gt; DocumentSymbol -&gt; Bool
+$c&gt;= :: DocumentSymbol -&gt; DocumentSymbol -&gt; Bool
+&gt; :: DocumentSymbol -&gt; DocumentSymbol -&gt; Bool
+$c&gt; :: DocumentSymbol -&gt; DocumentSymbol -&gt; Bool
+&lt;= :: DocumentSymbol -&gt; DocumentSymbol -&gt; Bool
+$c&lt;= :: DocumentSymbol -&gt; DocumentSymbol -&gt; Bool
+&lt; :: DocumentSymbol -&gt; DocumentSymbol -&gt; Bool
+$c&lt; :: DocumentSymbol -&gt; DocumentSymbol -&gt; Bool
+compare :: DocumentSymbol -&gt; DocumentSymbol -&gt; Ordering
+$ccompare :: DocumentSymbol -&gt; DocumentSymbol -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall x. Rep DocumentSymbol x -&gt; DocumentSymbol
+forall x. DocumentSymbol -&gt; Rep DocumentSymbol x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cto :: forall x. Rep DocumentSymbol x -&gt; DocumentSymbol
+$cfrom :: forall x. DocumentSymbol -&gt; Rep DocumentSymbol x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-71"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">anyclass</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682188717"><span class="annot"><span class="annottext">DocumentSymbol -&gt; ()
+forall a. (a -&gt; ()) -&gt; NFData a
+rnf :: DocumentSymbol -&gt; ()
+$crnf :: DocumentSymbol -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682188710"><span id="local-6989586621682188712"><span class="annot"><span class="annottext">Eq DocumentSymbol
+Int -&gt; DocumentSymbol -&gt; Int
+DocumentSymbol -&gt; Int
+forall a. Eq a -&gt; (Int -&gt; a -&gt; Int) -&gt; (a -&gt; Int) -&gt; Hashable a
+hash :: DocumentSymbol -&gt; Int
+$chash :: DocumentSymbol -&gt; Int
+hashWithSalt :: Int -&gt; DocumentSymbol -&gt; Int
+$chashWithSalt :: Int -&gt; DocumentSymbol -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Hashable</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-72"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621682188701"><span id="local-6989586621682188707"><span class="annot"><span class="annottext">forall ann. [DocumentSymbol] -&gt; Doc ann
+forall ann. DocumentSymbol -&gt; Doc ann
+forall a.
+(forall ann. a -&gt; Doc ann)
+-&gt; (forall ann. [a] -&gt; Doc ann) -&gt; Pretty a
+prettyList :: forall ann. [DocumentSymbol] -&gt; Doc ann
+$cprettyList :: forall ann. [DocumentSymbol] -&gt; Doc ann
+pretty :: forall ann. DocumentSymbol -&gt; Doc ann
+$cpretty :: forall ann. DocumentSymbol -&gt; Doc ann
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Pretty</span></span></span></span><span> </span><span class="hs-keyword">via</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html#ViaJSON"><span class="hs-identifier hs-type">ViaJSON</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.DocumentSymbol.html#DocumentSymbol"><span class="hs-identifier hs-type">DocumentSymbol</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-73"></span><span>
+</span><span id="line-74"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682188689"><span id="local-6989586621682188691"><span id="local-6989586621682188693"><span class="annot"><span class="hs-identifier hs-type">Aeson.ToJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.DocumentSymbol.html#DocumentSymbol"><span class="hs-identifier hs-type">DocumentSymbol</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-75"></span><span>  </span><span id="local-6989586621682188655"><span class="annot"><span class="annottext">toJSON :: DocumentSymbol -&gt; Value
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">toJSON</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.DocumentSymbol.html#DocumentSymbol"><span class="hs-identifier hs-type">DocumentSymbol</span></a></span><span> </span><span id="local-6989586621682188653"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621682188653"><span class="hs-identifier hs-var">arg0</span></a></span></span><span> </span><span id="local-6989586621682188652"><span class="annot"><span class="annottext">Maybe Text
+</span><a href="#local-6989586621682188652"><span class="hs-identifier hs-var">arg1</span></a></span></span><span> </span><span id="local-6989586621682188651"><span class="annot"><span class="annottext">SymbolKind
+</span><a href="#local-6989586621682188651"><span class="hs-identifier hs-var">arg2</span></a></span></span><span> </span><span id="local-6989586621682188650"><span class="annot"><span class="annottext">Maybe [SymbolTag]
+</span><a href="#local-6989586621682188650"><span class="hs-identifier hs-var">arg3</span></a></span></span><span> </span><span id="local-6989586621682188649"><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682188649"><span class="hs-identifier hs-var">arg4</span></a></span></span><span> </span><span id="local-6989586621682188648"><span class="annot"><span class="annottext">Range
+</span><a href="#local-6989586621682188648"><span class="hs-identifier hs-var">arg5</span></a></span></span><span> </span><span id="local-6989586621682188647"><span class="annot"><span class="annottext">Range
+</span><a href="#local-6989586621682188647"><span class="hs-identifier hs-var">arg6</span></a></span></span><span> </span><span id="local-6989586621682188646"><span class="annot"><span class="annottext">Maybe [DocumentSymbol]
+</span><a href="#local-6989586621682188646"><span class="hs-identifier hs-var">arg7</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">Aeson.object</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">concat</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>  </span><span class="hs-special">[</span><span class="hs-special">[</span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;name&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">Aeson..=</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621682188653"><span class="hs-identifier hs-var">arg0</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-76"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;detail&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Text
+</span><a href="#local-6989586621682188652"><span class="hs-identifier hs-var">arg1</span></a></span><span>
+</span><span id="line-77"></span><span>    </span><span class="hs-special">,</span><span class="hs-special">[</span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;kind&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">Aeson..=</span></span><span> </span><span class="annot"><span class="annottext">SymbolKind
+</span><a href="#local-6989586621682188651"><span class="hs-identifier hs-var">arg2</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-78"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;tags&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe [SymbolTag]
+</span><a href="#local-6989586621682188650"><span class="hs-identifier hs-var">arg3</span></a></span><span>
+</span><span id="line-79"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;deprecated&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682188649"><span class="hs-identifier hs-var">arg4</span></a></span><span>
+</span><span id="line-80"></span><span>    </span><span class="hs-special">,</span><span class="hs-special">[</span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;range&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">Aeson..=</span></span><span> </span><span class="annot"><span class="annottext">Range
+</span><a href="#local-6989586621682188648"><span class="hs-identifier hs-var">arg5</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-81"></span><span>    </span><span class="hs-special">,</span><span class="hs-special">[</span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;selectionRange&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">Aeson..=</span></span><span> </span><span class="annot"><span class="annottext">Range
+</span><a href="#local-6989586621682188647"><span class="hs-identifier hs-var">arg6</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-82"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;children&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe [DocumentSymbol]
+</span><a href="#local-6989586621682188646"><span class="hs-identifier hs-var">arg7</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-83"></span><span>
+</span><span id="line-84"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682188639"><span class="annot"><span class="hs-identifier hs-type">Aeson.FromJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.DocumentSymbol.html#DocumentSymbol"><span class="hs-identifier hs-type">DocumentSymbol</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-85"></span><span>  </span><span id="local-6989586621682188603"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser DocumentSymbol
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">Aeson.withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;DocumentSymbol&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621682188600"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682188600"><span class="hs-identifier hs-var">arg</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text
+-&gt; Maybe Text
+-&gt; SymbolKind
+-&gt; Maybe [SymbolTag]
+-&gt; Maybe Bool
+-&gt; Range
+-&gt; Range
+-&gt; Maybe [DocumentSymbol]
+-&gt; DocumentSymbol
+</span><a href="Language.LSP.Protocol.Internal.Types.DocumentSymbol.html#DocumentSymbol"><span class="hs-identifier hs-var">DocumentSymbol</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682188600"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">Aeson..:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;name&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682188600"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">Aeson..:!</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;detail&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682188600"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">Aeson..:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;kind&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682188600"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">Aeson..:!</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;tags&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682188600"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">Aeson..:!</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;deprecated&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682188600"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">Aeson..:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;range&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682188600"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">Aeson..:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;selectionRange&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682188600"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">Aeson..:!</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;children&quot;</span></span><span>
+</span><span id="line-86"></span></pre></body></html>

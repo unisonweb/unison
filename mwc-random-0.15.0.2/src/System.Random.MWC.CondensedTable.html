@@ -1,0 +1,920 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE FlexibleContexts #-}</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- Module    : System.Random.MWC.CondensedTable</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- Copyright : (c) 2012 Aleksey Khudyakov</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- License   : BSD3</span><span>
+</span><span id="line-6"></span><span class="hs-comment">--</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Maintainer  : bos@serpentine.com</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- Stability   : experimental</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- Portability : portable</span><span>
+</span><span id="line-10"></span><span class="hs-comment">--</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- Table-driven generation of random variates.  This approach can</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- generate random variates in /O(1)/ time for the supported</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- distributions, at a modest cost in initialization time.</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">System.Random.MWC.CondensedTable</span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-15"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Condensed tables</span></span><span>
+</span><span id="line-16"></span><span>    </span><span class="annot"><a href="System.Random.MWC.CondensedTable.html#CondensedTable"><span class="hs-identifier">CondensedTable</span></a></span><span>
+</span><span id="line-17"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Random.MWC.CondensedTable.html#CondensedTableV"><span class="hs-identifier">CondensedTableV</span></a></span><span>
+</span><span id="line-18"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Random.MWC.CondensedTable.html#CondensedTableU"><span class="hs-identifier">CondensedTableU</span></a></span><span>
+</span><span id="line-19"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Random.MWC.CondensedTable.html#genFromTable"><span class="hs-identifier">genFromTable</span></a></span><span>
+</span><span id="line-20"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Constructors for tables</span></span><span>
+</span><span id="line-21"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Random.MWC.CondensedTable.html#tableFromProbabilities"><span class="hs-identifier">tableFromProbabilities</span></a></span><span>
+</span><span id="line-22"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Random.MWC.CondensedTable.html#tableFromWeights"><span class="hs-identifier">tableFromWeights</span></a></span><span>
+</span><span id="line-23"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Random.MWC.CondensedTable.html#tableFromIntWeights"><span class="hs-identifier">tableFromIntWeights</span></a></span><span>
+</span><span id="line-24"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Disrete distributions</span></span><span>
+</span><span id="line-25"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Random.MWC.CondensedTable.html#tablePoisson"><span class="hs-identifier">tablePoisson</span></a></span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Random.MWC.CondensedTable.html#tableBinomial"><span class="hs-identifier">tableBinomial</span></a></span><span>
+</span><span id="line-27"></span><span>    </span><span class="annot"><span class="hs-comment">-- * References</span></span><span>
+</span><span id="line-28"></span><span>    </span><span class="annot"><span class="hs-comment">-- $references</span></span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Arrow</span></span><span>           </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">second</span></span><span class="hs-special">,</span><span class="annot"><span class="hs-operator">(***)</span></span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Word</span></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Int</span></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Bits</span></span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Vector.Generic</span></span><span>         </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">G</span></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Vector.Generic</span></span><span>           </span><span class="hs-special">(</span><span class="annot"><span class="hs-operator">(++)</span></span><span class="hs-special">)</span><span>
+</span><span id="line-38"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Vector.Generic.Mutable</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">M</span></span><span>
+</span><span id="line-39"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Vector.Unboxed</span></span><span>         </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">U</span></span><span>
+</span><span id="line-40"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Vector</span></span><span>                 </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">V</span></span><span>
+</span><span id="line-41"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Vector.Generic</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Vector</span></span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Numeric.SpecFunctions</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">logFactorial</span></span><span class="hs-special">)</span><span>
+</span><span id="line-43"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Random.Stateful</span></span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-operator">(++)</span></span><span class="hs-special">)</span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- | A lookup table for arbitrary discrete distributions. It allows</span><span>
+</span><span id="line-50"></span><span class="hs-comment">-- the generation of random variates in /O(1)/. Note that probability</span><span>
+</span><span id="line-51"></span><span class="hs-comment">-- is quantized in units of @1/2^32@, and all distributions with</span><span>
+</span><span id="line-52"></span><span class="hs-comment">-- infinite support (e.g. Poisson) should be truncated.</span><span>
+</span><span id="line-53"></span><span class="hs-keyword">data</span><span> </span><span id="CondensedTable"><span class="annot"><a href="System.Random.MWC.CondensedTable.html#CondensedTable"><span class="hs-identifier hs-var">CondensedTable</span></a></span></span><span> </span><span id="local-6989586621679064235"><span class="annot"><a href="#local-6989586621679064235"><span class="hs-identifier hs-type">v</span></a></span></span><span> </span><span id="local-6989586621679064234"><span class="annot"><a href="#local-6989586621679064234"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-54"></span><span>  </span><span id="CondensedTable"><span class="annot"><a href="System.Random.MWC.CondensedTable.html#CondensedTable"><span class="hs-identifier hs-var">CondensedTable</span></a></span></span><span>
+</span><span id="line-55"></span><span>  </span><span class="hs-pragma">{-# UNPACK</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679064235"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679064234"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-comment">-- Lookup limit and first table</span><span>
+</span><span id="line-56"></span><span>  </span><span class="hs-pragma">{-# UNPACK</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679064235"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679064234"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-comment">-- Second table</span><span>
+</span><span id="line-57"></span><span>  </span><span class="hs-pragma">{-# UNPACK</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679064235"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679064234"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-comment">-- Third table</span><span>
+</span><span id="line-58"></span><span>  </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679064235"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679064234"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span>                        </span><span class="hs-comment">-- Last table</span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span class="hs-comment">-- Implementation note. We have to store lookup limit in Word64 since</span><span>
+</span><span id="line-61"></span><span class="hs-comment">-- we need to accomodate two cases. First is when we have no values in</span><span>
+</span><span id="line-62"></span><span class="hs-comment">-- lookup table, second is when all elements are there</span><span>
+</span><span id="line-63"></span><span class="hs-comment">--</span><span>
+</span><span id="line-64"></span><span class="hs-comment">-- Both are pretty easy to realize. For first one probability of every</span><span>
+</span><span id="line-65"></span><span class="hs-comment">-- outcome should be less then 1/256, latter arise when probabilities</span><span>
+</span><span id="line-66"></span><span class="hs-comment">-- of two outcomes are [0.5,0.5]</span><span>
+</span><span id="line-67"></span><span>
+</span><span id="line-68"></span><span class="hs-comment">-- | A 'CondensedTable' that uses unboxed vectors.</span><span>
+</span><span id="line-69"></span><span class="hs-keyword">type</span><span> </span><span id="CondensedTableU"><span class="annot"><a href="System.Random.MWC.CondensedTable.html#CondensedTableU"><span class="hs-identifier hs-var">CondensedTableU</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="System.Random.MWC.CondensedTable.html#CondensedTable"><span class="hs-identifier hs-type">CondensedTable</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">U.Vector</span></span><span>
+</span><span id="line-70"></span><span>
+</span><span id="line-71"></span><span class="hs-comment">-- | A 'CondensedTable' that uses boxed vectors, and is able to hold</span><span>
+</span><span id="line-72"></span><span class="hs-comment">-- any type of element.</span><span>
+</span><span id="line-73"></span><span class="hs-keyword">type</span><span> </span><span id="CondensedTableV"><span class="annot"><a href="System.Random.MWC.CondensedTable.html#CondensedTableV"><span class="hs-identifier hs-var">CondensedTableV</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="System.Random.MWC.CondensedTable.html#CondensedTable"><span class="hs-identifier hs-type">CondensedTable</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">V.Vector</span></span><span>
+</span><span id="line-74"></span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span><span>
+</span><span id="line-77"></span><span class="hs-comment">-- | Generate a random value using a condensed table.</span><span>
+</span><span id="line-78"></span><span id="local-6989586621679064312"><span id="local-6989586621679064313"><span id="local-6989586621679064315"><span id="local-6989586621679064316"><span class="annot"><a href="System.Random.MWC.CondensedTable.html#genFromTable"><span class="hs-identifier hs-type">genFromTable</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">StatefulGen</span></span><span> </span><span class="annot"><a href="#local-6989586621679064316"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679064315"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Vector</span></span><span> </span><span class="annot"><a href="#local-6989586621679064313"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679064312"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="System.Random.MWC.CondensedTable.html#CondensedTable"><span class="hs-identifier hs-type">CondensedTable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679064313"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679064312"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679064316"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679064315"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679064312"><span class="hs-identifier hs-type">a</span></a></span></span></span></span></span><span>
+</span><span id="line-79"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="System.Random.MWC.CondensedTable.html#genFromTable"><span class="hs-pragma hs-type">genFromTable</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-80"></span><span id="genFromTable"><span class="annot"><span class="annottext">genFromTable :: forall g (m :: * -&gt; *) (v :: * -&gt; *) a.
+(StatefulGen g m, Vector v a) =&gt;
+CondensedTable v a -&gt; g -&gt; m a
+</span><a href="System.Random.MWC.CondensedTable.html#genFromTable"><span class="hs-identifier hs-var hs-var">genFromTable</span></a></span></span><span> </span><span id="local-6989586621679064092"><span class="annot"><span class="annottext">CondensedTable v a
+</span><a href="#local-6989586621679064092"><span class="hs-identifier hs-var">table</span></a></span></span><span> </span><span id="local-6989586621679064091"><span class="annot"><span class="annottext">g
+</span><a href="#local-6989586621679064091"><span class="hs-identifier hs-var">gen</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-81"></span><span>  </span><span id="local-6989586621679064090"><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679064090"><span class="hs-identifier hs-var">w</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a g (m :: * -&gt; *). (Uniform a, StatefulGen g m) =&gt; g -&gt; m a
+</span><span class="hs-identifier hs-var">uniformM</span></span><span> </span><span class="annot"><span class="annottext">g
+</span><a href="#local-6989586621679064091"><span class="hs-identifier hs-var">gen</span></a></span><span>
+</span><span id="line-82"></span><span>  </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a.
+Vector v a =&gt;
+CondensedTable v a -&gt; Word64 -&gt; a
+</span><a href="System.Random.MWC.CondensedTable.html#lookupTable"><span class="hs-identifier hs-var">lookupTable</span></a></span><span> </span><span class="annot"><span class="annottext">CondensedTable v a
+</span><a href="#local-6989586621679064092"><span class="hs-identifier hs-var">table</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679064090"><span class="hs-identifier hs-var">w</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word32</span></span><span class="hs-special">)</span><span>
+</span><span id="line-83"></span><span>
+</span><span id="line-84"></span><span id="local-6989586621679064294"><span id="local-6989586621679064295"><span class="annot"><a href="System.Random.MWC.CondensedTable.html#lookupTable"><span class="hs-identifier hs-type">lookupTable</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Vector</span></span><span> </span><span class="annot"><a href="#local-6989586621679064295"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679064294"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="System.Random.MWC.CondensedTable.html#CondensedTable"><span class="hs-identifier hs-type">CondensedTable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679064295"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679064294"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679064294"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-85"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="System.Random.MWC.CondensedTable.html#lookupTable"><span class="hs-pragma hs-type">lookupTable</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-86"></span><span id="lookupTable"><span class="annot"><span class="annottext">lookupTable :: forall (v :: * -&gt; *) a.
+Vector v a =&gt;
+CondensedTable v a -&gt; Word64 -&gt; a
+</span><a href="System.Random.MWC.CondensedTable.html#lookupTable"><span class="hs-identifier hs-var hs-var">lookupTable</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.Random.MWC.CondensedTable.html#CondensedTable"><span class="hs-identifier hs-type">CondensedTable</span></a></span><span> </span><span id="local-6989586621679064066"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679064066"><span class="hs-identifier hs-var">na</span></a></span></span><span> </span><span id="local-6989586621679064065"><span class="annot"><span class="annottext">v a
+</span><a href="#local-6989586621679064065"><span class="hs-identifier hs-var">aa</span></a></span></span><span> </span><span id="local-6989586621679064064"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679064064"><span class="hs-identifier hs-var">nb</span></a></span></span><span> </span><span id="local-6989586621679064063"><span class="annot"><span class="annottext">v a
+</span><a href="#local-6989586621679064063"><span class="hs-identifier hs-var">bb</span></a></span></span><span> </span><span id="local-6989586621679064062"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679064062"><span class="hs-identifier hs-var">nc</span></a></span></span><span> </span><span id="local-6989586621679064061"><span class="annot"><span class="annottext">v a
+</span><a href="#local-6989586621679064061"><span class="hs-identifier hs-var">cc</span></a></span></span><span> </span><span id="local-6989586621679064060"><span class="annot"><span class="annottext">v a
+</span><a href="#local-6989586621679064060"><span class="hs-identifier hs-var">dd</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679064059"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679064059"><span class="hs-identifier hs-var">i</span></a></span></span><span>
+</span><span id="line-87"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679064059"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679064066"><span class="hs-identifier hs-var">na</span></a></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">v a
+</span><a href="#local-6989586621679064065"><span class="hs-identifier hs-var">aa</span></a></span><span> </span><span class="annot"><span class="annottext">forall {v :: * -&gt; *} {a} {a}.
+(Vector v a, Integral a) =&gt;
+v a -&gt; a -&gt; a
+</span><a href="#local-6989586621679064057"><span class="hs-operator hs-var">`at`</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679064059"><span class="hs-identifier hs-var">i</span></a></span><span>       </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`shiftR`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">24</span></span><span class="hs-special">)</span><span>
+</span><span id="line-88"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679064059"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679064064"><span class="hs-identifier hs-var">nb</span></a></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">v a
+</span><a href="#local-6989586621679064063"><span class="hs-identifier hs-var">bb</span></a></span><span> </span><span class="annot"><span class="annottext">forall {v :: * -&gt; *} {a} {a}.
+(Vector v a, Integral a) =&gt;
+v a -&gt; a -&gt; a
+</span><a href="#local-6989586621679064057"><span class="hs-operator hs-var">`at`</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679064059"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679064066"><span class="hs-identifier hs-var">na</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`shiftR`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">16</span></span><span class="hs-special">)</span><span>
+</span><span id="line-89"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679064059"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679064062"><span class="hs-identifier hs-var">nc</span></a></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">v a
+</span><a href="#local-6989586621679064061"><span class="hs-identifier hs-var">cc</span></a></span><span> </span><span class="annot"><span class="annottext">forall {v :: * -&gt; *} {a} {a}.
+(Vector v a, Integral a) =&gt;
+v a -&gt; a -&gt; a
+</span><a href="#local-6989586621679064057"><span class="hs-operator hs-var">`at`</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679064059"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679064064"><span class="hs-identifier hs-var">nb</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`shiftR`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-90"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">v a
+</span><a href="#local-6989586621679064060"><span class="hs-identifier hs-var">dd</span></a></span><span> </span><span class="annot"><span class="annottext">forall {v :: * -&gt; *} {a} {a}.
+(Vector v a, Integral a) =&gt;
+v a -&gt; a -&gt; a
+</span><a href="#local-6989586621679064057"><span class="hs-operator hs-var">`at`</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679064059"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679064062"><span class="hs-identifier hs-var">nc</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-91"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-92"></span><span>    </span><span id="local-6989586621679064057"><span class="annot"><span class="annottext">at :: v a -&gt; a -&gt; a
+</span><a href="#local-6989586621679064057"><span class="hs-identifier hs-var hs-var">at</span></a></span></span><span> </span><span id="local-6989586621679064050"><span class="annot"><span class="annottext">v a
+</span><a href="#local-6989586621679064050"><span class="hs-identifier hs-var">arr</span></a></span></span><span> </span><span id="local-6989586621679064049"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679064049"><span class="hs-identifier hs-var">j</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; v a -&gt; Int -&gt; a
+</span><span class="hs-identifier hs-var">G.unsafeIndex</span></span><span> </span><span class="annot"><span class="annottext">v a
+</span><a href="#local-6989586621679064050"><span class="hs-identifier hs-var">arr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679064049"><span class="hs-identifier hs-var">j</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-93"></span><span>
+</span><span id="line-94"></span><span>
+</span><span id="line-95"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-96"></span><span class="hs-comment">-- Table generation</span><span>
+</span><span id="line-97"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-98"></span><span>
+</span><span id="line-99"></span><span class="hs-comment">-- | Generate a condensed lookup table from a list of outcomes with</span><span>
+</span><span id="line-100"></span><span class="hs-comment">-- given probabilities. The vector should be non-empty and the</span><span>
+</span><span id="line-101"></span><span class="hs-comment">-- probabilites should be non-negative and sum to 1. If this is not</span><span>
+</span><span id="line-102"></span><span class="hs-comment">-- the case, this algorithm will construct a table for some</span><span>
+</span><span id="line-103"></span><span class="hs-comment">-- distribution that may bear no resemblance to what you intended.</span><span>
+</span><span id="line-104"></span><span id="local-6989586621679064280"><span id="local-6989586621679064281"><span class="annot"><a href="System.Random.MWC.CondensedTable.html#tableFromProbabilities"><span class="hs-identifier hs-type">tableFromProbabilities</span></a></span><span>
+</span><span id="line-105"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Vector</span></span><span> </span><span class="annot"><a href="#local-6989586621679064281"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679064280"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier hs-type">Word32</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Vector</span></span><span> </span><span class="annot"><a href="#local-6989586621679064281"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679064280"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Vector</span></span><span> </span><span class="annot"><a href="#local-6989586621679064281"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679064280"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Vector</span></span><span> </span><span class="annot"><a href="#local-6989586621679064281"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word32</span></span><span class="hs-special">)</span><span>
+</span><span id="line-106"></span><span>       </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679064281"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679064280"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="System.Random.MWC.CondensedTable.html#CondensedTable"><span class="hs-identifier hs-type">CondensedTable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679064281"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679064280"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-107"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="System.Random.MWC.CondensedTable.html#tableFromProbabilities"><span class="hs-pragma hs-type">tableFromProbabilities</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-108"></span><span id="tableFromProbabilities"><span class="annot"><span class="annottext">tableFromProbabilities :: forall (v :: * -&gt; *) a.
+(Vector v (a, Word32), Vector v (a, Double), Vector v a,
+ Vector v Word32) =&gt;
+v (a, Double) -&gt; CondensedTable v a
+</span><a href="System.Random.MWC.CondensedTable.html#tableFromProbabilities"><span class="hs-identifier hs-var hs-var">tableFromProbabilities</span></a></span></span><span> </span><span id="local-6989586621679064032"><span class="annot"><span class="annottext">v (a, Double)
+</span><a href="#local-6989586621679064032"><span class="hs-identifier hs-var">v</span></a></span></span><span>
+</span><span id="line-109"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; v a -&gt; Bool
+</span><span class="hs-identifier hs-var">G.null</span></span><span> </span><span class="annot"><span class="annottext">v (a, Double)
+</span><a href="#local-6989586621679064030"><span class="hs-identifier hs-var">tbl</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. String -&gt; String -&gt; a
+</span><a href="System.Random.MWC.CondensedTable.html#pkgError"><span class="hs-identifier hs-var">pkgError</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;tableFromProbabilities&quot;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;empty vector of outcomes&quot;</span></span><span>
+</span><span id="line-110"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a.
+(Vector v (a, Word32), Vector v a, Vector v Word32) =&gt;
+v (a, Word32) -&gt; CondensedTable v a
+</span><a href="System.Random.MWC.CondensedTable.html#tableFromIntWeights"><span class="hs-identifier hs-var">tableFromIntWeights</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a b.
+(Vector v a, Vector v b) =&gt;
+(a -&gt; b) -&gt; v a -&gt; v b
+</span><span class="hs-identifier hs-var">G.map</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (a :: * -&gt; * -&gt; *) b c d.
+Arrow a =&gt;
+a b c -&gt; a (d, b) (d, c)
+</span><span class="hs-identifier hs-var">second</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall {a}. Integral a =&gt; Double -&gt; a
+</span><a href="#local-6989586621679064027"><span class="hs-identifier hs-var">toWeight</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679064024"><span class="hs-identifier hs-var">mlt</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">v (a, Double)
+</span><a href="#local-6989586621679064030"><span class="hs-identifier hs-var">tbl</span></a></span><span>
+</span><span id="line-111"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-112"></span><span>    </span><span class="hs-comment">-- 2^32. N.B. This number is exatly representable.</span><span>
+</span><span id="line-113"></span><span>    </span><span id="local-6989586621679064024"><span class="annot"><span class="annottext">mlt :: Double
+</span><a href="#local-6989586621679064024"><span class="hs-identifier hs-var hs-var">mlt</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">4.294967296e9</span></span><span>
+</span><span id="line-114"></span><span>    </span><span class="hs-comment">-- Drop non-positive probabilities</span><span>
+</span><span id="line-115"></span><span>    </span><span id="local-6989586621679064030"><span class="annot"><span class="annottext">tbl :: v (a, Double)
+</span><a href="#local-6989586621679064030"><span class="hs-identifier hs-var hs-var">tbl</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; (a -&gt; Bool) -&gt; v a -&gt; v a
+</span><span class="hs-identifier hs-var">G.filter</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a, b) -&gt; b
+</span><span class="hs-identifier hs-var">snd</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">v (a, Double)
+</span><a href="#local-6989586621679064032"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-116"></span><span>    </span><span class="hs-comment">-- Convert Double weight to Word32 and avoid overflow at the same</span><span>
+</span><span id="line-117"></span><span>    </span><span class="hs-comment">-- time. It's especially dangerous if one probability is</span><span>
+</span><span id="line-118"></span><span>    </span><span class="hs-comment">-- approximately 1 and others are 0.</span><span>
+</span><span id="line-119"></span><span>    </span><span id="local-6989586621679064027"><span class="annot"><span class="annottext">toWeight :: Double -&gt; a
+</span><a href="#local-6989586621679064027"><span class="hs-identifier hs-var hs-var">toWeight</span></a></span></span><span> </span><span id="local-6989586621679063998"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679063998"><span class="hs-identifier hs-var">w</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679063998"><span class="hs-identifier hs-var">w</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679064024"><span class="hs-identifier hs-var">mlt</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">2</span></span><span class="annot"><span class="annottext">forall a b. (Num a, Integral b) =&gt; a -&gt; b -&gt; a
+</span><span class="hs-operator hs-var">^</span></span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">32</span></span><span class="hs-glyph">::</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-120"></span><span>               </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (RealFrac a, Integral b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">round</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679063998"><span class="hs-identifier hs-var">w</span></a></span><span>
+</span><span id="line-121"></span><span>
+</span><span id="line-122"></span><span>
+</span><span id="line-123"></span><span class="hs-comment">-- | Same as 'tableFromProbabilities' but treats number as weights not</span><span>
+</span><span id="line-124"></span><span class="hs-comment">-- probilities. Non-positive weights are discarded, and those</span><span>
+</span><span id="line-125"></span><span class="hs-comment">-- remaining are normalized to 1.</span><span>
+</span><span id="line-126"></span><span id="local-6989586621679063994"><span id="local-6989586621679063995"><span class="annot"><a href="System.Random.MWC.CondensedTable.html#tableFromWeights"><span class="hs-identifier hs-type">tableFromWeights</span></a></span><span>
+</span><span id="line-127"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Vector</span></span><span> </span><span class="annot"><a href="#local-6989586621679063995"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679063994"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier hs-type">Word32</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Vector</span></span><span> </span><span class="annot"><a href="#local-6989586621679063995"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679063994"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Vector</span></span><span> </span><span class="annot"><a href="#local-6989586621679063995"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063994"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Vector</span></span><span> </span><span class="annot"><a href="#local-6989586621679063995"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word32</span></span><span class="hs-special">)</span><span>
+</span><span id="line-128"></span><span>       </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679063995"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679063994"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="System.Random.MWC.CondensedTable.html#CondensedTable"><span class="hs-identifier hs-type">CondensedTable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063995"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063994"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-129"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="System.Random.MWC.CondensedTable.html#tableFromWeights"><span class="hs-pragma hs-type">tableFromWeights</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-130"></span><span id="tableFromWeights"><span class="annot"><span class="annottext">tableFromWeights :: forall (v :: * -&gt; *) a.
+(Vector v (a, Word32), Vector v (a, Double), Vector v a,
+ Vector v Word32) =&gt;
+v (a, Double) -&gt; CondensedTable v a
+</span><a href="System.Random.MWC.CondensedTable.html#tableFromWeights"><span class="hs-identifier hs-var hs-var">tableFromWeights</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a.
+(Vector v (a, Word32), Vector v (a, Double), Vector v a,
+ Vector v Word32) =&gt;
+v (a, Double) -&gt; CondensedTable v a
+</span><a href="System.Random.MWC.CondensedTable.html#tableFromProbabilities"><span class="hs-identifier hs-var">tableFromProbabilities</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall {v :: * -&gt; *} {a} {c}.
+(Fractional c, Vector v (a, c)) =&gt;
+v (a, c) -&gt; v (a, c)
+</span><a href="#local-6989586621679063980"><span class="hs-identifier hs-var">normalize</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; (a -&gt; Bool) -&gt; v a -&gt; v a
+</span><span class="hs-identifier hs-var">G.filter</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a, b) -&gt; b
+</span><span class="hs-identifier hs-var">snd</span></span><span class="hs-special">)</span><span>
+</span><span id="line-131"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-132"></span><span>    </span><span id="local-6989586621679063980"><span class="annot"><span class="annottext">normalize :: v (a, c) -&gt; v (a, c)
+</span><a href="#local-6989586621679063980"><span class="hs-identifier hs-var hs-var">normalize</span></a></span></span><span> </span><span id="local-6989586621679063970"><span class="annot"><span class="annottext">v (a, c)
+</span><a href="#local-6989586621679063970"><span class="hs-identifier hs-var">v</span></a></span></span><span>
+</span><span id="line-133"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; v a -&gt; Bool
+</span><span class="hs-identifier hs-var">G.null</span></span><span> </span><span class="annot"><span class="annottext">v (a, c)
+</span><a href="#local-6989586621679063970"><span class="hs-identifier hs-var">v</span></a></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. String -&gt; String -&gt; a
+</span><a href="System.Random.MWC.CondensedTable.html#pkgError"><span class="hs-identifier hs-var">pkgError</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;tableFromWeights&quot;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;no positive weights&quot;</span></span><span>
+</span><span id="line-134"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a b.
+(Vector v a, Vector v b) =&gt;
+(a -&gt; b) -&gt; v a -&gt; v b
+</span><span class="hs-identifier hs-var">G.map</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (a :: * -&gt; * -&gt; *) b c d.
+Arrow a =&gt;
+a b c -&gt; a (d, b) (d, c)
+</span><span class="hs-identifier hs-var">second</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Fractional a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">/</span></span><span> </span><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679063968"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">v (a, c)
+</span><a href="#local-6989586621679063970"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-135"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-136"></span><span>        </span><span class="hs-comment">-- Explicit fold is to avoid 'Vector v Double' constraint</span><span>
+</span><span id="line-137"></span><span>        </span><span id="local-6989586621679063968"><span class="annot"><span class="annottext">s :: c
+</span><a href="#local-6989586621679063968"><span class="hs-identifier hs-var hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) b a.
+Vector v b =&gt;
+(a -&gt; b -&gt; a) -&gt; a -&gt; v b -&gt; a
+</span><span class="hs-identifier hs-var">G.foldl'</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b c. (a -&gt; b -&gt; c) -&gt; b -&gt; a -&gt; c
+</span><span class="hs-identifier hs-var">flip</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">(+)</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a, b) -&gt; b
+</span><span class="hs-identifier hs-var">snd</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">c
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">v (a, c)
+</span><a href="#local-6989586621679063970"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-138"></span><span>
+</span><span id="line-139"></span><span>
+</span><span id="line-140"></span><span class="hs-comment">-- | Generate a condensed lookup table from integer weights. Weights</span><span>
+</span><span id="line-141"></span><span class="hs-comment">-- should sum to @2^32@ at least approximately. This function will</span><span>
+</span><span id="line-142"></span><span class="hs-comment">-- correct small deviations from @2^32@ such as arising from rounding</span><span>
+</span><span id="line-143"></span><span class="hs-comment">-- errors. But for large deviations it's likely to product incorrect</span><span>
+</span><span id="line-144"></span><span class="hs-comment">-- result with terrible performance.</span><span>
+</span><span id="line-145"></span><span id="local-6989586621679064272"><span id="local-6989586621679064273"><span class="annot"><a href="System.Random.MWC.CondensedTable.html#tableFromIntWeights"><span class="hs-identifier hs-type">tableFromIntWeights</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Vector</span></span><span> </span><span class="annot"><a href="#local-6989586621679064273"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679064272"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier hs-type">Word32</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Vector</span></span><span> </span><span class="annot"><a href="#local-6989586621679064273"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679064272"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Vector</span></span><span> </span><span class="annot"><a href="#local-6989586621679064273"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word32</span></span><span class="hs-special">)</span><span>
+</span><span id="line-146"></span><span>                    </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679064273"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679064272"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word32</span></span><span class="hs-special">)</span><span>
+</span><span id="line-147"></span><span>                    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="System.Random.MWC.CondensedTable.html#CondensedTable"><span class="hs-identifier hs-type">CondensedTable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679064273"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679064272"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-148"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="System.Random.MWC.CondensedTable.html#tableFromIntWeights"><span class="hs-pragma hs-type">tableFromIntWeights</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-149"></span><span id="tableFromIntWeights"><span class="annot"><span class="annottext">tableFromIntWeights :: forall (v :: * -&gt; *) a.
+(Vector v (a, Word32), Vector v a, Vector v Word32) =&gt;
+v (a, Word32) -&gt; CondensedTable v a
+</span><a href="System.Random.MWC.CondensedTable.html#tableFromIntWeights"><span class="hs-identifier hs-var hs-var">tableFromIntWeights</span></a></span></span><span> </span><span id="local-6989586621679063949"><span class="annot"><span class="annottext">v (a, Word32)
+</span><a href="#local-6989586621679063949"><span class="hs-identifier hs-var">v</span></a></span></span><span>
+</span><span id="line-150"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679063948"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. String -&gt; String -&gt; a
+</span><a href="System.Random.MWC.CondensedTable.html#pkgError"><span class="hs-identifier hs-var">pkgError</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;tableFromIntWeights&quot;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;empty table&quot;</span></span><span>
+</span><span id="line-151"></span><span>    </span><span class="hs-comment">-- Single element tables should be treated sepately. Otherwise</span><span>
+</span><span id="line-152"></span><span>    </span><span class="hs-comment">-- they will confuse correctWeights</span><span>
+</span><span id="line-153"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679063948"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679063942"><span class="annot"><span class="annottext">m :: Word64
+</span><a href="#local-6989586621679063942"><span class="hs-identifier hs-var hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-number">2</span></span><span class="annot"><span class="annottext">forall a b. (Num a, Integral b) =&gt; a -&gt; b -&gt; a
+</span><span class="hs-operator hs-var">^</span></span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">32</span></span><span class="hs-glyph">::</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-comment">-- Works for both Word32 &amp; Word64</span><span>
+</span><span id="line-154"></span><span>                </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a.
+Word64
+-&gt; v a
+-&gt; Word64
+-&gt; v a
+-&gt; Word64
+-&gt; v a
+-&gt; v a
+-&gt; CondensedTable v a
+</span><a href="System.Random.MWC.CondensedTable.html#CondensedTable"><span class="hs-identifier hs-var">CondensedTable</span></a></span><span>
+</span><span id="line-155"></span><span>                   </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679063942"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; Int -&gt; a -&gt; v a
+</span><span class="hs-identifier hs-var">G.replicate</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">256</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a, b) -&gt; a
+</span><span class="hs-identifier hs-var">fst</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; v a -&gt; a
+</span><span class="hs-identifier hs-var">G.head</span></span><span> </span><span class="annot"><span class="annottext">v (a, Word32)
+</span><a href="#local-6989586621679063939"><span class="hs-identifier hs-var">tbl</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-156"></span><span>                   </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679063942"><span class="hs-identifier hs-var">m</span></a></span><span>  </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; v a
+</span><span class="hs-identifier hs-var">G.empty</span></span><span>
+</span><span id="line-157"></span><span>                   </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679063942"><span class="hs-identifier hs-var">m</span></a></span><span>  </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; v a
+</span><span class="hs-identifier hs-var">G.empty</span></span><span>
+</span><span id="line-158"></span><span>                      </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; v a
+</span><span class="hs-identifier hs-var">G.empty</span></span><span>
+</span><span id="line-159"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a.
+Word64
+-&gt; v a
+-&gt; Word64
+-&gt; v a
+-&gt; Word64
+-&gt; v a
+-&gt; v a
+-&gt; CondensedTable v a
+</span><a href="System.Random.MWC.CondensedTable.html#CondensedTable"><span class="hs-identifier hs-var">CondensedTable</span></a></span><span>
+</span><span id="line-160"></span><span>                </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679063937"><span class="hs-identifier hs-var">na</span></a></span><span> </span><span class="annot"><span class="annottext">v a
+</span><a href="#local-6989586621679063936"><span class="hs-identifier hs-var">aa</span></a></span><span>
+</span><span id="line-161"></span><span>                </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679063935"><span class="hs-identifier hs-var">nb</span></a></span><span> </span><span class="annot"><span class="annottext">v a
+</span><a href="#local-6989586621679063934"><span class="hs-identifier hs-var">bb</span></a></span><span>
+</span><span id="line-162"></span><span>                </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679063933"><span class="hs-identifier hs-var">nc</span></a></span><span> </span><span class="annot"><span class="annottext">v a
+</span><a href="#local-6989586621679063932"><span class="hs-identifier hs-var">cc</span></a></span><span>
+</span><span id="line-163"></span><span>                   </span><span class="annot"><span class="annottext">v a
+</span><a href="#local-6989586621679063931"><span class="hs-identifier hs-var">dd</span></a></span><span>
+</span><span id="line-164"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-165"></span><span>    </span><span class="hs-comment">-- We must filter out zero-probability outcomes because they may</span><span>
+</span><span id="line-166"></span><span>    </span><span class="hs-comment">-- confuse weight correction algorithm</span><span>
+</span><span id="line-167"></span><span>    </span><span id="local-6989586621679063939"><span class="annot"><span class="annottext">tbl :: v (a, Word32)
+</span><a href="#local-6989586621679063939"><span class="hs-identifier hs-var hs-var">tbl</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; (a -&gt; Bool) -&gt; v a -&gt; v a
+</span><span class="hs-identifier hs-var">G.filter</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span class="annot"><span class="annottext">Word32
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a, b) -&gt; b
+</span><span class="hs-identifier hs-var">snd</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">v (a, Word32)
+</span><a href="#local-6989586621679063949"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-168"></span><span>    </span><span id="local-6989586621679063948"><span class="annot"><span class="annottext">n :: Int
+</span><a href="#local-6989586621679063948"><span class="hs-identifier hs-var hs-var">n</span></a></span></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; v a -&gt; Int
+</span><span class="hs-identifier hs-var">G.length</span></span><span> </span><span class="annot"><span class="annottext">v (a, Word32)
+</span><a href="#local-6989586621679063939"><span class="hs-identifier hs-var">tbl</span></a></span><span>
+</span><span id="line-169"></span><span>    </span><span class="hs-comment">-- Corrected table</span><span>
+</span><span id="line-170"></span><span>    </span><span id="local-6989586621679063915"><span class="annot"><span class="annottext">table :: v (a, Word32)
+</span><a href="#local-6989586621679063915"><span class="hs-identifier hs-var hs-var">table</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b c. (a -&gt; b -&gt; c) -&gt; (a, b) -&gt; c
+</span><span class="hs-identifier hs-var">uncurry</span></span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a b.
+(Vector v a, Vector v b, Vector v (a, b)) =&gt;
+v a -&gt; v b -&gt; v (a, b)
+</span><span class="hs-identifier hs-var">G.zip</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span> </span><span class="annot"><span class="annottext">forall (a :: * -&gt; * -&gt; *) b c b' c'.
+Arrow a =&gt;
+a b c -&gt; a b' c' -&gt; a (b, b') (c, c')
+</span><span class="hs-operator hs-var">***</span></span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *). Vector v Word32 =&gt; v Word32 -&gt; v Word32
+</span><a href="System.Random.MWC.CondensedTable.html#correctWeights"><span class="hs-identifier hs-var">correctWeights</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a b.
+(Vector v a, Vector v b, Vector v (a, b)) =&gt;
+v (a, b) -&gt; (v a, v b)
+</span><span class="hs-identifier hs-var">G.unzip</span></span><span> </span><span class="annot"><span class="annottext">v (a, Word32)
+</span><a href="#local-6989586621679063939"><span class="hs-identifier hs-var">tbl</span></a></span><span>
+</span><span id="line-171"></span><span>    </span><span class="hs-comment">-- Make condensed table</span><span>
+</span><span id="line-172"></span><span>    </span><span id="local-6989586621679063904"><span class="annot"><span class="annottext">mkTable :: Int -&gt; v a
+</span><a href="#local-6989586621679063904"><span class="hs-identifier hs-var hs-var">mkTable</span></a></span></span><span>  </span><span id="local-6989586621679063903"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679063903"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-173"></span><span>      </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a b.
+(Vector v a, Vector v b) =&gt;
+(a -&gt; v b) -&gt; v a -&gt; v b
+</span><span class="hs-identifier hs-var">G.concatMap</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span id="local-6989586621679063901"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679063901"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679063900"><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679063900"><span class="hs-identifier hs-var">w</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; Int -&gt; a -&gt; v a
+</span><span class="hs-identifier hs-var">G.replicate</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Word32 -&gt; Word32
+</span><a href="System.Random.MWC.CondensedTable.html#digit"><span class="hs-identifier hs-var">digit</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679063903"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679063900"><span class="hs-identifier hs-var">w</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679063901"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">v (a, Word32)
+</span><a href="#local-6989586621679063915"><span class="hs-identifier hs-var">table</span></a></span><span>
+</span><span id="line-174"></span><span>    </span><span id="local-6989586621679063895"><span class="annot"><span class="annottext">len :: v a -&gt; Word64
+</span><a href="#local-6989586621679063895"><span class="hs-identifier hs-var hs-var">len</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; v a -&gt; Int
+</span><span class="hs-identifier hs-var">G.length</span></span><span>
+</span><span id="line-175"></span><span>    </span><span class="hs-comment">-- Tables</span><span>
+</span><span id="line-176"></span><span>    </span><span id="local-6989586621679063936"><span class="annot"><span class="annottext">aa :: v a
+</span><a href="#local-6989586621679063936"><span class="hs-identifier hs-var hs-var">aa</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; v a
+</span><a href="#local-6989586621679063904"><span class="hs-identifier hs-var">mkTable</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-177"></span><span>    </span><span id="local-6989586621679063934"><span class="annot"><span class="annottext">bb :: v a
+</span><a href="#local-6989586621679063934"><span class="hs-identifier hs-var hs-var">bb</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; v a
+</span><a href="#local-6989586621679063904"><span class="hs-identifier hs-var">mkTable</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-178"></span><span>    </span><span id="local-6989586621679063932"><span class="annot"><span class="annottext">cc :: v a
+</span><a href="#local-6989586621679063932"><span class="hs-identifier hs-var hs-var">cc</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; v a
+</span><a href="#local-6989586621679063904"><span class="hs-identifier hs-var">mkTable</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span>
+</span><span id="line-179"></span><span>    </span><span id="local-6989586621679063931"><span class="annot"><span class="annottext">dd :: v a
+</span><a href="#local-6989586621679063931"><span class="hs-identifier hs-var hs-var">dd</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; v a
+</span><a href="#local-6989586621679063904"><span class="hs-identifier hs-var">mkTable</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span>
+</span><span id="line-180"></span><span>    </span><span class="hs-comment">-- Offsets</span><span>
+</span><span id="line-181"></span><span>    </span><span id="local-6989586621679063937"><span class="annot"><span class="annottext">na :: Word64
+</span><a href="#local-6989586621679063937"><span class="hs-identifier hs-var hs-var">na</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>       </span><span class="annot"><span class="annottext">v a -&gt; Word64
+</span><a href="#local-6989586621679063895"><span class="hs-identifier hs-var">len</span></a></span><span> </span><span class="annot"><span class="annottext">v a
+</span><a href="#local-6989586621679063936"><span class="hs-identifier hs-var">aa</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`shiftL`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">24</span></span><span>
+</span><span id="line-182"></span><span>    </span><span id="local-6989586621679063935"><span class="annot"><span class="annottext">nb :: Word64
+</span><a href="#local-6989586621679063935"><span class="hs-identifier hs-var hs-var">nb</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679063937"><span class="hs-identifier hs-var">na</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">v a -&gt; Word64
+</span><a href="#local-6989586621679063895"><span class="hs-identifier hs-var">len</span></a></span><span> </span><span class="annot"><span class="annottext">v a
+</span><a href="#local-6989586621679063934"><span class="hs-identifier hs-var">bb</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`shiftL`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">16</span></span><span class="hs-special">)</span><span>
+</span><span id="line-183"></span><span>    </span><span id="local-6989586621679063933"><span class="annot"><span class="annottext">nc :: Word64
+</span><a href="#local-6989586621679063933"><span class="hs-identifier hs-var hs-var">nc</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679063935"><span class="hs-identifier hs-var">nb</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">v a -&gt; Word64
+</span><a href="#local-6989586621679063895"><span class="hs-identifier hs-var">len</span></a></span><span> </span><span class="annot"><span class="annottext">v a
+</span><a href="#local-6989586621679063932"><span class="hs-identifier hs-var">cc</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`shiftL`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span class="hs-special">)</span><span>
+</span><span id="line-184"></span><span>
+</span><span id="line-185"></span><span>
+</span><span id="line-186"></span><span class="hs-comment">-- Calculate N'th digit base 256</span><span>
+</span><span id="line-187"></span><span class="annot"><a href="System.Random.MWC.CondensedTable.html#digit"><span class="hs-identifier hs-type">digit</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word32</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word32</span></span><span>
+</span><span id="line-188"></span><span id="digit"><span class="annot"><span class="annottext">digit :: Int -&gt; Word32 -&gt; Word32
+</span><a href="System.Random.MWC.CondensedTable.html#digit"><span class="hs-identifier hs-var hs-var">digit</span></a></span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span id="local-6989586621679063888"><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679063888"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>  </span><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679063888"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`shiftR`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">24</span></span><span>
+</span><span id="line-189"></span><span class="annot"><a href="System.Random.MWC.CondensedTable.html#digit"><span class="hs-identifier hs-var">digit</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span id="local-6989586621679063887"><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679063887"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679063887"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`shiftR`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">16</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.&amp;.</span></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><span class="hs-number">0xff</span></span><span>
+</span><span id="line-190"></span><span class="annot"><a href="System.Random.MWC.CondensedTable.html#digit"><span class="hs-identifier hs-var">digit</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span> </span><span id="local-6989586621679063885"><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679063885"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679063885"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`shiftR`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span> </span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.&amp;.</span></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><span class="hs-number">0xff</span></span><span>
+</span><span id="line-191"></span><span class="annot"><a href="System.Random.MWC.CondensedTable.html#digit"><span class="hs-identifier hs-var">digit</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span id="local-6989586621679063884"><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679063884"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>  </span><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679063884"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.&amp;.</span></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><span class="hs-number">0xff</span></span><span>
+</span><span id="line-192"></span><span class="annot"><a href="System.Random.MWC.CondensedTable.html#digit"><span class="hs-identifier hs-var">digit</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. String -&gt; String -&gt; a
+</span><a href="System.Random.MWC.CondensedTable.html#pkgError"><span class="hs-identifier hs-var">pkgError</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;digit&quot;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;the impossible happened!?&quot;</span></span><span>
+</span><span id="line-193"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="System.Random.MWC.CondensedTable.html#digit"><span class="hs-pragma hs-type">digit</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-194"></span><span>
+</span><span id="line-195"></span><span class="hs-comment">-- Correct integer weights so they sum up to 2^32. Array of weight</span><span>
+</span><span id="line-196"></span><span class="hs-comment">-- should contain at least 2 elements.</span><span>
+</span><span id="line-197"></span><span id="local-6989586621679064212"><span class="annot"><a href="System.Random.MWC.CondensedTable.html#correctWeights"><span class="hs-identifier hs-type">correctWeights</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">G.Vector</span></span><span> </span><span class="annot"><a href="#local-6989586621679064212"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word32</span></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679064212"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word32</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679064212"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word32</span></span></span><span>
+</span><span id="line-198"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="System.Random.MWC.CondensedTable.html#correctWeights"><span class="hs-pragma hs-type">correctWeights</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-199"></span><span id="correctWeights"><span class="annot"><span class="annottext">correctWeights :: forall (v :: * -&gt; *). Vector v Word32 =&gt; v Word32 -&gt; v Word32
+</span><a href="System.Random.MWC.CondensedTable.html#correctWeights"><span class="hs-identifier hs-var hs-var">correctWeights</span></a></span></span><span> </span><span id="local-6989586621679063879"><span class="annot"><span class="annottext">v Word32
+</span><a href="#local-6989586621679063879"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a.
+Vector v a =&gt;
+(forall s. ST s (Mutable v s a)) -&gt; v a
+</span><span class="hs-identifier hs-var">G.create</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-200"></span><span>  </span><span class="hs-keyword">let</span><span>
+</span><span id="line-201"></span><span>    </span><span class="hs-comment">-- Sum of weights</span><span>
+</span><span id="line-202"></span><span>    </span><span id="local-6989586621679063856"><span class="annot"><span class="annottext">s :: Int64
+</span><a href="#local-6989586621679063856"><span class="hs-identifier hs-var hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) b a.
+Vector v b =&gt;
+(a -&gt; b -&gt; a) -&gt; a -&gt; v b -&gt; a
+</span><span class="hs-identifier hs-var">G.foldl'</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b c. (a -&gt; b -&gt; c) -&gt; b -&gt; a -&gt; c
+</span><span class="hs-identifier hs-var">flip</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">(+)</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int64
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">v Word32
+</span><a href="#local-6989586621679063879"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int64</span></span><span>
+</span><span id="line-203"></span><span>    </span><span class="hs-comment">-- Array size</span><span>
+</span><span id="line-204"></span><span>    </span><span id="local-6989586621679063854"><span class="annot"><span class="annottext">n :: Int
+</span><a href="#local-6989586621679063854"><span class="hs-identifier hs-var hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; v a -&gt; Int
+</span><span class="hs-identifier hs-var">G.length</span></span><span> </span><span class="annot"><span class="annottext">v Word32
+</span><a href="#local-6989586621679063879"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-205"></span><span>  </span><span id="local-6989586621679063853"><span class="annot"><span class="annottext">Mutable v (PrimState (ST s)) Word32
+</span><a href="#local-6989586621679063853"><span class="hs-identifier hs-var">arr</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) (v :: * -&gt; *) a.
+(PrimMonad m, Vector v a) =&gt;
+v a -&gt; m (Mutable v (PrimState m) a)
+</span><span class="hs-identifier hs-var">G.thaw</span></span><span> </span><span class="annot"><span class="annottext">v Word32
+</span><a href="#local-6989586621679063879"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-206"></span><span>  </span><span class="hs-comment">-- On first pass over array adjust only entries which are larger</span><span>
+</span><span id="line-207"></span><span>  </span><span class="hs-comment">-- than `lim'. On second and subsequent passes `lim' is set to 1.</span><span>
+</span><span id="line-208"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-209"></span><span>  </span><span class="hs-comment">-- It's possibly to make this algorithm loop endlessly if all</span><span>
+</span><span id="line-210"></span><span>  </span><span class="hs-comment">-- weights are 1 or 0.</span><span>
+</span><span id="line-211"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679063813"><span class="annot"><span class="annottext">loop :: Word32 -&gt; Int -&gt; a -&gt; ST s ()
+</span><a href="#local-6989586621679063813"><span class="hs-identifier hs-var hs-var">loop</span></a></span></span><span> </span><span id="local-6989586621679063812"><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679063812"><span class="hs-identifier hs-var">lim</span></a></span></span><span> </span><span id="local-6989586621679063811"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679063811"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span id="local-6989586621679063810"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679063810"><span class="hs-identifier hs-var">delta</span></a></span></span><span>
+</span><span id="line-212"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679063810"><span class="hs-identifier hs-var">delta</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-213"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679063811"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679063854"><span class="hs-identifier hs-var">n</span></a></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word32 -&gt; Int -&gt; a -&gt; ST s ()
+</span><a href="#local-6989586621679063813"><span class="hs-identifier hs-var">loop</span></a></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679063810"><span class="hs-identifier hs-var">delta</span></a></span><span>
+</span><span id="line-214"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-215"></span><span>            </span><span id="local-6989586621679063809"><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679063809"><span class="hs-identifier hs-var">w</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) (v :: * -&gt; * -&gt; *) a.
+(PrimMonad m, MVector v a) =&gt;
+v (PrimState m) a -&gt; Int -&gt; m a
+</span><span class="hs-identifier hs-var">M.read</span></span><span> </span><span class="annot"><span class="annottext">Mutable v (PrimState (ST s)) Word32
+</span><a href="#local-6989586621679063853"><span class="hs-identifier hs-var">arr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679063811"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-216"></span><span>            </span><span class="hs-keyword">case</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-217"></span><span>              </span><span class="annot"><span class="annottext">()
+</span><span class="hs-identifier">_</span></span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679063809"><span class="hs-identifier hs-var">w</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679063812"><span class="hs-identifier hs-var">lim</span></a></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word32 -&gt; Int -&gt; a -&gt; ST s ()
+</span><a href="#local-6989586621679063813"><span class="hs-identifier hs-var">loop</span></a></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679063812"><span class="hs-identifier hs-var">lim</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679063811"><span class="hs-identifier hs-var">i</span></a></span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679063810"><span class="hs-identifier hs-var">delta</span></a></span><span>
+</span><span id="line-218"></span><span>               </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679063810"><span class="hs-identifier hs-var">delta</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) (v :: * -&gt; * -&gt; *) a.
+(PrimMonad m, MVector v a) =&gt;
+v (PrimState m) a -&gt; Int -&gt; a -&gt; m ()
+</span><span class="hs-identifier hs-var">M.write</span></span><span> </span><span class="annot"><span class="annottext">Mutable v (PrimState (ST s)) Word32
+</span><a href="#local-6989586621679063853"><span class="hs-identifier hs-var">arr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679063811"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679063809"><span class="hs-identifier hs-var">w</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Word32 -&gt; Int -&gt; a -&gt; ST s ()
+</span><a href="#local-6989586621679063813"><span class="hs-identifier hs-var">loop</span></a></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679063812"><span class="hs-identifier hs-var">lim</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679063811"><span class="hs-identifier hs-var">i</span></a></span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679063810"><span class="hs-identifier hs-var">delta</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span>
+</span><span id="line-219"></span><span>               </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) (v :: * -&gt; * -&gt; *) a.
+(PrimMonad m, MVector v a) =&gt;
+v (PrimState m) a -&gt; Int -&gt; a -&gt; m ()
+</span><span class="hs-identifier hs-var">M.write</span></span><span> </span><span class="annot"><span class="annottext">Mutable v (PrimState (ST s)) Word32
+</span><a href="#local-6989586621679063853"><span class="hs-identifier hs-var">arr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679063811"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679063809"><span class="hs-identifier hs-var">w</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Word32 -&gt; Int -&gt; a -&gt; ST s ()
+</span><a href="#local-6989586621679063813"><span class="hs-identifier hs-var">loop</span></a></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679063812"><span class="hs-identifier hs-var">lim</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679063811"><span class="hs-identifier hs-var">i</span></a></span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679063810"><span class="hs-identifier hs-var">delta</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span>
+</span><span id="line-220"></span><span>  </span><span class="annot"><span class="annottext">forall {a}. (Num a, Ord a) =&gt; Word32 -&gt; Int -&gt; a -&gt; ST s ()
+</span><a href="#local-6989586621679063813"><span class="hs-identifier hs-var">loop</span></a></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><span class="hs-number">255</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int64
+</span><a href="#local-6989586621679063856"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int64
+</span><span class="hs-number">2</span></span><span class="annot"><span class="annottext">forall a b. (Num a, Integral b) =&gt; a -&gt; b -&gt; a
+</span><span class="hs-operator hs-var">^</span></span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">32</span></span><span class="hs-glyph">::</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-221"></span><span>  </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Mutable v (PrimState (ST s)) Word32
+</span><a href="#local-6989586621679063853"><span class="hs-identifier hs-var">arr</span></a></span><span>
+</span><span id="line-222"></span><span>
+</span><span id="line-223"></span><span>
+</span><span id="line-224"></span><span class="hs-comment">-- | Create a lookup table for the Poisson distibution. Note that</span><span>
+</span><span id="line-225"></span><span class="hs-comment">-- table construction may have significant cost. For &amp;#955; &lt; 100 it</span><span>
+</span><span id="line-226"></span><span class="hs-comment">-- takes as much time to build table as generation of 1000-30000</span><span>
+</span><span id="line-227"></span><span class="hs-comment">-- variates.</span><span>
+</span><span id="line-228"></span><span class="annot"><a href="System.Random.MWC.CondensedTable.html#tablePoisson"><span class="hs-identifier hs-type">tablePoisson</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="System.Random.MWC.CondensedTable.html#CondensedTableU"><span class="hs-identifier hs-type">CondensedTableU</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-229"></span><span id="tablePoisson"><span class="annot"><span class="annottext">tablePoisson :: Double -&gt; CondensedTableU Int
+</span><a href="System.Random.MWC.CondensedTable.html#tablePoisson"><span class="hs-identifier hs-var hs-var">tablePoisson</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a.
+(Vector v (a, Word32), Vector v (a, Double), Vector v a,
+ Vector v Word32) =&gt;
+v (a, Double) -&gt; CondensedTable v a
+</span><a href="System.Random.MWC.CondensedTable.html#tableFromProbabilities"><span class="hs-identifier hs-var">tableFromProbabilities</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Double -&gt; Vector (Int, Double)
+</span><a href="#local-6989586621679063806"><span class="hs-identifier hs-var">make</span></a></span><span>
+</span><span id="line-230"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-231"></span><span>    </span><span id="local-6989586621679063806"><span class="annot"><span class="annottext">make :: Double -&gt; Vector (Int, Double)
+</span><a href="#local-6989586621679063806"><span class="hs-identifier hs-var hs-var">make</span></a></span></span><span> </span><span id="local-6989586621679063786"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679063786"><span class="hs-identifier hs-var">lam</span></a></span></span><span>
+</span><span id="line-232"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679063786"><span class="hs-identifier hs-var">lam</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">0</span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. String -&gt; String -&gt; a
+</span><a href="System.Random.MWC.CondensedTable.html#pkgError"><span class="hs-identifier hs-var">pkgError</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;tablePoisson&quot;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;negative lambda&quot;</span></span><span>
+</span><span id="line-233"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679063786"><span class="hs-identifier hs-var">lam</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">22.8</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. Unbox a =&gt; (b -&gt; Maybe (a, b)) -&gt; b -&gt; Vector a
+</span><span class="hs-identifier hs-var">U.unfoldr</span></span><span> </span><span class="annot"><span class="annottext">forall {b}.
+Integral b =&gt;
+(Double, b) -&gt; Maybe ((b, Double), (Double, b))
+</span><a href="#local-6989586621679063784"><span class="hs-identifier hs-var">unfoldForward</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Floating a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">exp</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">-</span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679063786"><span class="hs-identifier hs-var">lam</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span>
+</span><span id="line-234"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. Unbox a =&gt; (b -&gt; Maybe (a, b)) -&gt; b -&gt; Vector a
+</span><span class="hs-identifier hs-var">U.unfoldr</span></span><span> </span><span class="annot"><span class="annottext">forall {b}.
+Integral b =&gt;
+(Double, b) -&gt; Maybe ((b, Double), (Double, b))
+</span><a href="#local-6989586621679063784"><span class="hs-identifier hs-var">unfoldForward</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679063782"><span class="hs-identifier hs-var">pMax</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679063781"><span class="hs-identifier hs-var">nMax</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-235"></span><span>                  </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; v a -&gt; v a -&gt; v a
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">forall a. Unbox a =&gt; Vector a -&gt; Vector a
+</span><span class="hs-identifier hs-var">U.tail</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. Unbox a =&gt; (b -&gt; Maybe (a, b)) -&gt; b -&gt; Vector a
+</span><span class="hs-identifier hs-var">U.unfoldr</span></span><span> </span><span class="annot"><span class="annottext">forall {b}.
+Integral b =&gt;
+(Double, b) -&gt; Maybe ((b, Double), (Double, b))
+</span><a href="#local-6989586621679063779"><span class="hs-identifier hs-var">unfoldBackward</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679063782"><span class="hs-identifier hs-var">pMax</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679063781"><span class="hs-identifier hs-var">nMax</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-236"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-237"></span><span>        </span><span class="hs-comment">-- Number with highest probability and its probability</span><span>
+</span><span id="line-238"></span><span>        </span><span class="hs-comment">--</span><span>
+</span><span id="line-239"></span><span>        </span><span class="hs-comment">-- FIXME: this is not ideal precision-wise. Check if code</span><span>
+</span><span id="line-240"></span><span>        </span><span class="hs-comment">--        from statistics gives better precision.</span><span>
+</span><span id="line-241"></span><span>        </span><span id="local-6989586621679063781"><span class="annot"><span class="annottext">nMax :: Int
+</span><a href="#local-6989586621679063781"><span class="hs-identifier hs-var hs-var">nMax</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (RealFrac a, Integral b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">floor</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679063786"><span class="hs-identifier hs-var">lam</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-242"></span><span>        </span><span id="local-6989586621679063782"><span class="annot"><span class="annottext">pMax :: Double
+</span><a href="#local-6989586621679063782"><span class="hs-identifier hs-var hs-var">pMax</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Floating a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">exp</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679063781"><span class="hs-identifier hs-var">nMax</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">forall a. Floating a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">log</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679063786"><span class="hs-identifier hs-var">lam</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679063786"><span class="hs-identifier hs-var">lam</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">forall a. Integral a =&gt; a -&gt; Double
+</span><span class="hs-identifier hs-var">logFactorial</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679063781"><span class="hs-identifier hs-var">nMax</span></a></span><span>
+</span><span id="line-243"></span><span>        </span><span class="hs-comment">-- Build probability list</span><span>
+</span><span id="line-244"></span><span>        </span><span id="local-6989586621679063784"><span class="annot"><span class="annottext">unfoldForward :: (Double, b) -&gt; Maybe ((b, Double), (Double, b))
+</span><a href="#local-6989586621679063784"><span class="hs-identifier hs-var hs-var">unfoldForward</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679063754"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679063754"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679063753"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679063753"><span class="hs-identifier hs-var">i</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-245"></span><span>          </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679063754"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679063752"><span class="hs-identifier hs-var">minP</span></a></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-246"></span><span>          </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679063753"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679063754"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-247"></span><span>                             </span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679063754"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679063786"><span class="hs-identifier hs-var">lam</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Fractional a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">/</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679063753"><span class="hs-identifier hs-var">i</span></a></span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span class="annot"><span class="annottext">b
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679063753"><span class="hs-identifier hs-var">i</span></a></span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span class="annot"><span class="annottext">b
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span>
+</span><span id="line-248"></span><span>                             </span><span class="hs-special">)</span><span>
+</span><span id="line-249"></span><span>        </span><span class="hs-comment">-- Go down</span><span>
+</span><span id="line-250"></span><span>        </span><span id="local-6989586621679063779"><span class="annot"><span class="annottext">unfoldBackward :: (Double, b) -&gt; Maybe ((b, Double), (Double, b))
+</span><a href="#local-6989586621679063779"><span class="hs-identifier hs-var hs-var">unfoldBackward</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679063741"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679063741"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679063740"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679063740"><span class="hs-identifier hs-var">i</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-251"></span><span>          </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679063741"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679063752"><span class="hs-identifier hs-var">minP</span></a></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-252"></span><span>          </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679063740"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679063741"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-253"></span><span>                             </span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679063741"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Fractional a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">/</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679063786"><span class="hs-identifier hs-var">lam</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679063740"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679063740"><span class="hs-identifier hs-var">i</span></a></span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span class="annot"><span class="annottext">b
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span>
+</span><span id="line-254"></span><span>                             </span><span class="hs-special">)</span><span>
+</span><span id="line-255"></span><span>    </span><span class="hs-comment">-- Minimal representable probability for condensed tables</span><span>
+</span><span id="line-256"></span><span>    </span><span id="local-6989586621679063752"><span class="annot"><span class="annottext">minP :: Double
+</span><a href="#local-6989586621679063752"><span class="hs-identifier hs-var hs-var">minP</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">1.1641532182693481e-10</span></span><span> </span><span class="hs-comment">-- 2**(-33)</span><span>
+</span><span id="line-257"></span><span>
+</span><span id="line-258"></span><span class="hs-comment">-- | Create a lookup table for the binomial distribution.</span><span>
+</span><span id="line-259"></span><span class="annot"><a href="System.Random.MWC.CondensedTable.html#tableBinomial"><span class="hs-identifier hs-type">tableBinomial</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>            </span><span class="hs-comment">-- ^ Number of tries</span><span>
+</span><span id="line-260"></span><span>              </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span>         </span><span class="hs-comment">-- ^ Probability of success</span><span>
+</span><span id="line-261"></span><span>              </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="System.Random.MWC.CondensedTable.html#CondensedTableU"><span class="hs-identifier hs-type">CondensedTableU</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-262"></span><span id="tableBinomial"><span class="annot"><span class="annottext">tableBinomial :: Int -&gt; Double -&gt; CondensedTableU Int
+</span><a href="System.Random.MWC.CondensedTable.html#tableBinomial"><span class="hs-identifier hs-var hs-var">tableBinomial</span></a></span></span><span> </span><span id="local-6989586621679063738"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679063738"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621679063737"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679063737"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a.
+(Vector v (a, Word32), Vector v (a, Double), Vector v a,
+ Vector v Word32) =&gt;
+v (a, Double) -&gt; CondensedTable v a
+</span><a href="System.Random.MWC.CondensedTable.html#tableFromProbabilities"><span class="hs-identifier hs-var">tableFromProbabilities</span></a></span><span> </span><span class="annot"><span class="annottext">Vector (Int, Double)
+</span><a href="#local-6989586621679063736"><span class="hs-identifier hs-var">makeBinom</span></a></span><span>
+</span><span id="line-263"></span><span>  </span><span class="hs-keyword">where</span><span> </span><span>
+</span><span id="line-264"></span><span>  </span><span id="local-6989586621679063736"><span class="annot"><span class="annottext">makeBinom :: Vector (Int, Double)
+</span><a href="#local-6989586621679063736"><span class="hs-identifier hs-var hs-var">makeBinom</span></a></span></span><span>
+</span><span id="line-265"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679063738"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>         </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. String -&gt; String -&gt; a
+</span><a href="System.Random.MWC.CondensedTable.html#pkgError"><span class="hs-identifier hs-var">pkgError</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;tableBinomial&quot;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;non-positive number of tries&quot;</span></span><span>
+</span><span id="line-266"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679063737"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">0</span></span><span>         </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Unbox a =&gt; a -&gt; Vector a
+</span><span class="hs-identifier hs-var">U.singleton</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span>
+</span><span id="line-267"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679063737"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">1</span></span><span>         </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Unbox a =&gt; a -&gt; Vector a
+</span><span class="hs-identifier hs-var">U.singleton</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679063738"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span>
+</span><span id="line-268"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679063737"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679063737"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. Unbox a =&gt; Int -&gt; (b -&gt; Maybe (a, b)) -&gt; b -&gt; Vector a
+</span><span class="hs-identifier hs-var">U.unfoldrN</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679063738"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Double, Int) -&gt; Maybe ((Int, Double), (Double, Int))
+</span><a href="#local-6989586621679063706"><span class="hs-identifier hs-var">unfolder</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">1</span></span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679063737"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span class="annot"><span class="annottext">forall a b. (Num a, Integral b) =&gt; a -&gt; b -&gt; a
+</span><span class="hs-operator hs-var">^</span></span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679063738"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span>
+</span><span id="line-269"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. String -&gt; String -&gt; a
+</span><a href="System.Random.MWC.CondensedTable.html#pkgError"><span class="hs-identifier hs-var">pkgError</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;tableBinomial&quot;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;probability is out of range&quot;</span></span><span>
+</span><span id="line-270"></span><span>    </span><span class="hs-keyword">where</span><span>
+</span><span id="line-271"></span><span>      </span><span id="local-6989586621679063702"><span class="annot"><span class="annottext">h :: Double
+</span><a href="#local-6989586621679063702"><span class="hs-identifier hs-var hs-var">h</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679063737"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Fractional a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">/</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679063737"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-272"></span><span>      </span><span id="local-6989586621679063706"><span class="annot"><span class="annottext">unfolder :: (Double, Int) -&gt; Maybe ((Int, Double), (Double, Int))
+</span><a href="#local-6989586621679063706"><span class="hs-identifier hs-var hs-var">unfolder</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679063691"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679063691"><span class="hs-identifier hs-var">t</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679063690"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679063690"><span class="hs-identifier hs-var">i</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679063690"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679063691"><span class="hs-identifier hs-var">t</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-273"></span><span>                            </span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679063691"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679063738"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679063689"><span class="hs-identifier hs-var">i1</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679063702"><span class="hs-identifier hs-var">h</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Fractional a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">/</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679063689"><span class="hs-identifier hs-var">i1</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679063689"><span class="hs-identifier hs-var">i1</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-274"></span><span>        </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679063689"><span class="annot"><span class="annottext">i1 :: Int
+</span><a href="#local-6989586621679063689"><span class="hs-identifier hs-var hs-var">i1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679063690"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-275"></span><span>
+</span><span id="line-276"></span><span id="local-6989586621679064274"><span class="annot"><a href="System.Random.MWC.CondensedTable.html#pkgError"><span class="hs-identifier hs-type">pkgError</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679064274"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-277"></span><span id="pkgError"><span class="annot"><span class="annottext">pkgError :: forall a. String -&gt; String -&gt; a
+</span><a href="System.Random.MWC.CondensedTable.html#pkgError"><span class="hs-identifier hs-var hs-var">pkgError</span></a></span></span><span> </span><span id="local-6989586621679063682"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679063682"><span class="hs-identifier hs-var">func</span></a></span></span><span> </span><span id="local-6989586621679063681"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679063681"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-278"></span><span>    </span><span class="annot"><span class="annottext">forall a. HasCallStack =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">concat</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;System.Random.MWC.CondensedTable.&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679063682"><span class="hs-identifier hs-var">func</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;: &quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679063681"><span class="hs-identifier hs-var">err</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-279"></span><span>
+</span><span id="line-280"></span><span class="hs-comment">-- $references</span><span>
+</span><span id="line-281"></span><span class="hs-comment">--</span><span>
+</span><span id="line-282"></span><span class="hs-comment">-- * Wang, J.; Tsang, W. W.; G. Marsaglia (2004), Fast Generation of</span><span>
+</span><span id="line-283"></span><span class="hs-comment">--   Discrete Random Variables, /Journal of Statistical Software,</span><span>
+</span><span id="line-284"></span><span class="hs-comment">--   American Statistical Association/, vol. 11(i03).</span><span>
+</span><span id="line-285"></span><span class="hs-comment">--   &lt;http://ideas.repec.org/a/jss/jstsof/11i03.html&gt;</span><span>
+</span><span id="line-286"></span></pre></body></html>

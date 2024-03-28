@@ -1,0 +1,232 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- Module      :  Text.PrettyPrint.ANSI.Leijen</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Copyright   :  Daan Leijen (c) 2000, http://www.cs.uu.nl/~daan</span><span>
+</span><span id="line-6"></span><span class="hs-comment">--                Max Bolingbroke (c) 2008, http://blog.omega-prime.co.uk</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- License     :  BSD-style (see the file LICENSE)</span><span>
+</span><span id="line-8"></span><span class="hs-comment">--</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- Maintainer  :  Edward Kmett &lt;ekmett@gmail.com&gt;</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- Stability   :  provisional</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- Portability :  portable</span><span>
+</span><span id="line-12"></span><span class="hs-comment">--</span><span>
+</span><span id="line-13"></span><span class="hs-comment">--</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- This module is an extended implementation of the functional pretty printer</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- given by Philip Wadler (1997):</span><span>
+</span><span id="line-16"></span><span class="hs-comment">--</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-18"></span><span class="hs-comment">--      \&quot;A prettier printer\&quot;</span><span>
+</span><span id="line-19"></span><span class="hs-comment">--      Draft paper, April 1997, revised March 1998.</span><span>
+</span><span id="line-20"></span><span class="hs-comment">--      &lt;https://homepages.inf.ed.ac.uk/wadler/papers/prettier/prettier.pdf&gt;</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-22"></span><span class="hs-comment">--</span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- In their bare essence, the combinators given by Wadler are</span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- not expressive enough to describe some commonly occurring layouts.</span><span>
+</span><span id="line-25"></span><span class="hs-comment">-- This library adds new primitives to describe these layouts and</span><span>
+</span><span id="line-26"></span><span class="hs-comment">-- works well in practice.</span><span>
+</span><span id="line-27"></span><span class="hs-comment">--</span><span>
+</span><span id="line-28"></span><span class="hs-comment">-- The library is based on a single way to concatenate documents,</span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- which is associative and has both a left and right unit.  This</span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- simple design leads to an efficient and short implementation. The</span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- simplicity is reflected in the predictable behaviour of the</span><span>
+</span><span id="line-32"></span><span class="hs-comment">-- combinators which make them easy to use in practice.</span><span>
+</span><span id="line-33"></span><span class="hs-comment">--</span><span>
+</span><span id="line-34"></span><span class="hs-comment">-- A thorough description of the primitive combinators and their</span><span>
+</span><span id="line-35"></span><span class="hs-comment">-- implementation can be found in Philip Wadler's paper.</span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- The main differences with his original paper are:</span><span>
+</span><span id="line-37"></span><span class="hs-comment">--</span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- * The nil document is called 'empty'.</span><span>
+</span><span id="line-39"></span><span class="hs-comment">--</span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- * The above combinator is called '&lt;$&gt;'. The operator '&lt;/&gt;' is used</span><span>
+</span><span id="line-41"></span><span class="hs-comment">-- for soft line breaks.</span><span>
+</span><span id="line-42"></span><span class="hs-comment">--</span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- * There are three new primitives: 'align', 'fill' and</span><span>
+</span><span id="line-44"></span><span class="hs-comment">-- 'fillBreak'. These are very useful in practice.</span><span>
+</span><span id="line-45"></span><span class="hs-comment">--</span><span>
+</span><span id="line-46"></span><span class="hs-comment">-- * There are many additional useful combinators, like 'fillSep' and 'list'.</span><span>
+</span><span id="line-47"></span><span class="hs-comment">--</span><span>
+</span><span id="line-48"></span><span class="hs-comment">-- * There are two renderers: 'renderPretty' for pretty printing, and</span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- 'renderCompact' for quickly rendered, compact output more suitable</span><span>
+</span><span id="line-50"></span><span class="hs-comment">-- for generating input to other programs.</span><span>
+</span><span id="line-51"></span><span class="hs-comment">--</span><span>
+</span><span id="line-52"></span><span class="hs-comment">-- * The pretty printing algorithm used by 'renderPretty' extends the algorithm</span><span>
+</span><span id="line-53"></span><span class="hs-comment">-- given by Wadler to take into account a \&quot;ribbon width\&quot;, i.e., a desired</span><span>
+</span><span id="line-54"></span><span class="hs-comment">-- maximum number of non-indentation characters to output on any one line.</span><span>
+</span><span id="line-55"></span><span class="hs-comment">--</span><span>
+</span><span id="line-56"></span><span class="hs-comment">-- * There are two displayers, 'displayS' for strings and 'displayIO' for</span><span>
+</span><span id="line-57"></span><span class="hs-comment">-- file-based output.</span><span>
+</span><span id="line-58"></span><span class="hs-comment">--</span><span>
+</span><span id="line-59"></span><span class="hs-comment">-- * There is a 'Pretty' class.</span><span>
+</span><span id="line-60"></span><span class="hs-comment">--</span><span>
+</span><span id="line-61"></span><span class="hs-comment">-- * The implementation uses optimised representations and strictness</span><span>
+</span><span id="line-62"></span><span class="hs-comment">-- annotations.</span><span>
+</span><span id="line-63"></span><span class="hs-comment">--</span><span>
+</span><span id="line-64"></span><span class="hs-comment">-- * The library has been extended to allow formatting text for output</span><span>
+</span><span id="line-65"></span><span class="hs-comment">-- to ANSI style consoles. New combinators allow control of foreground and</span><span>
+</span><span id="line-66"></span><span class="hs-comment">-- background color and the ability to make parts of the text bold or</span><span>
+</span><span id="line-67"></span><span class="hs-comment">-- underlined.</span><span>
+</span><span id="line-68"></span><span class="hs-comment">-----------------------------------------------------------</span><span>
+</span><span id="line-69"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Text.PrettyPrint.ANSI.Leijen</span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-70"></span><span>   </span><span class="annot"><span class="hs-comment">-- * The algebra of pretty-printing</span></span><span>
+</span><span id="line-71"></span><span>   </span><span class="annot"><span class="hs-comment">-- $DocumentAlgebra</span></span><span>
+</span><span id="line-72"></span><span>
+</span><span id="line-73"></span><span>   </span><span class="annot"><span class="hs-comment">-- * Documents</span></span><span>
+</span><span id="line-74"></span><span>   </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#Doc"><span class="hs-identifier">Doc</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span><span>   </span><span class="annot"><span class="hs-comment">-- * Basic combinators</span></span><span>
+</span><span id="line-77"></span><span>   </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#empty"><span class="hs-identifier">empty</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#char"><span class="hs-identifier">char</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#text"><span class="hs-identifier">text</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#string"><span class="hs-identifier">string</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#int"><span class="hs-identifier">int</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#integer"><span class="hs-identifier">integer</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#float"><span class="hs-identifier">float</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#double"><span class="hs-identifier">double</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#rational"><span class="hs-identifier">rational</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#bool"><span class="hs-identifier">bool</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-78"></span><span>   </span><span class="annot"><span class="hs-operator">(&lt;&gt;)</span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#nest"><span class="hs-identifier">nest</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#line"><span class="hs-identifier">line</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#linebreak"><span class="hs-identifier">linebreak</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-79"></span><span>   </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#group"><span class="hs-identifier">group</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#softline"><span class="hs-identifier">softline</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#softbreak"><span class="hs-identifier">softbreak</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#hardline"><span class="hs-identifier">hardline</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#flatAlt"><span class="hs-identifier">flatAlt</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-80"></span><span>
+</span><span id="line-81"></span><span>   </span><span class="annot"><span class="hs-comment">-- * Alignment combinators</span></span><span>
+</span><span id="line-82"></span><span>   </span><span class="hs-comment">--</span><span>
+</span><span id="line-83"></span><span>   </span><span class="hs-comment">-- | The combinators in this section cannot be described by Wadler's</span><span>
+</span><span id="line-84"></span><span>   </span><span class="hs-comment">-- original combinators. They align their output relative to the</span><span>
+</span><span id="line-85"></span><span>   </span><span class="hs-comment">-- current output position &#8212; in contrast to @nest@ which always</span><span>
+</span><span id="line-86"></span><span>   </span><span class="hs-comment">-- aligns to the current nesting level. This deprives these</span><span>
+</span><span id="line-87"></span><span>   </span><span class="hs-comment">-- combinators from being \`optimal\'. In practice however they</span><span>
+</span><span id="line-88"></span><span>   </span><span class="hs-comment">-- prove to be very useful. The combinators in this section should</span><span>
+</span><span id="line-89"></span><span>   </span><span class="hs-comment">-- be used with care, since they are more expensive than the other</span><span>
+</span><span id="line-90"></span><span>   </span><span class="hs-comment">-- combinators. For example, @align@ shouldn't be used to pretty</span><span>
+</span><span id="line-91"></span><span>   </span><span class="hs-comment">-- print all top-level declarations of a language, but using @hang@</span><span>
+</span><span id="line-92"></span><span>   </span><span class="hs-comment">-- for let expressions is fine.</span><span>
+</span><span id="line-93"></span><span>   </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#align"><span class="hs-identifier">align</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#hang"><span class="hs-identifier">hang</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#indent"><span class="hs-identifier">indent</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#encloseSep"><span class="hs-identifier">encloseSep</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#list"><span class="hs-identifier">list</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#tupled"><span class="hs-identifier">tupled</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#semiBraces"><span class="hs-identifier">semiBraces</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-94"></span><span>
+</span><span id="line-95"></span><span>   </span><span class="annot"><span class="hs-comment">-- * Operators</span></span><span>
+</span><span id="line-96"></span><span>   </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#%3C%2B%3E"><span class="hs-operator">(&lt;+&gt;)</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#%3C%24%3E"><span class="hs-operator">(Text.PrettyPrint.ANSI.Leijen.Internal.&lt;$&gt;)</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#%3C%2F%3E"><span class="hs-operator">(&lt;/&gt;)</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#%3C%24%24%3E"><span class="hs-operator">(&lt;$$&gt;)</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#%3C%2F%2F%3E"><span class="hs-operator">(&lt;//&gt;)</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-97"></span><span>
+</span><span id="line-98"></span><span>   </span><span class="annot"><span class="hs-comment">-- * List combinators</span></span><span>
+</span><span id="line-99"></span><span>   </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#hsep"><span class="hs-identifier">hsep</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#vsep"><span class="hs-identifier">vsep</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#fillSep"><span class="hs-identifier">fillSep</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#sep"><span class="hs-identifier">sep</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#hcat"><span class="hs-identifier">hcat</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#vcat"><span class="hs-identifier">vcat</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#fillCat"><span class="hs-identifier">fillCat</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#cat"><span class="hs-identifier">cat</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#punctuate"><span class="hs-identifier">punctuate</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-100"></span><span>
+</span><span id="line-101"></span><span>   </span><span class="annot"><span class="hs-comment">-- * Filler combinators</span></span><span>
+</span><span id="line-102"></span><span>   </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#fill"><span class="hs-identifier">fill</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#fillBreak"><span class="hs-identifier">fillBreak</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-103"></span><span>
+</span><span id="line-104"></span><span>   </span><span class="annot"><span class="hs-comment">-- * Bracketing combinators</span></span><span>
+</span><span id="line-105"></span><span>   </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#enclose"><span class="hs-identifier">enclose</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#squotes"><span class="hs-identifier">squotes</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#dquotes"><span class="hs-identifier">dquotes</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#parens"><span class="hs-identifier">parens</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#angles"><span class="hs-identifier">angles</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#braces"><span class="hs-identifier">braces</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#brackets"><span class="hs-identifier">brackets</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-106"></span><span>
+</span><span id="line-107"></span><span>   </span><span class="annot"><span class="hs-comment">-- * Named character combinators</span></span><span>
+</span><span id="line-108"></span><span>   </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#lparen"><span class="hs-identifier">lparen</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#rparen"><span class="hs-identifier">rparen</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#langle"><span class="hs-identifier">langle</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#rangle"><span class="hs-identifier">rangle</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#lbrace"><span class="hs-identifier">lbrace</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#rbrace"><span class="hs-identifier">rbrace</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#lbracket"><span class="hs-identifier">lbracket</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#rbracket"><span class="hs-identifier">rbracket</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-109"></span><span>   </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#squote"><span class="hs-identifier">squote</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#dquote"><span class="hs-identifier">dquote</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#semi"><span class="hs-identifier">semi</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#colon"><span class="hs-identifier">colon</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#comma"><span class="hs-identifier">comma</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#space"><span class="hs-identifier">space</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#dot"><span class="hs-identifier">dot</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#backslash"><span class="hs-identifier">backslash</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#equals"><span class="hs-identifier">equals</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-110"></span><span>
+</span><span id="line-111"></span><span>
+</span><span id="line-112"></span><span>   </span><span class="annot"><span class="hs-comment">-- * ANSI formatting combinators</span></span><span>
+</span><span id="line-113"></span><span>   </span><span class="hs-comment">--</span><span>
+</span><span id="line-114"></span><span>   </span><span class="hs-comment">-- | This terminal formatting functionality is, as far as possible,</span><span>
+</span><span id="line-115"></span><span>   </span><span class="hs-comment">-- portable across platforms with their varying terminals. However,</span><span>
+</span><span id="line-116"></span><span>   </span><span class="hs-comment">-- note that to display ANSI colors and formatting will only be displayed</span><span>
+</span><span id="line-117"></span><span>   </span><span class="hs-comment">-- on Windows consoles if the 'Doc' value is output using the 'putDoc'</span><span>
+</span><span id="line-118"></span><span>   </span><span class="hs-comment">-- function or one of its friends.  Rendering the 'Doc' to a 'String'</span><span>
+</span><span id="line-119"></span><span>   </span><span class="hs-comment">-- and then outputing /that/ will only work on Unix-style operating systems.</span><span>
+</span><span id="line-120"></span><span>
+</span><span id="line-121"></span><span>   </span><span class="annot"><span class="hs-comment">-- ** Forecolor combinators</span></span><span>
+</span><span id="line-122"></span><span>   </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#black"><span class="hs-identifier">black</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#red"><span class="hs-identifier">red</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#green"><span class="hs-identifier">green</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#yellow"><span class="hs-identifier">yellow</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#blue"><span class="hs-identifier">blue</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#magenta"><span class="hs-identifier">magenta</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#cyan"><span class="hs-identifier">cyan</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#white"><span class="hs-identifier">white</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-123"></span><span>   </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#dullblack"><span class="hs-identifier">dullblack</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#dullred"><span class="hs-identifier">dullred</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#dullgreen"><span class="hs-identifier">dullgreen</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#dullyellow"><span class="hs-identifier">dullyellow</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#dullblue"><span class="hs-identifier">dullblue</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#dullmagenta"><span class="hs-identifier">dullmagenta</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-124"></span><span>   </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#dullcyan"><span class="hs-identifier">dullcyan</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#dullwhite"><span class="hs-identifier">dullwhite</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-125"></span><span>
+</span><span id="line-126"></span><span>   </span><span class="annot"><span class="hs-comment">-- ** Backcolor combinators</span></span><span>
+</span><span id="line-127"></span><span>   </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#onblack"><span class="hs-identifier">onblack</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#onred"><span class="hs-identifier">onred</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#ongreen"><span class="hs-identifier">ongreen</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#onyellow"><span class="hs-identifier">onyellow</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#onblue"><span class="hs-identifier">onblue</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#onmagenta"><span class="hs-identifier">onmagenta</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#oncyan"><span class="hs-identifier">oncyan</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#onwhite"><span class="hs-identifier">onwhite</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-128"></span><span>   </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#ondullblack"><span class="hs-identifier">ondullblack</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#ondullred"><span class="hs-identifier">ondullred</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#ondullgreen"><span class="hs-identifier">ondullgreen</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#ondullyellow"><span class="hs-identifier">ondullyellow</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#ondullblue"><span class="hs-identifier">ondullblue</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#ondullmagenta"><span class="hs-identifier">ondullmagenta</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-129"></span><span>   </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#ondullcyan"><span class="hs-identifier">ondullcyan</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#ondullwhite"><span class="hs-identifier">ondullwhite</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-130"></span><span>
+</span><span id="line-131"></span><span>   </span><span class="annot"><span class="hs-comment">-- ** Emboldening combinators</span></span><span>
+</span><span id="line-132"></span><span>   </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#bold"><span class="hs-identifier">bold</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#debold"><span class="hs-identifier">debold</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-133"></span><span>
+</span><span id="line-134"></span><span>   </span><span class="annot"><span class="hs-comment">-- ** Underlining combinators</span></span><span>
+</span><span id="line-135"></span><span>   </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#underline"><span class="hs-identifier">underline</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#deunderline"><span class="hs-identifier">deunderline</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-136"></span><span>
+</span><span id="line-137"></span><span>   </span><span class="annot"><span class="hs-comment">-- ** Formatting elimination combinators</span></span><span>
+</span><span id="line-138"></span><span>   </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#plain"><span class="hs-identifier">plain</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-139"></span><span>
+</span><span id="line-140"></span><span>
+</span><span id="line-141"></span><span>   </span><span class="annot"><span class="hs-comment">-- * Pretty class</span></span><span>
+</span><span id="line-142"></span><span>   </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#Pretty"><span class="hs-identifier">Pretty</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-143"></span><span>
+</span><span id="line-144"></span><span>
+</span><span id="line-145"></span><span>   </span><span class="annot"><span class="hs-comment">-- * Rendering and displaying documents</span></span><span>
+</span><span id="line-146"></span><span>
+</span><span id="line-147"></span><span>   </span><span class="annot"><span class="hs-comment">-- ** Simple (i.e., rendered) documents</span></span><span>
+</span><span id="line-148"></span><span>   </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#SimpleDoc"><span class="hs-identifier">SimpleDoc</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-149"></span><span>   </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#renderPretty"><span class="hs-identifier">renderPretty</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#renderCompact"><span class="hs-identifier">renderCompact</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#renderSmart"><span class="hs-identifier">renderSmart</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-150"></span><span>   </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#displayS"><span class="hs-identifier">displayS</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-151"></span><span>   </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#displayIO"><span class="hs-identifier">displayIO</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-152"></span><span>
+</span><span id="line-153"></span><span>   </span><span class="annot"><span class="hs-comment">-- ** Simultaneous rendering and displaying of documents</span></span><span>
+</span><span id="line-154"></span><span>   </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#putDoc"><span class="hs-identifier">putDoc</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#hPutDoc"><span class="hs-identifier">hPutDoc</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-155"></span><span>
+</span><span id="line-156"></span><span>
+</span><span id="line-157"></span><span>   </span><span class="annot"><span class="hs-comment">-- * Undocumented</span></span><span>
+</span><span id="line-158"></span><span>   </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#column"><span class="hs-identifier">column</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#columns"><span class="hs-identifier">columns</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#nesting"><span class="hs-identifier">nesting</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html#width"><span class="hs-identifier">width</span></a></span><span>
+</span><span id="line-159"></span><span>   </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-160"></span><span>
+</span><span id="line-161"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Text.PrettyPrint.ANSI.Leijen.Internal.html"><span class="hs-identifier">Text.PrettyPrint.ANSI.Leijen.Internal</span></a></span><span class="hs-cpp">
+
+#if __GLASGOW_HASKELL__ &gt;= 710
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Monoid</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-operator">(&lt;&gt;)</span></span><span class="hs-special">)</span><span class="hs-cpp">
+#elif __GLASGOW_HASKELL__ &gt;= 704
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Monoid</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Monoid</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">mappend</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">mconcat</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">mempty</span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="hs-operator">&lt;&gt;</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-cpp">
+#else
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Monoid</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Monoid</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">mappend</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">mconcat</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">mempty</span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-171"></span><span class="hs-comment">-- $DocumentAlgebra</span><span>
+</span><span id="line-172"></span><span class="hs-comment">-- The combinators in this library satisfy many algebraic laws.</span><span>
+</span><span id="line-173"></span><span class="hs-comment">--</span><span>
+</span><span id="line-174"></span><span class="hs-comment">-- The concatenation operator '&lt;&gt;' is associative and has 'empty' as a left</span><span>
+</span><span id="line-175"></span><span class="hs-comment">-- and right unit:</span><span>
+</span><span id="line-176"></span><span class="hs-comment">--</span><span>
+</span><span id="line-177"></span><span class="hs-comment">--     &gt; x &lt;&gt; (y &lt;&gt; z)           = (x &lt;&gt; y) &lt;&gt; z</span><span>
+</span><span id="line-178"></span><span class="hs-comment">--     &gt; x &lt;&gt; empty              = x</span><span>
+</span><span id="line-179"></span><span class="hs-comment">--     &gt; empty &lt;&gt; x              = x</span><span>
+</span><span id="line-180"></span><span class="hs-comment">--</span><span>
+</span><span id="line-181"></span><span class="hs-comment">-- The 'text' combinator is a homomorphism from string concatenation to</span><span>
+</span><span id="line-182"></span><span class="hs-comment">-- document concatenation:</span><span>
+</span><span id="line-183"></span><span class="hs-comment">--</span><span>
+</span><span id="line-184"></span><span class="hs-comment">--     &gt; text (s ++ t)           = text s &lt;&gt; text t</span><span>
+</span><span id="line-185"></span><span class="hs-comment">--     &gt; text &quot;&quot;                 = empty</span><span>
+</span><span id="line-186"></span><span class="hs-comment">--</span><span>
+</span><span id="line-187"></span><span class="hs-comment">-- The 'char' combinator behaves like one-element text:</span><span>
+</span><span id="line-188"></span><span class="hs-comment">--</span><span>
+</span><span id="line-189"></span><span class="hs-comment">--     &gt; char c                  = text [c]</span><span>
+</span><span id="line-190"></span><span class="hs-comment">--</span><span>
+</span><span id="line-191"></span><span class="hs-comment">-- The 'nest' combinator is a homomorphism from addition to document</span><span>
+</span><span id="line-192"></span><span class="hs-comment">-- composition.  'nest' also distributes through document concatenation and is</span><span>
+</span><span id="line-193"></span><span class="hs-comment">-- absorbed by 'text' and 'align':</span><span>
+</span><span id="line-194"></span><span class="hs-comment">--</span><span>
+</span><span id="line-195"></span><span class="hs-comment">--     &gt; nest (i + j) x          = nest i (nest j x)</span><span>
+</span><span id="line-196"></span><span class="hs-comment">--     &gt; nest 0 x                = x</span><span>
+</span><span id="line-197"></span><span class="hs-comment">--     &gt; nest i (x &lt;&gt; y)         = nest i x &lt;&gt; nest i y</span><span>
+</span><span id="line-198"></span><span class="hs-comment">--     &gt; nest i empty            = empty</span><span>
+</span><span id="line-199"></span><span class="hs-comment">--     &gt; nest i (text s)         = text s</span><span>
+</span><span id="line-200"></span><span class="hs-comment">--     &gt; nest i (align x)        = align x</span><span>
+</span><span id="line-201"></span><span class="hs-comment">--</span><span>
+</span><span id="line-202"></span><span class="hs-comment">-- The 'group' combinator is absorbed by 'empty'.  'group' is commutative with</span><span>
+</span><span id="line-203"></span><span class="hs-comment">-- 'nest' and 'align':</span><span>
+</span><span id="line-204"></span><span class="hs-comment">--</span><span>
+</span><span id="line-205"></span><span class="hs-comment">--     &gt; group empty             = empty</span><span>
+</span><span id="line-206"></span><span class="hs-comment">--     &gt; group (text s &lt;&gt; x)     = text s &lt;&gt; group x</span><span>
+</span><span id="line-207"></span><span class="hs-comment">--     &gt; group (nest i x)        = nest i (group x)</span><span>
+</span><span id="line-208"></span><span class="hs-comment">--     &gt; group (align x)         = align (group x)</span><span>
+</span><span id="line-209"></span><span class="hs-comment">--</span><span>
+</span><span id="line-210"></span><span class="hs-comment">-- The 'align' combinator is absorbed by 'empty' and 'text'.</span><span>
+</span><span id="line-211"></span><span class="hs-comment">-- 'align' is idempotent:</span><span>
+</span><span id="line-212"></span><span class="hs-comment">--</span><span>
+</span><span id="line-213"></span><span class="hs-comment">--     &gt; align empty             = empty</span><span>
+</span><span id="line-214"></span><span class="hs-comment">--     &gt; align (text s)          = text s</span><span>
+</span><span id="line-215"></span><span class="hs-comment">--     &gt; align (align x)         = align x</span><span>
+</span><span id="line-216"></span><span class="hs-comment">--</span><span>
+</span><span id="line-217"></span><span class="hs-comment">-- From the laws of the primitive combinators, we can derive many other laws</span><span>
+</span><span id="line-218"></span><span class="hs-comment">-- for the derived combinators.  For example, the /above/ operator '&lt;$&gt;' is</span><span>
+</span><span id="line-219"></span><span class="hs-comment">-- defined as:</span><span>
+</span><span id="line-220"></span><span class="hs-comment">--</span><span>
+</span><span id="line-221"></span><span class="hs-comment">--     &gt; x &lt;$&gt; y                 = x &lt;&gt; line &lt;&gt; y</span><span>
+</span><span id="line-222"></span><span class="hs-comment">--</span><span>
+</span><span id="line-223"></span><span class="hs-comment">-- It follows that '&lt;$&gt;' is associative and that '&lt;$&gt;' and '&lt;&gt;' associate</span><span>
+</span><span id="line-224"></span><span class="hs-comment">-- with each other:</span><span>
+</span><span id="line-225"></span><span class="hs-comment">--</span><span>
+</span><span id="line-226"></span><span class="hs-comment">--     &gt; x &lt;$&gt; (y &lt;$&gt; z)         = (x &lt;$&gt; y) &lt;$&gt; z</span><span>
+</span><span id="line-227"></span><span class="hs-comment">--     &gt; x &lt;&gt; (y &lt;$&gt; z)          = (x &lt;&gt; y) &lt;$&gt; z</span><span>
+</span><span id="line-228"></span><span class="hs-comment">--     &gt; x &lt;$&gt; (y &lt;&gt; z)          = (x &lt;$&gt; y) &lt;&gt; z</span><span>
+</span><span id="line-229"></span><span class="hs-comment">--</span><span>
+</span><span id="line-230"></span><span class="hs-comment">-- Similar laws also hold for the other line break operators '&lt;/&gt;', '&lt;$$&gt;',</span><span>
+</span><span id="line-231"></span><span class="hs-comment">-- and '&lt;//&gt;'.</span><span>
+</span><span id="line-232"></span></pre></body></html>

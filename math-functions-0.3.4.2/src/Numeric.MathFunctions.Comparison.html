@@ -1,0 +1,395 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- |</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- Module    : Numeric.MathFunctions.Comparison</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- Copyright : (c) 2011 Bryan O'Sullivan</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- License   : BSD3</span><span>
+</span><span id="line-5"></span><span class="hs-comment">--</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- Maintainer  : bos@serpentine.com</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Stability   : experimental</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- Portability : portable</span><span>
+</span><span id="line-9"></span><span class="hs-comment">--</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- Functions for approximate comparison of floating point numbers.</span><span>
+</span><span id="line-11"></span><span class="hs-comment">--</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- Approximate floating point comparison, based on Bruce Dawson's</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- \&quot;Comparing floating point numbers\&quot;:</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- &lt;http://www.cygnus-software.com/papers/comparingfloats/comparingfloats.htm&gt;</span><span>
+</span><span id="line-15"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Numeric.MathFunctions.Comparison</span><span>
+</span><span id="line-16"></span><span>    </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-comment">-- * Relative erros</span></span><span>
+</span><span id="line-17"></span><span>      </span><span class="annot"><a href="Numeric.MathFunctions.Comparison.html#relativeError"><span class="hs-identifier">relativeError</span></a></span><span>
+</span><span id="line-18"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Numeric.MathFunctions.Comparison.html#eqRelErr"><span class="hs-identifier">eqRelErr</span></a></span><span>
+</span><span id="line-19"></span><span>      </span><span class="annot"><span class="hs-comment">-- * Ulps-based comparison</span></span><span>
+</span><span id="line-20"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Numeric.MathFunctions.Comparison.html#addUlps"><span class="hs-identifier">addUlps</span></a></span><span>
+</span><span id="line-21"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Numeric.MathFunctions.Comparison.html#ulpDistance"><span class="hs-identifier">ulpDistance</span></a></span><span>
+</span><span id="line-22"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Numeric.MathFunctions.Comparison.html#ulpDelta"><span class="hs-identifier">ulpDelta</span></a></span><span>
+</span><span id="line-23"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Numeric.MathFunctions.Comparison.html#within"><span class="hs-identifier">within</span></a></span><span>
+</span><span id="line-24"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.ST</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">runST</span></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Primitive.ByteArray</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">newByteArray</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">readByteArray</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">writeByteArray</span></span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Word</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Word64</span></span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Int</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Int64</span></span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-34"></span><span class="hs-comment">-- Ulps-based comparison</span><span>
+</span><span id="line-35"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- Calculate relative error of two numbers:</span><span>
+</span><span id="line-39"></span><span class="hs-comment">--</span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- \[ \frac{|a - b|}{\max(|a|,|b|)} \]</span><span>
+</span><span id="line-41"></span><span class="hs-comment">--</span><span>
+</span><span id="line-42"></span><span class="hs-comment">-- It lies in [0,1) interval for numbers with same sign and (1,2] for</span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- numbers with different sign. If both arguments are zero or negative</span><span>
+</span><span id="line-44"></span><span class="hs-comment">-- zero function returns 0. If at least one argument is transfinite it</span><span>
+</span><span id="line-45"></span><span class="hs-comment">-- returns NaN</span><span>
+</span><span id="line-46"></span><span class="annot"><a href="Numeric.MathFunctions.Comparison.html#relativeError"><span class="hs-identifier hs-type">relativeError</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span>
+</span><span id="line-47"></span><span id="relativeError"><span class="annot"><span class="annottext">relativeError :: Double -&gt; Double -&gt; Double
+</span><a href="Numeric.MathFunctions.Comparison.html#relativeError"><span class="hs-identifier hs-var hs-var">relativeError</span></a></span></span><span> </span><span id="local-6989586621679066584"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679066584"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679066583"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679066583"><span class="hs-identifier hs-var">b</span></a></span></span><span>
+</span><span id="line-48"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679066584"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679066583"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-49"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">abs</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679066584"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679066583"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Fractional a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">/</span></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">max</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">abs</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679066584"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">abs</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679066583"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-50"></span><span>
+</span><span id="line-51"></span><span class="hs-comment">-- | Check that relative error between two numbers @a@ and @b@. If</span><span>
+</span><span id="line-52"></span><span class="hs-comment">-- 'relativeError' returns NaN it returns @False@.</span><span>
+</span><span id="line-53"></span><span class="annot"><a href="Numeric.MathFunctions.Comparison.html#eqRelErr"><span class="hs-identifier hs-type">eqRelErr</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span> </span><span class="hs-comment">-- ^ /eps/ relative error should be in [0,1) range</span><span>
+</span><span id="line-54"></span><span>         </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span> </span><span class="hs-comment">-- ^ /a/</span><span>
+</span><span id="line-55"></span><span>         </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span> </span><span class="hs-comment">-- ^ /b/</span><span>
+</span><span id="line-56"></span><span>         </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-57"></span><span id="eqRelErr"><span class="annot"><span class="annottext">eqRelErr :: Double -&gt; Double -&gt; Double -&gt; Bool
+</span><a href="Numeric.MathFunctions.Comparison.html#eqRelErr"><span class="hs-identifier hs-var hs-var">eqRelErr</span></a></span></span><span> </span><span id="local-6989586621679066578"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679066578"><span class="hs-identifier hs-var">eps</span></a></span></span><span> </span><span id="local-6989586621679066577"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679066577"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679066576"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679066576"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double
+</span><a href="Numeric.MathFunctions.Comparison.html#relativeError"><span class="hs-identifier hs-var">relativeError</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679066577"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679066576"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679066578"><span class="hs-identifier hs-var">eps</span></a></span><span>
+</span><span id="line-58"></span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span>
+</span><span id="line-61"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-62"></span><span class="hs-comment">-- Ulps-based comparison</span><span>
+</span><span id="line-63"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-64"></span><span>
+</span><span id="line-65"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-66"></span><span class="hs-comment">-- Add N ULPs (units of least precision) to @Double@ number.</span><span>
+</span><span id="line-67"></span><span class="annot"><a href="Numeric.MathFunctions.Comparison.html#addUlps"><span class="hs-identifier hs-type">addUlps</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span>
+</span><span id="line-68"></span><span id="addUlps"><span class="annot"><span class="annottext">addUlps :: Int -&gt; Double -&gt; Double
+</span><a href="Numeric.MathFunctions.Comparison.html#addUlps"><span class="hs-identifier hs-var hs-var">addUlps</span></a></span></span><span> </span><span id="local-6989586621679066574"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679066574"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621679066573"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679066573"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. (forall s. ST s a) -&gt; a
+</span><span class="hs-identifier hs-var">runST</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-69"></span><span>  </span><span id="local-6989586621679066533"><span class="annot"><span class="annottext">MutableByteArray s
+</span><a href="#local-6989586621679066533"><span class="hs-identifier hs-var">buf</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *).
+PrimMonad m =&gt;
+Int -&gt; m (MutableByteArray (PrimState m))
+</span><span class="hs-identifier hs-var">newByteArray</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span>
+</span><span id="line-70"></span><span>  </span><span id="local-6989586621679066532"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679066532"><span class="hs-identifier hs-var">ai0</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a (m :: * -&gt; *).
+(Prim a, PrimMonad m) =&gt;
+MutableByteArray (PrimState m) -&gt; Int -&gt; a -&gt; m ()
+</span><span class="hs-identifier hs-var">writeByteArray</span></span><span> </span><span class="annot"><span class="annottext">MutableByteArray s
+</span><a href="#local-6989586621679066533"><span class="hs-identifier hs-var">buf</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679066573"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall a (m :: * -&gt; *).
+(Prim a, PrimMonad m) =&gt;
+MutableByteArray (PrimState m) -&gt; Int -&gt; m a
+</span><span class="hs-identifier hs-var">readByteArray</span></span><span> </span><span class="annot"><span class="annottext">MutableByteArray s
+</span><a href="#local-6989586621679066533"><span class="hs-identifier hs-var">buf</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-71"></span><span>  </span><span class="hs-comment">-- Convert to ulps number represented as Int64</span><span>
+</span><span id="line-72"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679066530"><span class="annot"><span class="annottext">big :: Word64
+</span><a href="#local-6989586621679066530"><span class="hs-identifier hs-var hs-var">big</span></a></span></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-number">0x8000000000000000</span></span><span>
+</span><span id="line-73"></span><span>      </span><span class="annot"><a href="#local-6989586621679066529"><span class="hs-identifier hs-type">order</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int64</span></span><span>
+</span><span id="line-74"></span><span>      </span><span id="local-6989586621679066529"><span class="annot"><span class="annottext">order :: Word64 -&gt; Int64
+</span><a href="#local-6989586621679066529"><span class="hs-identifier hs-var hs-var">order</span></a></span></span><span> </span><span id="local-6989586621679066528"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679066528"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679066528"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679066530"><span class="hs-identifier hs-var">big</span></a></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679066528"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-75"></span><span>              </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall a. Bounded a =&gt; a
+</span><span class="hs-identifier hs-var">maxBound</span></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679066528"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679066530"><span class="hs-identifier hs-var">big</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-76"></span><span>      </span><span class="annot"><a href="#local-6989586621679066526"><span class="hs-identifier hs-type">unorder</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int64</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span>
+</span><span id="line-77"></span><span>      </span><span id="local-6989586621679066526"><span class="annot"><span class="annottext">unorder :: Int64 -&gt; Word64
+</span><a href="#local-6989586621679066526"><span class="hs-identifier hs-var hs-var">unorder</span></a></span></span><span> </span><span id="local-6989586621679066525"><span class="annot"><span class="annottext">Int64
+</span><a href="#local-6989586621679066525"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int64
+</span><a href="#local-6989586621679066525"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Int64
+</span><span class="hs-number">0</span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int64
+</span><a href="#local-6989586621679066525"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-78"></span><span>                </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679066530"><span class="hs-identifier hs-var">big</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Bounded a =&gt; a
+</span><span class="hs-identifier hs-var">maxBound</span></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int64
+</span><a href="#local-6989586621679066525"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-79"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679066520"><span class="annot"><span class="annottext">ai0' :: Word64
+</span><a href="#local-6989586621679066520"><span class="hs-identifier hs-var hs-var">ai0'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int64 -&gt; Word64
+</span><a href="#local-6989586621679066526"><span class="hs-identifier hs-var">unorder</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Int64
+</span><a href="#local-6989586621679066529"><span class="hs-identifier hs-var">order</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679066532"><span class="hs-identifier hs-var">ai0</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679066574"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-80"></span><span>  </span><span class="annot"><span class="annottext">forall a (m :: * -&gt; *).
+(Prim a, PrimMonad m) =&gt;
+MutableByteArray (PrimState m) -&gt; Int -&gt; a -&gt; m ()
+</span><span class="hs-identifier hs-var">writeByteArray</span></span><span> </span><span class="annot"><span class="annottext">MutableByteArray s
+</span><a href="#local-6989586621679066533"><span class="hs-identifier hs-var">buf</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679066520"><span class="hs-identifier hs-var">ai0'</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall a (m :: * -&gt; *).
+(Prim a, PrimMonad m) =&gt;
+MutableByteArray (PrimState m) -&gt; Int -&gt; m a
+</span><span class="hs-identifier hs-var">readByteArray</span></span><span> </span><span class="annot"><span class="annottext">MutableByteArray s
+</span><a href="#local-6989586621679066533"><span class="hs-identifier hs-var">buf</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-81"></span><span>
+</span><span id="line-82"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-83"></span><span class="hs-comment">-- Measure distance between two @Double@s in ULPs (units of least</span><span>
+</span><span id="line-84"></span><span class="hs-comment">-- precision). Note that it's different from @abs (ulpDelta a b)@</span><span>
+</span><span id="line-85"></span><span class="hs-comment">-- since it returns correct result even when 'ulpDelta' overflows.</span><span>
+</span><span id="line-86"></span><span class="annot"><a href="Numeric.MathFunctions.Comparison.html#ulpDistance"><span class="hs-identifier hs-type">ulpDistance</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span>
+</span><span id="line-87"></span><span>            </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span>
+</span><span id="line-88"></span><span>            </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span>
+</span><span id="line-89"></span><span id="ulpDistance"><span class="annot"><span class="annottext">ulpDistance :: Double -&gt; Double -&gt; Word64
+</span><a href="Numeric.MathFunctions.Comparison.html#ulpDistance"><span class="hs-identifier hs-var hs-var">ulpDistance</span></a></span></span><span> </span><span id="local-6989586621679066519"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679066519"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679066518"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679066518"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. (forall s. ST s a) -&gt; a
+</span><span class="hs-identifier hs-var">runST</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-90"></span><span>  </span><span id="local-6989586621679066502"><span class="annot"><span class="annottext">MutableByteArray s
+</span><a href="#local-6989586621679066502"><span class="hs-identifier hs-var">buf</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *).
+PrimMonad m =&gt;
+Int -&gt; m (MutableByteArray (PrimState m))
+</span><span class="hs-identifier hs-var">newByteArray</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span>
+</span><span id="line-91"></span><span>  </span><span id="local-6989586621679066501"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679066501"><span class="hs-identifier hs-var">ai0</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a (m :: * -&gt; *).
+(Prim a, PrimMonad m) =&gt;
+MutableByteArray (PrimState m) -&gt; Int -&gt; a -&gt; m ()
+</span><span class="hs-identifier hs-var">writeByteArray</span></span><span> </span><span class="annot"><span class="annottext">MutableByteArray s
+</span><a href="#local-6989586621679066502"><span class="hs-identifier hs-var">buf</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679066519"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall a (m :: * -&gt; *).
+(Prim a, PrimMonad m) =&gt;
+MutableByteArray (PrimState m) -&gt; Int -&gt; m a
+</span><span class="hs-identifier hs-var">readByteArray</span></span><span> </span><span class="annot"><span class="annottext">MutableByteArray s
+</span><a href="#local-6989586621679066502"><span class="hs-identifier hs-var">buf</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-92"></span><span>  </span><span id="local-6989586621679066500"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679066500"><span class="hs-identifier hs-var">bi0</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a (m :: * -&gt; *).
+(Prim a, PrimMonad m) =&gt;
+MutableByteArray (PrimState m) -&gt; Int -&gt; a -&gt; m ()
+</span><span class="hs-identifier hs-var">writeByteArray</span></span><span> </span><span class="annot"><span class="annottext">MutableByteArray s
+</span><a href="#local-6989586621679066502"><span class="hs-identifier hs-var">buf</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679066518"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall a (m :: * -&gt; *).
+(Prim a, PrimMonad m) =&gt;
+MutableByteArray (PrimState m) -&gt; Int -&gt; m a
+</span><span class="hs-identifier hs-var">readByteArray</span></span><span> </span><span class="annot"><span class="annottext">MutableByteArray s
+</span><a href="#local-6989586621679066502"><span class="hs-identifier hs-var">buf</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-93"></span><span>  </span><span class="hs-comment">-- IEEE754 floats use most significant bit as sign bit (not</span><span>
+</span><span id="line-94"></span><span>  </span><span class="hs-comment">-- 2-complement) and we need to rearrange representations of float</span><span>
+</span><span id="line-95"></span><span>  </span><span class="hs-comment">-- number so that they could be compared lexicographically as</span><span>
+</span><span id="line-96"></span><span>  </span><span class="hs-comment">-- Word64.</span><span>
+</span><span id="line-97"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679066498"><span class="annot"><span class="annottext">big :: Word64
+</span><a href="#local-6989586621679066498"><span class="hs-identifier hs-var hs-var">big</span></a></span></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-number">0x8000000000000000</span></span><span>
+</span><span id="line-98"></span><span>      </span><span id="local-6989586621679066493"><span class="annot"><span class="annottext">order :: Word64 -&gt; Word64
+</span><a href="#local-6989586621679066493"><span class="hs-identifier hs-var hs-var">order</span></a></span></span><span> </span><span id="local-6989586621679066492"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679066492"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679066492"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679066498"><span class="hs-identifier hs-var">big</span></a></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679066492"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679066498"><span class="hs-identifier hs-var">big</span></a></span><span>
+</span><span id="line-99"></span><span>              </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Bounded a =&gt; a
+</span><span class="hs-identifier hs-var">maxBound</span></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679066492"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-100"></span><span>      </span><span id="local-6989586621679066491"><span class="annot"><span class="annottext">ai :: Word64
+</span><a href="#local-6989586621679066491"><span class="hs-identifier hs-var hs-var">ai</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Word64
+</span><a href="#local-6989586621679066493"><span class="hs-identifier hs-var">order</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679066501"><span class="hs-identifier hs-var">ai0</span></a></span><span>
+</span><span id="line-101"></span><span>      </span><span id="local-6989586621679066490"><span class="annot"><span class="annottext">bi :: Word64
+</span><a href="#local-6989586621679066490"><span class="hs-identifier hs-var hs-var">bi</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Word64
+</span><a href="#local-6989586621679066493"><span class="hs-identifier hs-var">order</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679066500"><span class="hs-identifier hs-var">bi0</span></a></span><span>
+</span><span id="line-102"></span><span>      </span><span id="local-6989586621679066486"><span class="annot"><span class="annottext">d :: Word64
+</span><a href="#local-6989586621679066486"><span class="hs-identifier hs-var hs-var">d</span></a></span></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679066491"><span class="hs-identifier hs-var">ai</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679066490"><span class="hs-identifier hs-var">bi</span></a></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679066491"><span class="hs-identifier hs-var">ai</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679066490"><span class="hs-identifier hs-var">bi</span></a></span><span>
+</span><span id="line-103"></span><span>         </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679066490"><span class="hs-identifier hs-var">bi</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679066491"><span class="hs-identifier hs-var">ai</span></a></span><span>
+</span><span id="line-104"></span><span>  </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$!</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679066486"><span class="hs-identifier hs-var">d</span></a></span><span>
+</span><span id="line-105"></span><span>
+</span><span id="line-106"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-107"></span><span class="hs-comment">-- Measure signed distance between two @Double@s in ULPs (units of least</span><span>
+</span><span id="line-108"></span><span class="hs-comment">-- precision). Note that unlike 'ulpDistance' it can overflow.</span><span>
+</span><span id="line-109"></span><span class="hs-comment">--</span><span>
+</span><span id="line-110"></span><span class="hs-comment">-- &gt; &gt;&gt;&gt; ulpDelta 1 (1 + m_epsilon)</span><span>
+</span><span id="line-111"></span><span class="hs-comment">-- &gt; 1</span><span>
+</span><span id="line-112"></span><span class="annot"><a href="Numeric.MathFunctions.Comparison.html#ulpDelta"><span class="hs-identifier hs-type">ulpDelta</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span>
+</span><span id="line-113"></span><span>         </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span>
+</span><span id="line-114"></span><span>         </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int64</span></span><span>
+</span><span id="line-115"></span><span id="ulpDelta"><span class="annot"><span class="annottext">ulpDelta :: Double -&gt; Double -&gt; Int64
+</span><a href="Numeric.MathFunctions.Comparison.html#ulpDelta"><span class="hs-identifier hs-var hs-var">ulpDelta</span></a></span></span><span> </span><span id="local-6989586621679066483"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679066483"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679066482"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679066482"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. (forall s. ST s a) -&gt; a
+</span><span class="hs-identifier hs-var">runST</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-116"></span><span>  </span><span id="local-6989586621679066463"><span class="annot"><span class="annottext">MutableByteArray s
+</span><a href="#local-6989586621679066463"><span class="hs-identifier hs-var">buf</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *).
+PrimMonad m =&gt;
+Int -&gt; m (MutableByteArray (PrimState m))
+</span><span class="hs-identifier hs-var">newByteArray</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span>
+</span><span id="line-117"></span><span>  </span><span id="local-6989586621679066462"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679066462"><span class="hs-identifier hs-var">ai0</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a (m :: * -&gt; *).
+(Prim a, PrimMonad m) =&gt;
+MutableByteArray (PrimState m) -&gt; Int -&gt; a -&gt; m ()
+</span><span class="hs-identifier hs-var">writeByteArray</span></span><span> </span><span class="annot"><span class="annottext">MutableByteArray s
+</span><a href="#local-6989586621679066463"><span class="hs-identifier hs-var">buf</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679066483"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall a (m :: * -&gt; *).
+(Prim a, PrimMonad m) =&gt;
+MutableByteArray (PrimState m) -&gt; Int -&gt; m a
+</span><span class="hs-identifier hs-var">readByteArray</span></span><span> </span><span class="annot"><span class="annottext">MutableByteArray s
+</span><a href="#local-6989586621679066463"><span class="hs-identifier hs-var">buf</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-118"></span><span>  </span><span id="local-6989586621679066461"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679066461"><span class="hs-identifier hs-var">bi0</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a (m :: * -&gt; *).
+(Prim a, PrimMonad m) =&gt;
+MutableByteArray (PrimState m) -&gt; Int -&gt; a -&gt; m ()
+</span><span class="hs-identifier hs-var">writeByteArray</span></span><span> </span><span class="annot"><span class="annottext">MutableByteArray s
+</span><a href="#local-6989586621679066463"><span class="hs-identifier hs-var">buf</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679066482"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall a (m :: * -&gt; *).
+(Prim a, PrimMonad m) =&gt;
+MutableByteArray (PrimState m) -&gt; Int -&gt; m a
+</span><span class="hs-identifier hs-var">readByteArray</span></span><span> </span><span class="annot"><span class="annottext">MutableByteArray s
+</span><a href="#local-6989586621679066463"><span class="hs-identifier hs-var">buf</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-119"></span><span>  </span><span class="hs-comment">-- IEEE754 floats use most significant bit as sign bit (not</span><span>
+</span><span id="line-120"></span><span>  </span><span class="hs-comment">-- 2-complement) and we need to rearrange representations of float</span><span>
+</span><span id="line-121"></span><span>  </span><span class="hs-comment">-- number so that they could be compared lexicographically as</span><span>
+</span><span id="line-122"></span><span>  </span><span class="hs-comment">-- Word64.</span><span>
+</span><span id="line-123"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679066459"><span class="annot"><span class="annottext">big :: Word64
+</span><a href="#local-6989586621679066459"><span class="hs-identifier hs-var hs-var">big</span></a></span></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-number">0x8000000000000000</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span>
+</span><span id="line-124"></span><span>      </span><span id="local-6989586621679066454"><span class="annot"><span class="annottext">order :: Word64 -&gt; Word64
+</span><a href="#local-6989586621679066454"><span class="hs-identifier hs-var hs-var">order</span></a></span></span><span> </span><span id="local-6989586621679066453"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679066453"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679066453"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679066459"><span class="hs-identifier hs-var">big</span></a></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679066453"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679066459"><span class="hs-identifier hs-var">big</span></a></span><span>
+</span><span id="line-125"></span><span>              </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Bounded a =&gt; a
+</span><span class="hs-identifier hs-var">maxBound</span></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679066453"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-126"></span><span>      </span><span id="local-6989586621679066452"><span class="annot"><span class="annottext">ai :: Word64
+</span><a href="#local-6989586621679066452"><span class="hs-identifier hs-var hs-var">ai</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Word64
+</span><a href="#local-6989586621679066454"><span class="hs-identifier hs-var">order</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679066462"><span class="hs-identifier hs-var">ai0</span></a></span><span>
+</span><span id="line-127"></span><span>      </span><span id="local-6989586621679066451"><span class="annot"><span class="annottext">bi :: Word64
+</span><a href="#local-6989586621679066451"><span class="hs-identifier hs-var hs-var">bi</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Word64
+</span><a href="#local-6989586621679066454"><span class="hs-identifier hs-var">order</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679066461"><span class="hs-identifier hs-var">bi0</span></a></span><span>
+</span><span id="line-128"></span><span>  </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$!</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679066451"><span class="hs-identifier hs-var">bi</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679066452"><span class="hs-identifier hs-var">ai</span></a></span><span>
+</span><span id="line-129"></span><span>
+</span><span id="line-130"></span><span>
+</span><span id="line-131"></span><span class="hs-comment">-- | Compare two 'Double' values for approximate equality, using</span><span>
+</span><span id="line-132"></span><span class="hs-comment">-- Dawson's method.</span><span>
+</span><span id="line-133"></span><span class="hs-comment">--</span><span>
+</span><span id="line-134"></span><span class="hs-comment">-- The required accuracy is specified in ULPs (units of least</span><span>
+</span><span id="line-135"></span><span class="hs-comment">-- precision).  If the two numbers differ by the given number of ULPs</span><span>
+</span><span id="line-136"></span><span class="hs-comment">-- or less, this function returns @True@.</span><span>
+</span><span id="line-137"></span><span class="annot"><a href="Numeric.MathFunctions.Comparison.html#within"><span class="hs-identifier hs-type">within</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>                   </span><span class="hs-comment">-- ^ Number of ULPs of accuracy desired.</span><span>
+</span><span id="line-138"></span><span>       </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-139"></span><span id="within"><span class="annot"><span class="annottext">within :: Int -&gt; Double -&gt; Double -&gt; Bool
+</span><a href="Numeric.MathFunctions.Comparison.html#within"><span class="hs-identifier hs-var hs-var">within</span></a></span></span><span> </span><span id="local-6989586621679066450"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679066450"><span class="hs-identifier hs-var">ulps</span></a></span></span><span> </span><span id="local-6989586621679066449"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679066449"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679066448"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679066448"><span class="hs-identifier hs-var">b</span></a></span></span><span>
+</span><span id="line-140"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679066450"><span class="hs-identifier hs-var">ulps</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-141"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Word64
+</span><a href="Numeric.MathFunctions.Comparison.html#ulpDistance"><span class="hs-identifier hs-var">ulpDistance</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679066449"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679066448"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679066450"><span class="hs-identifier hs-var">ulps</span></a></span><span>
+</span><span id="line-142"></span></pre></body></html>

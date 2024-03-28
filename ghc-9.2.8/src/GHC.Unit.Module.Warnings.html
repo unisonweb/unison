@@ -1,0 +1,500 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span id="local-6989586621681078179"><span id="local-6989586621681078180"><span id="local-6989586621681078181"></span></span></span><span class="hs-pragma">{-# LANGUAGE DeriveDataTypeable #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- | Warnings for a module</span><span>
+</span><span id="line-4"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">GHC.Unit.Module.Warnings</span><span>
+</span><span id="line-5"></span><span>   </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Warnings.html#Warnings"><span class="hs-identifier">Warnings</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-6"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Warnings.html#WarningTxt"><span class="hs-identifier">WarningTxt</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Warnings.html#pprWarningTxtForMsg"><span class="hs-identifier">pprWarningTxtForMsg</span></a></span><span>
+</span><span id="line-8"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Warnings.html#mkIfaceWarnCache"><span class="hs-identifier">mkIfaceWarnCache</span></a></span><span>
+</span><span id="line-9"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Warnings.html#emptyIfaceWarnCache"><span class="hs-identifier">emptyIfaceWarnCache</span></a></span><span>
+</span><span id="line-10"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Warnings.html#plusWarns"><span class="hs-identifier">plusWarns</span></a></span><span>
+</span><span id="line-11"></span><span>   </span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-13"></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Prelude.html"><span class="hs-identifier">GHC.Prelude</span></a></span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.SourceText.html"><span class="hs-identifier">GHC.Types.SourceText</span></a></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Name.Occurrence.html"><span class="hs-identifier">GHC.Types.Name.Occurrence</span></a></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.SrcLoc.html"><span class="hs-identifier">GHC.Types.SrcLoc</span></a></span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html"><span class="hs-identifier">GHC.Utils.Outputable</span></a></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Binary.html"><span class="hs-identifier">GHC.Utils.Binary</span></a></span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Data-Data.html#"><span class="hs-identifier">Data.Data</span></a></span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span class="hs-comment">-- | Warning Text</span><span>
+</span><span id="line-26"></span><span class="hs-comment">--</span><span>
+</span><span id="line-27"></span><span class="hs-comment">-- reason/explanation from a WARNING or DEPRECATED pragma</span><span>
+</span><span id="line-28"></span><span class="hs-keyword">data</span><span> </span><span id="WarningTxt"><span class="annot"><a href="GHC.Unit.Module.Warnings.html#WarningTxt"><span class="hs-identifier hs-var">WarningTxt</span></a></span></span><span>
+</span><span id="line-29"></span><span>   </span><span class="hs-glyph">=</span><span> </span><span id="WarningTxt"><span class="annot"><a href="GHC.Unit.Module.Warnings.html#WarningTxt"><span class="hs-identifier hs-var">WarningTxt</span></a></span></span><span>
+</span><span id="line-30"></span><span>      </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.SrcLoc.html#Located"><span class="hs-identifier hs-type">Located</span></a></span><span> </span><span class="annot"><a href="GHC.Types.SourceText.html#SourceText"><span class="hs-identifier hs-type">SourceText</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span>      </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Types.SrcLoc.html#Located"><span class="hs-identifier hs-type">Located</span></a></span><span> </span><span class="annot"><a href="GHC.Types.SourceText.html#StringLiteral"><span class="hs-identifier hs-type">StringLiteral</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-32"></span><span>   </span><span class="hs-glyph">|</span><span> </span><span id="DeprecatedTxt"><span class="annot"><a href="GHC.Unit.Module.Warnings.html#DeprecatedTxt"><span class="hs-identifier hs-var">DeprecatedTxt</span></a></span></span><span>
+</span><span id="line-33"></span><span>      </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.SrcLoc.html#Located"><span class="hs-identifier hs-type">Located</span></a></span><span> </span><span class="annot"><a href="GHC.Types.SourceText.html#SourceText"><span class="hs-identifier hs-type">SourceText</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-34"></span><span>      </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Types.SrcLoc.html#Located"><span class="hs-identifier hs-type">Located</span></a></span><span> </span><span class="annot"><a href="GHC.Types.SourceText.html#StringLiteral"><span class="hs-identifier hs-type">StringLiteral</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-35"></span><span>   </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681078157"><span id="local-6989586621681078168"><span class="annot"><span class="annottext">WarningTxt -&gt; WarningTxt -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: WarningTxt -&gt; WarningTxt -&gt; Bool
+$c/= :: WarningTxt -&gt; WarningTxt -&gt; Bool
+== :: WarningTxt -&gt; WarningTxt -&gt; Bool
+$c== :: WarningTxt -&gt; WarningTxt -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681078106"><span id="local-6989586621681078108"><span id="local-6989586621681078110"><span id="local-6989586621681078112"><span id="local-6989586621681078114"><span id="local-6989586621681078116"><span id="local-6989586621681078118"><span id="local-6989586621681078120"><span id="local-6989586621681078122"><span id="local-6989586621681078124"><span id="local-6989586621681078126"><span id="local-6989586621681078128"><span id="local-6989586621681078137"><span id="local-6989586621681078148"><span class="annot"><span class="annottext">Typeable WarningTxt
+WarningTxt -&gt; DataType
+WarningTxt -&gt; Constr
+(forall b. Data b =&gt; b -&gt; b) -&gt; WarningTxt -&gt; WarningTxt
+forall a.
+Typeable a
+-&gt; (forall (c :: * -&gt; *).
+    (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+    -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; WarningTxt -&gt; u
+forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; WarningTxt -&gt; [u]
+forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; WarningTxt -&gt; r
+forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; WarningTxt -&gt; r
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; WarningTxt -&gt; m WarningTxt
+forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; WarningTxt -&gt; m WarningTxt
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c WarningTxt
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; WarningTxt -&gt; c WarningTxt
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c WarningTxt)
+forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c WarningTxt)
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; WarningTxt -&gt; m WarningTxt
+$cgmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; WarningTxt -&gt; m WarningTxt
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; WarningTxt -&gt; m WarningTxt
+$cgmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; WarningTxt -&gt; m WarningTxt
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; WarningTxt -&gt; m WarningTxt
+$cgmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; WarningTxt -&gt; m WarningTxt
+gmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; WarningTxt -&gt; u
+$cgmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; WarningTxt -&gt; u
+gmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; WarningTxt -&gt; [u]
+$cgmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; WarningTxt -&gt; [u]
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; WarningTxt -&gt; r
+$cgmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; WarningTxt -&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; WarningTxt -&gt; r
+$cgmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; WarningTxt -&gt; r
+gmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; WarningTxt -&gt; WarningTxt
+$cgmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; WarningTxt -&gt; WarningTxt
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c WarningTxt)
+$cdataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c WarningTxt)
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c WarningTxt)
+$cdataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c WarningTxt)
+dataTypeOf :: WarningTxt -&gt; DataType
+$cdataTypeOf :: WarningTxt -&gt; DataType
+toConstr :: WarningTxt -&gt; Constr
+$ctoConstr :: WarningTxt -&gt; Constr
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c WarningTxt
+$cgunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c WarningTxt
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; WarningTxt -&gt; c WarningTxt
+$cgfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; WarningTxt -&gt; c WarningTxt
+</span><a href="../../base-4.16.4.0/src/Data-Data.html#Data"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data</span></a></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#Outputable"><span class="hs-identifier hs-type">Outputable</span></a></span><span> </span><span class="annot"><a href="GHC.Unit.Module.Warnings.html#WarningTxt"><span class="hs-identifier hs-type">WarningTxt</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-38"></span><span>    </span><span id="local-6989586621681078096"><span class="annot"><span class="annottext">ppr :: WarningTxt -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var hs-var hs-var hs-var">ppr</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Unit.Module.Warnings.html#WarningTxt"><span class="hs-identifier hs-type">WarningTxt</span></a></span><span>    </span><span id="local-6989586621681078094"><span class="annot"><span class="annottext">Located SourceText
+</span><a href="#local-6989586621681078094"><span class="hs-identifier hs-var">lsrc</span></a></span></span><span> </span><span id="local-6989586621681078093"><span class="annot"><span class="annottext">[Located StringLiteral]
+</span><a href="#local-6989586621681078093"><span class="hs-identifier hs-var">ws</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-39"></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">forall l e. GenLocated l e -&gt; e
+</span><a href="GHC.Types.SrcLoc.html#unLoc"><span class="hs-identifier hs-var">unLoc</span></a></span><span> </span><span class="annot"><span class="annottext">Located SourceText
+</span><a href="#local-6989586621681078094"><span class="hs-identifier hs-var">lsrc</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-40"></span><span>          </span><span class="annot"><span class="annottext">SourceText
+</span><a href="GHC.Types.SourceText.html#NoSourceText"><span class="hs-identifier hs-var">NoSourceText</span></a></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Located StringLiteral] -&gt; SDoc
+</span><a href="GHC.Unit.Module.Warnings.html#pp_ws"><span class="hs-identifier hs-var">pp_ws</span></a></span><span> </span><span class="annot"><span class="annottext">[Located StringLiteral]
+</span><a href="#local-6989586621681078093"><span class="hs-identifier hs-var">ws</span></a></span><span>
+</span><span id="line-41"></span><span>          </span><span class="annot"><a href="GHC.Types.SourceText.html#SourceText"><span class="hs-identifier hs-type">SourceText</span></a></span><span> </span><span id="local-6989586621681078088"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621681078088"><span class="hs-identifier hs-var">src</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621681078088"><span class="hs-identifier hs-var">src</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">[Located StringLiteral] -&gt; SDoc
+</span><a href="GHC.Unit.Module.Warnings.html#pp_ws"><span class="hs-identifier hs-var">pp_ws</span></a></span><span> </span><span class="annot"><span class="annottext">[Located StringLiteral]
+</span><a href="#local-6989586621681078093"><span class="hs-identifier hs-var">ws</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#-}&quot;</span></span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span>    </span><span class="annot"><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Unit.Module.Warnings.html#DeprecatedTxt"><span class="hs-identifier hs-type">DeprecatedTxt</span></a></span><span> </span><span id="local-6989586621681078085"><span class="annot"><span class="annottext">Located SourceText
+</span><a href="#local-6989586621681078085"><span class="hs-identifier hs-var">lsrc</span></a></span></span><span>  </span><span id="local-6989586621681078084"><span class="annot"><span class="annottext">[Located StringLiteral]
+</span><a href="#local-6989586621681078084"><span class="hs-identifier hs-var">ds</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-44"></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">forall l e. GenLocated l e -&gt; e
+</span><a href="GHC.Types.SrcLoc.html#unLoc"><span class="hs-identifier hs-var">unLoc</span></a></span><span> </span><span class="annot"><span class="annottext">Located SourceText
+</span><a href="#local-6989586621681078085"><span class="hs-identifier hs-var">lsrc</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-45"></span><span>          </span><span class="annot"><span class="annottext">SourceText
+</span><a href="GHC.Types.SourceText.html#NoSourceText"><span class="hs-identifier hs-var">NoSourceText</span></a></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Located StringLiteral] -&gt; SDoc
+</span><a href="GHC.Unit.Module.Warnings.html#pp_ws"><span class="hs-identifier hs-var">pp_ws</span></a></span><span> </span><span class="annot"><span class="annottext">[Located StringLiteral]
+</span><a href="#local-6989586621681078084"><span class="hs-identifier hs-var">ds</span></a></span><span>
+</span><span id="line-46"></span><span>          </span><span class="annot"><a href="GHC.Types.SourceText.html#SourceText"><span class="hs-identifier hs-type">SourceText</span></a></span><span> </span><span id="local-6989586621681078083"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621681078083"><span class="hs-identifier hs-var">src</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621681078083"><span class="hs-identifier hs-var">src</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">[Located StringLiteral] -&gt; SDoc
+</span><a href="GHC.Unit.Module.Warnings.html#pp_ws"><span class="hs-identifier hs-var">pp_ws</span></a></span><span> </span><span class="annot"><span class="annottext">[Located StringLiteral]
+</span><a href="#local-6989586621681078084"><span class="hs-identifier hs-var">ds</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;#-}&quot;</span></span><span>
+</span><span id="line-47"></span><span>
+</span><span id="line-48"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621681078080"><span class="annot"><a href="GHC.Utils.Binary.html#Binary"><span class="hs-identifier hs-type">Binary</span></a></span><span> </span><span class="annot"><a href="GHC.Unit.Module.Warnings.html#WarningTxt"><span class="hs-identifier hs-type">WarningTxt</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-49"></span><span>    </span><span id="local-6989586621681078058"><span class="annot"><span class="annottext">put_ :: BinHandle -&gt; WarningTxt -&gt; IO ()
+</span><a href="GHC.Utils.Binary.html#put_"><span class="hs-identifier hs-var hs-var hs-var hs-var">put_</span></a></span></span><span> </span><span id="local-6989586621681078056"><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621681078056"><span class="hs-identifier hs-var">bh</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Unit.Module.Warnings.html#WarningTxt"><span class="hs-identifier hs-type">WarningTxt</span></a></span><span> </span><span id="local-6989586621681078055"><span class="annot"><span class="annottext">Located SourceText
+</span><a href="#local-6989586621681078055"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span id="local-6989586621681078054"><span class="annot"><span class="annottext">[Located StringLiteral]
+</span><a href="#local-6989586621681078054"><span class="hs-identifier hs-var">w</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-50"></span><span>            </span><span class="annot"><span class="annottext">BinHandle -&gt; Word8 -&gt; IO ()
+</span><a href="GHC.Utils.Binary.html#putByte"><span class="hs-identifier hs-var">putByte</span></a></span><span> </span><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621681078056"><span class="hs-identifier hs-var">bh</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-51"></span><span>            </span><span class="annot"><span class="annottext">forall a. Binary a =&gt; BinHandle -&gt; a -&gt; IO ()
+</span><a href="GHC.Utils.Binary.html#put_"><span class="hs-identifier hs-var">put_</span></a></span><span> </span><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621681078056"><span class="hs-identifier hs-var">bh</span></a></span><span> </span><span class="annot"><span class="annottext">Located SourceText
+</span><a href="#local-6989586621681078055"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-52"></span><span>            </span><span class="annot"><span class="annottext">forall a. Binary a =&gt; BinHandle -&gt; a -&gt; IO ()
+</span><a href="GHC.Utils.Binary.html#put_"><span class="hs-identifier hs-var">put_</span></a></span><span> </span><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621681078056"><span class="hs-identifier hs-var">bh</span></a></span><span> </span><span class="annot"><span class="annottext">[Located StringLiteral]
+</span><a href="#local-6989586621681078054"><span class="hs-identifier hs-var">w</span></a></span><span>
+</span><span id="line-53"></span><span>    </span><span class="annot"><a href="GHC.Utils.Binary.html#put_"><span class="hs-identifier hs-var">put_</span></a></span><span> </span><span id="local-6989586621681078052"><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621681078052"><span class="hs-identifier hs-var">bh</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Unit.Module.Warnings.html#DeprecatedTxt"><span class="hs-identifier hs-type">DeprecatedTxt</span></a></span><span> </span><span id="local-6989586621681078051"><span class="annot"><span class="annottext">Located SourceText
+</span><a href="#local-6989586621681078051"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span id="local-6989586621681078050"><span class="annot"><span class="annottext">[Located StringLiteral]
+</span><a href="#local-6989586621681078050"><span class="hs-identifier hs-var">d</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-54"></span><span>            </span><span class="annot"><span class="annottext">BinHandle -&gt; Word8 -&gt; IO ()
+</span><a href="GHC.Utils.Binary.html#putByte"><span class="hs-identifier hs-var">putByte</span></a></span><span> </span><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621681078052"><span class="hs-identifier hs-var">bh</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-55"></span><span>            </span><span class="annot"><span class="annottext">forall a. Binary a =&gt; BinHandle -&gt; a -&gt; IO ()
+</span><a href="GHC.Utils.Binary.html#put_"><span class="hs-identifier hs-var">put_</span></a></span><span> </span><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621681078052"><span class="hs-identifier hs-var">bh</span></a></span><span> </span><span class="annot"><span class="annottext">Located SourceText
+</span><a href="#local-6989586621681078051"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-56"></span><span>            </span><span class="annot"><span class="annottext">forall a. Binary a =&gt; BinHandle -&gt; a -&gt; IO ()
+</span><a href="GHC.Utils.Binary.html#put_"><span class="hs-identifier hs-var">put_</span></a></span><span> </span><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621681078052"><span class="hs-identifier hs-var">bh</span></a></span><span> </span><span class="annot"><span class="annottext">[Located StringLiteral]
+</span><a href="#local-6989586621681078050"><span class="hs-identifier hs-var">d</span></a></span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span>    </span><span id="local-6989586621681078032"><span class="annot"><span class="annottext">get :: BinHandle -&gt; IO WarningTxt
+</span><a href="GHC.Utils.Binary.html#get"><span class="hs-identifier hs-var hs-var hs-var hs-var">get</span></a></span></span><span> </span><span id="local-6989586621681078030"><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621681078030"><span class="hs-identifier hs-var">bh</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-59"></span><span>            </span><span id="local-6989586621681078029"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621681078029"><span class="hs-identifier hs-var">h</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">BinHandle -&gt; IO Word8
+</span><a href="GHC.Utils.Binary.html#getByte"><span class="hs-identifier hs-var">getByte</span></a></span><span> </span><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621681078030"><span class="hs-identifier hs-var">bh</span></a></span><span>
+</span><span id="line-60"></span><span>            </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621681078029"><span class="hs-identifier hs-var">h</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-61"></span><span>              </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span> </span><span id="local-6989586621681078027"><span class="annot"><span class="annottext">Located SourceText
+</span><a href="#local-6989586621681078027"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a. Binary a =&gt; BinHandle -&gt; IO a
+</span><a href="GHC.Utils.Binary.html#get"><span class="hs-identifier hs-var">get</span></a></span><span> </span><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621681078030"><span class="hs-identifier hs-var">bh</span></a></span><span>
+</span><span id="line-62"></span><span>                      </span><span id="local-6989586621681078026"><span class="annot"><span class="annottext">[Located StringLiteral]
+</span><a href="#local-6989586621681078026"><span class="hs-identifier hs-var">w</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a. Binary a =&gt; BinHandle -&gt; IO a
+</span><a href="GHC.Utils.Binary.html#get"><span class="hs-identifier hs-var">get</span></a></span><span> </span><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621681078030"><span class="hs-identifier hs-var">bh</span></a></span><span>
+</span><span id="line-63"></span><span>                      </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#return"><span class="hs-identifier hs-var">return</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Located SourceText -&gt; [Located StringLiteral] -&gt; WarningTxt
+</span><a href="GHC.Unit.Module.Warnings.html#WarningTxt"><span class="hs-identifier hs-var">WarningTxt</span></a></span><span> </span><span class="annot"><span class="annottext">Located SourceText
+</span><a href="#local-6989586621681078027"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">[Located StringLiteral]
+</span><a href="#local-6989586621681078026"><span class="hs-identifier hs-var">w</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-64"></span><span>              </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span> </span><span id="local-6989586621681078025"><span class="annot"><span class="annottext">Located SourceText
+</span><a href="#local-6989586621681078025"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a. Binary a =&gt; BinHandle -&gt; IO a
+</span><a href="GHC.Utils.Binary.html#get"><span class="hs-identifier hs-var">get</span></a></span><span> </span><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621681078030"><span class="hs-identifier hs-var">bh</span></a></span><span>
+</span><span id="line-65"></span><span>                      </span><span id="local-6989586621681078024"><span class="annot"><span class="annottext">[Located StringLiteral]
+</span><a href="#local-6989586621681078024"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a. Binary a =&gt; BinHandle -&gt; IO a
+</span><a href="GHC.Utils.Binary.html#get"><span class="hs-identifier hs-var">get</span></a></span><span> </span><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621681078030"><span class="hs-identifier hs-var">bh</span></a></span><span>
+</span><span id="line-66"></span><span>                      </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#return"><span class="hs-identifier hs-var">return</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Located SourceText -&gt; [Located StringLiteral] -&gt; WarningTxt
+</span><a href="GHC.Unit.Module.Warnings.html#DeprecatedTxt"><span class="hs-identifier hs-var">DeprecatedTxt</span></a></span><span> </span><span class="annot"><span class="annottext">Located SourceText
+</span><a href="#local-6989586621681078025"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">[Located StringLiteral]
+</span><a href="#local-6989586621681078024"><span class="hs-identifier hs-var">d</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-67"></span><span>
+</span><span id="line-68"></span><span>
+</span><span id="line-69"></span><span class="annot"><a href="GHC.Unit.Module.Warnings.html#pp_ws"><span class="hs-identifier hs-type">pp_ws</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Types.SrcLoc.html#Located"><span class="hs-identifier hs-type">Located</span></a></span><span> </span><span class="annot"><a href="GHC.Types.SourceText.html#StringLiteral"><span class="hs-identifier hs-type">StringLiteral</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#SDoc"><span class="hs-identifier hs-type">SDoc</span></a></span><span>
+</span><span id="line-70"></span><span id="pp_ws"><span class="annot"><span class="annottext">pp_ws :: [Located StringLiteral] -&gt; SDoc
+</span><a href="GHC.Unit.Module.Warnings.html#pp_ws"><span class="hs-identifier hs-var hs-var">pp_ws</span></a></span></span><span> </span><span class="hs-special">[</span><span id="local-6989586621681078023"><span class="annot"><span class="annottext">Located StringLiteral
+</span><a href="#local-6989586621681078023"><span class="hs-identifier hs-var">l</span></a></span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">forall l e. GenLocated l e -&gt; e
+</span><a href="GHC.Types.SrcLoc.html#unLoc"><span class="hs-identifier hs-var">unLoc</span></a></span><span> </span><span class="annot"><span class="annottext">Located StringLiteral
+</span><a href="#local-6989586621681078023"><span class="hs-identifier hs-var">l</span></a></span><span>
+</span><span id="line-71"></span><span class="annot"><a href="GHC.Unit.Module.Warnings.html#pp_ws"><span class="hs-identifier hs-var">pp_ws</span></a></span><span> </span><span id="local-6989586621681078022"><span class="annot"><span class="annottext">[Located StringLiteral]
+</span><a href="#local-6989586621681078022"><span class="hs-identifier hs-var">ws</span></a></span></span><span>
+</span><span id="line-72"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;[&quot;</span></span><span>
+</span><span id="line-73"></span><span>    </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">[SDoc] -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#vcat"><span class="hs-identifier hs-var">vcat</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SDoc -&gt; [SDoc] -&gt; [SDoc]
+</span><a href="GHC.Utils.Outputable.html#punctuate"><span class="hs-identifier hs-var">punctuate</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc
+</span><a href="GHC.Utils.Outputable.html#comma"><span class="hs-identifier hs-var">comma</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#map"><span class="hs-identifier hs-var">map</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#."><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">forall l e. GenLocated l e -&gt; e
+</span><a href="GHC.Types.SrcLoc.html#unLoc"><span class="hs-identifier hs-var">unLoc</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Located StringLiteral]
+</span><a href="#local-6989586621681078022"><span class="hs-identifier hs-var">ws</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-74"></span><span>    </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;]&quot;</span></span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span><span>
+</span><span id="line-77"></span><span class="annot"><a href="GHC.Unit.Module.Warnings.html#pprWarningTxtForMsg"><span class="hs-identifier hs-type">pprWarningTxtForMsg</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Warnings.html#WarningTxt"><span class="hs-identifier hs-type">WarningTxt</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#SDoc"><span class="hs-identifier hs-type">SDoc</span></a></span><span>
+</span><span id="line-78"></span><span id="pprWarningTxtForMsg"><span class="annot"><span class="annottext">pprWarningTxtForMsg :: WarningTxt -&gt; SDoc
+</span><a href="GHC.Unit.Module.Warnings.html#pprWarningTxtForMsg"><span class="hs-identifier hs-var hs-var">pprWarningTxtForMsg</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Unit.Module.Warnings.html#WarningTxt"><span class="hs-identifier hs-type">WarningTxt</span></a></span><span>    </span><span class="annot"><span class="annottext">Located SourceText
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681078017"><span class="annot"><span class="annottext">[Located StringLiteral]
+</span><a href="#local-6989586621681078017"><span class="hs-identifier hs-var">ws</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-79"></span><span>                     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#doubleQuotes"><span class="hs-identifier hs-var">doubleQuotes</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[SDoc] -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#vcat"><span class="hs-identifier hs-var">vcat</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#map"><span class="hs-identifier hs-var">map</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FastString -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ftext"><span class="hs-identifier hs-var">ftext</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#."><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">StringLiteral -&gt; FastString
+</span><a href="GHC.Types.SourceText.html#sl_fs"><span class="hs-identifier hs-var">sl_fs</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#."><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">forall l e. GenLocated l e -&gt; e
+</span><a href="GHC.Types.SrcLoc.html#unLoc"><span class="hs-identifier hs-var">unLoc</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Located StringLiteral]
+</span><a href="#local-6989586621681078017"><span class="hs-identifier hs-var">ws</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-80"></span><span class="annot"><a href="GHC.Unit.Module.Warnings.html#pprWarningTxtForMsg"><span class="hs-identifier hs-var">pprWarningTxtForMsg</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Unit.Module.Warnings.html#DeprecatedTxt"><span class="hs-identifier hs-type">DeprecatedTxt</span></a></span><span> </span><span class="annot"><span class="annottext">Located SourceText
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681078013"><span class="annot"><span class="annottext">[Located StringLiteral]
+</span><a href="#local-6989586621681078013"><span class="hs-identifier hs-var">ds</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-81"></span><span>                     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Deprecated:&quot;</span></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span>
+</span><span id="line-82"></span><span>                       </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#doubleQuotes"><span class="hs-identifier hs-var">doubleQuotes</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[SDoc] -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#vcat"><span class="hs-identifier hs-var">vcat</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#map"><span class="hs-identifier hs-var">map</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FastString -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ftext"><span class="hs-identifier hs-var">ftext</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#."><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">StringLiteral -&gt; FastString
+</span><a href="GHC.Types.SourceText.html#sl_fs"><span class="hs-identifier hs-var">sl_fs</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#."><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">forall l e. GenLocated l e -&gt; e
+</span><a href="GHC.Types.SrcLoc.html#unLoc"><span class="hs-identifier hs-var">unLoc</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Located StringLiteral]
+</span><a href="#local-6989586621681078013"><span class="hs-identifier hs-var">ds</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-83"></span><span>
+</span><span id="line-84"></span><span>
+</span><span id="line-85"></span><span class="hs-comment">-- | Warning information for a module</span><span>
+</span><span id="line-86"></span><span class="hs-keyword">data</span><span> </span><span id="Warnings"><span class="annot"><a href="GHC.Unit.Module.Warnings.html#Warnings"><span class="hs-identifier hs-var">Warnings</span></a></span></span><span>
+</span><span id="line-87"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="NoWarnings"><span class="annot"><a href="GHC.Unit.Module.Warnings.html#NoWarnings"><span class="hs-identifier hs-var">NoWarnings</span></a></span></span><span>                          </span><span class="hs-comment">-- ^ Nothing deprecated</span><span>
+</span><span id="line-88"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="WarnAll"><span class="annot"><a href="GHC.Unit.Module.Warnings.html#WarnAll"><span class="hs-identifier hs-var">WarnAll</span></a></span></span><span> </span><span class="annot"><a href="GHC.Unit.Module.Warnings.html#WarningTxt"><span class="hs-identifier hs-type">WarningTxt</span></a></span><span>                  </span><span class="hs-comment">-- ^ Whole module deprecated</span><span>
+</span><span id="line-89"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="WarnSome"><span class="annot"><a href="GHC.Unit.Module.Warnings.html#WarnSome"><span class="hs-identifier hs-var">WarnSome</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.Name.Occurrence.html#OccName"><span class="hs-identifier hs-type">OccName</span></a></span><span class="hs-special">,</span><span class="annot"><a href="GHC.Unit.Module.Warnings.html#WarningTxt"><span class="hs-identifier hs-type">WarningTxt</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span>     </span><span class="hs-comment">-- ^ Some specific things deprecated</span><span>
+</span><span id="line-90"></span><span>
+</span><span id="line-91"></span><span>     </span><span class="hs-comment">-- Only an OccName is needed because</span><span>
+</span><span id="line-92"></span><span>     </span><span class="hs-comment">--    (1) a deprecation always applies to a binding</span><span>
+</span><span id="line-93"></span><span>     </span><span class="hs-comment">--        defined in the module in which the deprecation appears.</span><span>
+</span><span id="line-94"></span><span>     </span><span class="hs-comment">--    (2) deprecations are only reported outside the defining module.</span><span>
+</span><span id="line-95"></span><span>     </span><span class="hs-comment">--        this is important because, otherwise, if we saw something like</span><span>
+</span><span id="line-96"></span><span>     </span><span class="hs-comment">--</span><span>
+</span><span id="line-97"></span><span>     </span><span class="hs-comment">--        {-# DEPRECATED f &quot;&quot; #-}</span><span>
+</span><span id="line-98"></span><span>     </span><span class="hs-comment">--        f = ...</span><span>
+</span><span id="line-99"></span><span>     </span><span class="hs-comment">--        h = f</span><span>
+</span><span id="line-100"></span><span>     </span><span class="hs-comment">--        g = let f = undefined in f</span><span>
+</span><span id="line-101"></span><span>     </span><span class="hs-comment">--</span><span>
+</span><span id="line-102"></span><span>     </span><span class="hs-comment">--        we'd need more information than an OccName to know to say something</span><span>
+</span><span id="line-103"></span><span>     </span><span class="hs-comment">--        about the use of f in h but not the use of the locally bound f in g</span><span>
+</span><span id="line-104"></span><span>     </span><span class="hs-comment">--</span><span>
+</span><span id="line-105"></span><span>     </span><span class="hs-comment">--        however, because we only report about deprecations from the outside,</span><span>
+</span><span id="line-106"></span><span>     </span><span class="hs-comment">--        and a module can only export one value called f,</span><span>
+</span><span id="line-107"></span><span>     </span><span class="hs-comment">--        an OccName suffices.</span><span>
+</span><span id="line-108"></span><span>     </span><span class="hs-comment">--</span><span>
+</span><span id="line-109"></span><span>     </span><span class="hs-comment">--        this is in contrast with fixity declarations, where we need to map</span><span>
+</span><span id="line-110"></span><span>     </span><span class="hs-comment">--        a Name to its fixity declaration.</span><span>
+</span><span id="line-111"></span><span>  </span><span class="hs-keyword">deriving</span><span class="hs-special">(</span><span> </span><span id="local-6989586621681078003"><span id="local-6989586621681078008"><span class="annot"><span class="annottext">Warnings -&gt; Warnings -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: Warnings -&gt; Warnings -&gt; Bool
+$c/= :: Warnings -&gt; Warnings -&gt; Bool
+== :: Warnings -&gt; Warnings -&gt; Bool
+$c== :: Warnings -&gt; Warnings -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-112"></span><span>
+</span><span id="line-113"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621681077997"><span class="annot"><a href="GHC.Utils.Binary.html#Binary"><span class="hs-identifier hs-type">Binary</span></a></span><span> </span><span class="annot"><a href="GHC.Unit.Module.Warnings.html#Warnings"><span class="hs-identifier hs-type">Warnings</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-114"></span><span>    </span><span id="local-6989586621681077984"><span class="annot"><span class="annottext">put_ :: BinHandle -&gt; Warnings -&gt; IO ()
+</span><a href="#local-6989586621681077984"><span class="hs-identifier hs-var hs-var hs-var hs-var">put_</span></a></span></span><span> </span><span id="local-6989586621681077983"><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621681077983"><span class="hs-identifier hs-var">bh</span></a></span></span><span> </span><span class="annot"><span class="annottext">Warnings
+</span><a href="GHC.Unit.Module.Warnings.html#NoWarnings"><span class="hs-identifier hs-var">NoWarnings</span></a></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">BinHandle -&gt; Word8 -&gt; IO ()
+</span><a href="GHC.Utils.Binary.html#putByte"><span class="hs-identifier hs-var">putByte</span></a></span><span> </span><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621681077983"><span class="hs-identifier hs-var">bh</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-115"></span><span>    </span><span class="annot"><a href="GHC.Utils.Binary.html#put_"><span class="hs-identifier hs-var">put_</span></a></span><span> </span><span id="local-6989586621681077982"><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621681077982"><span class="hs-identifier hs-var">bh</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Unit.Module.Warnings.html#WarnAll"><span class="hs-identifier hs-type">WarnAll</span></a></span><span> </span><span id="local-6989586621681077981"><span class="annot"><span class="annottext">WarningTxt
+</span><a href="#local-6989586621681077981"><span class="hs-identifier hs-var">t</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-116"></span><span>            </span><span class="annot"><span class="annottext">BinHandle -&gt; Word8 -&gt; IO ()
+</span><a href="GHC.Utils.Binary.html#putByte"><span class="hs-identifier hs-var">putByte</span></a></span><span> </span><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621681077982"><span class="hs-identifier hs-var">bh</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-117"></span><span>            </span><span class="annot"><span class="annottext">forall a. Binary a =&gt; BinHandle -&gt; a -&gt; IO ()
+</span><a href="GHC.Utils.Binary.html#put_"><span class="hs-identifier hs-var">put_</span></a></span><span> </span><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621681077982"><span class="hs-identifier hs-var">bh</span></a></span><span> </span><span class="annot"><span class="annottext">WarningTxt
+</span><a href="#local-6989586621681077981"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-118"></span><span>    </span><span class="annot"><a href="GHC.Utils.Binary.html#put_"><span class="hs-identifier hs-var">put_</span></a></span><span> </span><span id="local-6989586621681077980"><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621681077980"><span class="hs-identifier hs-var">bh</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Unit.Module.Warnings.html#WarnSome"><span class="hs-identifier hs-type">WarnSome</span></a></span><span> </span><span id="local-6989586621681077979"><span class="annot"><span class="annottext">[(OccName, WarningTxt)]
+</span><a href="#local-6989586621681077979"><span class="hs-identifier hs-var">ts</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-119"></span><span>            </span><span class="annot"><span class="annottext">BinHandle -&gt; Word8 -&gt; IO ()
+</span><a href="GHC.Utils.Binary.html#putByte"><span class="hs-identifier hs-var">putByte</span></a></span><span> </span><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621681077980"><span class="hs-identifier hs-var">bh</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">2</span></span><span>
+</span><span id="line-120"></span><span>            </span><span class="annot"><span class="annottext">forall a. Binary a =&gt; BinHandle -&gt; a -&gt; IO ()
+</span><a href="GHC.Utils.Binary.html#put_"><span class="hs-identifier hs-var">put_</span></a></span><span> </span><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621681077980"><span class="hs-identifier hs-var">bh</span></a></span><span> </span><span class="annot"><span class="annottext">[(OccName, WarningTxt)]
+</span><a href="#local-6989586621681077979"><span class="hs-identifier hs-var">ts</span></a></span><span>
+</span><span id="line-121"></span><span>
+</span><span id="line-122"></span><span>    </span><span id="local-6989586621681077964"><span class="annot"><span class="annottext">get :: BinHandle -&gt; IO Warnings
+</span><a href="#local-6989586621681077964"><span class="hs-identifier hs-var hs-var hs-var hs-var">get</span></a></span></span><span> </span><span id="local-6989586621681077963"><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621681077963"><span class="hs-identifier hs-var">bh</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-123"></span><span>            </span><span id="local-6989586621681077962"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621681077962"><span class="hs-identifier hs-var">h</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">BinHandle -&gt; IO Word8
+</span><a href="GHC.Utils.Binary.html#getByte"><span class="hs-identifier hs-var">getByte</span></a></span><span> </span><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621681077963"><span class="hs-identifier hs-var">bh</span></a></span><span>
+</span><span id="line-124"></span><span>            </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621681077962"><span class="hs-identifier hs-var">h</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-125"></span><span>              </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#return"><span class="hs-identifier hs-var">return</span></a></span><span> </span><span class="annot"><span class="annottext">Warnings
+</span><a href="GHC.Unit.Module.Warnings.html#NoWarnings"><span class="hs-identifier hs-var">NoWarnings</span></a></span><span>
+</span><span id="line-126"></span><span>              </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span> </span><span id="local-6989586621681077961"><span class="annot"><span class="annottext">WarningTxt
+</span><a href="#local-6989586621681077961"><span class="hs-identifier hs-var">aa</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a. Binary a =&gt; BinHandle -&gt; IO a
+</span><a href="GHC.Utils.Binary.html#get"><span class="hs-identifier hs-var">get</span></a></span><span> </span><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621681077963"><span class="hs-identifier hs-var">bh</span></a></span><span>
+</span><span id="line-127"></span><span>                      </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#return"><span class="hs-identifier hs-var">return</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">WarningTxt -&gt; Warnings
+</span><a href="GHC.Unit.Module.Warnings.html#WarnAll"><span class="hs-identifier hs-var">WarnAll</span></a></span><span> </span><span class="annot"><span class="annottext">WarningTxt
+</span><a href="#local-6989586621681077961"><span class="hs-identifier hs-var">aa</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-128"></span><span>              </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span> </span><span id="local-6989586621681077960"><span class="annot"><span class="annottext">[(OccName, WarningTxt)]
+</span><a href="#local-6989586621681077960"><span class="hs-identifier hs-var">aa</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a. Binary a =&gt; BinHandle -&gt; IO a
+</span><a href="GHC.Utils.Binary.html#get"><span class="hs-identifier hs-var">get</span></a></span><span> </span><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621681077963"><span class="hs-identifier hs-var">bh</span></a></span><span>
+</span><span id="line-129"></span><span>                      </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#return"><span class="hs-identifier hs-var">return</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[(OccName, WarningTxt)] -&gt; Warnings
+</span><a href="GHC.Unit.Module.Warnings.html#WarnSome"><span class="hs-identifier hs-var">WarnSome</span></a></span><span> </span><span class="annot"><span class="annottext">[(OccName, WarningTxt)]
+</span><a href="#local-6989586621681077960"><span class="hs-identifier hs-var">aa</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-130"></span><span>
+</span><span id="line-131"></span><span class="hs-comment">-- | Constructs the cache for the 'mi_warn_fn' field of a 'ModIface'</span><span>
+</span><span id="line-132"></span><span class="annot"><a href="GHC.Unit.Module.Warnings.html#mkIfaceWarnCache"><span class="hs-identifier hs-type">mkIfaceWarnCache</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Warnings.html#Warnings"><span class="hs-identifier hs-type">Warnings</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Types.Name.Occurrence.html#OccName"><span class="hs-identifier hs-type">OccName</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Maybe"><span class="hs-identifier hs-type">Maybe</span></a></span><span> </span><span class="annot"><a href="GHC.Unit.Module.Warnings.html#WarningTxt"><span class="hs-identifier hs-type">WarningTxt</span></a></span><span>
+</span><span id="line-133"></span><span id="mkIfaceWarnCache"><span class="annot"><span class="annottext">mkIfaceWarnCache :: Warnings -&gt; OccName -&gt; Maybe WarningTxt
+</span><a href="GHC.Unit.Module.Warnings.html#mkIfaceWarnCache"><span class="hs-identifier hs-var hs-var">mkIfaceWarnCache</span></a></span></span><span> </span><span class="annot"><span class="annottext">Warnings
+</span><a href="GHC.Unit.Module.Warnings.html#NoWarnings"><span class="hs-identifier hs-var">NoWarnings</span></a></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="annot"><span class="annottext">OccName
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Nothing"><span class="hs-identifier hs-var">Nothing</span></a></span><span>
+</span><span id="line-134"></span><span class="annot"><a href="GHC.Unit.Module.Warnings.html#mkIfaceWarnCache"><span class="hs-identifier hs-var">mkIfaceWarnCache</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Unit.Module.Warnings.html#WarnAll"><span class="hs-identifier hs-type">WarnAll</span></a></span><span> </span><span id="local-6989586621681077959"><span class="annot"><span class="annottext">WarningTxt
+</span><a href="#local-6989586621681077959"><span class="hs-identifier hs-var">t</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="annot"><span class="annottext">OccName
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Just"><span class="hs-identifier hs-var">Just</span></a></span><span> </span><span class="annot"><span class="annottext">WarningTxt
+</span><a href="#local-6989586621681077959"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-135"></span><span class="annot"><a href="GHC.Unit.Module.Warnings.html#mkIfaceWarnCache"><span class="hs-identifier hs-var">mkIfaceWarnCache</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Unit.Module.Warnings.html#WarnSome"><span class="hs-identifier hs-type">WarnSome</span></a></span><span> </span><span id="local-6989586621681077958"><span class="annot"><span class="annottext">[(OccName, WarningTxt)]
+</span><a href="#local-6989586621681077958"><span class="hs-identifier hs-var">pairs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. OccEnv a -&gt; OccName -&gt; Maybe a
+</span><a href="GHC.Types.Name.Occurrence.html#lookupOccEnv"><span class="hs-identifier hs-var">lookupOccEnv</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. [(OccName, a)] -&gt; OccEnv a
+</span><a href="GHC.Types.Name.Occurrence.html#mkOccEnv"><span class="hs-identifier hs-var">mkOccEnv</span></a></span><span> </span><span class="annot"><span class="annottext">[(OccName, WarningTxt)]
+</span><a href="#local-6989586621681077958"><span class="hs-identifier hs-var">pairs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-136"></span><span>
+</span><span id="line-137"></span><span class="annot"><a href="GHC.Unit.Module.Warnings.html#emptyIfaceWarnCache"><span class="hs-identifier hs-type">emptyIfaceWarnCache</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Types.Name.Occurrence.html#OccName"><span class="hs-identifier hs-type">OccName</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Maybe"><span class="hs-identifier hs-type">Maybe</span></a></span><span> </span><span class="annot"><a href="GHC.Unit.Module.Warnings.html#WarningTxt"><span class="hs-identifier hs-type">WarningTxt</span></a></span><span>
+</span><span id="line-138"></span><span id="emptyIfaceWarnCache"><span class="annot"><span class="annottext">emptyIfaceWarnCache :: OccName -&gt; Maybe WarningTxt
+</span><a href="GHC.Unit.Module.Warnings.html#emptyIfaceWarnCache"><span class="hs-identifier hs-var hs-var">emptyIfaceWarnCache</span></a></span></span><span> </span><span class="annot"><span class="annottext">OccName
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Nothing"><span class="hs-identifier hs-var">Nothing</span></a></span><span>
+</span><span id="line-139"></span><span>
+</span><span id="line-140"></span><span class="annot"><a href="GHC.Unit.Module.Warnings.html#plusWarns"><span class="hs-identifier hs-type">plusWarns</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Warnings.html#Warnings"><span class="hs-identifier hs-type">Warnings</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Warnings.html#Warnings"><span class="hs-identifier hs-type">Warnings</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Warnings.html#Warnings"><span class="hs-identifier hs-type">Warnings</span></a></span><span>
+</span><span id="line-141"></span><span id="plusWarns"><span class="annot"><span class="annottext">plusWarns :: Warnings -&gt; Warnings -&gt; Warnings
+</span><a href="GHC.Unit.Module.Warnings.html#plusWarns"><span class="hs-identifier hs-var hs-var">plusWarns</span></a></span></span><span> </span><span id="local-6989586621681077955"><span class="annot"><span class="annottext">Warnings
+</span><a href="#local-6989586621681077955"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="annot"><span class="annottext">Warnings
+</span><a href="GHC.Unit.Module.Warnings.html#NoWarnings"><span class="hs-identifier hs-var">NoWarnings</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Warnings
+</span><a href="#local-6989586621681077955"><span class="hs-identifier hs-var">d</span></a></span><span>
+</span><span id="line-142"></span><span class="annot"><a href="GHC.Unit.Module.Warnings.html#plusWarns"><span class="hs-identifier hs-var">plusWarns</span></a></span><span> </span><span class="annot"><span class="annottext">Warnings
+</span><a href="GHC.Unit.Module.Warnings.html#NoWarnings"><span class="hs-identifier hs-var">NoWarnings</span></a></span><span> </span><span id="local-6989586621681077954"><span class="annot"><span class="annottext">Warnings
+</span><a href="#local-6989586621681077954"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Warnings
+</span><a href="#local-6989586621681077954"><span class="hs-identifier hs-var">d</span></a></span><span>
+</span><span id="line-143"></span><span class="annot"><a href="GHC.Unit.Module.Warnings.html#plusWarns"><span class="hs-identifier hs-var">plusWarns</span></a></span><span> </span><span class="annot"><span class="annottext">Warnings
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Unit.Module.Warnings.html#WarnAll"><span class="hs-identifier hs-type">WarnAll</span></a></span><span> </span><span id="local-6989586621681077953"><span class="annot"><span class="annottext">WarningTxt
+</span><a href="#local-6989586621681077953"><span class="hs-identifier hs-var">t</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">WarningTxt -&gt; Warnings
+</span><a href="GHC.Unit.Module.Warnings.html#WarnAll"><span class="hs-identifier hs-var">WarnAll</span></a></span><span> </span><span class="annot"><span class="annottext">WarningTxt
+</span><a href="#local-6989586621681077953"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-144"></span><span class="annot"><a href="GHC.Unit.Module.Warnings.html#plusWarns"><span class="hs-identifier hs-var">plusWarns</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Unit.Module.Warnings.html#WarnAll"><span class="hs-identifier hs-type">WarnAll</span></a></span><span> </span><span id="local-6989586621681077952"><span class="annot"><span class="annottext">WarningTxt
+</span><a href="#local-6989586621681077952"><span class="hs-identifier hs-var">t</span></a></span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Warnings
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">WarningTxt -&gt; Warnings
+</span><a href="GHC.Unit.Module.Warnings.html#WarnAll"><span class="hs-identifier hs-var">WarnAll</span></a></span><span> </span><span class="annot"><span class="annottext">WarningTxt
+</span><a href="#local-6989586621681077952"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-145"></span><span class="annot"><a href="GHC.Unit.Module.Warnings.html#plusWarns"><span class="hs-identifier hs-var">plusWarns</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Unit.Module.Warnings.html#WarnSome"><span class="hs-identifier hs-type">WarnSome</span></a></span><span> </span><span id="local-6989586621681077951"><span class="annot"><span class="annottext">[(OccName, WarningTxt)]
+</span><a href="#local-6989586621681077951"><span class="hs-identifier hs-var">v1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Unit.Module.Warnings.html#WarnSome"><span class="hs-identifier hs-type">WarnSome</span></a></span><span> </span><span id="local-6989586621681077950"><span class="annot"><span class="annottext">[(OccName, WarningTxt)]
+</span><a href="#local-6989586621681077950"><span class="hs-identifier hs-var">v2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[(OccName, WarningTxt)] -&gt; Warnings
+</span><a href="GHC.Unit.Module.Warnings.html#WarnSome"><span class="hs-identifier hs-var">WarnSome</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[(OccName, WarningTxt)]
+</span><a href="#local-6989586621681077951"><span class="hs-identifier hs-var">v1</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%2B%2B"><span class="hs-operator hs-var">++</span></a></span><span> </span><span class="annot"><span class="annottext">[(OccName, WarningTxt)]
+</span><a href="#local-6989586621681077950"><span class="hs-identifier hs-var">v2</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-146"></span><span>
+</span><span id="line-147"></span></pre></body></html>

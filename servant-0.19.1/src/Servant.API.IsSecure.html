@@ -1,0 +1,108 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DeriveDataTypeable #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE DeriveGeneric      #-}</span><span>
+</span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Servant.API.IsSecure</span><span>
+</span><span id="line-4"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-comment">-- $issecure</span></span><span>
+</span><span id="line-5"></span><span>    </span><span class="annot"><a href="Servant.API.IsSecure.html#IsSecure"><span class="hs-identifier">IsSecure</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-6"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Typeable</span></span><span>
+</span><span id="line-9"></span><span>                 </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Typeable</span></span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-11"></span><span>                 </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- | Was this request made over an SSL connection?</span><span>
+</span><span id="line-14"></span><span class="hs-comment">--</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- Note that this value will not tell you if the client originally</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- made this request over SSL, but rather whether the current</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- connection is SSL. The distinction lies with reverse proxies.</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- In many cases, the client will connect to a load balancer over SSL,</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- but connect to the WAI handler without SSL. In such a case,</span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- the handlers would get 'NotSecure', but from a user perspective,</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- there is a secure connection.</span><span>
+</span><span id="line-22"></span><span id="local-6989586621679111125"><span id="local-6989586621679111126"></span></span><span class="hs-keyword">data</span><span> </span><span id="IsSecure"><span class="annot"><a href="Servant.API.IsSecure.html#IsSecure"><span class="hs-identifier hs-var">IsSecure</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Secure"><span class="annot"><a href="Servant.API.IsSecure.html#Secure"><span class="hs-identifier hs-var">Secure</span></a></span></span><span>    </span><span class="hs-comment">-- ^ the connection to the server</span><span>
+</span><span id="line-23"></span><span>                          </span><span class="hs-comment">--   is secure (HTTPS)</span><span>
+</span><span id="line-24"></span><span>              </span><span class="hs-glyph">|</span><span> </span><span id="NotSecure"><span class="annot"><a href="Servant.API.IsSecure.html#NotSecure"><span class="hs-identifier hs-var">NotSecure</span></a></span></span><span> </span><span class="hs-comment">-- ^ the connection to the server</span><span>
+</span><span id="line-25"></span><span>                          </span><span class="hs-comment">--   is not secure (HTTP)</span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679111119"><span id="local-6989586621679111121"><span class="annot"><span class="annottext">IsSecure -&gt; IsSecure -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: IsSecure -&gt; IsSecure -&gt; Bool
+$c/= :: IsSecure -&gt; IsSecure -&gt; Bool
+== :: IsSecure -&gt; IsSecure -&gt; Bool
+$c== :: IsSecure -&gt; IsSecure -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679111112"><span id="local-6989586621679111114"><span id="local-6989586621679111116"><span class="annot"><span class="annottext">Int -&gt; IsSecure -&gt; ShowS
+[IsSecure] -&gt; ShowS
+IsSecure -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [IsSecure] -&gt; ShowS
+$cshowList :: [IsSecure] -&gt; ShowS
+show :: IsSecure -&gt; String
+$cshow :: IsSecure -&gt; String
+showsPrec :: Int -&gt; IsSecure -&gt; ShowS
+$cshowsPrec :: Int -&gt; IsSecure -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679111099"><span id="local-6989586621679111104"><span id="local-6989586621679111107"><span id="local-6989586621679111109"><span class="annot"><span class="annottext">ReadPrec [IsSecure]
+ReadPrec IsSecure
+Int -&gt; ReadS IsSecure
+ReadS [IsSecure]
+forall a.
+(Int -&gt; ReadS a)
+-&gt; ReadS [a] -&gt; ReadPrec a -&gt; ReadPrec [a] -&gt; Read a
+readListPrec :: ReadPrec [IsSecure]
+$creadListPrec :: ReadPrec [IsSecure]
+readPrec :: ReadPrec IsSecure
+$creadPrec :: ReadPrec IsSecure
+readList :: ReadS [IsSecure]
+$creadList :: ReadS [IsSecure]
+readsPrec :: Int -&gt; ReadS IsSecure
+$creadsPrec :: Int -&gt; ReadS IsSecure
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Read</span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall x. Rep IsSecure x -&gt; IsSecure
+forall x. IsSecure -&gt; Rep IsSecure x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cto :: forall x. Rep IsSecure x -&gt; IsSecure
+$cfrom :: forall x. IsSecure -&gt; Rep IsSecure x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679111074"><span id="local-6989586621679111076"><span id="local-6989586621679111079"><span id="local-6989586621679111082"><span id="local-6989586621679111085"><span id="local-6989586621679111087"><span id="local-6989586621679111089"><span class="annot"><span class="annottext">Eq IsSecure
+IsSecure -&gt; IsSecure -&gt; Bool
+IsSecure -&gt; IsSecure -&gt; Ordering
+IsSecure -&gt; IsSecure -&gt; IsSecure
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: IsSecure -&gt; IsSecure -&gt; IsSecure
+$cmin :: IsSecure -&gt; IsSecure -&gt; IsSecure
+max :: IsSecure -&gt; IsSecure -&gt; IsSecure
+$cmax :: IsSecure -&gt; IsSecure -&gt; IsSecure
+&gt;= :: IsSecure -&gt; IsSecure -&gt; Bool
+$c&gt;= :: IsSecure -&gt; IsSecure -&gt; Bool
+&gt; :: IsSecure -&gt; IsSecure -&gt; Bool
+$c&gt; :: IsSecure -&gt; IsSecure -&gt; Bool
+&lt;= :: IsSecure -&gt; IsSecure -&gt; Bool
+$c&lt;= :: IsSecure -&gt; IsSecure -&gt; Bool
+&lt; :: IsSecure -&gt; IsSecure -&gt; Bool
+$c&lt; :: IsSecure -&gt; IsSecure -&gt; Bool
+compare :: IsSecure -&gt; IsSecure -&gt; Ordering
+$ccompare :: IsSecure -&gt; IsSecure -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Typeable</span></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="hs-comment">-- $issecure</span><span>
+</span><span id="line-29"></span><span class="hs-comment">--</span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- | Use 'IsSecure' whenever your request handlers need to know whether</span><span>
+</span><span id="line-31"></span><span class="hs-comment">--   the connection to the server is secure or not.</span><span>
+</span><span id="line-32"></span><span class="hs-comment">--   This would make the request handlers receive an argument of type 'IsSecure',</span><span>
+</span><span id="line-33"></span><span class="hs-comment">--   whose value can be one of 'Secure' (HTTPS) or 'NotSecure' (HTTP).</span><span>
+</span><span id="line-34"></span><span class="hs-comment">--</span><span>
+</span><span id="line-35"></span><span class="hs-comment">-- Example:</span><span>
+</span><span id="line-36"></span><span class="hs-comment">--</span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- &gt;&gt;&gt; type API = &quot;sensitive-data&quot; :&gt; IsSecure :&gt; Get '[JSON] NationSecrets</span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span class="hs-comment">-- $setup</span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- &gt;&gt;&gt; import Servant.API</span><span>
+</span><span id="line-41"></span><span class="hs-comment">-- &gt;&gt;&gt; data NationSecrets</span><span>
+</span><span id="line-42"></span></pre></body></html>

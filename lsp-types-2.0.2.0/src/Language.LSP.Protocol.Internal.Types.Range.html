@@ -1,0 +1,153 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- THIS IS A GENERATED FILE, DO NOT EDIT</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-imports #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-matches #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-deprecations #-}</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.Range</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Hashable</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html"><span class="hs-identifier">Language.LSP.Protocol.Utils.Misc</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prettyprinter</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Aeson.html"><span class="hs-identifier">Data.Row.Aeson</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Hashable.html"><span class="hs-identifier">Data.Row.Hashable</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Hashable</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.Position.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.Position</span></a></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html"><span class="hs-identifier">Language.LSP.Protocol.Types.Common</span></a></span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-comment">{-|
+A range in a text document expressed as (zero-based) start and end positions.
+
+If you want to specify a range that contains a line including the line ending
+character(s) then use an end position denoting the start of the next line.
+For example:
+```ts
+{
+    start: { line: 5, character: 23 }
+    end : { line 6, character : 0 }
+}
+```
+-}</span><span>
+</span><span id="line-32"></span><span id="local-6989586621682152695"><span id="local-6989586621682152696"></span></span><span class="hs-keyword">data</span><span> </span><span id="Range"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.Range.html#Range"><span class="hs-identifier hs-var">Range</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Range"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.Range.html#Range"><span class="hs-identifier hs-var">Range</span></a></span></span><span> </span><span>
+</span><span id="line-33"></span><span>  </span><span class="hs-special">{</span><span> </span><span class="hs-comment">{-|
+  The range's start position.
+  -}</span><span>
+</span><span id="line-36"></span><span>  </span><span id="%24sel%3A_start%3ARange"><span class="annot"><span class="annottext">Range -&gt; Position
+</span><a href="Language.LSP.Protocol.Internal.Types.Range.html#%24sel%3A_start%3ARange"><span class="hs-identifier hs-var hs-var">_start</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.Position.html#Position"><span class="hs-identifier hs-type">Language.LSP.Protocol.Internal.Types.Position.Position</span></a></span><span>
+</span><span id="line-37"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-comment">{-|
+  The range's end position.
+  -}</span><span>
+</span><span id="line-40"></span><span>  </span><span id="%24sel%3A_end%3ARange"><span class="annot"><span class="annottext">Range -&gt; Position
+</span><a href="Language.LSP.Protocol.Internal.Types.Range.html#%24sel%3A_end%3ARange"><span class="hs-identifier hs-var hs-var">_end</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.Position.html#Position"><span class="hs-identifier hs-type">Language.LSP.Protocol.Internal.Types.Position.Position</span></a></span><span>
+</span><span id="line-41"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-42"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682152681"><span id="local-6989586621682152683"><span id="local-6989586621682152690"><span class="annot"><span class="annottext">Int -&gt; Range -&gt; ShowS
+[Range] -&gt; ShowS
+Range -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [Range] -&gt; ShowS
+$cshowList :: [Range] -&gt; ShowS
+show :: Range -&gt; String
+$cshow :: Range -&gt; String
+showsPrec :: Int -&gt; Range -&gt; ShowS
+$cshowsPrec :: Int -&gt; Range -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682152673"><span id="local-6989586621682152678"><span class="annot"><span class="annottext">Range -&gt; Range -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: Range -&gt; Range -&gt; Bool
+$c/= :: Range -&gt; Range -&gt; Bool
+== :: Range -&gt; Range -&gt; Bool
+$c== :: Range -&gt; Range -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682152648"><span id="local-6989586621682152650"><span id="local-6989586621682152653"><span id="local-6989586621682152656"><span id="local-6989586621682152659"><span id="local-6989586621682152663"><span id="local-6989586621682152668"><span class="annot"><span class="annottext">Eq Range
+Range -&gt; Range -&gt; Bool
+Range -&gt; Range -&gt; Ordering
+Range -&gt; Range -&gt; Range
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: Range -&gt; Range -&gt; Range
+$cmin :: Range -&gt; Range -&gt; Range
+max :: Range -&gt; Range -&gt; Range
+$cmax :: Range -&gt; Range -&gt; Range
+&gt;= :: Range -&gt; Range -&gt; Bool
+$c&gt;= :: Range -&gt; Range -&gt; Bool
+&gt; :: Range -&gt; Range -&gt; Bool
+$c&gt; :: Range -&gt; Range -&gt; Bool
+&lt;= :: Range -&gt; Range -&gt; Bool
+$c&lt;= :: Range -&gt; Range -&gt; Bool
+&lt; :: Range -&gt; Range -&gt; Bool
+$c&lt; :: Range -&gt; Range -&gt; Bool
+compare :: Range -&gt; Range -&gt; Ordering
+$ccompare :: Range -&gt; Range -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall x. Rep Range x -&gt; Range
+forall x. Range -&gt; Rep Range x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cto :: forall x. Rep Range x -&gt; Range
+$cfrom :: forall x. Range -&gt; Rep Range x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-43"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">anyclass</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682152642"><span class="annot"><span class="annottext">Range -&gt; ()
+forall a. (a -&gt; ()) -&gt; NFData a
+rnf :: Range -&gt; ()
+$crnf :: Range -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682152635"><span id="local-6989586621682152637"><span class="annot"><span class="annottext">Eq Range
+Int -&gt; Range -&gt; Int
+Range -&gt; Int
+forall a. Eq a -&gt; (Int -&gt; a -&gt; Int) -&gt; (a -&gt; Int) -&gt; Hashable a
+hash :: Range -&gt; Int
+$chash :: Range -&gt; Int
+hashWithSalt :: Int -&gt; Range -&gt; Int
+$chashWithSalt :: Int -&gt; Range -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Hashable</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-44"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621682152626"><span id="local-6989586621682152632"><span class="annot"><span class="annottext">forall ann. [Range] -&gt; Doc ann
+forall ann. Range -&gt; Doc ann
+forall a.
+(forall ann. a -&gt; Doc ann)
+-&gt; (forall ann. [a] -&gt; Doc ann) -&gt; Pretty a
+prettyList :: forall ann. [Range] -&gt; Doc ann
+$cprettyList :: forall ann. [Range] -&gt; Doc ann
+pretty :: forall ann. Range -&gt; Doc ann
+$cpretty :: forall ann. Range -&gt; Doc ann
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Pretty</span></span></span></span><span> </span><span class="hs-keyword">via</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html#ViaJSON"><span class="hs-identifier hs-type">ViaJSON</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.Range.html#Range"><span class="hs-identifier hs-type">Range</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682152614"><span id="local-6989586621682152616"><span id="local-6989586621682152618"><span class="annot"><span class="hs-identifier hs-type">Aeson.ToJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.Range.html#Range"><span class="hs-identifier hs-type">Range</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-47"></span><span>  </span><span id="local-6989586621682152601"><span class="annot"><span class="annottext">toJSON :: Range -&gt; Value
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">toJSON</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.Range.html#Range"><span class="hs-identifier hs-type">Range</span></a></span><span> </span><span id="local-6989586621682152599"><span class="annot"><span class="annottext">Position
+</span><a href="#local-6989586621682152599"><span class="hs-identifier hs-var">arg0</span></a></span></span><span> </span><span id="local-6989586621682152598"><span class="annot"><span class="annottext">Position
+</span><a href="#local-6989586621682152598"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">Aeson.object</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">concat</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>  </span><span class="hs-special">[</span><span class="hs-special">[</span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;start&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">Aeson..=</span></span><span> </span><span class="annot"><span class="annottext">Position
+</span><a href="#local-6989586621682152599"><span class="hs-identifier hs-var">arg0</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-48"></span><span>    </span><span class="hs-special">,</span><span class="hs-special">[</span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;end&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">Aeson..=</span></span><span> </span><span class="annot"><span class="annottext">Position
+</span><a href="#local-6989586621682152598"><span class="hs-identifier hs-var">arg1</span></a></span><span class="hs-special">]</span><span class="hs-special">]</span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682152592"><span class="annot"><span class="hs-identifier hs-type">Aeson.FromJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.Range.html#Range"><span class="hs-identifier hs-type">Range</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-51"></span><span>  </span><span id="local-6989586621682152581"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser Range
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">Aeson.withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Range&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621682152578"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682152578"><span class="hs-identifier hs-var">arg</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Position -&gt; Position -&gt; Range
+</span><a href="Language.LSP.Protocol.Internal.Types.Range.html#Range"><span class="hs-identifier hs-var">Range</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682152578"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">Aeson..:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;start&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682152578"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">Aeson..:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;end&quot;</span></span><span>
+</span><span id="line-52"></span></pre></body></html>

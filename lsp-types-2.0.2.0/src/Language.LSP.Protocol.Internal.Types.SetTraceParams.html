@@ -1,0 +1,129 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- THIS IS A GENERATED FILE, DO NOT EDIT</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-imports #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-matches #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-deprecations #-}</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.SetTraceParams</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Hashable</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html"><span class="hs-identifier">Language.LSP.Protocol.Utils.Misc</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prettyprinter</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Aeson.html"><span class="hs-identifier">Data.Row.Aeson</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Hashable.html"><span class="hs-identifier">Data.Row.Hashable</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Hashable</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.TraceValues.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.TraceValues</span></a></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html"><span class="hs-identifier">Language.LSP.Protocol.Types.Common</span></a></span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-comment">{-|
+
+-}</span><span>
+</span><span id="line-22"></span><span id="local-6989586621682140034"><span id="local-6989586621682140035"></span></span><span class="hs-keyword">data</span><span> </span><span id="SetTraceParams"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.SetTraceParams.html#SetTraceParams"><span class="hs-identifier hs-var">SetTraceParams</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="SetTraceParams"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.SetTraceParams.html#SetTraceParams"><span class="hs-identifier hs-var">SetTraceParams</span></a></span></span><span> </span><span>
+</span><span id="line-23"></span><span>  </span><span class="hs-special">{</span><span> </span><span class="hs-comment">{-|
+
+  -}</span><span>
+</span><span id="line-26"></span><span>  </span><span id="%24sel%3A_value%3ASetTraceParams"><span class="annot"><span class="annottext">SetTraceParams -&gt; TraceValues
+</span><a href="Language.LSP.Protocol.Internal.Types.SetTraceParams.html#%24sel%3A_value%3ASetTraceParams"><span class="hs-identifier hs-var hs-var">_value</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.TraceValues.html#TraceValues"><span class="hs-identifier hs-type">Language.LSP.Protocol.Internal.Types.TraceValues.TraceValues</span></a></span><span>
+</span><span id="line-27"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682140022"><span id="local-6989586621682140024"><span id="local-6989586621682140030"><span class="annot"><span class="annottext">Int -&gt; SetTraceParams -&gt; ShowS
+[SetTraceParams] -&gt; ShowS
+SetTraceParams -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [SetTraceParams] -&gt; ShowS
+$cshowList :: [SetTraceParams] -&gt; ShowS
+show :: SetTraceParams -&gt; String
+$cshow :: SetTraceParams -&gt; String
+showsPrec :: Int -&gt; SetTraceParams -&gt; ShowS
+$cshowsPrec :: Int -&gt; SetTraceParams -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682140015"><span id="local-6989586621682140019"><span class="annot"><span class="annottext">SetTraceParams -&gt; SetTraceParams -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: SetTraceParams -&gt; SetTraceParams -&gt; Bool
+$c/= :: SetTraceParams -&gt; SetTraceParams -&gt; Bool
+== :: SetTraceParams -&gt; SetTraceParams -&gt; Bool
+$c== :: SetTraceParams -&gt; SetTraceParams -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682139992"><span id="local-6989586621682139994"><span id="local-6989586621682139997"><span id="local-6989586621682140000"><span id="local-6989586621682140003"><span id="local-6989586621682140006"><span id="local-6989586621682140010"><span class="annot"><span class="annottext">Eq SetTraceParams
+SetTraceParams -&gt; SetTraceParams -&gt; Bool
+SetTraceParams -&gt; SetTraceParams -&gt; Ordering
+SetTraceParams -&gt; SetTraceParams -&gt; SetTraceParams
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: SetTraceParams -&gt; SetTraceParams -&gt; SetTraceParams
+$cmin :: SetTraceParams -&gt; SetTraceParams -&gt; SetTraceParams
+max :: SetTraceParams -&gt; SetTraceParams -&gt; SetTraceParams
+$cmax :: SetTraceParams -&gt; SetTraceParams -&gt; SetTraceParams
+&gt;= :: SetTraceParams -&gt; SetTraceParams -&gt; Bool
+$c&gt;= :: SetTraceParams -&gt; SetTraceParams -&gt; Bool
+&gt; :: SetTraceParams -&gt; SetTraceParams -&gt; Bool
+$c&gt; :: SetTraceParams -&gt; SetTraceParams -&gt; Bool
+&lt;= :: SetTraceParams -&gt; SetTraceParams -&gt; Bool
+$c&lt;= :: SetTraceParams -&gt; SetTraceParams -&gt; Bool
+&lt; :: SetTraceParams -&gt; SetTraceParams -&gt; Bool
+$c&lt; :: SetTraceParams -&gt; SetTraceParams -&gt; Bool
+compare :: SetTraceParams -&gt; SetTraceParams -&gt; Ordering
+$ccompare :: SetTraceParams -&gt; SetTraceParams -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall x. Rep SetTraceParams x -&gt; SetTraceParams
+forall x. SetTraceParams -&gt; Rep SetTraceParams x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cto :: forall x. Rep SetTraceParams x -&gt; SetTraceParams
+$cfrom :: forall x. SetTraceParams -&gt; Rep SetTraceParams x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">anyclass</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682139986"><span class="annot"><span class="annottext">SetTraceParams -&gt; ()
+forall a. (a -&gt; ()) -&gt; NFData a
+rnf :: SetTraceParams -&gt; ()
+$crnf :: SetTraceParams -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682139979"><span id="local-6989586621682139981"><span class="annot"><span class="annottext">Eq SetTraceParams
+Int -&gt; SetTraceParams -&gt; Int
+SetTraceParams -&gt; Int
+forall a. Eq a -&gt; (Int -&gt; a -&gt; Int) -&gt; (a -&gt; Int) -&gt; Hashable a
+hash :: SetTraceParams -&gt; Int
+$chash :: SetTraceParams -&gt; Int
+hashWithSalt :: Int -&gt; SetTraceParams -&gt; Int
+$chashWithSalt :: Int -&gt; SetTraceParams -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Hashable</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621682139970"><span id="local-6989586621682139976"><span class="annot"><span class="annottext">forall ann. [SetTraceParams] -&gt; Doc ann
+forall ann. SetTraceParams -&gt; Doc ann
+forall a.
+(forall ann. a -&gt; Doc ann)
+-&gt; (forall ann. [a] -&gt; Doc ann) -&gt; Pretty a
+prettyList :: forall ann. [SetTraceParams] -&gt; Doc ann
+$cprettyList :: forall ann. [SetTraceParams] -&gt; Doc ann
+pretty :: forall ann. SetTraceParams -&gt; Doc ann
+$cpretty :: forall ann. SetTraceParams -&gt; Doc ann
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Pretty</span></span></span></span><span> </span><span class="hs-keyword">via</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html#ViaJSON"><span class="hs-identifier hs-type">ViaJSON</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.SetTraceParams.html#SetTraceParams"><span class="hs-identifier hs-type">SetTraceParams</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682139958"><span id="local-6989586621682139960"><span id="local-6989586621682139962"><span class="annot"><span class="hs-identifier hs-type">Aeson.ToJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.SetTraceParams.html#SetTraceParams"><span class="hs-identifier hs-type">SetTraceParams</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-33"></span><span>  </span><span id="local-6989586621682139948"><span class="annot"><span class="annottext">toJSON :: SetTraceParams -&gt; Value
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">toJSON</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.SetTraceParams.html#SetTraceParams"><span class="hs-identifier hs-type">SetTraceParams</span></a></span><span> </span><span id="local-6989586621682139946"><span class="annot"><span class="annottext">TraceValues
+</span><a href="#local-6989586621682139946"><span class="hs-identifier hs-var">arg0</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">Aeson.object</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">concat</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>  </span><span class="hs-special">[</span><span class="hs-special">[</span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;value&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">Aeson..=</span></span><span> </span><span class="annot"><span class="annottext">TraceValues
+</span><a href="#local-6989586621682139946"><span class="hs-identifier hs-var">arg0</span></a></span><span class="hs-special">]</span><span class="hs-special">]</span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682139940"><span class="annot"><span class="hs-identifier hs-type">Aeson.FromJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.SetTraceParams.html#SetTraceParams"><span class="hs-identifier hs-type">SetTraceParams</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-36"></span><span>  </span><span id="local-6989586621682139933"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser SetTraceParams
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">Aeson.withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;SetTraceParams&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621682139930"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682139930"><span class="hs-identifier hs-var">arg</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">TraceValues -&gt; SetTraceParams
+</span><a href="Language.LSP.Protocol.Internal.Types.SetTraceParams.html#SetTraceParams"><span class="hs-identifier hs-var">SetTraceParams</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682139930"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">Aeson..:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;value&quot;</span></span><span>
+</span><span id="line-37"></span></pre></body></html>

@@ -1,0 +1,664 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE DeriveDataTypeable #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE DeriveFoldable #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE DeriveFunctor #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LANGUAGE DeriveTraversable #-}</span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# LANGUAGE EmptyDataDecls #-}</span><span>
+</span><span id="line-7"></span><span class="hs-pragma">{-# LANGUAGE FlexibleContexts #-}</span><span>
+</span><span id="line-8"></span><span class="hs-pragma">{-# LANGUAGE StandaloneDeriving #-}</span><span>
+</span><span id="line-9"></span><span class="hs-pragma">{-# LANGUAGE TypeFamilies #-}</span><span class="hs-cpp">
+
+#if __GLASGOW_HASKELL__ &gt;= 702
+</span><span class="hs-pragma">{-# LANGUAGE DeriveGeneric #-}</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ &gt;= 706
+</span><span class="hs-pragma">{-# LANGUAGE PolyKinds #-}</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ &gt;= 708
+</span><span class="hs-pragma">{-# LANGUAGE Safe #-}</span><span class="hs-cpp">
+#elif __GLASGOW_HASKELL__ &gt;= 702
+</span><span class="hs-pragma">{-# LANGUAGE Trustworthy #-}</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">#include &quot;bifunctors-common.h&quot;
+</span><span>
+</span><span id="line-26"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Data.Bifunctor.Sum</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Bifunctor</span></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Bifunctor.Functor.html"><span class="hs-identifier">Data.Bifunctor.Functor</span></a></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Bifoldable</span></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Bitraversable</span></span><span class="hs-cpp">
+
+#if __GLASGOW_HASKELL__ &lt; 710
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Foldable</span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Functor</span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Monoid</span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Sum</span><span class="hs-special">)</span><span>
+</span><span id="line-37"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Traversable</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">#if __GLASGOW_HASKELL__ &gt;= 708
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Typeable</span></span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">#if __GLASGOW_HASKELL__ &gt;= 702
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">#if LIFTED_FUNCTOR_CLASSES
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Functor.Classes</span></span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-49"></span><span id="local-6989586621679096464"><span id="local-6989586621679096465"><span id="local-6989586621679096466"><span id="local-6989586621679096467"></span></span></span></span><span class="hs-keyword">data</span><span> </span><span id="Sum"><span class="annot"><a href="Data.Bifunctor.Sum.html#Sum"><span class="hs-identifier hs-var">Sum</span></a></span></span><span> </span><span id="local-6989586621679096832"><span class="annot"><a href="#local-6989586621679096832"><span class="hs-identifier hs-type">p</span></a></span></span><span> </span><span id="local-6989586621679096829"><span class="annot"><a href="#local-6989586621679096829"><span class="hs-identifier hs-type">q</span></a></span></span><span> </span><span id="local-6989586621679096831"><span class="annot"><a href="#local-6989586621679096831"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span id="local-6989586621679096830"><span class="annot"><a href="#local-6989586621679096830"><span class="hs-identifier hs-type">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="L2"><span class="annot"><a href="Data.Bifunctor.Sum.html#L2"><span class="hs-identifier hs-var">L2</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679096832"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679096831"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679096830"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">|</span><span> </span><span id="R2"><span class="annot"><a href="Data.Bifunctor.Sum.html#R2"><span class="hs-identifier hs-var">R2</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679096829"><span class="hs-identifier hs-type">q</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679096831"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679096830"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-50"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span> </span><span id="local-6989586621679096456"><span id="local-6989586621679096460"><span class="annot"><span class="annottext">Sum p q a b -&gt; Sum p q a b -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+forall k k (p :: k -&gt; k -&gt; *) (q :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+(Eq (p a b), Eq (q a b)) =&gt;
+Sum p q a b -&gt; Sum p q a b -&gt; Bool
+/= :: Sum p q a b -&gt; Sum p q a b -&gt; Bool
+$c/= :: forall k k (p :: k -&gt; k -&gt; *) (q :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+(Eq (p a b), Eq (q a b)) =&gt;
+Sum p q a b -&gt; Sum p q a b -&gt; Bool
+== :: Sum p q a b -&gt; Sum p q a b -&gt; Bool
+$c== :: forall k k (p :: k -&gt; k -&gt; *) (q :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+(Eq (p a b), Eq (q a b)) =&gt;
+Sum p q a b -&gt; Sum p q a b -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679096432"><span id="local-6989586621679096434"><span id="local-6989586621679096437"><span id="local-6989586621679096440"><span id="local-6989586621679096443"><span id="local-6989586621679096447"><span id="local-6989586621679096451"><span class="annot"><span class="annottext">Sum p q a b -&gt; Sum p q a b -&gt; Bool
+Sum p q a b -&gt; Sum p q a b -&gt; Ordering
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+forall {k} {k} {p :: k -&gt; k -&gt; *} {q :: k -&gt; k -&gt; *} {a :: k}
+       {b :: k}.
+(Ord (p a b), Ord (q a b)) =&gt;
+Eq (Sum p q a b)
+forall k k (p :: k -&gt; k -&gt; *) (q :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+(Ord (p a b), Ord (q a b)) =&gt;
+Sum p q a b -&gt; Sum p q a b -&gt; Bool
+forall k k (p :: k -&gt; k -&gt; *) (q :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+(Ord (p a b), Ord (q a b)) =&gt;
+Sum p q a b -&gt; Sum p q a b -&gt; Ordering
+forall k k (p :: k -&gt; k -&gt; *) (q :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+(Ord (p a b), Ord (q a b)) =&gt;
+Sum p q a b -&gt; Sum p q a b -&gt; Sum p q a b
+min :: Sum p q a b -&gt; Sum p q a b -&gt; Sum p q a b
+$cmin :: forall k k (p :: k -&gt; k -&gt; *) (q :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+(Ord (p a b), Ord (q a b)) =&gt;
+Sum p q a b -&gt; Sum p q a b -&gt; Sum p q a b
+max :: Sum p q a b -&gt; Sum p q a b -&gt; Sum p q a b
+$cmax :: forall k k (p :: k -&gt; k -&gt; *) (q :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+(Ord (p a b), Ord (q a b)) =&gt;
+Sum p q a b -&gt; Sum p q a b -&gt; Sum p q a b
+&gt;= :: Sum p q a b -&gt; Sum p q a b -&gt; Bool
+$c&gt;= :: forall k k (p :: k -&gt; k -&gt; *) (q :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+(Ord (p a b), Ord (q a b)) =&gt;
+Sum p q a b -&gt; Sum p q a b -&gt; Bool
+&gt; :: Sum p q a b -&gt; Sum p q a b -&gt; Bool
+$c&gt; :: forall k k (p :: k -&gt; k -&gt; *) (q :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+(Ord (p a b), Ord (q a b)) =&gt;
+Sum p q a b -&gt; Sum p q a b -&gt; Bool
+&lt;= :: Sum p q a b -&gt; Sum p q a b -&gt; Bool
+$c&lt;= :: forall k k (p :: k -&gt; k -&gt; *) (q :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+(Ord (p a b), Ord (q a b)) =&gt;
+Sum p q a b -&gt; Sum p q a b -&gt; Bool
+&lt; :: Sum p q a b -&gt; Sum p q a b -&gt; Bool
+$c&lt; :: forall k k (p :: k -&gt; k -&gt; *) (q :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+(Ord (p a b), Ord (q a b)) =&gt;
+Sum p q a b -&gt; Sum p q a b -&gt; Bool
+compare :: Sum p q a b -&gt; Sum p q a b -&gt; Ordering
+$ccompare :: forall k k (p :: k -&gt; k -&gt; *) (q :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+(Ord (p a b), Ord (q a b)) =&gt;
+Sum p q a b -&gt; Sum p q a b -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679096420"><span id="local-6989586621679096422"><span id="local-6989586621679096429"><span class="annot"><span class="annottext">Int -&gt; Sum p q a b -&gt; ShowS
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+forall k k (p :: k -&gt; k -&gt; *) (q :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+(Show (p a b), Show (q a b)) =&gt;
+Int -&gt; Sum p q a b -&gt; ShowS
+forall k k (p :: k -&gt; k -&gt; *) (q :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+(Show (p a b), Show (q a b)) =&gt;
+[Sum p q a b] -&gt; ShowS
+forall k k (p :: k -&gt; k -&gt; *) (q :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+(Show (p a b), Show (q a b)) =&gt;
+Sum p q a b -&gt; String
+showList :: [Sum p q a b] -&gt; ShowS
+$cshowList :: forall k k (p :: k -&gt; k -&gt; *) (q :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+(Show (p a b), Show (q a b)) =&gt;
+[Sum p q a b] -&gt; ShowS
+show :: Sum p q a b -&gt; String
+$cshow :: forall k k (p :: k -&gt; k -&gt; *) (q :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+(Show (p a b), Show (q a b)) =&gt;
+Sum p q a b -&gt; String
+showsPrec :: Int -&gt; Sum p q a b -&gt; ShowS
+$cshowsPrec :: forall k k (p :: k -&gt; k -&gt; *) (q :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+(Show (p a b), Show (q a b)) =&gt;
+Int -&gt; Sum p q a b -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679096401"><span id="local-6989586621679096412"><span id="local-6989586621679096415"><span id="local-6989586621679096417"><span class="annot"><span class="annottext">ReadPrec [Sum p q a b]
+ReadPrec (Sum p q a b)
+ReadS [Sum p q a b]
+forall a.
+(Int -&gt; ReadS a)
+-&gt; ReadS [a] -&gt; ReadPrec a -&gt; ReadPrec [a] -&gt; Read a
+forall k k (p :: k -&gt; k -&gt; *) (q :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+(Read (p a b), Read (q a b)) =&gt;
+ReadPrec [Sum p q a b]
+forall k k (p :: k -&gt; k -&gt; *) (q :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+(Read (p a b), Read (q a b)) =&gt;
+ReadPrec (Sum p q a b)
+forall k k (p :: k -&gt; k -&gt; *) (q :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+(Read (p a b), Read (q a b)) =&gt;
+Int -&gt; ReadS (Sum p q a b)
+forall k k (p :: k -&gt; k -&gt; *) (q :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+(Read (p a b), Read (q a b)) =&gt;
+ReadS [Sum p q a b]
+readListPrec :: ReadPrec [Sum p q a b]
+$creadListPrec :: forall k k (p :: k -&gt; k -&gt; *) (q :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+(Read (p a b), Read (q a b)) =&gt;
+ReadPrec [Sum p q a b]
+readPrec :: ReadPrec (Sum p q a b)
+$creadPrec :: forall k k (p :: k -&gt; k -&gt; *) (q :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+(Read (p a b), Read (q a b)) =&gt;
+ReadPrec (Sum p q a b)
+readList :: ReadS [Sum p q a b]
+$creadList :: forall k k (p :: k -&gt; k -&gt; *) (q :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+(Read (p a b), Read (q a b)) =&gt;
+ReadS [Sum p q a b]
+readsPrec :: Int -&gt; ReadS (Sum p q a b)
+$creadsPrec :: forall k k (p :: k -&gt; k -&gt; *) (q :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+(Read (p a b), Read (q a b)) =&gt;
+Int -&gt; ReadS (Sum p q a b)
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Read</span></span></span></span></span></span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ &gt;= 702
+</span><span>           </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+forall k k (p :: k -&gt; k -&gt; *) (q :: k -&gt; k -&gt; *) (a :: k) (b :: k)
+       x.
+Rep (Sum p q a b) x -&gt; Sum p q a b
+forall k k (p :: k -&gt; k -&gt; *) (q :: k -&gt; k -&gt; *) (a :: k) (b :: k)
+       x.
+Sum p q a b -&gt; Rep (Sum p q a b) x
+$cto :: forall k k (p :: k -&gt; k -&gt; *) (q :: k -&gt; k -&gt; *) (a :: k) (b :: k)
+       x.
+Rep (Sum p q a b) x -&gt; Sum p q a b
+$cfrom :: forall k k (p :: k -&gt; k -&gt; *) (q :: k -&gt; k -&gt; *) (a :: k) (b :: k)
+       x.
+Sum p q a b -&gt; Rep (Sum p q a b) x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">#if __GLASGOW_HASKELL__ &gt;= 708
+</span><span>           </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall k k (p :: k -&gt; k -&gt; *) (q :: k -&gt; k -&gt; *) (a :: k) (a :: k).
+Rep1 (Sum p q a) a -&gt; Sum p q a a
+forall k k (p :: k -&gt; k -&gt; *) (q :: k -&gt; k -&gt; *) (a :: k) (a :: k).
+Sum p q a a -&gt; Rep1 (Sum p q a) a
+forall k (f :: k -&gt; *).
+(forall (a :: k). f a -&gt; Rep1 f a)
+-&gt; (forall (a :: k). Rep1 f a -&gt; f a) -&gt; Generic1 f
+$cto1 :: forall k k (p :: k -&gt; k -&gt; *) (q :: k -&gt; k -&gt; *) (a :: k) (a :: k).
+Rep1 (Sum p q a) a -&gt; Sum p q a a
+$cfrom1 :: forall k k (p :: k -&gt; k -&gt; *) (q :: k -&gt; k -&gt; *) (a :: k) (a :: k).
+Sum p q a a -&gt; Rep1 (Sum p q a) a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic1</span></span><span>
+</span><span id="line-56"></span><span>           </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Typeable</span></span><span class="hs-cpp">
+#endif
+</span><span>           </span><span class="hs-special">)</span><span>
+</span><span id="line-59"></span><span id="local-6989586621679096383"><span id="local-6989586621679096387"><span id="local-6989586621679096806"><span id="local-6989586621679096807"><span id="local-6989586621679096808"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679096808"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679096807"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679096806"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679096807"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Sum.html#Sum"><span class="hs-identifier hs-type">Sum</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679096808"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679096806"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679096807"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span></span></span><span>
+</span><span id="line-60"></span><span id="local-6989586621679096336"><span id="local-6989586621679096338"><span id="local-6989586621679096340"><span id="local-6989586621679096342"><span id="local-6989586621679096344"><span id="local-6989586621679096346"><span id="local-6989586621679096350"><span id="local-6989586621679096352"><span id="local-6989586621679096354"><span id="local-6989586621679096356"><span id="local-6989586621679096358"><span id="local-6989586621679096360"><span id="local-6989586621679096362"><span id="local-6989586621679096366"><span id="local-6989586621679096368"><span id="local-6989586621679096375"><span id="local-6989586621679096377"><span id="local-6989586621679096781"><span id="local-6989586621679096782"><span id="local-6989586621679096783"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Foldable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679096783"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679096782"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Foldable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679096781"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679096782"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Foldable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Sum.html#Sum"><span class="hs-identifier hs-type">Sum</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679096783"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679096781"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679096782"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span>
+</span><span id="line-61"></span><span id="local-6989586621679096315"><span id="local-6989586621679096317"><span id="local-6989586621679096319"><span id="local-6989586621679096329"><span id="local-6989586621679096764"><span id="local-6989586621679096765"><span id="local-6989586621679096766"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Traversable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679096766"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679096765"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Traversable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679096764"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679096765"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Traversable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Sum.html#Sum"><span class="hs-identifier hs-type">Sum</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679096766"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679096764"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679096765"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span></span></span></span></span><span class="hs-cpp">
+
+#if __GLASGOW_HASKELL__ &gt;= 702 &amp;&amp; __GLASGOW_HASKELL__ &lt; 708
+</span><span class="hs-keyword">data</span><span> </span><span class="hs-identifier">SumMetaData</span><span>
+</span><span id="line-65"></span><span class="hs-keyword">data</span><span> </span><span class="hs-identifier">SumMetaConsL2</span><span>
+</span><span id="line-66"></span><span class="hs-keyword">data</span><span> </span><span class="hs-identifier">SumMetaConsR2</span><span>
+</span><span id="line-67"></span><span>
+</span><span id="line-68"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">Datatype</span><span> </span><span class="hs-identifier">SumMetaData</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-69"></span><span>    </span><span class="hs-identifier">datatypeName</span><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;Sum&quot;</span><span>
+</span><span id="line-70"></span><span>    </span><span class="hs-identifier">moduleName</span><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;Data.Bifunctor.Sum&quot;</span><span>
+</span><span id="line-71"></span><span>
+</span><span id="line-72"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">Constructor</span><span> </span><span class="hs-identifier">SumMetaConsL2</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-73"></span><span>    </span><span class="hs-identifier">conName</span><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;L2&quot;</span><span>
+</span><span id="line-74"></span><span>
+</span><span id="line-75"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">Constructor</span><span> </span><span class="hs-identifier">SumMetaConsR2</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-76"></span><span>    </span><span class="hs-identifier">conName</span><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;R2&quot;</span><span>
+</span><span id="line-77"></span><span>
+</span><span id="line-78"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">Generic1</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Sum</span><span> </span><span class="hs-identifier">p</span><span> </span><span class="hs-identifier">q</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-79"></span><span>    </span><span class="hs-keyword">type</span><span> </span><span class="hs-identifier">Rep1</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Sum</span><span> </span><span class="hs-identifier">p</span><span> </span><span class="hs-identifier">q</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">D1</span><span> </span><span class="hs-identifier">SumMetaData</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-operator">:+:</span><span class="hs-special">)</span><span>
+</span><span id="line-80"></span><span>        </span><span class="hs-special">(</span><span class="hs-identifier">C1</span><span> </span><span class="hs-identifier">SumMetaConsL2</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">S1</span><span> </span><span class="hs-identifier">NoSelector</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Rec1</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">p</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-81"></span><span>        </span><span class="hs-special">(</span><span class="hs-identifier">C1</span><span> </span><span class="hs-identifier">SumMetaConsR2</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">S1</span><span> </span><span class="hs-identifier">NoSelector</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Rec1</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">q</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-82"></span><span>    </span><span class="hs-identifier">from1</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">L2</span><span> </span><span class="hs-identifier">p</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">M1</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">L1</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">M1</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">M1</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Rec1</span><span> </span><span class="hs-identifier">p</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-83"></span><span>    </span><span class="hs-identifier">from1</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">R2</span><span> </span><span class="hs-identifier">q</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">M1</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">R1</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">M1</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">M1</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Rec1</span><span> </span><span class="hs-identifier">q</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-84"></span><span>    </span><span class="hs-identifier">to1</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">M1</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">L1</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">M1</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">M1</span><span> </span><span class="hs-identifier">p</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">L2</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">unRec1</span><span> </span><span class="hs-identifier">p</span><span class="hs-special">)</span><span>
+</span><span id="line-85"></span><span>    </span><span class="hs-identifier">to1</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">M1</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">R1</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">M1</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">M1</span><span> </span><span class="hs-identifier">q</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">R2</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">unRec1</span><span> </span><span class="hs-identifier">q</span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#if LIFTED_FUNCTOR_CLASSES
+</span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679096753"><span id="local-6989586621679096754"><span id="local-6989586621679096755"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Eq2</span></span><span> </span><span class="annot"><a href="#local-6989586621679096755"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Eq2</span></span><span> </span><span class="annot"><a href="#local-6989586621679096754"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="#local-6989586621679096753"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Eq1</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Sum.html#Sum"><span class="hs-identifier hs-type">Sum</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679096755"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679096754"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679096753"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-90"></span><span>  </span><span id="local-6989586621679096303"><span class="annot"><span class="annottext">liftEq :: forall a b. (a -&gt; b -&gt; Bool) -&gt; Sum f g a a -&gt; Sum f g a b -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">liftEq</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; * -&gt; *) a b c d.
+Eq2 f =&gt;
+(a -&gt; b -&gt; Bool) -&gt; (c -&gt; d -&gt; Bool) -&gt; f a c -&gt; f b d -&gt; Bool
+</span><span class="hs-identifier hs-var">liftEq2</span></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">(==)</span></span><span>
+</span><span id="line-91"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679096751"><span id="local-6989586621679096752"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Eq2</span></span><span> </span><span class="annot"><a href="#local-6989586621679096752"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Eq2</span></span><span> </span><span class="annot"><a href="#local-6989586621679096751"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Eq2</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Sum.html#Sum"><span class="hs-identifier hs-type">Sum</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679096752"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679096751"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-92"></span><span>  </span><span id="local-6989586621679096294"><span class="annot"><span class="annottext">liftEq2 :: forall a b c d.
+(a -&gt; b -&gt; Bool)
+-&gt; (c -&gt; d -&gt; Bool) -&gt; Sum f g a c -&gt; Sum f g b d -&gt; Bool
+</span><a href="#local-6989586621679096294"><span class="hs-identifier hs-var hs-var hs-var hs-var">liftEq2</span></a></span></span><span> </span><span id="local-6989586621679096293"><span class="annot"><span class="annottext">a -&gt; b -&gt; Bool
+</span><a href="#local-6989586621679096293"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679096292"><span class="annot"><span class="annottext">c -&gt; d -&gt; Bool
+</span><a href="#local-6989586621679096292"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Sum.html#L2"><span class="hs-identifier hs-type">L2</span></a></span><span> </span><span id="local-6989586621679096291"><span class="annot"><span class="annottext">f a c
+</span><a href="#local-6989586621679096291"><span class="hs-identifier hs-var">x1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Sum.html#L2"><span class="hs-identifier hs-type">L2</span></a></span><span> </span><span id="local-6989586621679096290"><span class="annot"><span class="annottext">f b d
+</span><a href="#local-6989586621679096290"><span class="hs-identifier hs-var">x2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; * -&gt; *) a b c d.
+Eq2 f =&gt;
+(a -&gt; b -&gt; Bool) -&gt; (c -&gt; d -&gt; Bool) -&gt; f a c -&gt; f b d -&gt; Bool
+</span><span class="hs-identifier hs-var">liftEq2</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b -&gt; Bool
+</span><a href="#local-6989586621679096293"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">c -&gt; d -&gt; Bool
+</span><a href="#local-6989586621679096292"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">f a c
+</span><a href="#local-6989586621679096291"><span class="hs-identifier hs-var">x1</span></a></span><span> </span><span class="annot"><span class="annottext">f b d
+</span><a href="#local-6989586621679096290"><span class="hs-identifier hs-var">x2</span></a></span><span>
+</span><span id="line-93"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">liftEq2</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b -&gt; Bool
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">c -&gt; d -&gt; Bool
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Sum.html#L2"><span class="hs-identifier hs-type">L2</span></a></span><span> </span><span class="annot"><span class="annottext">f a c
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>  </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Sum.html#R2"><span class="hs-identifier hs-type">R2</span></a></span><span> </span><span class="annot"><span class="annottext">g b d
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-94"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">liftEq2</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b -&gt; Bool
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">c -&gt; d -&gt; Bool
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Sum.html#R2"><span class="hs-identifier hs-type">R2</span></a></span><span> </span><span class="annot"><span class="annottext">g a c
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>  </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Sum.html#L2"><span class="hs-identifier hs-type">L2</span></a></span><span> </span><span class="annot"><span class="annottext">f b d
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-95"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">liftEq2</span></span><span> </span><span id="local-6989586621679096289"><span class="annot"><span class="annottext">a -&gt; b -&gt; Bool
+</span><a href="#local-6989586621679096289"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679096288"><span class="annot"><span class="annottext">c -&gt; d -&gt; Bool
+</span><a href="#local-6989586621679096288"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Sum.html#R2"><span class="hs-identifier hs-type">R2</span></a></span><span> </span><span id="local-6989586621679096287"><span class="annot"><span class="annottext">g a c
+</span><a href="#local-6989586621679096287"><span class="hs-identifier hs-var">y1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Sum.html#R2"><span class="hs-identifier hs-type">R2</span></a></span><span> </span><span id="local-6989586621679096286"><span class="annot"><span class="annottext">g b d
+</span><a href="#local-6989586621679096286"><span class="hs-identifier hs-var">y2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; * -&gt; *) a b c d.
+Eq2 f =&gt;
+(a -&gt; b -&gt; Bool) -&gt; (c -&gt; d -&gt; Bool) -&gt; f a c -&gt; f b d -&gt; Bool
+</span><span class="hs-identifier hs-var">liftEq2</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b -&gt; Bool
+</span><a href="#local-6989586621679096289"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">c -&gt; d -&gt; Bool
+</span><a href="#local-6989586621679096288"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">g a c
+</span><a href="#local-6989586621679096287"><span class="hs-identifier hs-var">y1</span></a></span><span> </span><span class="annot"><span class="annottext">g b d
+</span><a href="#local-6989586621679096286"><span class="hs-identifier hs-var">y2</span></a></span><span>
+</span><span id="line-96"></span><span>
+</span><span id="line-97"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679096728"><span id="local-6989586621679096729"><span id="local-6989586621679096730"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord2</span></span><span> </span><span class="annot"><a href="#local-6989586621679096730"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord2</span></span><span> </span><span class="annot"><a href="#local-6989586621679096729"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679096728"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord1</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Sum.html#Sum"><span class="hs-identifier hs-type">Sum</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679096730"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679096729"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679096728"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-98"></span><span>  </span><span id="local-6989586621679096270"><span class="annot"><span class="annottext">liftCompare :: forall a b.
+(a -&gt; b -&gt; Ordering) -&gt; Sum f g a a -&gt; Sum f g a b -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">liftCompare</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; * -&gt; *) a b c d.
+Ord2 f =&gt;
+(a -&gt; b -&gt; Ordering)
+-&gt; (c -&gt; d -&gt; Ordering) -&gt; f a c -&gt; f b d -&gt; Ordering
+</span><span class="hs-identifier hs-var">liftCompare2</span></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Ordering
+</span><span class="hs-identifier hs-var">compare</span></span><span>
+</span><span id="line-99"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679096726"><span id="local-6989586621679096727"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord2</span></span><span> </span><span class="annot"><a href="#local-6989586621679096727"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord2</span></span><span> </span><span class="annot"><a href="#local-6989586621679096726"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord2</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Sum.html#Sum"><span class="hs-identifier hs-type">Sum</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679096727"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679096726"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-100"></span><span>  </span><span id="local-6989586621679096256"><span class="annot"><span class="annottext">liftCompare2 :: forall a b c d.
+(a -&gt; b -&gt; Ordering)
+-&gt; (c -&gt; d -&gt; Ordering) -&gt; Sum f g a c -&gt; Sum f g b d -&gt; Ordering
+</span><a href="#local-6989586621679096256"><span class="hs-identifier hs-var hs-var hs-var hs-var">liftCompare2</span></a></span></span><span> </span><span id="local-6989586621679096255"><span class="annot"><span class="annottext">a -&gt; b -&gt; Ordering
+</span><a href="#local-6989586621679096255"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679096254"><span class="annot"><span class="annottext">c -&gt; d -&gt; Ordering
+</span><a href="#local-6989586621679096254"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Sum.html#L2"><span class="hs-identifier hs-type">L2</span></a></span><span> </span><span id="local-6989586621679096253"><span class="annot"><span class="annottext">f a c
+</span><a href="#local-6989586621679096253"><span class="hs-identifier hs-var">x1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Sum.html#L2"><span class="hs-identifier hs-type">L2</span></a></span><span> </span><span id="local-6989586621679096252"><span class="annot"><span class="annottext">f b d
+</span><a href="#local-6989586621679096252"><span class="hs-identifier hs-var">x2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; * -&gt; *) a b c d.
+Ord2 f =&gt;
+(a -&gt; b -&gt; Ordering)
+-&gt; (c -&gt; d -&gt; Ordering) -&gt; f a c -&gt; f b d -&gt; Ordering
+</span><span class="hs-identifier hs-var">liftCompare2</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b -&gt; Ordering
+</span><a href="#local-6989586621679096255"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">c -&gt; d -&gt; Ordering
+</span><a href="#local-6989586621679096254"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">f a c
+</span><a href="#local-6989586621679096253"><span class="hs-identifier hs-var">x1</span></a></span><span> </span><span class="annot"><span class="annottext">f b d
+</span><a href="#local-6989586621679096252"><span class="hs-identifier hs-var">x2</span></a></span><span>
+</span><span id="line-101"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">liftCompare2</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b -&gt; Ordering
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">c -&gt; d -&gt; Ordering
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Sum.html#L2"><span class="hs-identifier hs-type">L2</span></a></span><span> </span><span class="annot"><span class="annottext">f a c
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>  </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Sum.html#R2"><span class="hs-identifier hs-type">R2</span></a></span><span> </span><span class="annot"><span class="annottext">g b d
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier hs-var">LT</span></span><span>
+</span><span id="line-102"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">liftCompare2</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b -&gt; Ordering
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">c -&gt; d -&gt; Ordering
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Sum.html#R2"><span class="hs-identifier hs-type">R2</span></a></span><span> </span><span class="annot"><span class="annottext">g a c
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>  </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Sum.html#L2"><span class="hs-identifier hs-type">L2</span></a></span><span> </span><span class="annot"><span class="annottext">f b d
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier hs-var">GT</span></span><span>
+</span><span id="line-103"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">liftCompare2</span></span><span> </span><span id="local-6989586621679096251"><span class="annot"><span class="annottext">a -&gt; b -&gt; Ordering
+</span><a href="#local-6989586621679096251"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679096250"><span class="annot"><span class="annottext">c -&gt; d -&gt; Ordering
+</span><a href="#local-6989586621679096250"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Sum.html#R2"><span class="hs-identifier hs-type">R2</span></a></span><span> </span><span id="local-6989586621679096249"><span class="annot"><span class="annottext">g a c
+</span><a href="#local-6989586621679096249"><span class="hs-identifier hs-var">y1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Sum.html#R2"><span class="hs-identifier hs-type">R2</span></a></span><span> </span><span id="local-6989586621679096248"><span class="annot"><span class="annottext">g b d
+</span><a href="#local-6989586621679096248"><span class="hs-identifier hs-var">y2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; * -&gt; *) a b c d.
+Ord2 f =&gt;
+(a -&gt; b -&gt; Ordering)
+-&gt; (c -&gt; d -&gt; Ordering) -&gt; f a c -&gt; f b d -&gt; Ordering
+</span><span class="hs-identifier hs-var">liftCompare2</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b -&gt; Ordering
+</span><a href="#local-6989586621679096251"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">c -&gt; d -&gt; Ordering
+</span><a href="#local-6989586621679096250"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">g a c
+</span><a href="#local-6989586621679096249"><span class="hs-identifier hs-var">y1</span></a></span><span> </span><span class="annot"><span class="annottext">g b d
+</span><a href="#local-6989586621679096248"><span class="hs-identifier hs-var">y2</span></a></span><span>
+</span><span id="line-104"></span><span>
+</span><span id="line-105"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679096241"><span id="local-6989586621679096243"><span id="local-6989586621679096245"><span id="local-6989586621679096708"><span id="local-6989586621679096709"><span id="local-6989586621679096710"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Read2</span></span><span> </span><span class="annot"><a href="#local-6989586621679096710"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Read2</span></span><span> </span><span class="annot"><a href="#local-6989586621679096709"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Read</span></span><span> </span><span class="annot"><a href="#local-6989586621679096708"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Read1</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Sum.html#Sum"><span class="hs-identifier hs-type">Sum</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679096710"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679096709"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679096708"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-106"></span><span>  </span><span id="local-6989586621679096236"><span class="annot"><span class="annottext">liftReadsPrec :: forall a.
+(Int -&gt; ReadS a) -&gt; ReadS [a] -&gt; Int -&gt; ReadS (Sum f g a a)
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">liftReadsPrec</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; * -&gt; *) a b.
+Read2 f =&gt;
+(Int -&gt; ReadS a)
+-&gt; ReadS [a]
+-&gt; (Int -&gt; ReadS b)
+-&gt; ReadS [b]
+-&gt; Int
+-&gt; ReadS (f a b)
+</span><span class="hs-identifier hs-var">liftReadsPrec2</span></span><span> </span><span class="annot"><span class="annottext">forall a. Read a =&gt; Int -&gt; ReadS a
+</span><span class="hs-identifier hs-var">readsPrec</span></span><span> </span><span class="annot"><span class="annottext">forall a. Read a =&gt; ReadS [a]
+</span><span class="hs-identifier hs-var">readList</span></span><span>
+</span><span id="line-107"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679096225"><span id="local-6989586621679096227"><span id="local-6989586621679096229"><span id="local-6989586621679096706"><span id="local-6989586621679096707"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Read2</span></span><span> </span><span class="annot"><a href="#local-6989586621679096707"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Read2</span></span><span> </span><span class="annot"><a href="#local-6989586621679096706"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Read2</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Sum.html#Sum"><span class="hs-identifier hs-type">Sum</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679096707"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679096706"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-108"></span><span>  </span><span id="local-6989586621679096216"><span class="annot"><span class="annottext">liftReadsPrec2 :: forall a b.
+(Int -&gt; ReadS a)
+-&gt; ReadS [a]
+-&gt; (Int -&gt; ReadS b)
+-&gt; ReadS [b]
+-&gt; Int
+-&gt; ReadS (Sum f g a b)
+</span><a href="#local-6989586621679096216"><span class="hs-identifier hs-var hs-var hs-var hs-var">liftReadsPrec2</span></a></span></span><span> </span><span id="local-6989586621679096215"><span class="annot"><span class="annottext">Int -&gt; ReadS a
+</span><a href="#local-6989586621679096215"><span class="hs-identifier hs-var">rp1</span></a></span></span><span> </span><span id="local-6989586621679096214"><span class="annot"><span class="annottext">ReadS [a]
+</span><a href="#local-6989586621679096214"><span class="hs-identifier hs-var">rl1</span></a></span></span><span> </span><span id="local-6989586621679096213"><span class="annot"><span class="annottext">Int -&gt; ReadS b
+</span><a href="#local-6989586621679096213"><span class="hs-identifier hs-var">rp2</span></a></span></span><span> </span><span id="local-6989586621679096212"><span class="annot"><span class="annottext">ReadS [b]
+</span><a href="#local-6989586621679096212"><span class="hs-identifier hs-var">rl2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. (String -&gt; ReadS a) -&gt; Int -&gt; ReadS a
+</span><span class="hs-identifier hs-var">readsData</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-109"></span><span>    </span><span class="annot"><span class="annottext">forall a t.
+(Int -&gt; ReadS a) -&gt; String -&gt; (a -&gt; t) -&gt; String -&gt; ReadS t
+</span><span class="hs-identifier hs-var">readsUnaryWith</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (f :: * -&gt; * -&gt; *) a b.
+Read2 f =&gt;
+(Int -&gt; ReadS a)
+-&gt; ReadS [a]
+-&gt; (Int -&gt; ReadS b)
+-&gt; ReadS [b]
+-&gt; Int
+-&gt; ReadS (f a b)
+</span><span class="hs-identifier hs-var">liftReadsPrec2</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; ReadS a
+</span><a href="#local-6989586621679096215"><span class="hs-identifier hs-var">rp1</span></a></span><span> </span><span class="annot"><span class="annottext">ReadS [a]
+</span><a href="#local-6989586621679096214"><span class="hs-identifier hs-var">rl1</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; ReadS b
+</span><a href="#local-6989586621679096213"><span class="hs-identifier hs-var">rp2</span></a></span><span> </span><span class="annot"><span class="annottext">ReadS [b]
+</span><a href="#local-6989586621679096212"><span class="hs-identifier hs-var">rl2</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;L2&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall {k} {k} (p :: k -&gt; k -&gt; *) (q :: k -&gt; k -&gt; *) (a :: k)
+       (b :: k).
+p a b -&gt; Sum p q a b
+</span><a href="Data.Bifunctor.Sum.html#L2"><span class="hs-identifier hs-var">L2</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Monoid a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`mappend`</span></span><span>
+</span><span id="line-110"></span><span>    </span><span class="annot"><span class="annottext">forall a t.
+(Int -&gt; ReadS a) -&gt; String -&gt; (a -&gt; t) -&gt; String -&gt; ReadS t
+</span><span class="hs-identifier hs-var">readsUnaryWith</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (f :: * -&gt; * -&gt; *) a b.
+Read2 f =&gt;
+(Int -&gt; ReadS a)
+-&gt; ReadS [a]
+-&gt; (Int -&gt; ReadS b)
+-&gt; ReadS [b]
+-&gt; Int
+-&gt; ReadS (f a b)
+</span><span class="hs-identifier hs-var">liftReadsPrec2</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; ReadS a
+</span><a href="#local-6989586621679096215"><span class="hs-identifier hs-var">rp1</span></a></span><span> </span><span class="annot"><span class="annottext">ReadS [a]
+</span><a href="#local-6989586621679096214"><span class="hs-identifier hs-var">rl1</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; ReadS b
+</span><a href="#local-6989586621679096213"><span class="hs-identifier hs-var">rp2</span></a></span><span> </span><span class="annot"><span class="annottext">ReadS [b]
+</span><a href="#local-6989586621679096212"><span class="hs-identifier hs-var">rl2</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;R2&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall {k} {k} (p :: k -&gt; k -&gt; *) (q :: k -&gt; k -&gt; *) (a :: k)
+       (b :: k).
+q a b -&gt; Sum p q a b
+</span><a href="Data.Bifunctor.Sum.html#R2"><span class="hs-identifier hs-var">R2</span></a></span><span>
+</span><span id="line-111"></span><span>
+</span><span id="line-112"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679096207"><span id="local-6989586621679096679"><span id="local-6989586621679096680"><span id="local-6989586621679096681"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Show2</span></span><span> </span><span class="annot"><a href="#local-6989586621679096681"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Show2</span></span><span> </span><span class="annot"><a href="#local-6989586621679096680"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="#local-6989586621679096679"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Show1</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Sum.html#Sum"><span class="hs-identifier hs-type">Sum</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679096681"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679096680"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679096679"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-113"></span><span>  </span><span id="local-6989586621679096202"><span class="annot"><span class="annottext">liftShowsPrec :: forall a.
+(Int -&gt; a -&gt; ShowS)
+-&gt; ([a] -&gt; ShowS) -&gt; Int -&gt; Sum f g a a -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">liftShowsPrec</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; * -&gt; *) a b.
+Show2 f =&gt;
+(Int -&gt; a -&gt; ShowS)
+-&gt; ([a] -&gt; ShowS)
+-&gt; (Int -&gt; b -&gt; ShowS)
+-&gt; ([b] -&gt; ShowS)
+-&gt; Int
+-&gt; f a b
+-&gt; ShowS
+</span><span class="hs-identifier hs-var">liftShowsPrec2</span></span><span> </span><span class="annot"><span class="annottext">forall a. Show a =&gt; Int -&gt; a -&gt; ShowS
+</span><span class="hs-identifier hs-var">showsPrec</span></span><span> </span><span class="annot"><span class="annottext">forall a. Show a =&gt; [a] -&gt; ShowS
+</span><span class="hs-identifier hs-var">showList</span></span><span>
+</span><span id="line-114"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679096195"><span id="local-6989586621679096677"><span id="local-6989586621679096678"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Show2</span></span><span> </span><span class="annot"><a href="#local-6989586621679096678"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Show2</span></span><span> </span><span class="annot"><a href="#local-6989586621679096677"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Show2</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Sum.html#Sum"><span class="hs-identifier hs-type">Sum</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679096678"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679096677"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-115"></span><span>  </span><span id="local-6989586621679096191"><span class="annot"><span class="annottext">liftShowsPrec2 :: forall a b.
+(Int -&gt; a -&gt; ShowS)
+-&gt; ([a] -&gt; ShowS)
+-&gt; (Int -&gt; b -&gt; ShowS)
+-&gt; ([b] -&gt; ShowS)
+-&gt; Int
+-&gt; Sum f g a b
+-&gt; ShowS
+</span><a href="#local-6989586621679096191"><span class="hs-identifier hs-var hs-var hs-var hs-var">liftShowsPrec2</span></a></span></span><span> </span><span id="local-6989586621679096190"><span class="annot"><span class="annottext">Int -&gt; a -&gt; ShowS
+</span><a href="#local-6989586621679096190"><span class="hs-identifier hs-var">sp1</span></a></span></span><span> </span><span id="local-6989586621679096189"><span class="annot"><span class="annottext">[a] -&gt; ShowS
+</span><a href="#local-6989586621679096189"><span class="hs-identifier hs-var">sl1</span></a></span></span><span> </span><span id="local-6989586621679096188"><span class="annot"><span class="annottext">Int -&gt; b -&gt; ShowS
+</span><a href="#local-6989586621679096188"><span class="hs-identifier hs-var">sp2</span></a></span></span><span> </span><span id="local-6989586621679096187"><span class="annot"><span class="annottext">[b] -&gt; ShowS
+</span><a href="#local-6989586621679096187"><span class="hs-identifier hs-var">sl2</span></a></span></span><span> </span><span id="local-6989586621679096186"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679096186"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Sum.html#L2"><span class="hs-identifier hs-type">L2</span></a></span><span> </span><span id="local-6989586621679096185"><span class="annot"><span class="annottext">f a b
+</span><a href="#local-6989586621679096185"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-116"></span><span>    </span><span class="annot"><span class="annottext">forall a. (Int -&gt; a -&gt; ShowS) -&gt; String -&gt; Int -&gt; a -&gt; ShowS
+</span><span class="hs-identifier hs-var">showsUnaryWith</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (f :: * -&gt; * -&gt; *) a b.
+Show2 f =&gt;
+(Int -&gt; a -&gt; ShowS)
+-&gt; ([a] -&gt; ShowS)
+-&gt; (Int -&gt; b -&gt; ShowS)
+-&gt; ([b] -&gt; ShowS)
+-&gt; Int
+-&gt; f a b
+-&gt; ShowS
+</span><span class="hs-identifier hs-var">liftShowsPrec2</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; a -&gt; ShowS
+</span><a href="#local-6989586621679096190"><span class="hs-identifier hs-var">sp1</span></a></span><span> </span><span class="annot"><span class="annottext">[a] -&gt; ShowS
+</span><a href="#local-6989586621679096189"><span class="hs-identifier hs-var">sl1</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; b -&gt; ShowS
+</span><a href="#local-6989586621679096188"><span class="hs-identifier hs-var">sp2</span></a></span><span> </span><span class="annot"><span class="annottext">[b] -&gt; ShowS
+</span><a href="#local-6989586621679096187"><span class="hs-identifier hs-var">sl2</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;L2&quot;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679096186"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">f a b
+</span><a href="#local-6989586621679096185"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-117"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">liftShowsPrec2</span></span><span> </span><span id="local-6989586621679096183"><span class="annot"><span class="annottext">Int -&gt; a -&gt; ShowS
+</span><a href="#local-6989586621679096183"><span class="hs-identifier hs-var">sp1</span></a></span></span><span> </span><span id="local-6989586621679096182"><span class="annot"><span class="annottext">[a] -&gt; ShowS
+</span><a href="#local-6989586621679096182"><span class="hs-identifier hs-var">sl1</span></a></span></span><span> </span><span id="local-6989586621679096181"><span class="annot"><span class="annottext">Int -&gt; b -&gt; ShowS
+</span><a href="#local-6989586621679096181"><span class="hs-identifier hs-var">sp2</span></a></span></span><span> </span><span id="local-6989586621679096180"><span class="annot"><span class="annottext">[b] -&gt; ShowS
+</span><a href="#local-6989586621679096180"><span class="hs-identifier hs-var">sl2</span></a></span></span><span> </span><span id="local-6989586621679096179"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679096179"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Sum.html#R2"><span class="hs-identifier hs-type">R2</span></a></span><span> </span><span id="local-6989586621679096178"><span class="annot"><span class="annottext">g a b
+</span><a href="#local-6989586621679096178"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-118"></span><span>    </span><span class="annot"><span class="annottext">forall a. (Int -&gt; a -&gt; ShowS) -&gt; String -&gt; Int -&gt; a -&gt; ShowS
+</span><span class="hs-identifier hs-var">showsUnaryWith</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (f :: * -&gt; * -&gt; *) a b.
+Show2 f =&gt;
+(Int -&gt; a -&gt; ShowS)
+-&gt; ([a] -&gt; ShowS)
+-&gt; (Int -&gt; b -&gt; ShowS)
+-&gt; ([b] -&gt; ShowS)
+-&gt; Int
+-&gt; f a b
+-&gt; ShowS
+</span><span class="hs-identifier hs-var">liftShowsPrec2</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; a -&gt; ShowS
+</span><a href="#local-6989586621679096183"><span class="hs-identifier hs-var">sp1</span></a></span><span> </span><span class="annot"><span class="annottext">[a] -&gt; ShowS
+</span><a href="#local-6989586621679096182"><span class="hs-identifier hs-var">sl1</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; b -&gt; ShowS
+</span><a href="#local-6989586621679096181"><span class="hs-identifier hs-var">sp2</span></a></span><span> </span><span class="annot"><span class="annottext">[b] -&gt; ShowS
+</span><a href="#local-6989586621679096180"><span class="hs-identifier hs-var">sl2</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;R2&quot;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679096179"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">g a b
+</span><a href="#local-6989586621679096178"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-121"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679096653"><span id="local-6989586621679096654"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Bifunctor</span></span><span> </span><span class="annot"><a href="#local-6989586621679096654"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bifunctor</span></span><span> </span><span class="annot"><a href="#local-6989586621679096653"><span class="hs-identifier hs-type">q</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bifunctor</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Sum.html#Sum"><span class="hs-identifier hs-type">Sum</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679096654"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679096653"><span class="hs-identifier hs-type">q</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-122"></span><span>  </span><span id="local-6989586621679096168"><span class="annot"><span class="annottext">bimap :: forall a b c d. (a -&gt; b) -&gt; (c -&gt; d) -&gt; Sum p q a c -&gt; Sum p q b d
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">bimap</span></span></span><span> </span><span id="local-6989586621679096166"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679096166"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679096165"><span class="annot"><span class="annottext">c -&gt; d
+</span><a href="#local-6989586621679096165"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Sum.html#L2"><span class="hs-identifier hs-type">L2</span></a></span><span> </span><span id="local-6989586621679096164"><span class="annot"><span class="annottext">p a c
+</span><a href="#local-6989586621679096164"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {k} {k} (p :: k -&gt; k -&gt; *) (q :: k -&gt; k -&gt; *) (a :: k)
+       (b :: k).
+p a b -&gt; Sum p q a b
+</span><a href="Data.Bifunctor.Sum.html#L2"><span class="hs-identifier hs-var">L2</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (p :: * -&gt; * -&gt; *) a b c d.
+Bifunctor p =&gt;
+(a -&gt; b) -&gt; (c -&gt; d) -&gt; p a c -&gt; p b d
+</span><span class="hs-identifier hs-var">bimap</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679096166"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">c -&gt; d
+</span><a href="#local-6989586621679096165"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">p a c
+</span><a href="#local-6989586621679096164"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-123"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">bimap</span></span><span> </span><span id="local-6989586621679096163"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679096163"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679096162"><span class="annot"><span class="annottext">c -&gt; d
+</span><a href="#local-6989586621679096162"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Sum.html#R2"><span class="hs-identifier hs-type">R2</span></a></span><span> </span><span id="local-6989586621679096161"><span class="annot"><span class="annottext">q a c
+</span><a href="#local-6989586621679096161"><span class="hs-identifier hs-var">q</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {k} {k} (p :: k -&gt; k -&gt; *) (q :: k -&gt; k -&gt; *) (a :: k)
+       (b :: k).
+q a b -&gt; Sum p q a b
+</span><a href="Data.Bifunctor.Sum.html#R2"><span class="hs-identifier hs-var">R2</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (p :: * -&gt; * -&gt; *) a b c d.
+Bifunctor p =&gt;
+(a -&gt; b) -&gt; (c -&gt; d) -&gt; p a c -&gt; p b d
+</span><span class="hs-identifier hs-var">bimap</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679096163"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">c -&gt; d
+</span><a href="#local-6989586621679096162"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">q a c
+</span><a href="#local-6989586621679096161"><span class="hs-identifier hs-var">q</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-124"></span><span>  </span><span id="local-6989586621679096158"><span class="annot"><span class="annottext">first :: forall a b c. (a -&gt; b) -&gt; Sum p q a c -&gt; Sum p q b c
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">first</span></span></span><span> </span><span id="local-6989586621679096156"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679096156"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Sum.html#L2"><span class="hs-identifier hs-type">L2</span></a></span><span> </span><span id="local-6989586621679096155"><span class="annot"><span class="annottext">p a c
+</span><a href="#local-6989586621679096155"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {k} {k} (p :: k -&gt; k -&gt; *) (q :: k -&gt; k -&gt; *) (a :: k)
+       (b :: k).
+p a b -&gt; Sum p q a b
+</span><a href="Data.Bifunctor.Sum.html#L2"><span class="hs-identifier hs-var">L2</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (p :: * -&gt; * -&gt; *) a b c.
+Bifunctor p =&gt;
+(a -&gt; b) -&gt; p a c -&gt; p b c
+</span><span class="hs-identifier hs-var">first</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679096156"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">p a c
+</span><a href="#local-6989586621679096155"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-125"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">first</span></span><span> </span><span id="local-6989586621679096154"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679096154"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Sum.html#R2"><span class="hs-identifier hs-type">R2</span></a></span><span> </span><span id="local-6989586621679096153"><span class="annot"><span class="annottext">q a c
+</span><a href="#local-6989586621679096153"><span class="hs-identifier hs-var">q</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {k} {k} (p :: k -&gt; k -&gt; *) (q :: k -&gt; k -&gt; *) (a :: k)
+       (b :: k).
+q a b -&gt; Sum p q a b
+</span><a href="Data.Bifunctor.Sum.html#R2"><span class="hs-identifier hs-var">R2</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (p :: * -&gt; * -&gt; *) a b c.
+Bifunctor p =&gt;
+(a -&gt; b) -&gt; p a c -&gt; p b c
+</span><span class="hs-identifier hs-var">first</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679096154"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">q a c
+</span><a href="#local-6989586621679096153"><span class="hs-identifier hs-var">q</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-126"></span><span>  </span><span id="local-6989586621679096150"><span class="annot"><span class="annottext">second :: forall b c a. (b -&gt; c) -&gt; Sum p q a b -&gt; Sum p q a c
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">second</span></span></span><span> </span><span id="local-6989586621679096148"><span class="annot"><span class="annottext">b -&gt; c
+</span><a href="#local-6989586621679096148"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Sum.html#L2"><span class="hs-identifier hs-type">L2</span></a></span><span> </span><span id="local-6989586621679096147"><span class="annot"><span class="annottext">p a b
+</span><a href="#local-6989586621679096147"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {k} {k} (p :: k -&gt; k -&gt; *) (q :: k -&gt; k -&gt; *) (a :: k)
+       (b :: k).
+p a b -&gt; Sum p q a b
+</span><a href="Data.Bifunctor.Sum.html#L2"><span class="hs-identifier hs-var">L2</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (p :: * -&gt; * -&gt; *) b c a.
+Bifunctor p =&gt;
+(b -&gt; c) -&gt; p a b -&gt; p a c
+</span><span class="hs-identifier hs-var">second</span></span><span> </span><span class="annot"><span class="annottext">b -&gt; c
+</span><a href="#local-6989586621679096148"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">p a b
+</span><a href="#local-6989586621679096147"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-127"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">second</span></span><span> </span><span id="local-6989586621679096146"><span class="annot"><span class="annottext">b -&gt; c
+</span><a href="#local-6989586621679096146"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Sum.html#R2"><span class="hs-identifier hs-type">R2</span></a></span><span> </span><span id="local-6989586621679096145"><span class="annot"><span class="annottext">q a b
+</span><a href="#local-6989586621679096145"><span class="hs-identifier hs-var">q</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {k} {k} (p :: k -&gt; k -&gt; *) (q :: k -&gt; k -&gt; *) (a :: k)
+       (b :: k).
+q a b -&gt; Sum p q a b
+</span><a href="Data.Bifunctor.Sum.html#R2"><span class="hs-identifier hs-var">R2</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (p :: * -&gt; * -&gt; *) b c a.
+Bifunctor p =&gt;
+(b -&gt; c) -&gt; p a b -&gt; p a c
+</span><span class="hs-identifier hs-var">second</span></span><span> </span><span class="annot"><span class="annottext">b -&gt; c
+</span><a href="#local-6989586621679096146"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">q a b
+</span><a href="#local-6989586621679096145"><span class="hs-identifier hs-var">q</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-128"></span><span>
+</span><span id="line-129"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679096138"><span id="local-6989586621679096140"><span id="local-6989586621679096143"><span id="local-6989586621679096630"><span id="local-6989586621679096631"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Bifoldable</span></span><span> </span><span class="annot"><a href="#local-6989586621679096631"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bifoldable</span></span><span> </span><span class="annot"><a href="#local-6989586621679096630"><span class="hs-identifier hs-type">q</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bifoldable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Sum.html#Sum"><span class="hs-identifier hs-type">Sum</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679096631"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679096630"><span class="hs-identifier hs-type">q</span></a></span><span class="hs-special">)</span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-130"></span><span>  </span><span id="local-6989586621679096131"><span class="annot"><span class="annottext">bifoldMap :: forall m a b. Monoid m =&gt; (a -&gt; m) -&gt; (b -&gt; m) -&gt; Sum p q a b -&gt; m
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">bifoldMap</span></span></span><span> </span><span id="local-6989586621679096129"><span class="annot"><span class="annottext">a -&gt; m
+</span><a href="#local-6989586621679096129"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679096128"><span class="annot"><span class="annottext">b -&gt; m
+</span><a href="#local-6989586621679096128"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Sum.html#L2"><span class="hs-identifier hs-type">L2</span></a></span><span> </span><span id="local-6989586621679096127"><span class="annot"><span class="annottext">p a b
+</span><a href="#local-6989586621679096127"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (p :: * -&gt; * -&gt; *) m a b.
+(Bifoldable p, Monoid m) =&gt;
+(a -&gt; m) -&gt; (b -&gt; m) -&gt; p a b -&gt; m
+</span><span class="hs-identifier hs-var">bifoldMap</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; m
+</span><a href="#local-6989586621679096129"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">b -&gt; m
+</span><a href="#local-6989586621679096128"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">p a b
+</span><a href="#local-6989586621679096127"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-131"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">bifoldMap</span></span><span> </span><span id="local-6989586621679096126"><span class="annot"><span class="annottext">a -&gt; m
+</span><a href="#local-6989586621679096126"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679096125"><span class="annot"><span class="annottext">b -&gt; m
+</span><a href="#local-6989586621679096125"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Sum.html#R2"><span class="hs-identifier hs-type">R2</span></a></span><span> </span><span id="local-6989586621679096124"><span class="annot"><span class="annottext">q a b
+</span><a href="#local-6989586621679096124"><span class="hs-identifier hs-var">q</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (p :: * -&gt; * -&gt; *) m a b.
+(Bifoldable p, Monoid m) =&gt;
+(a -&gt; m) -&gt; (b -&gt; m) -&gt; p a b -&gt; m
+</span><span class="hs-identifier hs-var">bifoldMap</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; m
+</span><a href="#local-6989586621679096126"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">b -&gt; m
+</span><a href="#local-6989586621679096125"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">q a b
+</span><a href="#local-6989586621679096124"><span class="hs-identifier hs-var">q</span></a></span><span>
+</span><span id="line-132"></span><span>
+</span><span id="line-133"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679096616"><span id="local-6989586621679096617"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Bitraversable</span></span><span> </span><span class="annot"><a href="#local-6989586621679096617"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bitraversable</span></span><span> </span><span class="annot"><a href="#local-6989586621679096616"><span class="hs-identifier hs-type">q</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bitraversable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Sum.html#Sum"><span class="hs-identifier hs-type">Sum</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679096617"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679096616"><span class="hs-identifier hs-type">q</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-134"></span><span>  </span><span id="local-6989586621679096100"><span class="annot"><span class="annottext">bitraverse :: forall (f :: * -&gt; *) a c b d.
+Applicative f =&gt;
+(a -&gt; f c) -&gt; (b -&gt; f d) -&gt; Sum p q a b -&gt; f (Sum p q c d)
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">bitraverse</span></span></span><span> </span><span id="local-6989586621679096098"><span class="annot"><span class="annottext">a -&gt; f c
+</span><a href="#local-6989586621679096098"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679096097"><span class="annot"><span class="annottext">b -&gt; f d
+</span><a href="#local-6989586621679096097"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Sum.html#L2"><span class="hs-identifier hs-type">L2</span></a></span><span> </span><span id="local-6989586621679096096"><span class="annot"><span class="annottext">p a b
+</span><a href="#local-6989586621679096096"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {k} {k} (p :: k -&gt; k -&gt; *) (q :: k -&gt; k -&gt; *) (a :: k)
+       (b :: k).
+p a b -&gt; Sum p q a b
+</span><a href="Data.Bifunctor.Sum.html#L2"><span class="hs-identifier hs-var">L2</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; * -&gt; *) (f :: * -&gt; *) a c b d.
+(Bitraversable t, Applicative f) =&gt;
+(a -&gt; f c) -&gt; (b -&gt; f d) -&gt; t a b -&gt; f (t c d)
+</span><span class="hs-identifier hs-var">bitraverse</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; f c
+</span><a href="#local-6989586621679096098"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">b -&gt; f d
+</span><a href="#local-6989586621679096097"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">p a b
+</span><a href="#local-6989586621679096096"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-135"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">bitraverse</span></span><span> </span><span id="local-6989586621679096094"><span class="annot"><span class="annottext">a -&gt; f c
+</span><a href="#local-6989586621679096094"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679096093"><span class="annot"><span class="annottext">b -&gt; f d
+</span><a href="#local-6989586621679096093"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Sum.html#R2"><span class="hs-identifier hs-type">R2</span></a></span><span> </span><span id="local-6989586621679096092"><span class="annot"><span class="annottext">q a b
+</span><a href="#local-6989586621679096092"><span class="hs-identifier hs-var">q</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {k} {k} (p :: k -&gt; k -&gt; *) (q :: k -&gt; k -&gt; *) (a :: k)
+       (b :: k).
+q a b -&gt; Sum p q a b
+</span><a href="Data.Bifunctor.Sum.html#R2"><span class="hs-identifier hs-var">R2</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; * -&gt; *) (f :: * -&gt; *) a c b d.
+(Bitraversable t, Applicative f) =&gt;
+(a -&gt; f c) -&gt; (b -&gt; f d) -&gt; t a b -&gt; f (t c d)
+</span><span class="hs-identifier hs-var">bitraverse</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; f c
+</span><a href="#local-6989586621679096094"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">b -&gt; f d
+</span><a href="#local-6989586621679096093"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">q a b
+</span><a href="#local-6989586621679096092"><span class="hs-identifier hs-var">q</span></a></span><span>
+</span><span id="line-136"></span><span>
+</span><span id="line-137"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679096593"><span class="annot"><a href="Data.Bifunctor.Functor.html#BifunctorFunctor"><span class="hs-identifier hs-type">BifunctorFunctor</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Sum.html#Sum"><span class="hs-identifier hs-type">Sum</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679096593"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-138"></span><span>  </span><span id="local-6989586621679096087"><span class="annot"><span class="annottext">bifmap :: forall (p :: k -&gt; k -&gt; *) (q :: k -&gt; k -&gt; *).
+(p :-&gt; q) -&gt; Sum p p :-&gt; Sum p q
+</span><a href="Data.Bifunctor.Functor.html#bifmap"><span class="hs-identifier hs-var hs-var hs-var hs-var">bifmap</span></a></span></span><span> </span><span class="annot"><span class="annottext">p :-&gt; q
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Sum.html#L2"><span class="hs-identifier hs-type">L2</span></a></span><span> </span><span id="local-6989586621679096085"><span class="annot"><span class="annottext">p a b
+</span><a href="#local-6989586621679096085"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {k} {k} (p :: k -&gt; k -&gt; *) (q :: k -&gt; k -&gt; *) (a :: k)
+       (b :: k).
+p a b -&gt; Sum p q a b
+</span><a href="Data.Bifunctor.Sum.html#L2"><span class="hs-identifier hs-var">L2</span></a></span><span> </span><span class="annot"><span class="annottext">p a b
+</span><a href="#local-6989586621679096085"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-139"></span><span>  </span><span class="annot"><a href="Data.Bifunctor.Functor.html#bifmap"><span class="hs-identifier hs-var">bifmap</span></a></span><span> </span><span id="local-6989586621679096084"><span class="annot"><span class="annottext">p :-&gt; q
+</span><a href="#local-6989586621679096084"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Sum.html#R2"><span class="hs-identifier hs-type">R2</span></a></span><span> </span><span id="local-6989586621679096083"><span class="annot"><span class="annottext">p a b
+</span><a href="#local-6989586621679096083"><span class="hs-identifier hs-var">q</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {k} {k} (p :: k -&gt; k -&gt; *) (q :: k -&gt; k -&gt; *) (a :: k)
+       (b :: k).
+q a b -&gt; Sum p q a b
+</span><a href="Data.Bifunctor.Sum.html#R2"><span class="hs-identifier hs-var">R2</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">p :-&gt; q
+</span><a href="#local-6989586621679096084"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">p a b
+</span><a href="#local-6989586621679096083"><span class="hs-identifier hs-var">q</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-140"></span><span>
+</span><span id="line-141"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679096575"><span class="annot"><a href="Data.Bifunctor.Functor.html#BifunctorMonad"><span class="hs-identifier hs-type">BifunctorMonad</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Sum.html#Sum"><span class="hs-identifier hs-type">Sum</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679096575"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-142"></span><span>  </span><span id="local-6989586621679096075"><span class="annot"><span class="annottext">bireturn :: forall (p :: k -&gt; k -&gt; *). p :-&gt; Sum p p
+</span><a href="Data.Bifunctor.Functor.html#bireturn"><span class="hs-identifier hs-var hs-var hs-var hs-var">bireturn</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {k} {k} (p :: k -&gt; k -&gt; *) (q :: k -&gt; k -&gt; *) (a :: k)
+       (b :: k).
+q a b -&gt; Sum p q a b
+</span><a href="Data.Bifunctor.Sum.html#R2"><span class="hs-identifier hs-var">R2</span></a></span><span>
+</span><span id="line-143"></span><span>  </span><span id="local-6989586621679096073"><span class="annot"><span class="annottext">bijoin :: forall (p :: k -&gt; k -&gt; *). Sum p (Sum p p) :-&gt; Sum p p
+</span><a href="Data.Bifunctor.Functor.html#bijoin"><span class="hs-identifier hs-var hs-var hs-var hs-var">bijoin</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Sum.html#L2"><span class="hs-identifier hs-type">L2</span></a></span><span> </span><span id="local-6989586621679096071"><span class="annot"><span class="annottext">p a b
+</span><a href="#local-6989586621679096071"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {k} {k} (p :: k -&gt; k -&gt; *) (q :: k -&gt; k -&gt; *) (a :: k)
+       (b :: k).
+p a b -&gt; Sum p q a b
+</span><a href="Data.Bifunctor.Sum.html#L2"><span class="hs-identifier hs-var">L2</span></a></span><span> </span><span class="annot"><span class="annottext">p a b
+</span><a href="#local-6989586621679096071"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-144"></span><span>  </span><span class="annot"><a href="Data.Bifunctor.Functor.html#bijoin"><span class="hs-identifier hs-var">bijoin</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Sum.html#R2"><span class="hs-identifier hs-type">R2</span></a></span><span> </span><span id="local-6989586621679096070"><span class="annot"><span class="annottext">Sum p p a b
+</span><a href="#local-6989586621679096070"><span class="hs-identifier hs-var">q</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Sum p p a b
+</span><a href="#local-6989586621679096070"><span class="hs-identifier hs-var">q</span></a></span><span>
+</span><span id="line-145"></span><span>  </span><span id="local-6989586621679096068"><span class="annot"><span class="annottext">bibind :: forall (p :: k -&gt; k -&gt; *) (q :: k -&gt; k -&gt; *).
+(p :-&gt; Sum p q) -&gt; Sum p p :-&gt; Sum p q
+</span><a href="Data.Bifunctor.Functor.html#bibind"><span class="hs-identifier hs-var hs-var hs-var hs-var">bibind</span></a></span></span><span> </span><span class="annot"><span class="annottext">p :-&gt; Sum p q
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Sum.html#L2"><span class="hs-identifier hs-type">L2</span></a></span><span> </span><span id="local-6989586621679096066"><span class="annot"><span class="annottext">p a b
+</span><a href="#local-6989586621679096066"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {k} {k} (p :: k -&gt; k -&gt; *) (q :: k -&gt; k -&gt; *) (a :: k)
+       (b :: k).
+p a b -&gt; Sum p q a b
+</span><a href="Data.Bifunctor.Sum.html#L2"><span class="hs-identifier hs-var">L2</span></a></span><span> </span><span class="annot"><span class="annottext">p a b
+</span><a href="#local-6989586621679096066"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-146"></span><span>  </span><span class="annot"><a href="Data.Bifunctor.Functor.html#bibind"><span class="hs-identifier hs-var">bibind</span></a></span><span> </span><span id="local-6989586621679096065"><span class="annot"><span class="annottext">p :-&gt; Sum p q
+</span><a href="#local-6989586621679096065"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Sum.html#R2"><span class="hs-identifier hs-type">R2</span></a></span><span> </span><span id="local-6989586621679096064"><span class="annot"><span class="annottext">p a b
+</span><a href="#local-6989586621679096064"><span class="hs-identifier hs-var">q</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">p :-&gt; Sum p q
+</span><a href="#local-6989586621679096065"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">p a b
+</span><a href="#local-6989586621679096064"><span class="hs-identifier hs-var">q</span></a></span><span>
+</span><span id="line-147"></span></pre></body></html>

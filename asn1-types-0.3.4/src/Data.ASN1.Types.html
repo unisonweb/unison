@@ -1,0 +1,149 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- |</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- Module      : Data.ASN1.Types</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- License     : BSD-style</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- Maintainer  : Vincent Hanquez &lt;vincent@snarc.org&gt;</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Stability   : experimental</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- Portability : unknown</span><span>
+</span><span id="line-7"></span><span class="hs-comment">--</span><span>
+</span><span id="line-8"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Data.ASN1.Types</span><span>
+</span><span id="line-9"></span><span>    </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Data.ASN1.Types.html#ASN1"><span class="hs-identifier">ASN1</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.ASN1.Types.html#ASN1S"><span class="hs-identifier">ASN1S</span></a></span><span>
+</span><span id="line-11"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.ASN1.Types.Lowlevel.html#ASN1Class"><span class="hs-identifier">ASN1Class</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.ASN1.Types.Lowlevel.html#ASN1Tag"><span class="hs-identifier">ASN1Tag</span></a></span><span>
+</span><span id="line-13"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.ASN1.Types.html#ASN1ConstructionType"><span class="hs-identifier">ASN1ConstructionType</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.ASN1.Types.String.html#ASN1StringEncoding"><span class="hs-identifier">ASN1StringEncoding</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.ASN1.Types.html#ASN1TimeType"><span class="hs-identifier">ASN1TimeType</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.ASN1.Types.html#ASN1Object"><span class="hs-identifier">ASN1Object</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.ASN1.Types.String.html#ASN1CharacterString"><span class="hs-identifier">ASN1CharacterString</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.ASN1.Types.String.html#asn1CharacterString"><span class="hs-identifier">asn1CharacterString</span></a></span><span>
+</span><span id="line-19"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.ASN1.Types.String.html#asn1CharacterToString"><span class="hs-identifier">asn1CharacterToString</span></a></span><span>
+</span><span id="line-20"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.ASN1.OID.html"><span class="hs-identifier">Data.ASN1.OID</span></a></span><span>
+</span><span id="line-21"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Hourglass</span></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.ASN1.BitArray.html"><span class="hs-identifier">Data.ASN1.BitArray</span></a></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.ASN1.OID.html"><span class="hs-identifier">Data.ASN1.OID</span></a></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.ASN1.Types.Lowlevel.html"><span class="hs-identifier">Data.ASN1.Types.Lowlevel</span></a></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.ASN1.Types.String.html"><span class="hs-identifier">Data.ASN1.Types.String</span></a></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ByteString</span></span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- | Define the type of container</span><span>
+</span><span id="line-31"></span><span class="hs-keyword">data</span><span> </span><span id="ASN1ConstructionType"><span class="annot"><a href="Data.ASN1.Types.html#ASN1ConstructionType"><span class="hs-identifier hs-var">ASN1ConstructionType</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Sequence"><span class="annot"><a href="Data.ASN1.Types.html#Sequence"><span class="hs-identifier hs-var">Sequence</span></a></span></span><span>
+</span><span id="line-32"></span><span>                          </span><span class="hs-glyph">|</span><span> </span><span id="Set"><span class="annot"><a href="Data.ASN1.Types.html#Set"><span class="hs-identifier hs-var">Set</span></a></span></span><span>
+</span><span id="line-33"></span><span>                          </span><span class="hs-glyph">|</span><span> </span><span id="Container"><span class="annot"><a href="Data.ASN1.Types.html#Container"><span class="hs-identifier hs-var">Container</span></a></span></span><span> </span><span class="annot"><a href="Data.ASN1.Types.Lowlevel.html#ASN1Class"><span class="hs-identifier hs-type">ASN1Class</span></a></span><span> </span><span class="annot"><a href="Data.ASN1.Types.Lowlevel.html#ASN1Tag"><span class="hs-identifier hs-type">ASN1Tag</span></a></span><span>
+</span><span id="line-34"></span><span>                          </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679047474"><span id="local-6989586621679047476"><span id="local-6989586621679047484"><span class="annot"><span class="annottext">Int -&gt; ASN1ConstructionType -&gt; ShowS
+[ASN1ConstructionType] -&gt; ShowS
+ASN1ConstructionType -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [ASN1ConstructionType] -&gt; ShowS
+$cshowList :: [ASN1ConstructionType] -&gt; ShowS
+show :: ASN1ConstructionType -&gt; String
+$cshow :: ASN1ConstructionType -&gt; String
+showsPrec :: Int -&gt; ASN1ConstructionType -&gt; ShowS
+$cshowsPrec :: Int -&gt; ASN1ConstructionType -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679047465"><span id="local-6989586621679047471"><span class="annot"><span class="annottext">ASN1ConstructionType -&gt; ASN1ConstructionType -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: ASN1ConstructionType -&gt; ASN1ConstructionType -&gt; Bool
+$c/= :: ASN1ConstructionType -&gt; ASN1ConstructionType -&gt; Bool
+== :: ASN1ConstructionType -&gt; ASN1ConstructionType -&gt; Bool
+$c== :: ASN1ConstructionType -&gt; ASN1ConstructionType -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- | Different ASN1 time representation</span><span>
+</span><span id="line-37"></span><span class="hs-keyword">data</span><span> </span><span id="ASN1TimeType"><span class="annot"><a href="Data.ASN1.Types.html#ASN1TimeType"><span class="hs-identifier hs-var">ASN1TimeType</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="TimeUTC"><span class="annot"><a href="Data.ASN1.Types.html#TimeUTC"><span class="hs-identifier hs-var">TimeUTC</span></a></span></span><span>         </span><span class="hs-comment">-- ^ ASN1 UTCTime Type: limited between 1950-2050</span><span>
+</span><span id="line-38"></span><span>                  </span><span class="hs-glyph">|</span><span> </span><span id="TimeGeneralized"><span class="annot"><a href="Data.ASN1.Types.html#TimeGeneralized"><span class="hs-identifier hs-var">TimeGeneralized</span></a></span></span><span> </span><span class="hs-comment">-- ^ ASN1 GeneralizedTime Type</span><span>
+</span><span id="line-39"></span><span>                  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679047456"><span id="local-6989586621679047458"><span id="local-6989586621679047460"><span class="annot"><span class="annottext">Int -&gt; ASN1TimeType -&gt; ShowS
+[ASN1TimeType] -&gt; ShowS
+ASN1TimeType -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [ASN1TimeType] -&gt; ShowS
+$cshowList :: [ASN1TimeType] -&gt; ShowS
+show :: ASN1TimeType -&gt; String
+$cshow :: ASN1TimeType -&gt; String
+showsPrec :: Int -&gt; ASN1TimeType -&gt; ShowS
+$cshowsPrec :: Int -&gt; ASN1TimeType -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679047452"><span id="local-6989586621679047454"><span class="annot"><span class="annottext">ASN1TimeType -&gt; ASN1TimeType -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: ASN1TimeType -&gt; ASN1TimeType -&gt; Bool
+$c/= :: ASN1TimeType -&gt; ASN1TimeType -&gt; Bool
+== :: ASN1TimeType -&gt; ASN1TimeType -&gt; Bool
+$c== :: ASN1TimeType -&gt; ASN1TimeType -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679047433"><span id="local-6989586621679047435"><span id="local-6989586621679047438"><span id="local-6989586621679047441"><span id="local-6989586621679047444"><span id="local-6989586621679047446"><span id="local-6989586621679047448"><span class="annot"><span class="annottext">Eq ASN1TimeType
+ASN1TimeType -&gt; ASN1TimeType -&gt; Bool
+ASN1TimeType -&gt; ASN1TimeType -&gt; Ordering
+ASN1TimeType -&gt; ASN1TimeType -&gt; ASN1TimeType
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: ASN1TimeType -&gt; ASN1TimeType -&gt; ASN1TimeType
+$cmin :: ASN1TimeType -&gt; ASN1TimeType -&gt; ASN1TimeType
+max :: ASN1TimeType -&gt; ASN1TimeType -&gt; ASN1TimeType
+$cmax :: ASN1TimeType -&gt; ASN1TimeType -&gt; ASN1TimeType
+&gt;= :: ASN1TimeType -&gt; ASN1TimeType -&gt; Bool
+$c&gt;= :: ASN1TimeType -&gt; ASN1TimeType -&gt; Bool
+&gt; :: ASN1TimeType -&gt; ASN1TimeType -&gt; Bool
+$c&gt; :: ASN1TimeType -&gt; ASN1TimeType -&gt; Bool
+&lt;= :: ASN1TimeType -&gt; ASN1TimeType -&gt; Bool
+$c&lt;= :: ASN1TimeType -&gt; ASN1TimeType -&gt; Bool
+&lt; :: ASN1TimeType -&gt; ASN1TimeType -&gt; Bool
+$c&lt; :: ASN1TimeType -&gt; ASN1TimeType -&gt; Bool
+compare :: ASN1TimeType -&gt; ASN1TimeType -&gt; Ordering
+$ccompare :: ASN1TimeType -&gt; ASN1TimeType -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span class="hs-comment">-- | Define high level ASN1 object.</span><span>
+</span><span id="line-42"></span><span class="hs-keyword">data</span><span> </span><span id="ASN1"><span class="annot"><a href="Data.ASN1.Types.html#ASN1"><span class="hs-identifier hs-var">ASN1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-43"></span><span>      </span><span id="Boolean"><span class="annot"><a href="Data.ASN1.Types.html#Boolean"><span class="hs-identifier hs-var">Boolean</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-44"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="IntVal"><span class="annot"><a href="Data.ASN1.Types.html#IntVal"><span class="hs-identifier hs-var">IntVal</span></a></span></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span>
+</span><span id="line-45"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="BitString"><span class="annot"><a href="Data.ASN1.Types.html#BitString"><span class="hs-identifier hs-var">BitString</span></a></span></span><span> </span><span class="annot"><a href="Data.ASN1.BitArray.html#BitArray"><span class="hs-identifier hs-type">BitArray</span></a></span><span>
+</span><span id="line-46"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="OctetString"><span class="annot"><a href="Data.ASN1.Types.html#OctetString"><span class="hs-identifier hs-var">OctetString</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span>
+</span><span id="line-47"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="Null"><span class="annot"><a href="Data.ASN1.Types.html#Null"><span class="hs-identifier hs-var">Null</span></a></span></span><span>
+</span><span id="line-48"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="OID"><span class="annot"><a href="Data.ASN1.Types.html#OID"><span class="hs-identifier hs-var">OID</span></a></span></span><span>  </span><span class="annot"><a href="Data.ASN1.OID.html#OID"><span class="hs-identifier hs-type">OID</span></a></span><span>
+</span><span id="line-49"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="Real"><span class="annot"><a href="Data.ASN1.Types.html#Real"><span class="hs-identifier hs-var">Real</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span>
+</span><span id="line-50"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="Enumerated"><span class="annot"><a href="Data.ASN1.Types.html#Enumerated"><span class="hs-identifier hs-var">Enumerated</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span>
+</span><span id="line-51"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="ASN1String"><span class="annot"><a href="Data.ASN1.Types.html#ASN1String"><span class="hs-identifier hs-var">ASN1String</span></a></span></span><span> </span><span class="annot"><a href="Data.ASN1.Types.String.html#ASN1CharacterString"><span class="hs-identifier hs-type">ASN1CharacterString</span></a></span><span>
+</span><span id="line-52"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="ASN1Time"><span class="annot"><a href="Data.ASN1.Types.html#ASN1Time"><span class="hs-identifier hs-var">ASN1Time</span></a></span></span><span> </span><span class="annot"><a href="Data.ASN1.Types.html#ASN1TimeType"><span class="hs-identifier hs-type">ASN1TimeType</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">DateTime</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TimezoneOffset</span></span><span class="hs-special">)</span><span>
+</span><span id="line-53"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="Other"><span class="annot"><a href="Data.ASN1.Types.html#Other"><span class="hs-identifier hs-var">Other</span></a></span></span><span> </span><span class="annot"><a href="Data.ASN1.Types.Lowlevel.html#ASN1Class"><span class="hs-identifier hs-type">ASN1Class</span></a></span><span> </span><span class="annot"><a href="Data.ASN1.Types.Lowlevel.html#ASN1Tag"><span class="hs-identifier hs-type">ASN1Tag</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span>
+</span><span id="line-54"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="Start"><span class="annot"><a href="Data.ASN1.Types.html#Start"><span class="hs-identifier hs-var">Start</span></a></span></span><span> </span><span class="annot"><a href="Data.ASN1.Types.html#ASN1ConstructionType"><span class="hs-identifier hs-type">ASN1ConstructionType</span></a></span><span>
+</span><span id="line-55"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="End"><span class="annot"><a href="Data.ASN1.Types.html#End"><span class="hs-identifier hs-var">End</span></a></span></span><span>   </span><span class="annot"><a href="Data.ASN1.Types.html#ASN1ConstructionType"><span class="hs-identifier hs-type">ASN1ConstructionType</span></a></span><span>
+</span><span id="line-56"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679047375"><span id="local-6989586621679047377"><span id="local-6989586621679047417"><span class="annot"><span class="annottext">Int -&gt; ASN1 -&gt; ShowS
+[ASN1] -&gt; ShowS
+ASN1 -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [ASN1] -&gt; ShowS
+$cshowList :: [ASN1] -&gt; ShowS
+show :: ASN1 -&gt; String
+$cshow :: ASN1 -&gt; String
+showsPrec :: Int -&gt; ASN1 -&gt; ShowS
+$cshowsPrec :: Int -&gt; ASN1 -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679047344"><span id="local-6989586621679047372"><span class="annot"><span class="annottext">ASN1 -&gt; ASN1 -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: ASN1 -&gt; ASN1 -&gt; Bool
+$c/= :: ASN1 -&gt; ASN1 -&gt; Bool
+== :: ASN1 -&gt; ASN1 -&gt; Bool
+$c== :: ASN1 -&gt; ASN1 -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span class="hs-comment">-- | represent a chunk of ASN1 Stream.</span><span>
+</span><span id="line-59"></span><span class="hs-comment">-- this is equivalent to ShowS but for an ASN1 Stream.</span><span>
+</span><span id="line-60"></span><span class="hs-keyword">type</span><span> </span><span id="ASN1S"><span class="annot"><a href="Data.ASN1.Types.html#ASN1S"><span class="hs-identifier hs-var">ASN1S</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Data.ASN1.Types.html#ASN1"><span class="hs-identifier hs-type">ASN1</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Data.ASN1.Types.html#ASN1"><span class="hs-identifier hs-type">ASN1</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span><span class="hs-comment">-- | Define an object that can be converted to and from ASN.1</span><span>
+</span><span id="line-63"></span><span class="hs-keyword">class</span><span> </span><span id="ASN1Object"><span class="annot"><a href="Data.ASN1.Types.html#ASN1Object"><span class="hs-identifier hs-var">ASN1Object</span></a></span></span><span> </span><span id="local-6989586621679047342"><span class="annot"><a href="#local-6989586621679047342"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-64"></span><span>    </span><span class="hs-comment">-- | transform an object into a chunk of ASN1 stream.</span><span>
+</span><span id="line-65"></span><span>    </span><span id="toASN1"><span class="annot"><a href="Data.ASN1.Types.html#toASN1"><span class="hs-identifier hs-type">toASN1</span></a></span></span><span>   </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679047342"><span class="hs-identifier hs-type">a</span></a></span><span>      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.ASN1.Types.html#ASN1S"><span class="hs-identifier hs-type">ASN1S</span></a></span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span>    </span><span class="hs-comment">-- | returns either an object along the remaining ASN1 stream,</span><span>
+</span><span id="line-68"></span><span>    </span><span class="hs-comment">-- or an error.</span><span>
+</span><span id="line-69"></span><span>    </span><span id="fromASN1"><span class="annot"><a href="Data.ASN1.Types.html#fromASN1"><span class="hs-identifier hs-type">fromASN1</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Data.ASN1.Types.html#ASN1"><span class="hs-identifier hs-type">ASN1</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679047342"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Data.ASN1.Types.html#ASN1"><span class="hs-identifier hs-type">ASN1</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-70"></span></pre></body></html>

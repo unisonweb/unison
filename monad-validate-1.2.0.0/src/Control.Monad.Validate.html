@@ -1,0 +1,30 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- | This module defines the 'ValidateT' monad transformer and 'MonadValidate' typeclass. As the</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- names imply, they are intended to be used to write data validators, but they are general enough</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- that you may find other uses for them, too. For an overview of this library&#8217;s functionality, see</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- the documentation for 'ValidateT'.</span><span>
+</span><span id="line-5"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Control.Monad.Validate</span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-6"></span><span>  </span><span class="annot"><span class="hs-comment">-- * The @ValidateT@ monad transformer</span></span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><a href="Control.Monad.Validate.Internal.html#ValidateT"><span class="hs-identifier">ValidateT</span></a></span><span>
+</span><span id="line-8"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Validate.Internal.html#runValidateT"><span class="hs-identifier">runValidateT</span></a></span><span>
+</span><span id="line-9"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Validate.Internal.html#execValidateT"><span class="hs-identifier">execValidateT</span></a></span><span>
+</span><span id="line-10"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Validate.Internal.html#embedValidateT"><span class="hs-identifier">embedValidateT</span></a></span><span>
+</span><span id="line-11"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Validate.Internal.html#mapErrors"><span class="hs-identifier">mapErrors</span></a></span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span>  </span><span class="annot"><span class="hs-comment">-- * The @MonadValidate@ class</span></span><span>
+</span><span id="line-14"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Validate.Class.html#MonadValidate"><span class="hs-identifier">MonadValidate</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Converting between monads</span></span><span>
+</span><span id="line-17"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Validate.Class.html#exceptToValidate"><span class="hs-identifier">exceptToValidate</span></a></span><span>
+</span><span id="line-18"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Validate.Class.html#exceptToValidateWith"><span class="hs-identifier">exceptToValidateWith</span></a></span><span>
+</span><span id="line-19"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Validate.Internal.html#validateToError"><span class="hs-identifier">validateToError</span></a></span><span>
+</span><span id="line-20"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Validate.Internal.html#validateToErrorWith"><span class="hs-identifier">validateToErrorWith</span></a></span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span>  </span><span class="annot"><span class="hs-comment">-- * The @Validate@ monad</span></span><span>
+</span><span id="line-23"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Validate.Internal.html#Validate"><span class="hs-identifier">Validate</span></a></span><span>
+</span><span id="line-24"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Validate.Internal.html#runValidate"><span class="hs-identifier">runValidate</span></a></span><span>
+</span><span id="line-25"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Validate.Internal.html#execValidate"><span class="hs-identifier">execValidate</span></a></span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Control.Monad.Validate.Class.html"><span class="hs-identifier">Control.Monad.Validate.Class</span></a></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Control.Monad.Validate.Internal.html"><span class="hs-identifier">Control.Monad.Validate.Internal</span></a></span><span>
+</span><span id="line-30"></span></pre></body></html>

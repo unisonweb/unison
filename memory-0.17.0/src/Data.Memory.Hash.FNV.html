@@ -1,0 +1,372 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- |</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- Module      : Data.Memory.Hash.FNV</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- License     : BSD-style</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- Maintainer  : Vincent Hanquez &lt;vincent@snarc.org&gt;</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Stability   : experimental</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- Portability : good</span><span>
+</span><span id="line-7"></span><span class="hs-comment">--</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- Fowler Noll Vo Hash (1 and 1a / 32 / 64 bits versions)</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- &lt;http://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function&gt;</span><span>
+</span><span id="line-10"></span><span class="hs-comment">--</span><span>
+</span><span id="line-11"></span><span class="hs-pragma">{-# LANGUAGE GeneralizedNewtypeDeriving #-}</span><span>
+</span><span id="line-12"></span><span class="hs-pragma">{-# LANGUAGE MagicHash                  #-}</span><span>
+</span><span id="line-13"></span><span class="hs-pragma">{-# LANGUAGE UnboxedTuples              #-}</span><span>
+</span><span id="line-14"></span><span class="hs-pragma">{-# LANGUAGE BangPatterns               #-}</span><span>
+</span><span id="line-15"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Data.Memory.Hash.FNV</span><span>
+</span><span id="line-16"></span><span>    </span><span class="hs-special">(</span><span>
+</span><span id="line-17"></span><span>    </span><span class="annot"><span class="hs-comment">-- * types</span></span><span>
+</span><span id="line-18"></span><span>      </span><span class="annot"><a href="Data.Memory.Hash.FNV.html#FnvHash32"><span class="hs-identifier">FnvHash32</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Memory.Hash.FNV.html#FnvHash64"><span class="hs-identifier">FnvHash64</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span>    </span><span class="annot"><span class="hs-comment">-- * methods</span></span><span>
+</span><span id="line-21"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Memory.Hash.FNV.html#fnv1"><span class="hs-identifier">fnv1</span></a></span><span>
+</span><span id="line-22"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Memory.Hash.FNV.html#fnv1a"><span class="hs-identifier">fnv1a</span></a></span><span>
+</span><span id="line-23"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Memory.Hash.FNV.html#fnv1_64"><span class="hs-identifier">fnv1_64</span></a></span><span>
+</span><span id="line-24"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Memory.Hash.FNV.html#fnv1a_64"><span class="hs-identifier">fnv1a_64</span></a></span><span>
+</span><span id="line-25"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Basement.Bits</span></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Basement.IntegralConv</span></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Data.Memory.Internal.Compat.html"><span class="hs-identifier">Data.Memory.Internal.Compat</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Data.Memory.Internal.Imports.html"><span class="hs-identifier">Data.Memory.Internal.Imports</span></a></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">GHC.Word</span></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">GHC.Prim</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Word64#</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Int64#</span></span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">GHC.Types</span></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">GHC.Ptr</span></span><span>
+</span><span id="line-35"></span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- | FNV1(a) hash (32 bit variants)</span><span>
+</span><span id="line-37"></span><span class="hs-keyword">newtype</span><span> </span><span id="FnvHash32"><span class="annot"><a href="Data.Memory.Hash.FNV.html#FnvHash32"><span class="hs-identifier hs-var">FnvHash32</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="FnvHash32"><span class="annot"><a href="Data.Memory.Hash.FNV.html#FnvHash32"><span class="hs-identifier hs-var">FnvHash32</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word32</span></span><span>
+</span><span id="line-38"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679075054"><span id="local-6989586621679075056"><span id="local-6989586621679075062"><span class="annot"><span class="annottext">Int -&gt; FnvHash32 -&gt; ShowS
+[FnvHash32] -&gt; ShowS
+FnvHash32 -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [FnvHash32] -&gt; ShowS
+$cshowList :: [FnvHash32] -&gt; ShowS
+show :: FnvHash32 -&gt; String
+$cshow :: FnvHash32 -&gt; String
+showsPrec :: Int -&gt; FnvHash32 -&gt; ShowS
+$cshowsPrec :: Int -&gt; FnvHash32 -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679075046"><span id="local-6989586621679075051"><span class="annot"><span class="annottext">FnvHash32 -&gt; FnvHash32 -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: FnvHash32 -&gt; FnvHash32 -&gt; Bool
+$c/= :: FnvHash32 -&gt; FnvHash32 -&gt; Bool
+== :: FnvHash32 -&gt; FnvHash32 -&gt; Bool
+$c== :: FnvHash32 -&gt; FnvHash32 -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679075013"><span id="local-6989586621679075017"><span id="local-6989586621679075021"><span id="local-6989586621679075025"><span id="local-6989586621679075029"><span id="local-6989586621679075033"><span id="local-6989586621679075038"><span class="annot"><span class="annottext">Eq FnvHash32
+FnvHash32 -&gt; FnvHash32 -&gt; Bool
+FnvHash32 -&gt; FnvHash32 -&gt; Ordering
+FnvHash32 -&gt; FnvHash32 -&gt; FnvHash32
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: FnvHash32 -&gt; FnvHash32 -&gt; FnvHash32
+$cmin :: FnvHash32 -&gt; FnvHash32 -&gt; FnvHash32
+max :: FnvHash32 -&gt; FnvHash32 -&gt; FnvHash32
+$cmax :: FnvHash32 -&gt; FnvHash32 -&gt; FnvHash32
+&gt;= :: FnvHash32 -&gt; FnvHash32 -&gt; Bool
+$c&gt;= :: FnvHash32 -&gt; FnvHash32 -&gt; Bool
+&gt; :: FnvHash32 -&gt; FnvHash32 -&gt; Bool
+$c&gt; :: FnvHash32 -&gt; FnvHash32 -&gt; Bool
+&lt;= :: FnvHash32 -&gt; FnvHash32 -&gt; Bool
+$c&lt;= :: FnvHash32 -&gt; FnvHash32 -&gt; Bool
+&lt; :: FnvHash32 -&gt; FnvHash32 -&gt; Bool
+$c&lt; :: FnvHash32 -&gt; FnvHash32 -&gt; Bool
+compare :: FnvHash32 -&gt; FnvHash32 -&gt; Ordering
+$ccompare :: FnvHash32 -&gt; FnvHash32 -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679075007"><span class="annot"><span class="annottext">FnvHash32 -&gt; ()
+forall a. (a -&gt; ()) -&gt; NFData a
+rnf :: FnvHash32 -&gt; ()
+$crnf :: FnvHash32 -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- | FNV1(a) hash (64 bit variants)</span><span>
+</span><span id="line-41"></span><span class="hs-keyword">newtype</span><span> </span><span id="FnvHash64"><span class="annot"><a href="Data.Memory.Hash.FNV.html#FnvHash64"><span class="hs-identifier hs-var">FnvHash64</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="FnvHash64"><span class="annot"><a href="Data.Memory.Hash.FNV.html#FnvHash64"><span class="hs-identifier hs-var">FnvHash64</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span>
+</span><span id="line-42"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679074992"><span id="local-6989586621679074994"><span id="local-6989586621679074999"><span class="annot"><span class="annottext">Int -&gt; FnvHash64 -&gt; ShowS
+[FnvHash64] -&gt; ShowS
+FnvHash64 -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [FnvHash64] -&gt; ShowS
+$cshowList :: [FnvHash64] -&gt; ShowS
+show :: FnvHash64 -&gt; String
+$cshow :: FnvHash64 -&gt; String
+showsPrec :: Int -&gt; FnvHash64 -&gt; ShowS
+$cshowsPrec :: Int -&gt; FnvHash64 -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679074985"><span id="local-6989586621679074990"><span class="annot"><span class="annottext">FnvHash64 -&gt; FnvHash64 -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: FnvHash64 -&gt; FnvHash64 -&gt; Bool
+$c/= :: FnvHash64 -&gt; FnvHash64 -&gt; Bool
+== :: FnvHash64 -&gt; FnvHash64 -&gt; Bool
+$c== :: FnvHash64 -&gt; FnvHash64 -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679074953"><span id="local-6989586621679074957"><span id="local-6989586621679074961"><span id="local-6989586621679074965"><span id="local-6989586621679074969"><span id="local-6989586621679074973"><span id="local-6989586621679074978"><span class="annot"><span class="annottext">Eq FnvHash64
+FnvHash64 -&gt; FnvHash64 -&gt; Bool
+FnvHash64 -&gt; FnvHash64 -&gt; Ordering
+FnvHash64 -&gt; FnvHash64 -&gt; FnvHash64
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: FnvHash64 -&gt; FnvHash64 -&gt; FnvHash64
+$cmin :: FnvHash64 -&gt; FnvHash64 -&gt; FnvHash64
+max :: FnvHash64 -&gt; FnvHash64 -&gt; FnvHash64
+$cmax :: FnvHash64 -&gt; FnvHash64 -&gt; FnvHash64
+&gt;= :: FnvHash64 -&gt; FnvHash64 -&gt; Bool
+$c&gt;= :: FnvHash64 -&gt; FnvHash64 -&gt; Bool
+&gt; :: FnvHash64 -&gt; FnvHash64 -&gt; Bool
+$c&gt; :: FnvHash64 -&gt; FnvHash64 -&gt; Bool
+&lt;= :: FnvHash64 -&gt; FnvHash64 -&gt; Bool
+$c&lt;= :: FnvHash64 -&gt; FnvHash64 -&gt; Bool
+&lt; :: FnvHash64 -&gt; FnvHash64 -&gt; Bool
+$c&lt; :: FnvHash64 -&gt; FnvHash64 -&gt; Bool
+compare :: FnvHash64 -&gt; FnvHash64 -&gt; Ordering
+$ccompare :: FnvHash64 -&gt; FnvHash64 -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679074948"><span class="annot"><span class="annottext">FnvHash64 -&gt; ()
+forall a. (a -&gt; ()) -&gt; NFData a
+rnf :: FnvHash64 -&gt; ()
+$crnf :: FnvHash64 -&gt; ()
+</span><a href="#local-6989586621679074948"><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span class="annot"><a href="Data.Memory.Hash.FNV.html#fnv1_32_Mix8"><span class="hs-identifier hs-type">fnv1_32_Mix8</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Memory.Hash.FNV.html#FnvHash32"><span class="hs-identifier hs-type">FnvHash32</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Memory.Hash.FNV.html#FnvHash32"><span class="hs-identifier hs-type">FnvHash32</span></a></span><span>
+</span><span id="line-45"></span><span id="fnv1_32_Mix8"><span class="annot"><span class="annottext">fnv1_32_Mix8 :: Word8 -&gt; FnvHash32 -&gt; FnvHash32
+</span><a href="Data.Memory.Hash.FNV.html#fnv1_32_Mix8"><span class="hs-identifier hs-var hs-var">fnv1_32_Mix8</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679074942"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679074942"><span class="hs-identifier hs-var">w</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Memory.Hash.FNV.html#FnvHash32"><span class="hs-identifier hs-type">FnvHash32</span></a></span><span> </span><span id="local-6989586621679074941"><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679074941"><span class="hs-identifier hs-var">acc</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word32 -&gt; FnvHash32
+</span><a href="Data.Memory.Hash.FNV.html#FnvHash32"><span class="hs-identifier hs-var">FnvHash32</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word32
+</span><span class="hs-number">0x01000193</span></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679074941"><span class="hs-identifier hs-var">acc</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall bits. BitOps bits =&gt; bits -&gt; bits -&gt; bits
+</span><span class="hs-operator hs-var">.^.</span></span><span> </span><span class="annot"><span class="annottext">forall a b. IntegralUpsize a b =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">integralUpsize</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679074942"><span class="hs-identifier hs-var">w</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-46"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Memory.Hash.FNV.html#fnv1_32_Mix8"><span class="hs-pragma hs-type">fnv1_32_Mix8</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-47"></span><span>
+</span><span id="line-48"></span><span class="annot"><a href="Data.Memory.Hash.FNV.html#fnv1a_32_Mix8"><span class="hs-identifier hs-type">fnv1a_32_Mix8</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Memory.Hash.FNV.html#FnvHash32"><span class="hs-identifier hs-type">FnvHash32</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Memory.Hash.FNV.html#FnvHash32"><span class="hs-identifier hs-type">FnvHash32</span></a></span><span>
+</span><span id="line-49"></span><span id="fnv1a_32_Mix8"><span class="annot"><span class="annottext">fnv1a_32_Mix8 :: Word8 -&gt; FnvHash32 -&gt; FnvHash32
+</span><a href="Data.Memory.Hash.FNV.html#fnv1a_32_Mix8"><span class="hs-identifier hs-var hs-var">fnv1a_32_Mix8</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679074936"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679074936"><span class="hs-identifier hs-var">w</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Memory.Hash.FNV.html#FnvHash32"><span class="hs-identifier hs-type">FnvHash32</span></a></span><span> </span><span id="local-6989586621679074935"><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679074935"><span class="hs-identifier hs-var">acc</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word32 -&gt; FnvHash32
+</span><a href="Data.Memory.Hash.FNV.html#FnvHash32"><span class="hs-identifier hs-var">FnvHash32</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word32
+</span><span class="hs-number">0x01000193</span></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679074935"><span class="hs-identifier hs-var">acc</span></a></span><span> </span><span class="annot"><span class="annottext">forall bits. BitOps bits =&gt; bits -&gt; bits -&gt; bits
+</span><span class="hs-operator hs-var">.^.</span></span><span> </span><span class="annot"><span class="annottext">forall a b. IntegralUpsize a b =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">integralUpsize</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679074936"><span class="hs-identifier hs-var">w</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-50"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Memory.Hash.FNV.html#fnv1a_32_Mix8"><span class="hs-pragma hs-type">fnv1a_32_Mix8</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span class="annot"><a href="Data.Memory.Hash.FNV.html#fnv1_64_Mix8"><span class="hs-identifier hs-type">fnv1_64_Mix8</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Memory.Hash.FNV.html#FnvHash64"><span class="hs-identifier hs-type">FnvHash64</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Memory.Hash.FNV.html#FnvHash64"><span class="hs-identifier hs-type">FnvHash64</span></a></span><span>
+</span><span id="line-53"></span><span id="fnv1_64_Mix8"><span class="annot"><span class="annottext">fnv1_64_Mix8 :: Word8 -&gt; FnvHash64 -&gt; FnvHash64
+</span><a href="Data.Memory.Hash.FNV.html#fnv1_64_Mix8"><span class="hs-identifier hs-var hs-var">fnv1_64_Mix8</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679074933"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679074933"><span class="hs-identifier hs-var">w</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Memory.Hash.FNV.html#FnvHash64"><span class="hs-identifier hs-type">FnvHash64</span></a></span><span> </span><span id="local-6989586621679074932"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679074932"><span class="hs-identifier hs-var">acc</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; FnvHash64
+</span><a href="Data.Memory.Hash.FNV.html#FnvHash64"><span class="hs-identifier hs-var">FnvHash64</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-number">0x100000001b3</span></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679074932"><span class="hs-identifier hs-var">acc</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall bits. BitOps bits =&gt; bits -&gt; bits -&gt; bits
+</span><span class="hs-operator hs-var">.^.</span></span><span> </span><span class="annot"><span class="annottext">forall a b. IntegralUpsize a b =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">integralUpsize</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679074933"><span class="hs-identifier hs-var">w</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-54"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Memory.Hash.FNV.html#fnv1_64_Mix8"><span class="hs-pragma hs-type">fnv1_64_Mix8</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span class="annot"><a href="Data.Memory.Hash.FNV.html#fnv1a_64_Mix8"><span class="hs-identifier hs-type">fnv1a_64_Mix8</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Memory.Hash.FNV.html#FnvHash64"><span class="hs-identifier hs-type">FnvHash64</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Memory.Hash.FNV.html#FnvHash64"><span class="hs-identifier hs-type">FnvHash64</span></a></span><span>
+</span><span id="line-57"></span><span id="fnv1a_64_Mix8"><span class="annot"><span class="annottext">fnv1a_64_Mix8 :: Word8 -&gt; FnvHash64 -&gt; FnvHash64
+</span><a href="Data.Memory.Hash.FNV.html#fnv1a_64_Mix8"><span class="hs-identifier hs-var hs-var">fnv1a_64_Mix8</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679074930"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679074930"><span class="hs-identifier hs-var">w</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Memory.Hash.FNV.html#FnvHash64"><span class="hs-identifier hs-type">FnvHash64</span></a></span><span> </span><span id="local-6989586621679074929"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679074929"><span class="hs-identifier hs-var">acc</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; FnvHash64
+</span><a href="Data.Memory.Hash.FNV.html#FnvHash64"><span class="hs-identifier hs-var">FnvHash64</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-number">0x100000001b3</span></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679074929"><span class="hs-identifier hs-var">acc</span></a></span><span> </span><span class="annot"><span class="annottext">forall bits. BitOps bits =&gt; bits -&gt; bits -&gt; bits
+</span><span class="hs-operator hs-var">.^.</span></span><span> </span><span class="annot"><span class="annottext">forall a b. IntegralUpsize a b =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">integralUpsize</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679074930"><span class="hs-identifier hs-var">w</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-58"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Memory.Hash.FNV.html#fnv1a_64_Mix8"><span class="hs-pragma hs-type">fnv1a_64_Mix8</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span class="hs-comment">-- | compute FNV1 (32 bit variant) of a raw piece of memory</span><span>
+</span><span id="line-61"></span><span class="annot"><a href="Data.Memory.Hash.FNV.html#fnv1"><span class="hs-identifier hs-type">fnv1</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Data.Memory.Hash.FNV.html#FnvHash32"><span class="hs-identifier hs-type">FnvHash32</span></a></span><span>
+</span><span id="line-62"></span><span id="fnv1"><span class="annot"><span class="annottext">fnv1 :: Ptr Word8 -&gt; Int -&gt; IO FnvHash32
+</span><a href="Data.Memory.Hash.FNV.html#fnv1"><span class="hs-identifier hs-var hs-var">fnv1</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span id="local-6989586621679074927"><span class="annot"><span class="annottext">Addr#
+</span><a href="#local-6989586621679074927"><span class="hs-identifier hs-var">addr</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679074926"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074926"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FnvHash32 -&gt; Int -&gt; IO FnvHash32
+</span><a href="#local-6989586621679074925"><span class="hs-identifier hs-var">loop</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word32 -&gt; FnvHash32
+</span><a href="Data.Memory.Hash.FNV.html#FnvHash32"><span class="hs-identifier hs-var">FnvHash32</span></a></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><span class="hs-number">0x811c9dc5</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-63"></span><span>  </span><span class="hs-keyword">where</span><span> </span><span>
+</span><span id="line-64"></span><span>        </span><span class="annot"><a href="#local-6989586621679074925"><span class="hs-identifier hs-type">loop</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Memory.Hash.FNV.html#FnvHash32"><span class="hs-identifier hs-type">FnvHash32</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Data.Memory.Hash.FNV.html#FnvHash32"><span class="hs-identifier hs-type">FnvHash32</span></a></span><span>
+</span><span id="line-65"></span><span>        </span><span id="local-6989586621679074925"><span class="annot"><span class="annottext">loop :: FnvHash32 -&gt; Int -&gt; IO FnvHash32
+</span><a href="#local-6989586621679074925"><span class="hs-identifier hs-var hs-var">loop</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679074924"><span class="annot"><span class="annottext">FnvHash32
+</span><a href="#local-6989586621679074924"><span class="hs-identifier hs-var">acc</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679074923"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074923"><span class="hs-identifier hs-var">i</span></a></span></span><span>
+</span><span id="line-66"></span><span>            </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074923"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074926"><span class="hs-identifier hs-var">n</span></a></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">FnvHash32
+</span><a href="#local-6989586621679074924"><span class="hs-identifier hs-var">acc</span></a></span><span>
+</span><span id="line-67"></span><span>            </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-68"></span><span>                </span><span id="local-6989586621679074922"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679074922"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Addr# -&gt; Int -&gt; IO Word8
+</span><a href="Data.Memory.Hash.FNV.html#read8"><span class="hs-identifier hs-var">read8</span></a></span><span> </span><span class="annot"><span class="annottext">Addr#
+</span><a href="#local-6989586621679074927"><span class="hs-identifier hs-var">addr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074923"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-69"></span><span>                </span><span class="annot"><span class="annottext">FnvHash32 -&gt; Int -&gt; IO FnvHash32
+</span><a href="#local-6989586621679074925"><span class="hs-identifier hs-var">loop</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8 -&gt; FnvHash32 -&gt; FnvHash32
+</span><a href="Data.Memory.Hash.FNV.html#fnv1_32_Mix8"><span class="hs-identifier hs-var">fnv1_32_Mix8</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679074922"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">FnvHash32
+</span><a href="#local-6989586621679074924"><span class="hs-identifier hs-var">acc</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074923"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span>
+</span><span id="line-70"></span><span>
+</span><span id="line-71"></span><span class="hs-comment">-- | compute FNV1a (32 bit variant) of a raw piece of memory</span><span>
+</span><span id="line-72"></span><span class="annot"><a href="Data.Memory.Hash.FNV.html#fnv1a"><span class="hs-identifier hs-type">fnv1a</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Data.Memory.Hash.FNV.html#FnvHash32"><span class="hs-identifier hs-type">FnvHash32</span></a></span><span>
+</span><span id="line-73"></span><span id="fnv1a"><span class="annot"><span class="annottext">fnv1a :: Ptr Word8 -&gt; Int -&gt; IO FnvHash32
+</span><a href="Data.Memory.Hash.FNV.html#fnv1a"><span class="hs-identifier hs-var hs-var">fnv1a</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span id="local-6989586621679074919"><span class="annot"><span class="annottext">Addr#
+</span><a href="#local-6989586621679074919"><span class="hs-identifier hs-var">addr</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679074918"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074918"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FnvHash32 -&gt; Int -&gt; IO FnvHash32
+</span><a href="#local-6989586621679074917"><span class="hs-identifier hs-var">loop</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word32 -&gt; FnvHash32
+</span><a href="Data.Memory.Hash.FNV.html#FnvHash32"><span class="hs-identifier hs-var">FnvHash32</span></a></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><span class="hs-number">0x811c9dc5</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-74"></span><span>  </span><span class="hs-keyword">where</span><span> </span><span>
+</span><span id="line-75"></span><span>        </span><span class="annot"><a href="#local-6989586621679074917"><span class="hs-identifier hs-type">loop</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Memory.Hash.FNV.html#FnvHash32"><span class="hs-identifier hs-type">FnvHash32</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Data.Memory.Hash.FNV.html#FnvHash32"><span class="hs-identifier hs-type">FnvHash32</span></a></span><span>
+</span><span id="line-76"></span><span>        </span><span id="local-6989586621679074917"><span class="annot"><span class="annottext">loop :: FnvHash32 -&gt; Int -&gt; IO FnvHash32
+</span><a href="#local-6989586621679074917"><span class="hs-identifier hs-var hs-var">loop</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679074916"><span class="annot"><span class="annottext">FnvHash32
+</span><a href="#local-6989586621679074916"><span class="hs-identifier hs-var">acc</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679074915"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074915"><span class="hs-identifier hs-var">i</span></a></span></span><span>
+</span><span id="line-77"></span><span>            </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074915"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074918"><span class="hs-identifier hs-var">n</span></a></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">FnvHash32
+</span><a href="#local-6989586621679074916"><span class="hs-identifier hs-var">acc</span></a></span><span>
+</span><span id="line-78"></span><span>            </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-79"></span><span>                </span><span id="local-6989586621679074914"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679074914"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Addr# -&gt; Int -&gt; IO Word8
+</span><a href="Data.Memory.Hash.FNV.html#read8"><span class="hs-identifier hs-var">read8</span></a></span><span> </span><span class="annot"><span class="annottext">Addr#
+</span><a href="#local-6989586621679074919"><span class="hs-identifier hs-var">addr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074915"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-80"></span><span>                </span><span class="annot"><span class="annottext">FnvHash32 -&gt; Int -&gt; IO FnvHash32
+</span><a href="#local-6989586621679074917"><span class="hs-identifier hs-var">loop</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8 -&gt; FnvHash32 -&gt; FnvHash32
+</span><a href="Data.Memory.Hash.FNV.html#fnv1a_32_Mix8"><span class="hs-identifier hs-var">fnv1a_32_Mix8</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679074914"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">FnvHash32
+</span><a href="#local-6989586621679074916"><span class="hs-identifier hs-var">acc</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074915"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span>
+</span><span id="line-81"></span><span>
+</span><span id="line-82"></span><span class="hs-comment">-- | compute FNV1 (64 bit variant) of a raw piece of memory</span><span>
+</span><span id="line-83"></span><span class="annot"><a href="Data.Memory.Hash.FNV.html#fnv1_64"><span class="hs-identifier hs-type">fnv1_64</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Data.Memory.Hash.FNV.html#FnvHash64"><span class="hs-identifier hs-type">FnvHash64</span></a></span><span>
+</span><span id="line-84"></span><span id="fnv1_64"><span class="annot"><span class="annottext">fnv1_64 :: Ptr Word8 -&gt; Int -&gt; IO FnvHash64
+</span><a href="Data.Memory.Hash.FNV.html#fnv1_64"><span class="hs-identifier hs-var hs-var">fnv1_64</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span id="local-6989586621679074913"><span class="annot"><span class="annottext">Addr#
+</span><a href="#local-6989586621679074913"><span class="hs-identifier hs-var">addr</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679074912"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074912"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FnvHash64 -&gt; Int -&gt; IO FnvHash64
+</span><a href="#local-6989586621679074911"><span class="hs-identifier hs-var">loop</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64 -&gt; FnvHash64
+</span><a href="Data.Memory.Hash.FNV.html#FnvHash64"><span class="hs-identifier hs-var">FnvHash64</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-number">0xcbf29ce484222325</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-85"></span><span>  </span><span class="hs-keyword">where</span><span> </span><span>
+</span><span id="line-86"></span><span>        </span><span class="annot"><a href="#local-6989586621679074911"><span class="hs-identifier hs-type">loop</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Memory.Hash.FNV.html#FnvHash64"><span class="hs-identifier hs-type">FnvHash64</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Data.Memory.Hash.FNV.html#FnvHash64"><span class="hs-identifier hs-type">FnvHash64</span></a></span><span>
+</span><span id="line-87"></span><span>        </span><span id="local-6989586621679074911"><span class="annot"><span class="annottext">loop :: FnvHash64 -&gt; Int -&gt; IO FnvHash64
+</span><a href="#local-6989586621679074911"><span class="hs-identifier hs-var hs-var">loop</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679074910"><span class="annot"><span class="annottext">FnvHash64
+</span><a href="#local-6989586621679074910"><span class="hs-identifier hs-var">acc</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679074909"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074909"><span class="hs-identifier hs-var">i</span></a></span></span><span>
+</span><span id="line-88"></span><span>            </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074909"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074912"><span class="hs-identifier hs-var">n</span></a></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">FnvHash64
+</span><a href="#local-6989586621679074910"><span class="hs-identifier hs-var">acc</span></a></span><span>
+</span><span id="line-89"></span><span>            </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-90"></span><span>                </span><span id="local-6989586621679074908"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679074908"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Addr# -&gt; Int -&gt; IO Word8
+</span><a href="Data.Memory.Hash.FNV.html#read8"><span class="hs-identifier hs-var">read8</span></a></span><span> </span><span class="annot"><span class="annottext">Addr#
+</span><a href="#local-6989586621679074913"><span class="hs-identifier hs-var">addr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074909"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-91"></span><span>                </span><span class="annot"><span class="annottext">FnvHash64 -&gt; Int -&gt; IO FnvHash64
+</span><a href="#local-6989586621679074911"><span class="hs-identifier hs-var">loop</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8 -&gt; FnvHash64 -&gt; FnvHash64
+</span><a href="Data.Memory.Hash.FNV.html#fnv1_64_Mix8"><span class="hs-identifier hs-var">fnv1_64_Mix8</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679074908"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">FnvHash64
+</span><a href="#local-6989586621679074910"><span class="hs-identifier hs-var">acc</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074909"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span>
+</span><span id="line-92"></span><span>
+</span><span id="line-93"></span><span class="hs-comment">-- | compute FNV1a (64 bit variant) of a raw piece of memory</span><span>
+</span><span id="line-94"></span><span class="annot"><a href="Data.Memory.Hash.FNV.html#fnv1a_64"><span class="hs-identifier hs-type">fnv1a_64</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Data.Memory.Hash.FNV.html#FnvHash64"><span class="hs-identifier hs-type">FnvHash64</span></a></span><span>
+</span><span id="line-95"></span><span id="fnv1a_64"><span class="annot"><span class="annottext">fnv1a_64 :: Ptr Word8 -&gt; Int -&gt; IO FnvHash64
+</span><a href="Data.Memory.Hash.FNV.html#fnv1a_64"><span class="hs-identifier hs-var hs-var">fnv1a_64</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span id="local-6989586621679074907"><span class="annot"><span class="annottext">Addr#
+</span><a href="#local-6989586621679074907"><span class="hs-identifier hs-var">addr</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679074906"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074906"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FnvHash64 -&gt; Int -&gt; IO FnvHash64
+</span><a href="#local-6989586621679074905"><span class="hs-identifier hs-var">loop</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64 -&gt; FnvHash64
+</span><a href="Data.Memory.Hash.FNV.html#FnvHash64"><span class="hs-identifier hs-var">FnvHash64</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-number">0xcbf29ce484222325</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-96"></span><span>  </span><span class="hs-keyword">where</span><span> </span><span>
+</span><span id="line-97"></span><span>        </span><span class="annot"><a href="#local-6989586621679074905"><span class="hs-identifier hs-type">loop</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Memory.Hash.FNV.html#FnvHash64"><span class="hs-identifier hs-type">FnvHash64</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Data.Memory.Hash.FNV.html#FnvHash64"><span class="hs-identifier hs-type">FnvHash64</span></a></span><span>
+</span><span id="line-98"></span><span>        </span><span id="local-6989586621679074905"><span class="annot"><span class="annottext">loop :: FnvHash64 -&gt; Int -&gt; IO FnvHash64
+</span><a href="#local-6989586621679074905"><span class="hs-identifier hs-var hs-var">loop</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679074904"><span class="annot"><span class="annottext">FnvHash64
+</span><a href="#local-6989586621679074904"><span class="hs-identifier hs-var">acc</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679074903"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074903"><span class="hs-identifier hs-var">i</span></a></span></span><span>
+</span><span id="line-99"></span><span>            </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074903"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074906"><span class="hs-identifier hs-var">n</span></a></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">FnvHash64
+</span><a href="#local-6989586621679074904"><span class="hs-identifier hs-var">acc</span></a></span><span>
+</span><span id="line-100"></span><span>            </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-101"></span><span>                </span><span id="local-6989586621679074902"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679074902"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Addr# -&gt; Int -&gt; IO Word8
+</span><a href="Data.Memory.Hash.FNV.html#read8"><span class="hs-identifier hs-var">read8</span></a></span><span> </span><span class="annot"><span class="annottext">Addr#
+</span><a href="#local-6989586621679074907"><span class="hs-identifier hs-var">addr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074903"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-102"></span><span>                </span><span class="annot"><span class="annottext">FnvHash64 -&gt; Int -&gt; IO FnvHash64
+</span><a href="#local-6989586621679074905"><span class="hs-identifier hs-var">loop</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8 -&gt; FnvHash64 -&gt; FnvHash64
+</span><a href="Data.Memory.Hash.FNV.html#fnv1a_64_Mix8"><span class="hs-identifier hs-var">fnv1a_64_Mix8</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679074902"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">FnvHash64
+</span><a href="#local-6989586621679074904"><span class="hs-identifier hs-var">acc</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074903"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span>
+</span><span id="line-103"></span><span>
+</span><span id="line-104"></span><span class="annot"><a href="Data.Memory.Hash.FNV.html#read8"><span class="hs-identifier hs-type">read8</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Addr#</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span>
+</span><span id="line-105"></span><span id="read8"><span class="annot"><span class="annottext">read8 :: Addr# -&gt; Int -&gt; IO Word8
+</span><a href="Data.Memory.Hash.FNV.html#read8"><span class="hs-identifier hs-var hs-var">read8</span></a></span></span><span> </span><span id="local-6989586621679074901"><span class="annot"><span class="annottext">Addr#
+</span><a href="#local-6989586621679074901"><span class="hs-identifier hs-var">addr</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">I#</span></span><span> </span><span id="local-6989586621679074900"><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679074900"><span class="hs-identifier hs-var">i</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. (State# RealWorld -&gt; (# State# RealWorld, a #)) -&gt; IO a
+</span><span class="hs-identifier hs-var">IO</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679074899"><span class="annot"><span class="annottext">State# RealWorld
+</span><a href="#local-6989586621679074899"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">forall d. Addr# -&gt; Int# -&gt; State# d -&gt; (# State# d, Word8# #)
+</span><span class="hs-identifier hs-var">readWord8OffAddr#</span></span><span> </span><span class="annot"><span class="annottext">Addr#
+</span><a href="#local-6989586621679074901"><span class="hs-identifier hs-var">addr</span></a></span><span> </span><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679074900"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">State# RealWorld
+</span><a href="#local-6989586621679074899"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-106"></span><span>    </span><span class="hs-special">(#</span><span> </span><span id="local-6989586621679074898"><span class="annot"><span class="annottext">State# RealWorld
+</span><a href="#local-6989586621679074898"><span class="hs-identifier hs-var">s2</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679074897"><span class="annot"><span class="annottext">Word8#
+</span><a href="#local-6989586621679074897"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-special">#)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(#</span><span> </span><span class="annot"><span class="annottext">State# RealWorld
+</span><a href="#local-6989586621679074898"><span class="hs-identifier hs-var">s2</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Word8# -&gt; Word8
+</span><span class="hs-identifier hs-var">W8#</span></span><span> </span><span class="annot"><span class="annottext">Word8#
+</span><a href="#local-6989586621679074897"><span class="hs-identifier hs-var">e</span></a></span><span> </span><span class="hs-special">#)</span><span>
+</span><span id="line-107"></span></pre></body></html>

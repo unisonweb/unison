@@ -1,0 +1,722 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE BangPatterns  #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE CPP           #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE TypeOperators #-}</span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ &gt;= 704
+</span><span class="hs-pragma">{-# LANGUAGE Safe #-}</span><span class="hs-cpp">
+#elif __GLASGOW_HASKELL__ &gt;= 702
+</span><span class="hs-pragma">{-# LANGUAGE Trustworthy #-}</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">#if MIN_VERSION_base(4,7,0)
+</span><span class="hs-pragma">{-# LANGUAGE EmptyCase     #-}</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- Copyright   :  (C) 2021 Edward Kmett</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- License     :  BSD-style (see the file LICENSE)</span><span>
+</span><span id="line-17"></span><span class="hs-comment">--</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- Maintainer  :  Edward Kmett &lt;ekmett@gmail.com&gt;</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- Stability   :  provisional</span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- Portability :  portable</span><span>
+</span><span id="line-21"></span><span class="hs-comment">--</span><span>
+</span><span id="line-22"></span><span class="hs-comment">----------------------------------------------------------------------------</span><span>
+</span><span id="line-23"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Data.Functor.Contravariant.Decide</span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-24"></span><span>    </span><span class="annot"><a href="Data.Functor.Contravariant.Decide.html#Decide"><span class="hs-identifier">Decide</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Functor.Contravariant.Decide.html#decided"><span class="hs-identifier">decided</span></a></span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Applicative.Backwards</span></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Trans.Identity</span></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Trans.Maybe</span></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Trans.RWS.Lazy</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Lazy</span></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Trans.RWS.Strict</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Strict</span></span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Trans.Reader</span></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Trans.State.Lazy</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Lazy</span></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Trans.State.Strict</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Strict</span></span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Trans.Writer.Lazy</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Lazy</span></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Trans.Writer.Strict</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Strict</span></span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Functor.Apply.html"><span class="hs-identifier">Data.Functor.Apply</span></a></span><span>
+</span><span id="line-40"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Functor.Compose</span></span><span>
+</span><span id="line-41"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Functor.Contravariant</span></span><span>
+</span><span id="line-42"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Functor.Contravariant.Divise.html"><span class="hs-identifier">Data.Functor.Contravariant.Divise</span></a></span><span>
+</span><span id="line-43"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Functor.Contravariant.Divisible</span></span><span>
+</span><span id="line-44"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Functor.Product</span></span><span>
+</span><span id="line-45"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Functor.Reverse</span></span><span class="hs-cpp">
+
+#if !(MIN_VERSION_transformers(0,6,0))
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Arrow</span></span><span>
+</span><span id="line-49"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Trans.List</span></span><span>
+</span><span id="line-50"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Either</span></span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#if MIN_VERSION_base(4,8,0)
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Monoid</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Alt</span></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#if MIN_VERSION_base(4,7,0) || defined(MIN_VERSION_tagged)
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Proxy</span></span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#ifdef MIN_VERSION_StateVar
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.StateVar</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ &gt;= 702
+</span><span class="hs-cpp">#define GHC_GENERICS
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-70"></span><span class="hs-comment">-- | The contravariant analogue of 'Alt'.</span><span>
+</span><span id="line-71"></span><span class="hs-comment">--</span><span>
+</span><span id="line-72"></span><span class="hs-comment">-- If one thinks of @f a@ as a consumer of @a@s, then 'decide' allows one</span><span>
+</span><span id="line-73"></span><span class="hs-comment">-- to handle the consumption of a value by choosing to handle it via</span><span>
+</span><span id="line-74"></span><span class="hs-comment">-- exactly one of two independent consumers.  It redirects the input</span><span>
+</span><span id="line-75"></span><span class="hs-comment">-- completely into one of two consumers.</span><span>
+</span><span id="line-76"></span><span class="hs-comment">--</span><span>
+</span><span id="line-77"></span><span class="hs-comment">-- 'decide' takes the \&quot;decision\&quot; method and the two potential consumers,</span><span>
+</span><span id="line-78"></span><span class="hs-comment">-- and returns the wrapped/combined consumer.</span><span>
+</span><span id="line-79"></span><span class="hs-comment">--</span><span>
+</span><span id="line-80"></span><span class="hs-comment">-- Mathematically, a functor being an instance of 'Decide' means that it is</span><span>
+</span><span id="line-81"></span><span class="hs-comment">-- \&quot;semigroupoidal\&quot; with respect to the contravariant \&quot;either-based\&quot; Day</span><span>
+</span><span id="line-82"></span><span class="hs-comment">-- convolution (@data EitherDay f g a = forall b c. EitherDay (f b) (g c) (a -&gt; Either b c)@).</span><span>
+</span><span id="line-83"></span><span class="hs-comment">-- That is, it is possible to define a function @(f `EitherDay` f) a -&gt;</span><span>
+</span><span id="line-84"></span><span class="hs-comment">-- f a@ in a way that is associative.</span><span>
+</span><span id="line-85"></span><span class="hs-comment">--</span><span>
+</span><span id="line-86"></span><span class="hs-comment">-- @since 5.3.6</span><span>
+</span><span id="line-87"></span><span class="hs-keyword">class</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Contravariant</span></span><span> </span><span class="annot"><a href="#local-6989586621679100101"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span id="Decide"><span class="annot"><a href="Data.Functor.Contravariant.Decide.html#Decide"><span class="hs-identifier hs-var">Decide</span></a></span></span><span> </span><span id="local-6989586621679100101"><span class="annot"><a href="#local-6989586621679100101"><span class="hs-identifier hs-type">f</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-88"></span><span>    </span><span class="hs-comment">-- | Takes the \&quot;decision\&quot; method and the two potential consumers, and</span><span>
+</span><span id="line-89"></span><span>    </span><span class="hs-comment">-- returns the wrapped/combined consumer.</span><span>
+</span><span id="line-90"></span><span>    </span><span id="decide"><span class="annot"><a href="Data.Functor.Contravariant.Decide.html#decide"><span class="hs-identifier hs-type">decide</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span id="local-6989586621679100092"><span id="local-6989586621679100093"><span id="local-6989586621679100094"><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679100094"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="#local-6989586621679100093"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679100092"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679100101"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679100093"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679100101"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679100092"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679100101"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679100094"><span class="hs-identifier hs-type">a</span></a></span></span></span></span><span>
+</span><span id="line-91"></span><span>
+</span><span id="line-92"></span><span class="hs-comment">-- | For @'decided' x y@, the resulting @f ('Either' b c)@ will direct</span><span>
+</span><span id="line-93"></span><span class="hs-comment">-- 'Left's to be consumed by @x@, and 'Right's to be consumed by y.</span><span>
+</span><span id="line-94"></span><span class="hs-comment">--</span><span>
+</span><span id="line-95"></span><span class="hs-comment">-- @since 5.3.6</span><span>
+</span><span id="line-96"></span><span id="local-6989586621679100096"><span id="local-6989586621679100097"><span id="local-6989586621679100098"><span class="annot"><a href="Data.Functor.Contravariant.Decide.html#decided"><span class="hs-identifier hs-type">decided</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Functor.Contravariant.Decide.html#Decide"><span class="hs-identifier hs-type">Decide</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679100098"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679100098"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679100097"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679100098"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679100096"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679100098"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="#local-6989586621679100097"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679100096"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-97"></span><span id="decided"><span class="annot"><span class="annottext">decided :: forall (f :: * -&gt; *) b c. Decide f =&gt; f b -&gt; f c -&gt; f (Either b c)
+</span><a href="Data.Functor.Contravariant.Decide.html#decided"><span class="hs-identifier hs-var hs-var">decided</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b c.
+Decide f =&gt;
+(a -&gt; Either b c) -&gt; f b -&gt; f c -&gt; f a
+</span><a href="Data.Functor.Contravariant.Decide.html#decide"><span class="hs-identifier hs-var">decide</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span>
+</span><span id="line-98"></span><span>
+</span><span id="line-99"></span><span class="hs-comment">-- | @since 5.3.6</span><span>
+</span><span id="line-100"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679100083"><span class="annot"><span class="hs-identifier hs-type">Decidable</span></span><span> </span><span class="annot"><a href="#local-6989586621679100083"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Functor.Contravariant.Decide.html#Decide"><span class="hs-identifier hs-type">Decide</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Contravariant.Divise.html#WrappedDivisible"><span class="hs-identifier hs-type">WrappedDivisible</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679100083"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-101"></span><span>    </span><span id="local-6989586621679099743"><span class="annot"><span class="annottext">decide :: forall a b c.
+(a -&gt; Either b c)
+-&gt; WrappedDivisible f b
+-&gt; WrappedDivisible f c
+-&gt; WrappedDivisible f a
+</span><a href="#local-6989586621679099743"><span class="hs-identifier hs-var hs-var hs-var hs-var">decide</span></a></span></span><span> </span><span id="local-6989586621679099742"><span class="annot"><span class="annottext">a -&gt; Either b c
+</span><a href="#local-6989586621679099742"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Contravariant.Divise.html#WrapDivisible"><span class="hs-identifier hs-type">WrapDivisible</span></a></span><span> </span><span id="local-6989586621679099740"><span class="annot"><span class="annottext">f b
+</span><a href="#local-6989586621679099740"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Contravariant.Divise.html#WrapDivisible"><span class="hs-identifier hs-type">WrapDivisible</span></a></span><span> </span><span id="local-6989586621679099739"><span class="annot"><span class="annottext">f c
+</span><a href="#local-6989586621679099739"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. f a -&gt; WrappedDivisible f a
+</span><a href="Data.Functor.Contravariant.Divise.html#WrapDivisible"><span class="hs-identifier hs-var">WrapDivisible</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b c.
+Decidable f =&gt;
+(a -&gt; Either b c) -&gt; f b -&gt; f c -&gt; f a
+</span><span class="hs-identifier hs-var">choose</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Either b c
+</span><a href="#local-6989586621679099742"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">f b
+</span><a href="#local-6989586621679099740"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">f c
+</span><a href="#local-6989586621679099739"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-102"></span><span>
+</span><span id="line-103"></span><span class="hs-comment">-- | @since 5.3.6</span><span>
+</span><span id="line-104"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Functor.Contravariant.Decide.html#Decide"><span class="hs-identifier hs-type">Decide</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Comparison</span></span><span> </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679099730"><span class="annot"><span class="annottext">decide :: forall a b c.
+(a -&gt; Either b c) -&gt; Comparison b -&gt; Comparison c -&gt; Comparison a
+</span><a href="#local-6989586621679099730"><span class="hs-identifier hs-var hs-var hs-var hs-var">decide</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b c.
+Decidable f =&gt;
+(a -&gt; Either b c) -&gt; f b -&gt; f c -&gt; f a
+</span><span class="hs-identifier hs-var">choose</span></span><span>
+</span><span id="line-105"></span><span>
+</span><span id="line-106"></span><span class="hs-comment">-- | @since 5.3.6</span><span>
+</span><span id="line-107"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Functor.Contravariant.Decide.html#Decide"><span class="hs-identifier hs-type">Decide</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Equivalence</span></span><span> </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679099722"><span class="annot"><span class="annottext">decide :: forall a b c.
+(a -&gt; Either b c)
+-&gt; Equivalence b -&gt; Equivalence c -&gt; Equivalence a
+</span><a href="#local-6989586621679099722"><span class="hs-identifier hs-var hs-var hs-var hs-var">decide</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b c.
+Decidable f =&gt;
+(a -&gt; Either b c) -&gt; f b -&gt; f c -&gt; f a
+</span><span class="hs-identifier hs-var">choose</span></span><span>
+</span><span id="line-108"></span><span>
+</span><span id="line-109"></span><span class="hs-comment">-- | @since 5.3.6</span><span>
+</span><span id="line-110"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Functor.Contravariant.Decide.html#Decide"><span class="hs-identifier hs-type">Decide</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Predicate</span></span><span> </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679099714"><span class="annot"><span class="annottext">decide :: forall a b c.
+(a -&gt; Either b c) -&gt; Predicate b -&gt; Predicate c -&gt; Predicate a
+</span><a href="#local-6989586621679099714"><span class="hs-identifier hs-var hs-var hs-var hs-var">decide</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b c.
+Decidable f =&gt;
+(a -&gt; Either b c) -&gt; f b -&gt; f c -&gt; f a
+</span><span class="hs-identifier hs-var">choose</span></span><span>
+</span><span id="line-111"></span><span>
+</span><span id="line-112"></span><span class="hs-comment">-- | Unlike 'Decidable', requires no constraint on @r@.</span><span>
+</span><span id="line-113"></span><span class="hs-comment">--</span><span>
+</span><span id="line-114"></span><span class="hs-comment">-- @since 5.3.6</span><span>
+</span><span id="line-115"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679100069"><span class="annot"><a href="Data.Functor.Contravariant.Decide.html#Decide"><span class="hs-identifier hs-type">Decide</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Op</span></span><span> </span><span class="annot"><a href="#local-6989586621679100069"><span class="hs-identifier hs-type">r</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-116"></span><span>  </span><span id="local-6989586621679099708"><span class="annot"><span class="annottext">decide :: forall a b c. (a -&gt; Either b c) -&gt; Op r b -&gt; Op r c -&gt; Op r a
+</span><a href="#local-6989586621679099708"><span class="hs-identifier hs-var hs-var hs-var hs-var">decide</span></a></span></span><span> </span><span id="local-6989586621679099707"><span class="annot"><span class="annottext">a -&gt; Either b c
+</span><a href="#local-6989586621679099707"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Op</span></span><span> </span><span id="local-6989586621679099705"><span class="annot"><span class="annottext">b -&gt; r
+</span><a href="#local-6989586621679099705"><span class="hs-identifier hs-var">g</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Op</span></span><span> </span><span id="local-6989586621679099704"><span class="annot"><span class="annottext">c -&gt; r
+</span><a href="#local-6989586621679099704"><span class="hs-identifier hs-var">h</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (b -&gt; a) -&gt; Op a b
+</span><span class="hs-identifier hs-var">Op</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall a c b. (a -&gt; c) -&gt; (b -&gt; c) -&gt; Either a b -&gt; c
+</span><span class="hs-identifier hs-var">either</span></span><span> </span><span class="annot"><span class="annottext">b -&gt; r
+</span><a href="#local-6989586621679099705"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">c -&gt; r
+</span><a href="#local-6989586621679099704"><span class="hs-identifier hs-var">h</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Either b c
+</span><a href="#local-6989586621679099707"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-cpp">
+
+#if MIN_VERSION_base(4,8,0)
+</span><span class="hs-comment">-- | @since 5.3.6</span><span>
+</span><span id="line-120"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679100051"><span class="annot"><a href="Data.Functor.Contravariant.Decide.html#Decide"><span class="hs-identifier hs-type">Decide</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679100051"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Functor.Contravariant.Decide.html#Decide"><span class="hs-identifier hs-type">Decide</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Alt</span></span><span> </span><span class="annot"><a href="#local-6989586621679100051"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-121"></span><span>  </span><span id="local-6989586621679099693"><span class="annot"><span class="annottext">decide :: forall a b c. (a -&gt; Either b c) -&gt; Alt f b -&gt; Alt f c -&gt; Alt f a
+</span><a href="#local-6989586621679099693"><span class="hs-identifier hs-var hs-var hs-var hs-var">decide</span></a></span></span><span> </span><span id="local-6989586621679099692"><span class="annot"><span class="annottext">a -&gt; Either b c
+</span><a href="#local-6989586621679099692"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Alt</span></span><span> </span><span id="local-6989586621679099690"><span class="annot"><span class="annottext">f b
+</span><a href="#local-6989586621679099690"><span class="hs-identifier hs-var">l</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Alt</span></span><span> </span><span id="local-6989586621679099689"><span class="annot"><span class="annottext">f c
+</span><a href="#local-6989586621679099689"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {k} (f :: k -&gt; *) (a :: k). f a -&gt; Alt f a
+</span><span class="hs-identifier hs-var">Alt</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b c.
+Decide f =&gt;
+(a -&gt; Either b c) -&gt; f b -&gt; f c -&gt; f a
+</span><a href="Data.Functor.Contravariant.Decide.html#decide"><span class="hs-identifier hs-var">decide</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; Either b c
+</span><a href="#local-6989586621679099692"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">f b
+</span><a href="#local-6989586621679099690"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">f c
+</span><a href="#local-6989586621679099689"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#ifdef GHC_GENERICS
+</span><span class="hs-comment">-- | @since 5.3.6</span><span>
+</span><span id="line-126"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Functor.Contravariant.Decide.html#Decide"><span class="hs-identifier hs-type">Decide</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">U1</span></span><span> </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679099681"><span class="annot"><span class="annottext">decide :: forall a b c. (a -&gt; Either b c) -&gt; U1 b -&gt; U1 c -&gt; U1 a
+</span><a href="#local-6989586621679099681"><span class="hs-identifier hs-var hs-var hs-var hs-var">decide</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b c.
+Decidable f =&gt;
+(a -&gt; Either b c) -&gt; f b -&gt; f c -&gt; f a
+</span><span class="hs-identifier hs-var">choose</span></span><span>
+</span><span id="line-127"></span><span>
+</span><span id="line-128"></span><span class="hs-comment">-- | Has no 'Decidable' or 'Conclude' instance.</span><span>
+</span><span id="line-129"></span><span class="hs-comment">--</span><span>
+</span><span id="line-130"></span><span class="hs-comment">-- @since 5.3.6</span><span class="hs-cpp">
+#if MIN_VERSION_base(4,7,0)
+</span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Functor.Contravariant.Decide.html#Decide"><span class="hs-identifier hs-type">Decide</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">V1</span></span><span> </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679099675"><span class="annot"><span class="annottext">decide :: forall a b c. (a -&gt; Either b c) -&gt; V1 b -&gt; V1 c -&gt; V1 a
+</span><a href="#local-6989586621679099675"><span class="hs-identifier hs-var hs-var hs-var hs-var">decide</span></a></span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Either b c
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679099674"><span class="annot"><span class="annottext">V1 b
+</span><a href="#local-6989586621679099674"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">V1 b
+</span><a href="#local-6989586621679099674"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="hs-keyword">of</span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-cpp">
+#else
+</span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">Decide</span><span> </span><span class="hs-identifier">V1</span><span> </span><span class="hs-keyword">where</span><span> </span><span class="hs-identifier">decide</span><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-identifier">x</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="hs-identifier">x</span><span> </span><span class="hs-keyword">of</span><span> </span><span class="hs-glyph">!</span><span class="hs-identifier">_</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">error</span><span> </span><span class="hs-string">&quot;V1&quot;</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-137"></span><span class="hs-comment">-- | @since 5.3.6</span><span>
+</span><span id="line-138"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679100039"><span class="annot"><a href="Data.Functor.Contravariant.Decide.html#Decide"><span class="hs-identifier hs-type">Decide</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679100039"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Functor.Contravariant.Decide.html#Decide"><span class="hs-identifier hs-type">Decide</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Rec1</span></span><span> </span><span class="annot"><a href="#local-6989586621679100039"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-139"></span><span>  </span><span id="local-6989586621679099665"><span class="annot"><span class="annottext">decide :: forall a b c. (a -&gt; Either b c) -&gt; Rec1 f b -&gt; Rec1 f c -&gt; Rec1 f a
+</span><a href="#local-6989586621679099665"><span class="hs-identifier hs-var hs-var hs-var hs-var">decide</span></a></span></span><span> </span><span id="local-6989586621679099664"><span class="annot"><span class="annottext">a -&gt; Either b c
+</span><a href="#local-6989586621679099664"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Rec1</span></span><span> </span><span id="local-6989586621679099662"><span class="annot"><span class="annottext">f b
+</span><a href="#local-6989586621679099662"><span class="hs-identifier hs-var">l</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Rec1</span></span><span> </span><span id="local-6989586621679099661"><span class="annot"><span class="annottext">f c
+</span><a href="#local-6989586621679099661"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall k (f :: k -&gt; *) (p :: k). f p -&gt; Rec1 f p
+</span><span class="hs-identifier hs-var">Rec1</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b c.
+Decide f =&gt;
+(a -&gt; Either b c) -&gt; f b -&gt; f c -&gt; f a
+</span><a href="Data.Functor.Contravariant.Decide.html#decide"><span class="hs-identifier hs-var">decide</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; Either b c
+</span><a href="#local-6989586621679099664"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">f b
+</span><a href="#local-6989586621679099662"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">f c
+</span><a href="#local-6989586621679099661"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-140"></span><span>
+</span><span id="line-141"></span><span class="hs-comment">-- | @since 5.3.6</span><span>
+</span><span id="line-142"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679100023"><span id="local-6989586621679100024"><span id="local-6989586621679100025"><span class="annot"><a href="Data.Functor.Contravariant.Decide.html#Decide"><span class="hs-identifier hs-type">Decide</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679100025"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Functor.Contravariant.Decide.html#Decide"><span class="hs-identifier hs-type">Decide</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">M1</span></span><span> </span><span class="annot"><a href="#local-6989586621679100024"><span class="hs-identifier hs-type">i</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679100023"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679100025"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-143"></span><span>  </span><span id="local-6989586621679099652"><span class="annot"><span class="annottext">decide :: forall a b c.
+(a -&gt; Either b c) -&gt; M1 i c f b -&gt; M1 i c f c -&gt; M1 i c f a
+</span><a href="#local-6989586621679099652"><span class="hs-identifier hs-var hs-var hs-var hs-var">decide</span></a></span></span><span> </span><span id="local-6989586621679099651"><span class="annot"><span class="annottext">a -&gt; Either b c
+</span><a href="#local-6989586621679099651"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">M1</span></span><span> </span><span id="local-6989586621679099649"><span class="annot"><span class="annottext">f b
+</span><a href="#local-6989586621679099649"><span class="hs-identifier hs-var">l</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">M1</span></span><span> </span><span id="local-6989586621679099648"><span class="annot"><span class="annottext">f c
+</span><a href="#local-6989586621679099648"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall k i (c :: Meta) (f :: k -&gt; *) (p :: k). f p -&gt; M1 i c f p
+</span><span class="hs-identifier hs-var">M1</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b c.
+Decide f =&gt;
+(a -&gt; Either b c) -&gt; f b -&gt; f c -&gt; f a
+</span><a href="Data.Functor.Contravariant.Decide.html#decide"><span class="hs-identifier hs-var">decide</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; Either b c
+</span><a href="#local-6989586621679099651"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">f b
+</span><a href="#local-6989586621679099649"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">f c
+</span><a href="#local-6989586621679099648"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-144"></span><span>
+</span><span id="line-145"></span><span class="hs-comment">-- | @since 5.3.6</span><span>
+</span><span id="line-146"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679100009"><span id="local-6989586621679100010"><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Contravariant.Decide.html#Decide"><span class="hs-identifier hs-type">Decide</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679100010"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Functor.Contravariant.Decide.html#Decide"><span class="hs-identifier hs-type">Decide</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679100009"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Functor.Contravariant.Decide.html#Decide"><span class="hs-identifier hs-type">Decide</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679100010"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">:*:</span></span><span> </span><span class="annot"><a href="#local-6989586621679100009"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-147"></span><span>  </span><span id="local-6989586621679099636"><span class="annot"><span class="annottext">decide :: forall a b c.
+(a -&gt; Either b c) -&gt; (:*:) f g b -&gt; (:*:) f g c -&gt; (:*:) f g a
+</span><a href="#local-6989586621679099636"><span class="hs-identifier hs-var hs-var hs-var hs-var">decide</span></a></span></span><span> </span><span id="local-6989586621679099635"><span class="annot"><span class="annottext">a -&gt; Either b c
+</span><a href="#local-6989586621679099635"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679099634"><span class="annot"><span class="annottext">f b
+</span><a href="#local-6989586621679099634"><span class="hs-identifier hs-var">l1</span></a></span></span><span> </span><span class="annot"><span class="hs-operator hs-type">:*:</span></span><span> </span><span id="local-6989586621679099632"><span class="annot"><span class="annottext">g b
+</span><a href="#local-6989586621679099632"><span class="hs-identifier hs-var">r1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679099631"><span class="annot"><span class="annottext">f c
+</span><a href="#local-6989586621679099631"><span class="hs-identifier hs-var">l2</span></a></span></span><span> </span><span class="annot"><span class="hs-operator hs-type">:*:</span></span><span> </span><span id="local-6989586621679099630"><span class="annot"><span class="annottext">g c
+</span><a href="#local-6989586621679099630"><span class="hs-identifier hs-var">r2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b c.
+Decide f =&gt;
+(a -&gt; Either b c) -&gt; f b -&gt; f c -&gt; f a
+</span><a href="Data.Functor.Contravariant.Decide.html#decide"><span class="hs-identifier hs-var">decide</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; Either b c
+</span><a href="#local-6989586621679099635"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">f b
+</span><a href="#local-6989586621679099634"><span class="hs-identifier hs-var">l1</span></a></span><span> </span><span class="annot"><span class="annottext">f c
+</span><a href="#local-6989586621679099631"><span class="hs-identifier hs-var">l2</span></a></span><span> </span><span class="annot"><span class="annottext">forall k (f :: k -&gt; *) (g :: k -&gt; *) (p :: k).
+f p -&gt; g p -&gt; (:*:) f g p
+</span><span class="hs-operator hs-var">:*:</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b c.
+Decide f =&gt;
+(a -&gt; Either b c) -&gt; f b -&gt; f c -&gt; f a
+</span><a href="Data.Functor.Contravariant.Decide.html#decide"><span class="hs-identifier hs-var">decide</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; Either b c
+</span><a href="#local-6989586621679099635"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">g b
+</span><a href="#local-6989586621679099632"><span class="hs-identifier hs-var">r1</span></a></span><span> </span><span class="annot"><span class="annottext">g c
+</span><a href="#local-6989586621679099630"><span class="hs-identifier hs-var">r2</span></a></span><span>
+</span><span id="line-148"></span><span>
+</span><span id="line-149"></span><span class="hs-comment">-- | Unlike 'Decidable', requires only 'Apply' on @f@.</span><span>
+</span><span id="line-150"></span><span class="hs-comment">--</span><span>
+</span><span id="line-151"></span><span class="hs-comment">-- @since 5.3.6</span><span>
+</span><span id="line-152"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679099994"><span id="local-6989586621679099995"><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Bind.Class.html#Apply"><span class="hs-identifier hs-type">Apply</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679099995"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Functor.Contravariant.Decide.html#Decide"><span class="hs-identifier hs-type">Decide</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679099994"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Functor.Contravariant.Decide.html#Decide"><span class="hs-identifier hs-type">Decide</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679099995"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">:.:</span></span><span> </span><span class="annot"><a href="#local-6989586621679099994"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-153"></span><span>  </span><span id="local-6989586621679099617"><span class="annot"><span class="annottext">decide :: forall a b c.
+(a -&gt; Either b c) -&gt; (:.:) f g b -&gt; (:.:) f g c -&gt; (:.:) f g a
+</span><a href="#local-6989586621679099617"><span class="hs-identifier hs-var hs-var hs-var hs-var">decide</span></a></span></span><span> </span><span id="local-6989586621679099616"><span class="annot"><span class="annottext">a -&gt; Either b c
+</span><a href="#local-6989586621679099616"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Comp1</span></span><span> </span><span id="local-6989586621679099614"><span class="annot"><span class="annottext">f (g b)
+</span><a href="#local-6989586621679099614"><span class="hs-identifier hs-var">l</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Comp1</span></span><span> </span><span id="local-6989586621679099613"><span class="annot"><span class="annottext">f (g c)
+</span><a href="#local-6989586621679099613"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall k2 k1 (f :: k2 -&gt; *) (g :: k1 -&gt; k2) (p :: k1).
+f (g p) -&gt; (:.:) f g p
+</span><span class="hs-identifier hs-var">Comp1</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b c.
+Apply f =&gt;
+(a -&gt; b -&gt; c) -&gt; f a -&gt; f b -&gt; f c
+</span><a href="Data.Functor.Bind.Class.html#liftF2"><span class="hs-identifier hs-var">liftF2</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b c.
+Decide f =&gt;
+(a -&gt; Either b c) -&gt; f b -&gt; f c -&gt; f a
+</span><a href="Data.Functor.Contravariant.Decide.html#decide"><span class="hs-identifier hs-var">decide</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; Either b c
+</span><a href="#local-6989586621679099616"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">f (g b)
+</span><a href="#local-6989586621679099614"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">f (g c)
+</span><a href="#local-6989586621679099613"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-156"></span><span class="hs-comment">-- | @since 5.3.6</span><span>
+</span><span id="line-157"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679099979"><span class="annot"><a href="Data.Functor.Contravariant.Decide.html#Decide"><span class="hs-identifier hs-type">Decide</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679099979"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Functor.Contravariant.Decide.html#Decide"><span class="hs-identifier hs-type">Decide</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Backwards</span></span><span> </span><span class="annot"><a href="#local-6989586621679099979"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-158"></span><span>  </span><span id="local-6989586621679099603"><span class="annot"><span class="annottext">decide :: forall a b c.
+(a -&gt; Either b c)
+-&gt; Backwards f b -&gt; Backwards f c -&gt; Backwards f a
+</span><a href="#local-6989586621679099603"><span class="hs-identifier hs-var hs-var hs-var hs-var">decide</span></a></span></span><span> </span><span id="local-6989586621679099602"><span class="annot"><span class="annottext">a -&gt; Either b c
+</span><a href="#local-6989586621679099602"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Backwards</span></span><span> </span><span id="local-6989586621679099600"><span class="annot"><span class="annottext">f b
+</span><a href="#local-6989586621679099600"><span class="hs-identifier hs-var">l</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Backwards</span></span><span> </span><span id="local-6989586621679099599"><span class="annot"><span class="annottext">f c
+</span><a href="#local-6989586621679099599"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {k} (f :: k -&gt; *) (a :: k). f a -&gt; Backwards f a
+</span><span class="hs-identifier hs-var">Backwards</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b c.
+Decide f =&gt;
+(a -&gt; Either b c) -&gt; f b -&gt; f c -&gt; f a
+</span><a href="Data.Functor.Contravariant.Decide.html#decide"><span class="hs-identifier hs-var">decide</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; Either b c
+</span><a href="#local-6989586621679099602"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">f b
+</span><a href="#local-6989586621679099600"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">f c
+</span><a href="#local-6989586621679099599"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-159"></span><span>
+</span><span id="line-160"></span><span class="hs-comment">-- | @since 5.3.6</span><span>
+</span><span id="line-161"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679099969"><span class="annot"><a href="Data.Functor.Contravariant.Decide.html#Decide"><span class="hs-identifier hs-type">Decide</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679099969"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Functor.Contravariant.Decide.html#Decide"><span class="hs-identifier hs-type">Decide</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IdentityT</span></span><span> </span><span class="annot"><a href="#local-6989586621679099969"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-162"></span><span>  </span><span id="local-6989586621679099590"><span class="annot"><span class="annottext">decide :: forall a b c.
+(a -&gt; Either b c)
+-&gt; IdentityT f b -&gt; IdentityT f c -&gt; IdentityT f a
+</span><a href="#local-6989586621679099590"><span class="hs-identifier hs-var hs-var hs-var hs-var">decide</span></a></span></span><span> </span><span id="local-6989586621679099589"><span class="annot"><span class="annottext">a -&gt; Either b c
+</span><a href="#local-6989586621679099589"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IdentityT</span></span><span> </span><span id="local-6989586621679099587"><span class="annot"><span class="annottext">f b
+</span><a href="#local-6989586621679099587"><span class="hs-identifier hs-var">l</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IdentityT</span></span><span> </span><span id="local-6989586621679099586"><span class="annot"><span class="annottext">f c
+</span><a href="#local-6989586621679099586"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {k} (f :: k -&gt; *) (a :: k). f a -&gt; IdentityT f a
+</span><span class="hs-identifier hs-var">IdentityT</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b c.
+Decide f =&gt;
+(a -&gt; Either b c) -&gt; f b -&gt; f c -&gt; f a
+</span><a href="Data.Functor.Contravariant.Decide.html#decide"><span class="hs-identifier hs-var">decide</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; Either b c
+</span><a href="#local-6989586621679099589"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">f b
+</span><a href="#local-6989586621679099587"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">f c
+</span><a href="#local-6989586621679099586"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-163"></span><span>
+</span><span id="line-164"></span><span class="hs-comment">-- | @since 5.3.6</span><span>
+</span><span id="line-165"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679099956"><span id="local-6989586621679099957"><span class="annot"><a href="Data.Functor.Contravariant.Decide.html#Decide"><span class="hs-identifier hs-type">Decide</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679099957"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Functor.Contravariant.Decide.html#Decide"><span class="hs-identifier hs-type">Decide</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ReaderT</span></span><span> </span><span class="annot"><a href="#local-6989586621679099956"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679099957"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-166"></span><span>  </span><span id="local-6989586621679099577"><span class="annot"><span class="annottext">decide :: forall a b c.
+(a -&gt; Either b c)
+-&gt; ReaderT r m b -&gt; ReaderT r m c -&gt; ReaderT r m a
+</span><a href="#local-6989586621679099577"><span class="hs-identifier hs-var hs-var hs-var hs-var">decide</span></a></span></span><span> </span><span id="local-6989586621679099576"><span class="annot"><span class="annottext">a -&gt; Either b c
+</span><a href="#local-6989586621679099576"><span class="hs-identifier hs-var">abc</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ReaderT</span></span><span> </span><span id="local-6989586621679099574"><span class="annot"><span class="annottext">r -&gt; m b
+</span><a href="#local-6989586621679099574"><span class="hs-identifier hs-var">rmb</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ReaderT</span></span><span> </span><span id="local-6989586621679099573"><span class="annot"><span class="annottext">r -&gt; m c
+</span><a href="#local-6989586621679099573"><span class="hs-identifier hs-var">rmc</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall r (m :: * -&gt; *) a. (r -&gt; m a) -&gt; ReaderT r m a
+</span><span class="hs-identifier hs-var">ReaderT</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679099572"><span class="annot"><span class="annottext">r
+</span><a href="#local-6989586621679099572"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b c.
+Decide f =&gt;
+(a -&gt; Either b c) -&gt; f b -&gt; f c -&gt; f a
+</span><a href="Data.Functor.Contravariant.Decide.html#decide"><span class="hs-identifier hs-var">decide</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; Either b c
+</span><a href="#local-6989586621679099576"><span class="hs-identifier hs-var">abc</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">r -&gt; m b
+</span><a href="#local-6989586621679099574"><span class="hs-identifier hs-var">rmb</span></a></span><span> </span><span class="annot"><span class="annottext">r
+</span><a href="#local-6989586621679099572"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">r -&gt; m c
+</span><a href="#local-6989586621679099573"><span class="hs-identifier hs-var">rmc</span></a></span><span> </span><span class="annot"><span class="annottext">r
+</span><a href="#local-6989586621679099572"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-167"></span><span>
+</span><span id="line-168"></span><span class="hs-comment">-- | @since 5.3.6</span><span>
+</span><span id="line-169"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679099937"><span id="local-6989586621679099938"><span id="local-6989586621679099939"><span id="local-6989586621679099940"><span class="annot"><a href="Data.Functor.Contravariant.Decide.html#Decide"><span class="hs-identifier hs-type">Decide</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679099940"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Functor.Contravariant.Decide.html#Decide"><span class="hs-identifier hs-type">Decide</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Lazy.RWST</span></span><span> </span><span class="annot"><a href="#local-6989586621679099939"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679099938"><span class="hs-identifier hs-type">w</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679099937"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679099940"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-170"></span><span>  </span><span id="local-6989586621679099563"><span class="annot"><span class="annottext">decide :: forall a b c.
+(a -&gt; Either b c)
+-&gt; RWST r w s m b -&gt; RWST r w s m c -&gt; RWST r w s m a
+</span><a href="#local-6989586621679099563"><span class="hs-identifier hs-var hs-var hs-var hs-var">decide</span></a></span></span><span> </span><span id="local-6989586621679099562"><span class="annot"><span class="annottext">a -&gt; Either b c
+</span><a href="#local-6989586621679099562"><span class="hs-identifier hs-var">abc</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Lazy.RWST</span></span><span> </span><span id="local-6989586621679099560"><span class="annot"><span class="annottext">r -&gt; s -&gt; m (b, s, w)
+</span><a href="#local-6989586621679099560"><span class="hs-identifier hs-var">rsmb</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Lazy.RWST</span></span><span> </span><span id="local-6989586621679099559"><span class="annot"><span class="annottext">r -&gt; s -&gt; m (c, s, w)
+</span><a href="#local-6989586621679099559"><span class="hs-identifier hs-var">rsmc</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall r w s (m :: * -&gt; *) a.
+(r -&gt; s -&gt; m (a, s, w)) -&gt; RWST r w s m a
+</span><span class="hs-identifier hs-var">Lazy.RWST</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679099558"><span class="annot"><span class="annottext">r
+</span><a href="#local-6989586621679099558"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span id="local-6989586621679099557"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679099557"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-171"></span><span>    </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b c.
+Decide f =&gt;
+(a -&gt; Either b c) -&gt; f b -&gt; f c -&gt; f a
+</span><a href="Data.Functor.Contravariant.Decide.html#decide"><span class="hs-identifier hs-var">decide</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span> </span><span class="hs-glyph">~</span><span class="hs-special">(</span><span id="local-6989586621679099556"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679099556"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679099555"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679099555"><span class="hs-identifier hs-var">s'</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679099554"><span class="annot"><span class="annottext">w
+</span><a href="#local-6989586621679099554"><span class="hs-identifier hs-var">w</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a c b. (a -&gt; c) -&gt; (b -&gt; c) -&gt; Either a b -&gt; c
+</span><span class="hs-identifier hs-var">either</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span>  </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall s w a. s -&gt; w -&gt; a -&gt; (a, s, w)
+</span><a href="Data.Functor.Contravariant.Decide.html#betuple3"><span class="hs-identifier hs-var">betuple3</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679099555"><span class="hs-identifier hs-var">s'</span></a></span><span> </span><span class="annot"><span class="annottext">w
+</span><a href="#local-6989586621679099554"><span class="hs-identifier hs-var">w</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-172"></span><span>                                    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall s w a. s -&gt; w -&gt; a -&gt; (a, s, w)
+</span><a href="Data.Functor.Contravariant.Decide.html#betuple3"><span class="hs-identifier hs-var">betuple3</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679099555"><span class="hs-identifier hs-var">s'</span></a></span><span> </span><span class="annot"><span class="annottext">w
+</span><a href="#local-6989586621679099554"><span class="hs-identifier hs-var">w</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-173"></span><span>                                    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; Either b c
+</span><a href="#local-6989586621679099562"><span class="hs-identifier hs-var">abc</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679099556"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-174"></span><span>           </span><span class="hs-special">(</span><span class="annot"><span class="annottext">r -&gt; s -&gt; m (b, s, w)
+</span><a href="#local-6989586621679099560"><span class="hs-identifier hs-var">rsmb</span></a></span><span> </span><span class="annot"><span class="annottext">r
+</span><a href="#local-6989586621679099558"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679099557"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">r -&gt; s -&gt; m (c, s, w)
+</span><a href="#local-6989586621679099559"><span class="hs-identifier hs-var">rsmc</span></a></span><span> </span><span class="annot"><span class="annottext">r
+</span><a href="#local-6989586621679099558"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679099557"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-175"></span><span>
+</span><span id="line-176"></span><span class="hs-comment">-- | @since 5.3.6</span><span>
+</span><span id="line-177"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679099911"><span id="local-6989586621679099912"><span id="local-6989586621679099913"><span id="local-6989586621679099914"><span class="annot"><a href="Data.Functor.Contravariant.Decide.html#Decide"><span class="hs-identifier hs-type">Decide</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679099914"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Functor.Contravariant.Decide.html#Decide"><span class="hs-identifier hs-type">Decide</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Strict.RWST</span></span><span> </span><span class="annot"><a href="#local-6989586621679099913"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679099912"><span class="hs-identifier hs-type">w</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679099911"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679099914"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-178"></span><span>  </span><span id="local-6989586621679099544"><span class="annot"><span class="annottext">decide :: forall a b c.
+(a -&gt; Either b c)
+-&gt; RWST r w s m b -&gt; RWST r w s m c -&gt; RWST r w s m a
+</span><a href="#local-6989586621679099544"><span class="hs-identifier hs-var hs-var hs-var hs-var">decide</span></a></span></span><span> </span><span id="local-6989586621679099543"><span class="annot"><span class="annottext">a -&gt; Either b c
+</span><a href="#local-6989586621679099543"><span class="hs-identifier hs-var">abc</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Strict.RWST</span></span><span> </span><span id="local-6989586621679099541"><span class="annot"><span class="annottext">r -&gt; s -&gt; m (b, s, w)
+</span><a href="#local-6989586621679099541"><span class="hs-identifier hs-var">rsmb</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Strict.RWST</span></span><span> </span><span id="local-6989586621679099540"><span class="annot"><span class="annottext">r -&gt; s -&gt; m (c, s, w)
+</span><a href="#local-6989586621679099540"><span class="hs-identifier hs-var">rsmc</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall r w s (m :: * -&gt; *) a.
+(r -&gt; s -&gt; m (a, s, w)) -&gt; RWST r w s m a
+</span><span class="hs-identifier hs-var">Strict.RWST</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679099539"><span class="annot"><span class="annottext">r
+</span><a href="#local-6989586621679099539"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span id="local-6989586621679099538"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679099538"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-179"></span><span>    </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b c.
+Decide f =&gt;
+(a -&gt; Either b c) -&gt; f b -&gt; f c -&gt; f a
+</span><a href="Data.Functor.Contravariant.Decide.html#decide"><span class="hs-identifier hs-var">decide</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span id="local-6989586621679099537"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679099537"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679099536"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679099536"><span class="hs-identifier hs-var">s'</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679099535"><span class="annot"><span class="annottext">w
+</span><a href="#local-6989586621679099535"><span class="hs-identifier hs-var">w</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a c b. (a -&gt; c) -&gt; (b -&gt; c) -&gt; Either a b -&gt; c
+</span><span class="hs-identifier hs-var">either</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span>  </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall s w a. s -&gt; w -&gt; a -&gt; (a, s, w)
+</span><a href="Data.Functor.Contravariant.Decide.html#betuple3"><span class="hs-identifier hs-var">betuple3</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679099536"><span class="hs-identifier hs-var">s'</span></a></span><span> </span><span class="annot"><span class="annottext">w
+</span><a href="#local-6989586621679099535"><span class="hs-identifier hs-var">w</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-180"></span><span>                                  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall s w a. s -&gt; w -&gt; a -&gt; (a, s, w)
+</span><a href="Data.Functor.Contravariant.Decide.html#betuple3"><span class="hs-identifier hs-var">betuple3</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679099536"><span class="hs-identifier hs-var">s'</span></a></span><span> </span><span class="annot"><span class="annottext">w
+</span><a href="#local-6989586621679099535"><span class="hs-identifier hs-var">w</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-181"></span><span>                                  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; Either b c
+</span><a href="#local-6989586621679099543"><span class="hs-identifier hs-var">abc</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679099537"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-182"></span><span>           </span><span class="hs-special">(</span><span class="annot"><span class="annottext">r -&gt; s -&gt; m (b, s, w)
+</span><a href="#local-6989586621679099541"><span class="hs-identifier hs-var">rsmb</span></a></span><span> </span><span class="annot"><span class="annottext">r
+</span><a href="#local-6989586621679099539"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679099538"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">r -&gt; s -&gt; m (c, s, w)
+</span><a href="#local-6989586621679099540"><span class="hs-identifier hs-var">rsmc</span></a></span><span> </span><span class="annot"><span class="annottext">r
+</span><a href="#local-6989586621679099539"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679099538"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span class="hs-cpp">
+
+#if !(MIN_VERSION_transformers(0,6,0))
+</span><span class="hs-comment">-- | @since 5.3.6</span><span>
+</span><span id="line-186"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679099897"><span class="annot"><a href="Data.Functor.Contravariant.Divise.html#Divise"><span class="hs-identifier hs-type">Divise</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679099897"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Functor.Contravariant.Decide.html#Decide"><span class="hs-identifier hs-type">Decide</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ListT</span></span><span> </span><span class="annot"><a href="#local-6989586621679099897"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-187"></span><span>  </span><span id="local-6989586621679099523"><span class="annot"><span class="annottext">decide :: forall a b c.
+(a -&gt; Either b c) -&gt; ListT m b -&gt; ListT m c -&gt; ListT m a
+</span><a href="#local-6989586621679099523"><span class="hs-identifier hs-var hs-var hs-var hs-var">decide</span></a></span></span><span> </span><span id="local-6989586621679099522"><span class="annot"><span class="annottext">a -&gt; Either b c
+</span><a href="#local-6989586621679099522"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ListT</span></span><span> </span><span id="local-6989586621679099520"><span class="annot"><span class="annottext">m [b]
+</span><a href="#local-6989586621679099520"><span class="hs-identifier hs-var">l</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ListT</span></span><span> </span><span id="local-6989586621679099519"><span class="annot"><span class="annottext">m [c]
+</span><a href="#local-6989586621679099519"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. m [a] -&gt; ListT m a
+</span><span class="hs-identifier hs-var">ListT</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b c.
+Divise f =&gt;
+(a -&gt; (b, c)) -&gt; f b -&gt; f c -&gt; f a
+</span><a href="Data.Functor.Contravariant.Divise.html#divise"><span class="hs-identifier hs-var">divise</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. [Either a b] -&gt; [a]
+</span><span class="hs-identifier hs-var">lefts</span></span><span> </span><span class="annot"><span class="annottext">forall (a :: * -&gt; * -&gt; *) b c c'.
+Arrow a =&gt;
+a b c -&gt; a b c' -&gt; a b (c, c')
+</span><span class="hs-operator hs-var">&amp;&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">forall a b. [Either a b] -&gt; [b]
+</span><span class="hs-identifier hs-var">rights</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Either b c
+</span><a href="#local-6989586621679099522"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">m [b]
+</span><a href="#local-6989586621679099520"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">m [c]
+</span><a href="#local-6989586621679099519"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-190"></span><span class="hs-comment">-- | @since 5.3.6</span><span>
+</span><span id="line-191"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679099874"><span class="annot"><a href="Data.Functor.Contravariant.Divise.html#Divise"><span class="hs-identifier hs-type">Divise</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679099874"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Functor.Contravariant.Decide.html#Decide"><span class="hs-identifier hs-type">Decide</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MaybeT</span></span><span> </span><span class="annot"><a href="#local-6989586621679099874"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-192"></span><span>  </span><span id="local-6989586621679099506"><span class="annot"><span class="annottext">decide :: forall a b c.
+(a -&gt; Either b c) -&gt; MaybeT m b -&gt; MaybeT m c -&gt; MaybeT m a
+</span><a href="#local-6989586621679099506"><span class="hs-identifier hs-var hs-var hs-var hs-var">decide</span></a></span></span><span> </span><span id="local-6989586621679099505"><span class="annot"><span class="annottext">a -&gt; Either b c
+</span><a href="#local-6989586621679099505"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MaybeT</span></span><span> </span><span id="local-6989586621679099503"><span class="annot"><span class="annottext">m (Maybe b)
+</span><a href="#local-6989586621679099503"><span class="hs-identifier hs-var">l</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MaybeT</span></span><span> </span><span id="local-6989586621679099502"><span class="annot"><span class="annottext">m (Maybe c)
+</span><a href="#local-6989586621679099502"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. m (Maybe a) -&gt; MaybeT m a
+</span><span class="hs-identifier hs-var">MaybeT</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-193"></span><span>    </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b c.
+Divise f =&gt;
+(a -&gt; (b, c)) -&gt; f b -&gt; f c -&gt; f a
+</span><a href="Data.Functor.Contravariant.Divise.html#divise"><span class="hs-identifier hs-var">divise</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="annottext">forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><span class="hs-identifier hs-var">maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">)</span><span>
+</span><span id="line-194"></span><span>                   </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a c b. (a -&gt; c) -&gt; (b -&gt; c) -&gt; Either a b -&gt; c
+</span><span class="hs-identifier hs-var">either</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679099500"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679099500"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679099500"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-195"></span><span>                           </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679099499"><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679099499"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679099499"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Either b c
+</span><a href="#local-6989586621679099505"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-196"></span><span>           </span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">m (Maybe b)
+</span><a href="#local-6989586621679099503"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">m (Maybe c)
+</span><a href="#local-6989586621679099502"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-197"></span><span>
+</span><span id="line-198"></span><span class="hs-comment">-- | @since 5.3.6</span><span>
+</span><span id="line-199"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679099859"><span id="local-6989586621679099860"><span class="annot"><a href="Data.Functor.Contravariant.Decide.html#Decide"><span class="hs-identifier hs-type">Decide</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679099860"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Functor.Contravariant.Decide.html#Decide"><span class="hs-identifier hs-type">Decide</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Lazy.StateT</span></span><span> </span><span class="annot"><a href="#local-6989586621679099859"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679099860"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-200"></span><span>  </span><span id="local-6989586621679099490"><span class="annot"><span class="annottext">decide :: forall a b c.
+(a -&gt; Either b c) -&gt; StateT s m b -&gt; StateT s m c -&gt; StateT s m a
+</span><a href="#local-6989586621679099490"><span class="hs-identifier hs-var hs-var hs-var hs-var">decide</span></a></span></span><span> </span><span id="local-6989586621679099489"><span class="annot"><span class="annottext">a -&gt; Either b c
+</span><a href="#local-6989586621679099489"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Lazy.StateT</span></span><span> </span><span id="local-6989586621679099487"><span class="annot"><span class="annottext">s -&gt; m (b, s)
+</span><a href="#local-6989586621679099487"><span class="hs-identifier hs-var">l</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Lazy.StateT</span></span><span> </span><span id="local-6989586621679099486"><span class="annot"><span class="annottext">s -&gt; m (c, s)
+</span><a href="#local-6989586621679099486"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall s (m :: * -&gt; *) a. (s -&gt; m (a, s)) -&gt; StateT s m a
+</span><span class="hs-identifier hs-var">Lazy.StateT</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679099485"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679099485"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-201"></span><span>    </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b c.
+Decide f =&gt;
+(a -&gt; Either b c) -&gt; f b -&gt; f c -&gt; f a
+</span><a href="Data.Functor.Contravariant.Decide.html#decide"><span class="hs-identifier hs-var">decide</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span> </span><span class="hs-glyph">~</span><span class="hs-special">(</span><span id="local-6989586621679099484"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679099484"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679099483"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679099483"><span class="hs-identifier hs-var">s'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a c b. (a -&gt; c) -&gt; (b -&gt; c) -&gt; Either a b -&gt; c
+</span><span class="hs-identifier hs-var">either</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall s a. s -&gt; a -&gt; (a, s)
+</span><a href="Data.Functor.Contravariant.Decide.html#betuple"><span class="hs-identifier hs-var">betuple</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679099483"><span class="hs-identifier hs-var">s'</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall s a. s -&gt; a -&gt; (a, s)
+</span><a href="Data.Functor.Contravariant.Decide.html#betuple"><span class="hs-identifier hs-var">betuple</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679099483"><span class="hs-identifier hs-var">s'</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; Either b c
+</span><a href="#local-6989586621679099489"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679099484"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-202"></span><span>           </span><span class="hs-special">(</span><span class="annot"><span class="annottext">s -&gt; m (b, s)
+</span><a href="#local-6989586621679099487"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679099485"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">s -&gt; m (c, s)
+</span><a href="#local-6989586621679099486"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679099485"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-203"></span><span>
+</span><span id="line-204"></span><span class="hs-comment">-- | @since 5.3.6</span><span>
+</span><span id="line-205"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679099844"><span id="local-6989586621679099845"><span class="annot"><a href="Data.Functor.Contravariant.Decide.html#Decide"><span class="hs-identifier hs-type">Decide</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679099845"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Functor.Contravariant.Decide.html#Decide"><span class="hs-identifier hs-type">Decide</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Strict.StateT</span></span><span> </span><span class="annot"><a href="#local-6989586621679099844"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679099845"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-206"></span><span>  </span><span id="local-6989586621679099473"><span class="annot"><span class="annottext">decide :: forall a b c.
+(a -&gt; Either b c) -&gt; StateT s m b -&gt; StateT s m c -&gt; StateT s m a
+</span><a href="#local-6989586621679099473"><span class="hs-identifier hs-var hs-var hs-var hs-var">decide</span></a></span></span><span> </span><span id="local-6989586621679099472"><span class="annot"><span class="annottext">a -&gt; Either b c
+</span><a href="#local-6989586621679099472"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Strict.StateT</span></span><span> </span><span id="local-6989586621679099470"><span class="annot"><span class="annottext">s -&gt; m (b, s)
+</span><a href="#local-6989586621679099470"><span class="hs-identifier hs-var">l</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Strict.StateT</span></span><span> </span><span id="local-6989586621679099469"><span class="annot"><span class="annottext">s -&gt; m (c, s)
+</span><a href="#local-6989586621679099469"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall s (m :: * -&gt; *) a. (s -&gt; m (a, s)) -&gt; StateT s m a
+</span><span class="hs-identifier hs-var">Strict.StateT</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679099468"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679099468"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-207"></span><span>    </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b c.
+Decide f =&gt;
+(a -&gt; Either b c) -&gt; f b -&gt; f c -&gt; f a
+</span><a href="Data.Functor.Contravariant.Decide.html#decide"><span class="hs-identifier hs-var">decide</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span id="local-6989586621679099467"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679099467"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679099466"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679099466"><span class="hs-identifier hs-var">s'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a c b. (a -&gt; c) -&gt; (b -&gt; c) -&gt; Either a b -&gt; c
+</span><span class="hs-identifier hs-var">either</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall s a. s -&gt; a -&gt; (a, s)
+</span><a href="Data.Functor.Contravariant.Decide.html#betuple"><span class="hs-identifier hs-var">betuple</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679099466"><span class="hs-identifier hs-var">s'</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall s a. s -&gt; a -&gt; (a, s)
+</span><a href="Data.Functor.Contravariant.Decide.html#betuple"><span class="hs-identifier hs-var">betuple</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679099466"><span class="hs-identifier hs-var">s'</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; Either b c
+</span><a href="#local-6989586621679099472"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679099467"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-208"></span><span>           </span><span class="hs-special">(</span><span class="annot"><span class="annottext">s -&gt; m (b, s)
+</span><a href="#local-6989586621679099470"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679099468"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">s -&gt; m (c, s)
+</span><a href="#local-6989586621679099469"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679099468"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-209"></span><span>
+</span><span id="line-210"></span><span class="hs-comment">-- | @since 5.3.6</span><span>
+</span><span id="line-211"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679099831"><span id="local-6989586621679099832"><span class="annot"><a href="Data.Functor.Contravariant.Decide.html#Decide"><span class="hs-identifier hs-type">Decide</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679099832"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Functor.Contravariant.Decide.html#Decide"><span class="hs-identifier hs-type">Decide</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Lazy.WriterT</span></span><span> </span><span class="annot"><a href="#local-6989586621679099831"><span class="hs-identifier hs-type">w</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679099832"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-212"></span><span>  </span><span id="local-6989586621679099457"><span class="annot"><span class="annottext">decide :: forall a b c.
+(a -&gt; Either b c)
+-&gt; WriterT w m b -&gt; WriterT w m c -&gt; WriterT w m a
+</span><a href="#local-6989586621679099457"><span class="hs-identifier hs-var hs-var hs-var hs-var">decide</span></a></span></span><span> </span><span id="local-6989586621679099456"><span class="annot"><span class="annottext">a -&gt; Either b c
+</span><a href="#local-6989586621679099456"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Lazy.WriterT</span></span><span> </span><span id="local-6989586621679099454"><span class="annot"><span class="annottext">m (b, w)
+</span><a href="#local-6989586621679099454"><span class="hs-identifier hs-var">l</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Lazy.WriterT</span></span><span> </span><span id="local-6989586621679099453"><span class="annot"><span class="annottext">m (c, w)
+</span><a href="#local-6989586621679099453"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall w (m :: * -&gt; *) a. m (a, w) -&gt; WriterT w m a
+</span><span class="hs-identifier hs-var">Lazy.WriterT</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-213"></span><span>    </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b c.
+Decide f =&gt;
+(a -&gt; Either b c) -&gt; f b -&gt; f c -&gt; f a
+</span><a href="Data.Functor.Contravariant.Decide.html#decide"><span class="hs-identifier hs-var">decide</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span> </span><span class="hs-glyph">~</span><span class="hs-special">(</span><span id="local-6989586621679099452"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679099452"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679099451"><span class="annot"><span class="annottext">w
+</span><a href="#local-6989586621679099451"><span class="hs-identifier hs-var">s'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a c b. (a -&gt; c) -&gt; (b -&gt; c) -&gt; Either a b -&gt; c
+</span><span class="hs-identifier hs-var">either</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall s a. s -&gt; a -&gt; (a, s)
+</span><a href="Data.Functor.Contravariant.Decide.html#betuple"><span class="hs-identifier hs-var">betuple</span></a></span><span> </span><span class="annot"><span class="annottext">w
+</span><a href="#local-6989586621679099451"><span class="hs-identifier hs-var">s'</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall s a. s -&gt; a -&gt; (a, s)
+</span><a href="Data.Functor.Contravariant.Decide.html#betuple"><span class="hs-identifier hs-var">betuple</span></a></span><span> </span><span class="annot"><span class="annottext">w
+</span><a href="#local-6989586621679099451"><span class="hs-identifier hs-var">s'</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; Either b c
+</span><a href="#local-6989586621679099456"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679099452"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">m (b, w)
+</span><a href="#local-6989586621679099454"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">m (c, w)
+</span><a href="#local-6989586621679099453"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-214"></span><span>
+</span><span id="line-215"></span><span class="hs-comment">-- | @since 5.3.6</span><span>
+</span><span id="line-216"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679099818"><span id="local-6989586621679099819"><span class="annot"><a href="Data.Functor.Contravariant.Decide.html#Decide"><span class="hs-identifier hs-type">Decide</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679099819"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Functor.Contravariant.Decide.html#Decide"><span class="hs-identifier hs-type">Decide</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Strict.WriterT</span></span><span> </span><span class="annot"><a href="#local-6989586621679099818"><span class="hs-identifier hs-type">w</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679099819"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-217"></span><span>  </span><span id="local-6989586621679099442"><span class="annot"><span class="annottext">decide :: forall a b c.
+(a -&gt; Either b c)
+-&gt; WriterT w m b -&gt; WriterT w m c -&gt; WriterT w m a
+</span><a href="#local-6989586621679099442"><span class="hs-identifier hs-var hs-var hs-var hs-var">decide</span></a></span></span><span> </span><span id="local-6989586621679099441"><span class="annot"><span class="annottext">a -&gt; Either b c
+</span><a href="#local-6989586621679099441"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Strict.WriterT</span></span><span> </span><span id="local-6989586621679099439"><span class="annot"><span class="annottext">m (b, w)
+</span><a href="#local-6989586621679099439"><span class="hs-identifier hs-var">l</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Strict.WriterT</span></span><span> </span><span id="local-6989586621679099438"><span class="annot"><span class="annottext">m (c, w)
+</span><a href="#local-6989586621679099438"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall w (m :: * -&gt; *) a. m (a, w) -&gt; WriterT w m a
+</span><span class="hs-identifier hs-var">Strict.WriterT</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-218"></span><span>    </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b c.
+Decide f =&gt;
+(a -&gt; Either b c) -&gt; f b -&gt; f c -&gt; f a
+</span><a href="Data.Functor.Contravariant.Decide.html#decide"><span class="hs-identifier hs-var">decide</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span id="local-6989586621679099437"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679099437"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679099436"><span class="annot"><span class="annottext">w
+</span><a href="#local-6989586621679099436"><span class="hs-identifier hs-var">s'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a c b. (a -&gt; c) -&gt; (b -&gt; c) -&gt; Either a b -&gt; c
+</span><span class="hs-identifier hs-var">either</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall s a. s -&gt; a -&gt; (a, s)
+</span><a href="Data.Functor.Contravariant.Decide.html#betuple"><span class="hs-identifier hs-var">betuple</span></a></span><span> </span><span class="annot"><span class="annottext">w
+</span><a href="#local-6989586621679099436"><span class="hs-identifier hs-var">s'</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall s a. s -&gt; a -&gt; (a, s)
+</span><a href="Data.Functor.Contravariant.Decide.html#betuple"><span class="hs-identifier hs-var">betuple</span></a></span><span> </span><span class="annot"><span class="annottext">w
+</span><a href="#local-6989586621679099436"><span class="hs-identifier hs-var">s'</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; Either b c
+</span><a href="#local-6989586621679099441"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679099437"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">m (b, w)
+</span><a href="#local-6989586621679099439"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">m (c, w)
+</span><a href="#local-6989586621679099438"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-219"></span><span>
+</span><span id="line-220"></span><span class="hs-comment">-- | Unlike 'Decidable', requires only 'Apply' on @f@.</span><span>
+</span><span id="line-221"></span><span class="hs-comment">--</span><span>
+</span><span id="line-222"></span><span class="hs-comment">-- @since 5.3.6</span><span>
+</span><span id="line-223"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679099805"><span id="local-6989586621679099806"><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Bind.Class.html#Apply"><span class="hs-identifier hs-type">Apply</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679099806"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Functor.Contravariant.Decide.html#Decide"><span class="hs-identifier hs-type">Decide</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679099805"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Functor.Contravariant.Decide.html#Decide"><span class="hs-identifier hs-type">Decide</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Compose</span></span><span> </span><span class="annot"><a href="#local-6989586621679099806"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679099805"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-224"></span><span>  </span><span id="local-6989586621679099424"><span class="annot"><span class="annottext">decide :: forall a b c.
+(a -&gt; Either b c)
+-&gt; Compose f g b -&gt; Compose f g c -&gt; Compose f g a
+</span><a href="#local-6989586621679099424"><span class="hs-identifier hs-var hs-var hs-var hs-var">decide</span></a></span></span><span> </span><span id="local-6989586621679099423"><span class="annot"><span class="annottext">a -&gt; Either b c
+</span><a href="#local-6989586621679099423"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Compose</span></span><span> </span><span id="local-6989586621679099421"><span class="annot"><span class="annottext">f (g b)
+</span><a href="#local-6989586621679099421"><span class="hs-identifier hs-var">l</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Compose</span></span><span> </span><span id="local-6989586621679099420"><span class="annot"><span class="annottext">f (g c)
+</span><a href="#local-6989586621679099420"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {k} {k1} (f :: k -&gt; *) (g :: k1 -&gt; k) (a :: k1).
+f (g a) -&gt; Compose f g a
+</span><span class="hs-identifier hs-var">Compose</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b c.
+Apply f =&gt;
+(a -&gt; b -&gt; c) -&gt; f a -&gt; f b -&gt; f c
+</span><a href="Data.Functor.Bind.Class.html#liftF2"><span class="hs-identifier hs-var">liftF2</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b c.
+Decide f =&gt;
+(a -&gt; Either b c) -&gt; f b -&gt; f c -&gt; f a
+</span><a href="Data.Functor.Contravariant.Decide.html#decide"><span class="hs-identifier hs-var">decide</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; Either b c
+</span><a href="#local-6989586621679099423"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">f (g b)
+</span><a href="#local-6989586621679099421"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">f (g c)
+</span><a href="#local-6989586621679099420"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-225"></span><span>
+</span><span id="line-226"></span><span class="hs-comment">-- | @since 5.3.6</span><span>
+</span><span id="line-227"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679099790"><span id="local-6989586621679099791"><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Contravariant.Decide.html#Decide"><span class="hs-identifier hs-type">Decide</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679099791"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Functor.Contravariant.Decide.html#Decide"><span class="hs-identifier hs-type">Decide</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679099790"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Functor.Contravariant.Decide.html#Decide"><span class="hs-identifier hs-type">Decide</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Product</span></span><span> </span><span class="annot"><a href="#local-6989586621679099791"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679099790"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-228"></span><span>  </span><span id="local-6989586621679099408"><span class="annot"><span class="annottext">decide :: forall a b c.
+(a -&gt; Either b c)
+-&gt; Product f g b -&gt; Product f g c -&gt; Product f g a
+</span><a href="#local-6989586621679099408"><span class="hs-identifier hs-var hs-var hs-var hs-var">decide</span></a></span></span><span> </span><span id="local-6989586621679099407"><span class="annot"><span class="annottext">a -&gt; Either b c
+</span><a href="#local-6989586621679099407"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Pair</span></span><span> </span><span id="local-6989586621679099405"><span class="annot"><span class="annottext">f b
+</span><a href="#local-6989586621679099405"><span class="hs-identifier hs-var">l1</span></a></span></span><span> </span><span id="local-6989586621679099404"><span class="annot"><span class="annottext">g b
+</span><a href="#local-6989586621679099404"><span class="hs-identifier hs-var">r1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Pair</span></span><span> </span><span id="local-6989586621679099403"><span class="annot"><span class="annottext">f c
+</span><a href="#local-6989586621679099403"><span class="hs-identifier hs-var">l2</span></a></span></span><span> </span><span id="local-6989586621679099402"><span class="annot"><span class="annottext">g c
+</span><a href="#local-6989586621679099402"><span class="hs-identifier hs-var">r2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {k} (f :: k -&gt; *) (g :: k -&gt; *) (a :: k).
+f a -&gt; g a -&gt; Product f g a
+</span><span class="hs-identifier hs-var">Pair</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b c.
+Decide f =&gt;
+(a -&gt; Either b c) -&gt; f b -&gt; f c -&gt; f a
+</span><a href="Data.Functor.Contravariant.Decide.html#decide"><span class="hs-identifier hs-var">decide</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; Either b c
+</span><a href="#local-6989586621679099407"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">f b
+</span><a href="#local-6989586621679099405"><span class="hs-identifier hs-var">l1</span></a></span><span> </span><span class="annot"><span class="annottext">f c
+</span><a href="#local-6989586621679099403"><span class="hs-identifier hs-var">l2</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b c.
+Decide f =&gt;
+(a -&gt; Either b c) -&gt; f b -&gt; f c -&gt; f a
+</span><a href="Data.Functor.Contravariant.Decide.html#decide"><span class="hs-identifier hs-var">decide</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; Either b c
+</span><a href="#local-6989586621679099407"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">g b
+</span><a href="#local-6989586621679099404"><span class="hs-identifier hs-var">r1</span></a></span><span> </span><span class="annot"><span class="annottext">g c
+</span><a href="#local-6989586621679099402"><span class="hs-identifier hs-var">r2</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-229"></span><span>
+</span><span id="line-230"></span><span class="hs-comment">-- | @since 5.3.6</span><span>
+</span><span id="line-231"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679099779"><span class="annot"><a href="Data.Functor.Contravariant.Decide.html#Decide"><span class="hs-identifier hs-type">Decide</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679099779"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Functor.Contravariant.Decide.html#Decide"><span class="hs-identifier hs-type">Decide</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Reverse</span></span><span> </span><span class="annot"><a href="#local-6989586621679099779"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-232"></span><span>  </span><span id="local-6989586621679099393"><span class="annot"><span class="annottext">decide :: forall a b c.
+(a -&gt; Either b c) -&gt; Reverse f b -&gt; Reverse f c -&gt; Reverse f a
+</span><a href="#local-6989586621679099393"><span class="hs-identifier hs-var hs-var hs-var hs-var">decide</span></a></span></span><span> </span><span id="local-6989586621679099392"><span class="annot"><span class="annottext">a -&gt; Either b c
+</span><a href="#local-6989586621679099392"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Reverse</span></span><span> </span><span id="local-6989586621679099390"><span class="annot"><span class="annottext">f b
+</span><a href="#local-6989586621679099390"><span class="hs-identifier hs-var">l</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Reverse</span></span><span> </span><span id="local-6989586621679099389"><span class="annot"><span class="annottext">f c
+</span><a href="#local-6989586621679099389"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {k} (f :: k -&gt; *) (a :: k). f a -&gt; Reverse f a
+</span><span class="hs-identifier hs-var">Reverse</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b c.
+Decide f =&gt;
+(a -&gt; Either b c) -&gt; f b -&gt; f c -&gt; f a
+</span><a href="Data.Functor.Contravariant.Decide.html#decide"><span class="hs-identifier hs-var">decide</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; Either b c
+</span><a href="#local-6989586621679099392"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">f b
+</span><a href="#local-6989586621679099390"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">f c
+</span><a href="#local-6989586621679099389"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-233"></span><span>
+</span><span id="line-234"></span><span id="local-6989586621679099851"><span id="local-6989586621679099852"><span class="annot"><a href="Data.Functor.Contravariant.Decide.html#betuple"><span class="hs-identifier hs-type">betuple</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679099852"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679099851"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679099851"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679099852"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-235"></span><span id="betuple"><span class="annot"><span class="annottext">betuple :: forall s a. s -&gt; a -&gt; (a, s)
+</span><a href="Data.Functor.Contravariant.Decide.html#betuple"><span class="hs-identifier hs-var hs-var">betuple</span></a></span></span><span> </span><span id="local-6989586621679099388"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679099388"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span id="local-6989586621679099387"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679099387"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679099387"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679099388"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-236"></span><span>
+</span><span id="line-237"></span><span id="local-6989586621679099924"><span id="local-6989586621679099925"><span id="local-6989586621679099926"><span class="annot"><a href="Data.Functor.Contravariant.Decide.html#betuple3"><span class="hs-identifier hs-type">betuple3</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679099926"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679099925"><span class="hs-identifier hs-type">w</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679099924"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679099924"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679099926"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679099925"><span class="hs-identifier hs-type">w</span></a></span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-238"></span><span id="betuple3"><span class="annot"><span class="annottext">betuple3 :: forall s w a. s -&gt; w -&gt; a -&gt; (a, s, w)
+</span><a href="Data.Functor.Contravariant.Decide.html#betuple3"><span class="hs-identifier hs-var hs-var">betuple3</span></a></span></span><span> </span><span id="local-6989586621679099386"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679099386"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span id="local-6989586621679099385"><span class="annot"><span class="annottext">w
+</span><a href="#local-6989586621679099385"><span class="hs-identifier hs-var">w</span></a></span></span><span> </span><span id="local-6989586621679099384"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679099384"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679099384"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679099386"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">w
+</span><a href="#local-6989586621679099385"><span class="hs-identifier hs-var">w</span></a></span><span class="hs-special">)</span><span class="hs-cpp">
+
+#if MIN_VERSION_base(4,7,0) || defined(MIN_VERSION_tagged)
+</span><span class="hs-comment">-- | @since 5.3.6</span><span>
+</span><span id="line-242"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Functor.Contravariant.Decide.html#Decide"><span class="hs-identifier hs-type">Decide</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Proxy</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-243"></span><span>  </span><span id="local-6989586621679099378"><span class="annot"><span class="annottext">decide :: forall a b c. (a -&gt; Either b c) -&gt; Proxy b -&gt; Proxy c -&gt; Proxy a
+</span><a href="#local-6989586621679099378"><span class="hs-identifier hs-var hs-var hs-var hs-var">decide</span></a></span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Either b c
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Proxy b
+</span><span class="hs-identifier hs-var">Proxy</span></span><span> </span><span class="annot"><span class="annottext">Proxy c
+</span><span class="hs-identifier hs-var">Proxy</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#ifdef MIN_VERSION_StateVar
+</span><span class="hs-comment">-- | @since 5.3.6</span><span>
+</span><span id="line-248"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">Decide</span><span> </span><span class="hs-identifier">SettableStateVar</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-249"></span><span>  </span><span class="hs-identifier">decide</span><span> </span><span class="hs-identifier">k</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">SettableStateVar</span><span> </span><span class="hs-identifier">l</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">SettableStateVar</span><span> </span><span class="hs-identifier">r</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">SettableStateVar</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-glyph">\</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="hs-identifier">k</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-250"></span><span>    </span><span class="hs-identifier">Left</span><span> </span><span class="hs-identifier">b</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">l</span><span> </span><span class="hs-identifier">b</span><span>
+</span><span id="line-251"></span><span>    </span><span class="hs-identifier">Right</span><span> </span><span class="hs-identifier">c</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">r</span><span> </span><span class="hs-identifier">c</span><span class="hs-cpp">
+#endif
+</span></pre></body></html>

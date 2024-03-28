@@ -1,0 +1,1105 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DuplicateRecordFields #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE OverloadedLabels      #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE OverloadedStrings     #-}</span><span>
+</span><span id="line-4"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Language.LSP.Protocol.Capabilities</span><span>
+</span><span id="line-5"></span><span>  </span><span class="hs-special">(</span><span>
+</span><span id="line-6"></span><span>    </span><span class="annot"><a href="Language.LSP.Protocol.Capabilities.html#fullCaps"><span class="hs-identifier">fullCaps</span></a></span><span>
+</span><span id="line-7"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Capabilities.html#LSPVersion"><span class="hs-identifier">LSPVersion</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-8"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Capabilities.html#capsForVersion"><span class="hs-identifier">capsForVersion</span></a></span><span>
+</span><span id="line-9"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Row</span></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Set</span></span><span>                          </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Set</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Language.LSP.Protocol.Types.html"><span class="hs-identifier">Language.LSP.Protocol.Types</span></a></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span>                           </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">min</span></span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span class="hs-comment">{-
+TODO: this is out-of-date/needs an audit
+TODO: can we generate this? process the 'since' annotations in the metamodel?
+-}</span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- | Capabilities for full conformance to the current (v3.15) LSP specification.</span><span>
+</span><span id="line-22"></span><span class="annot"><a href="Language.LSP.Protocol.Capabilities.html#fullCaps"><span class="hs-identifier hs-type">fullCaps</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ClientCapabilities.html#ClientCapabilities"><span class="hs-identifier hs-type">ClientCapabilities</span></a></span><span>
+</span><span id="line-23"></span><span id="fullCaps"><span class="annot"><span class="annottext">fullCaps :: ClientCapabilities
+</span><a href="Language.LSP.Protocol.Capabilities.html#fullCaps"><span class="hs-identifier hs-var hs-var">fullCaps</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LSPVersion -&gt; ClientCapabilities
+</span><a href="Language.LSP.Protocol.Capabilities.html#capsForVersion"><span class="hs-identifier hs-var">capsForVersion</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; LSPVersion
+</span><a href="Language.LSP.Protocol.Capabilities.html#LSPVersion"><span class="hs-identifier hs-var">LSPVersion</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bounded a =&gt; a
+</span><span class="hs-identifier hs-var">maxBound</span></span><span> </span><span class="annot"><span class="annottext">forall a. Bounded a =&gt; a
+</span><span class="hs-identifier hs-var">maxBound</span></span><span class="hs-special">)</span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span class="hs-comment">-- | A specific version of the LSP specification.</span><span>
+</span><span id="line-26"></span><span class="hs-keyword">data</span><span> </span><span id="LSPVersion"><span class="annot"><a href="Language.LSP.Protocol.Capabilities.html#LSPVersion"><span class="hs-identifier hs-var">LSPVersion</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="LSPVersion"><span class="annot"><a href="Language.LSP.Protocol.Capabilities.html#LSPVersion"><span class="hs-identifier hs-var">LSPVersion</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-comment">-- ^ Construct a major.minor version</span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="hs-comment">-- | Capabilities for full conformance to the LSP specification up until a version.</span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- Some important milestones:</span><span>
+</span><span id="line-30"></span><span class="hs-comment">--</span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- * 3.12 textDocument/prepareRename request</span><span>
+</span><span id="line-32"></span><span class="hs-comment">-- * 3.11 CodeActionOptions provided by the server</span><span>
+</span><span id="line-33"></span><span class="hs-comment">-- * 3.10 hierarchical document symbols, folding ranges</span><span>
+</span><span id="line-34"></span><span class="hs-comment">-- * 3.9 completion item preselect</span><span>
+</span><span id="line-35"></span><span class="hs-comment">-- * 3.8 codeAction literals</span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- * 3.7 related information in diagnostics</span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- * 3.6 workspace folders, colors, goto type/implementation</span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- * 3.4 extended completion item and symbol item kinds</span><span>
+</span><span id="line-39"></span><span class="hs-comment">-- * 3.0 dynamic registration</span><span>
+</span><span id="line-40"></span><span class="annot"><a href="Language.LSP.Protocol.Capabilities.html#capsForVersion"><span class="hs-identifier hs-type">capsForVersion</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Capabilities.html#LSPVersion"><span class="hs-identifier hs-type">LSPVersion</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ClientCapabilities.html#ClientCapabilities"><span class="hs-identifier hs-type">ClientCapabilities</span></a></span><span>
+</span><span id="line-41"></span><span id="capsForVersion"><span class="annot"><span class="annottext">capsForVersion :: LSPVersion -&gt; ClientCapabilities
+</span><a href="Language.LSP.Protocol.Capabilities.html#capsForVersion"><span class="hs-identifier hs-var hs-var">capsForVersion</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Capabilities.html#LSPVersion"><span class="hs-identifier hs-type">LSPVersion</span></a></span><span> </span><span id="local-6989586621682257094"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682257094"><span class="hs-identifier hs-var">maj</span></a></span></span><span> </span><span id="local-6989586621682257093"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682257093"><span class="hs-identifier hs-var">min</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ClientCapabilities
+</span><a href="#local-6989586621682257092"><span class="hs-identifier hs-var">caps</span></a></span><span>
+</span><span id="line-42"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-43"></span><span>    </span><span id="local-6989586621682257092"><span class="annot"><span class="annottext">caps :: ClientCapabilities
+</span><a href="#local-6989586621682257092"><span class="hs-identifier hs-var hs-var">caps</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ClientCapabilities.html#ClientCapabilities"><span class="hs-identifier hs-type">ClientCapabilities</span></a></span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-44"></span><span>      </span><span class="annot"><span class="annottext">$sel:_workspace:ClientCapabilities :: Maybe WorkspaceClientCapabilities
+</span><a href="#local-6989586621682257090"><span class="hs-identifier hs-var">_workspace</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">WorkspaceClientCapabilities
+</span><a href="#local-6989586621682257089"><span class="hs-identifier hs-var">w</span></a></span><span>
+</span><span id="line-45"></span><span>      </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_textDocument:ClientCapabilities :: Maybe TextDocumentClientCapabilities
+</span><a href="#local-6989586621682257088"><span class="hs-identifier hs-var">_textDocument</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">TextDocumentClientCapabilities
+</span><a href="#local-6989586621682257087"><span class="hs-identifier hs-var">td</span></a></span><span>
+</span><span id="line-46"></span><span>      </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_window:ClientCapabilities :: Maybe WindowClientCapabilities
+</span><a href="#local-6989586621682257086"><span class="hs-identifier hs-var">_window</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">WindowClientCapabilities
+</span><a href="#local-6989586621682257085"><span class="hs-identifier hs-var">window</span></a></span><span>
+</span><span id="line-47"></span><span>      </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_general:ClientCapabilities :: Maybe GeneralClientCapabilities
+</span><a href="#local-6989586621682257084"><span class="hs-identifier hs-var">_general</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. Int -&gt; Int -&gt; a -&gt; Maybe a
+</span><a href="#local-6989586621682257083"><span class="hs-identifier hs-var">since</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">16</span></span><span> </span><span class="annot"><span class="annottext">GeneralClientCapabilities
+</span><a href="#local-6989586621682257082"><span class="hs-identifier hs-var">general</span></a></span><span>
+</span><span id="line-48"></span><span>      </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_experimental:ClientCapabilities :: Maybe Value
+</span><a href="#local-6989586621682257081"><span class="hs-identifier hs-var">_experimental</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-49"></span><span>      </span><span class="hs-comment">-- TODO</span><span>
+</span><span id="line-50"></span><span>      </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_notebookDocument:ClientCapabilities :: Maybe NotebookDocumentClientCapabilities
+</span><a href="#local-6989586621682257080"><span class="hs-identifier hs-var">_notebookDocument</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-51"></span><span>      </span><span class="hs-special">}</span><span>
+</span><span id="line-52"></span><span>    </span><span id="local-6989586621682257089"><span class="annot"><span class="annottext">w :: WorkspaceClientCapabilities
+</span><a href="#local-6989586621682257089"><span class="hs-identifier hs-var hs-var">w</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.WorkspaceClientCapabilities.html#WorkspaceClientCapabilities"><span class="hs-identifier hs-type">WorkspaceClientCapabilities</span></a></span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-53"></span><span>      </span><span class="annot"><span class="annottext">$sel:_applyEdit:WorkspaceClientCapabilities :: Maybe Bool
+</span><a href="#local-6989586621682257078"><span class="hs-identifier hs-var">_applyEdit</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-54"></span><span>      </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_workspaceEdit:WorkspaceClientCapabilities :: Maybe WorkspaceEditClientCapabilities
+</span><a href="#local-6989586621682257077"><span class="hs-identifier hs-var">_workspaceEdit</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe Bool
+-&gt; Maybe [ResourceOperationKind]
+-&gt; Maybe FailureHandlingKind
+-&gt; Maybe Bool
+-&gt; Maybe (Rec ((&quot;groupsOnLabel&quot; .== Maybe Bool) .+ 'R '[]))
+-&gt; WorkspaceEditClientCapabilities
+</span><a href="Language.LSP.Protocol.Internal.Types.WorkspaceEditClientCapabilities.html#WorkspaceEditClientCapabilities"><span class="hs-identifier hs-var">WorkspaceEditClientCapabilities</span></a></span><span>
+</span><span id="line-55"></span><span>                  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span class="hs-special">)</span><span>
+</span><span id="line-56"></span><span>                  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Int -&gt; Int -&gt; a -&gt; Maybe a
+</span><a href="#local-6989586621682257083"><span class="hs-identifier hs-var">since</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">13</span></span><span> </span><span class="annot"><span class="annottext">[ResourceOperationKind]
+</span><a href="#local-6989586621682257075"><span class="hs-identifier hs-var">resourceOperations</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-57"></span><span>                  </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-58"></span><span>                  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Int -&gt; Int -&gt; a -&gt; Maybe a
+</span><a href="#local-6989586621682257083"><span class="hs-identifier hs-var">since</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">16</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span class="hs-special">)</span><span>
+</span><span id="line-59"></span><span>                  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Int -&gt; Int -&gt; a -&gt; Maybe a
+</span><a href="#local-6989586621682257083"><span class="hs-identifier hs-var">since</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">16</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. IsLabel &quot;groupsOnLabel&quot; a =&gt; a
+</span><span class="">#groupsOnLabel</span></span><span> </span><span class="annot"><span class="annottext">forall (l :: Symbol) a.
+KnownSymbol l =&gt;
+Label l -&gt; a -&gt; Rec (l .== a)
+</span><span class="hs-operator hs-var">.==</span></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-60"></span><span>      </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_didChangeConfiguration:WorkspaceClientCapabilities :: Maybe DidChangeConfigurationClientCapabilities
+</span><a href="#local-6989586621682257073"><span class="hs-identifier hs-var">_didChangeConfiguration</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe Bool -&gt; DidChangeConfigurationClientCapabilities
+</span><a href="Language.LSP.Protocol.Internal.Types.DidChangeConfigurationClientCapabilities.html#DidChangeConfigurationClientCapabilities"><span class="hs-identifier hs-var">DidChangeConfigurationClientCapabilities</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682257071"><span class="hs-identifier hs-var">dynamicReg</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-61"></span><span>      </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_didChangeWatchedFiles:WorkspaceClientCapabilities :: Maybe DidChangeWatchedFilesClientCapabilities
+</span><a href="#local-6989586621682257070"><span class="hs-identifier hs-var">_didChangeWatchedFiles</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe Bool -&gt; Maybe Bool -&gt; DidChangeWatchedFilesClientCapabilities
+</span><a href="Language.LSP.Protocol.Internal.Types.DidChangeWatchedFilesClientCapabilities.html#DidChangeWatchedFilesClientCapabilities"><span class="hs-identifier hs-var">DidChangeWatchedFilesClientCapabilities</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682257071"><span class="hs-identifier hs-var">dynamicReg</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-62"></span><span>      </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_symbol:WorkspaceClientCapabilities :: Maybe WorkspaceSymbolClientCapabilities
+</span><a href="#local-6989586621682257068"><span class="hs-identifier hs-var">_symbol</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">WorkspaceSymbolClientCapabilities
+</span><a href="#local-6989586621682257067"><span class="hs-identifier hs-var">symbolCapabilities</span></a></span><span>
+</span><span id="line-63"></span><span>      </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_executeCommand:WorkspaceClientCapabilities :: Maybe ExecuteCommandClientCapabilities
+</span><a href="#local-6989586621682257066"><span class="hs-identifier hs-var">_executeCommand</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe Bool -&gt; ExecuteCommandClientCapabilities
+</span><a href="Language.LSP.Protocol.Internal.Types.ExecuteCommandClientCapabilities.html#ExecuteCommandClientCapabilities"><span class="hs-identifier hs-var">ExecuteCommandClientCapabilities</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682257071"><span class="hs-identifier hs-var">dynamicReg</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-64"></span><span>      </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_workspaceFolders:WorkspaceClientCapabilities :: Maybe Bool
+</span><a href="#local-6989586621682257064"><span class="hs-identifier hs-var">_workspaceFolders</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Int -&gt; Int -&gt; a -&gt; Maybe a
+</span><a href="#local-6989586621682257083"><span class="hs-identifier hs-var">since</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">6</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-65"></span><span>      </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_configuration:WorkspaceClientCapabilities :: Maybe Bool
+</span><a href="#local-6989586621682257063"><span class="hs-identifier hs-var">_configuration</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Int -&gt; Int -&gt; a -&gt; Maybe a
+</span><a href="#local-6989586621682257083"><span class="hs-identifier hs-var">since</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">6</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-66"></span><span>      </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_semanticTokens:WorkspaceClientCapabilities :: Maybe SemanticTokensWorkspaceClientCapabilities
+</span><a href="#local-6989586621682257062"><span class="hs-identifier hs-var">_semanticTokens</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Int -&gt; Int -&gt; a -&gt; Maybe a
+</span><a href="#local-6989586621682257083"><span class="hs-identifier hs-var">since</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">16</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe Bool -&gt; SemanticTokensWorkspaceClientCapabilities
+</span><a href="Language.LSP.Protocol.Internal.Types.SemanticTokensWorkspaceClientCapabilities.html#SemanticTokensWorkspaceClientCapabilities"><span class="hs-identifier hs-var">SemanticTokensWorkspaceClientCapabilities</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span class="hs-special">)</span><span>
+</span><span id="line-67"></span><span>      </span><span class="hs-comment">-- TODO</span><span>
+</span><span id="line-68"></span><span>      </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_codeLens:WorkspaceClientCapabilities :: Maybe CodeLensWorkspaceClientCapabilities
+</span><a href="#local-6989586621682257060"><span class="hs-identifier hs-var">_codeLens</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-69"></span><span>      </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_fileOperations:WorkspaceClientCapabilities :: Maybe FileOperationClientCapabilities
+</span><a href="#local-6989586621682257059"><span class="hs-identifier hs-var">_fileOperations</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-70"></span><span>      </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_inlineValue:WorkspaceClientCapabilities :: Maybe InlineValueWorkspaceClientCapabilities
+</span><a href="#local-6989586621682257058"><span class="hs-identifier hs-var">_inlineValue</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-71"></span><span>      </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_inlayHint:WorkspaceClientCapabilities :: Maybe InlayHintWorkspaceClientCapabilities
+</span><a href="#local-6989586621682257057"><span class="hs-identifier hs-var">_inlayHint</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-72"></span><span>      </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_diagnostics:WorkspaceClientCapabilities :: Maybe DiagnosticWorkspaceClientCapabilities
+</span><a href="#local-6989586621682257056"><span class="hs-identifier hs-var">_diagnostics</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-73"></span><span>      </span><span class="hs-special">}</span><span>
+</span><span id="line-74"></span><span>
+</span><span id="line-75"></span><span>    </span><span id="local-6989586621682257075"><span class="annot"><span class="annottext">resourceOperations :: [ResourceOperationKind]
+</span><a href="#local-6989586621682257075"><span class="hs-identifier hs-var hs-var">resourceOperations</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-76"></span><span>      </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">ResourceOperationKind
+</span><a href="Language.LSP.Protocol.Internal.Types.ResourceOperationKind.html#ResourceOperationKind_Create"><span class="hs-identifier hs-var">ResourceOperationKind_Create</span></a></span><span>
+</span><span id="line-77"></span><span>      </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ResourceOperationKind
+</span><a href="Language.LSP.Protocol.Internal.Types.ResourceOperationKind.html#ResourceOperationKind_Delete"><span class="hs-identifier hs-var">ResourceOperationKind_Delete</span></a></span><span>
+</span><span id="line-78"></span><span>      </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ResourceOperationKind
+</span><a href="Language.LSP.Protocol.Internal.Types.ResourceOperationKind.html#ResourceOperationKind_Rename"><span class="hs-identifier hs-var">ResourceOperationKind_Rename</span></a></span><span>
+</span><span id="line-79"></span><span>      </span><span class="hs-special">]</span><span>
+</span><span id="line-80"></span><span>
+</span><span id="line-81"></span><span>    </span><span id="local-6989586621682257067"><span class="annot"><span class="annottext">symbolCapabilities :: WorkspaceSymbolClientCapabilities
+</span><a href="#local-6989586621682257067"><span class="hs-identifier hs-var hs-var">symbolCapabilities</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe Bool
+-&gt; Maybe (Rec ((&quot;valueSet&quot; .== Maybe [SymbolKind]) .+ 'R '[]))
+-&gt; Maybe (Rec ((&quot;valueSet&quot; .== [SymbolTag]) .+ 'R '[]))
+-&gt; Maybe (Rec ((&quot;properties&quot; .== [Text]) .+ 'R '[]))
+-&gt; WorkspaceSymbolClientCapabilities
+</span><a href="Language.LSP.Protocol.Internal.Types.WorkspaceSymbolClientCapabilities.html#WorkspaceSymbolClientCapabilities"><span class="hs-identifier hs-var">WorkspaceSymbolClientCapabilities</span></a></span><span>
+</span><span id="line-82"></span><span>      </span><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682257071"><span class="hs-identifier hs-var">dynamicReg</span></a></span><span>
+</span><span id="line-83"></span><span>      </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Int -&gt; Int -&gt; a -&gt; Maybe a
+</span><a href="#local-6989586621682257083"><span class="hs-identifier hs-var">since</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. IsLabel &quot;valueSet&quot; a =&gt; a
+</span><span class="">#valueSet</span></span><span> </span><span class="annot"><span class="annottext">forall (l :: Symbol) a.
+KnownSymbol l =&gt;
+Label l -&gt; a -&gt; Rec (l .== a)
+</span><span class="hs-operator hs-var">.==</span></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">[SymbolKind]
+</span><a href="#local-6989586621682257051"><span class="hs-identifier hs-var">sKs</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-84"></span><span>      </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Int -&gt; Int -&gt; a -&gt; Maybe a
+</span><a href="#local-6989586621682257083"><span class="hs-identifier hs-var">since</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">16</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. IsLabel &quot;valueSet&quot; a =&gt; a
+</span><span class="">#valueSet</span></span><span> </span><span class="annot"><span class="annottext">forall (l :: Symbol) a.
+KnownSymbol l =&gt;
+Label l -&gt; a -&gt; Rec (l .== a)
+</span><span class="hs-operator hs-var">.==</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">SymbolTag
+</span><a href="Language.LSP.Protocol.Internal.Types.SymbolTag.html#SymbolTag_Deprecated"><span class="hs-identifier hs-var">SymbolTag_Deprecated</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-85"></span><span>      </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Int -&gt; Int -&gt; a -&gt; Maybe a
+</span><a href="#local-6989586621682257083"><span class="hs-identifier hs-var">since</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">17</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. IsLabel &quot;properties&quot; a =&gt; a
+</span><span class="">#properties</span></span><span> </span><span class="annot"><span class="annottext">forall (l :: Symbol) a.
+KnownSymbol l =&gt;
+Label l -&gt; a -&gt; Rec (l .== a)
+</span><span class="hs-operator hs-var">.==</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-86"></span><span>
+</span><span id="line-87"></span><span>    </span><span id="local-6989586621682257051"><span class="annot"><span class="annottext">sKs :: [SymbolKind]
+</span><a href="#local-6989586621682257051"><span class="hs-identifier hs-var hs-var">sKs</span></a></span></span><span>
+</span><span id="line-88"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682257094"><span class="hs-identifier hs-var">maj</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682257093"><span class="hs-identifier hs-var">min</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[SymbolKind]
+</span><a href="#local-6989586621682257048"><span class="hs-identifier hs-var">oldSKs</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">[SymbolKind]
+</span><a href="#local-6989586621682257047"><span class="hs-identifier hs-var">newSKs</span></a></span><span>
+</span><span id="line-89"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>            </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[SymbolKind]
+</span><a href="#local-6989586621682257048"><span class="hs-identifier hs-var">oldSKs</span></a></span><span>
+</span><span id="line-90"></span><span>
+</span><span id="line-91"></span><span>    </span><span id="local-6989586621682257048"><span class="annot"><span class="annottext">oldSKs :: [SymbolKind]
+</span><a href="#local-6989586621682257048"><span class="hs-identifier hs-var hs-var">oldSKs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>   </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">SymbolKind
+</span><a href="Language.LSP.Protocol.Internal.Types.SymbolKind.html#SymbolKind_File"><span class="hs-identifier hs-var">SymbolKind_File</span></a></span><span>
+</span><span id="line-92"></span><span>               </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">SymbolKind
+</span><a href="Language.LSP.Protocol.Internal.Types.SymbolKind.html#SymbolKind_Module"><span class="hs-identifier hs-var">SymbolKind_Module</span></a></span><span>
+</span><span id="line-93"></span><span>               </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">SymbolKind
+</span><a href="Language.LSP.Protocol.Internal.Types.SymbolKind.html#SymbolKind_Namespace"><span class="hs-identifier hs-var">SymbolKind_Namespace</span></a></span><span>
+</span><span id="line-94"></span><span>               </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">SymbolKind
+</span><a href="Language.LSP.Protocol.Internal.Types.SymbolKind.html#SymbolKind_Package"><span class="hs-identifier hs-var">SymbolKind_Package</span></a></span><span>
+</span><span id="line-95"></span><span>               </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">SymbolKind
+</span><a href="Language.LSP.Protocol.Internal.Types.SymbolKind.html#SymbolKind_Class"><span class="hs-identifier hs-var">SymbolKind_Class</span></a></span><span>
+</span><span id="line-96"></span><span>               </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">SymbolKind
+</span><a href="Language.LSP.Protocol.Internal.Types.SymbolKind.html#SymbolKind_Method"><span class="hs-identifier hs-var">SymbolKind_Method</span></a></span><span>
+</span><span id="line-97"></span><span>               </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">SymbolKind
+</span><a href="Language.LSP.Protocol.Internal.Types.SymbolKind.html#SymbolKind_Property"><span class="hs-identifier hs-var">SymbolKind_Property</span></a></span><span>
+</span><span id="line-98"></span><span>               </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">SymbolKind
+</span><a href="Language.LSP.Protocol.Internal.Types.SymbolKind.html#SymbolKind_Field"><span class="hs-identifier hs-var">SymbolKind_Field</span></a></span><span>
+</span><span id="line-99"></span><span>               </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">SymbolKind
+</span><a href="Language.LSP.Protocol.Internal.Types.SymbolKind.html#SymbolKind_Constructor"><span class="hs-identifier hs-var">SymbolKind_Constructor</span></a></span><span>
+</span><span id="line-100"></span><span>               </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">SymbolKind
+</span><a href="Language.LSP.Protocol.Internal.Types.SymbolKind.html#SymbolKind_Enum"><span class="hs-identifier hs-var">SymbolKind_Enum</span></a></span><span>
+</span><span id="line-101"></span><span>               </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">SymbolKind
+</span><a href="Language.LSP.Protocol.Internal.Types.SymbolKind.html#SymbolKind_Interface"><span class="hs-identifier hs-var">SymbolKind_Interface</span></a></span><span>
+</span><span id="line-102"></span><span>               </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">SymbolKind
+</span><a href="Language.LSP.Protocol.Internal.Types.SymbolKind.html#SymbolKind_Function"><span class="hs-identifier hs-var">SymbolKind_Function</span></a></span><span>
+</span><span id="line-103"></span><span>               </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">SymbolKind
+</span><a href="Language.LSP.Protocol.Internal.Types.SymbolKind.html#SymbolKind_Variable"><span class="hs-identifier hs-var">SymbolKind_Variable</span></a></span><span>
+</span><span id="line-104"></span><span>               </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">SymbolKind
+</span><a href="Language.LSP.Protocol.Internal.Types.SymbolKind.html#SymbolKind_Constant"><span class="hs-identifier hs-var">SymbolKind_Constant</span></a></span><span>
+</span><span id="line-105"></span><span>               </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">SymbolKind
+</span><a href="Language.LSP.Protocol.Internal.Types.SymbolKind.html#SymbolKind_String"><span class="hs-identifier hs-var">SymbolKind_String</span></a></span><span>
+</span><span id="line-106"></span><span>               </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">SymbolKind
+</span><a href="Language.LSP.Protocol.Internal.Types.SymbolKind.html#SymbolKind_Number"><span class="hs-identifier hs-var">SymbolKind_Number</span></a></span><span>
+</span><span id="line-107"></span><span>               </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">SymbolKind
+</span><a href="Language.LSP.Protocol.Internal.Types.SymbolKind.html#SymbolKind_Boolean"><span class="hs-identifier hs-var">SymbolKind_Boolean</span></a></span><span>
+</span><span id="line-108"></span><span>               </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">SymbolKind
+</span><a href="Language.LSP.Protocol.Internal.Types.SymbolKind.html#SymbolKind_Array"><span class="hs-identifier hs-var">SymbolKind_Array</span></a></span><span>
+</span><span id="line-109"></span><span>               </span><span class="hs-special">]</span><span>
+</span><span id="line-110"></span><span>
+</span><span id="line-111"></span><span>    </span><span id="local-6989586621682257047"><span class="annot"><span class="annottext">newSKs :: [SymbolKind]
+</span><a href="#local-6989586621682257047"><span class="hs-identifier hs-var hs-var">newSKs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">SymbolKind
+</span><a href="Language.LSP.Protocol.Internal.Types.SymbolKind.html#SymbolKind_Object"><span class="hs-identifier hs-var">SymbolKind_Object</span></a></span><span>
+</span><span id="line-112"></span><span>             </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">SymbolKind
+</span><a href="Language.LSP.Protocol.Internal.Types.SymbolKind.html#SymbolKind_Key"><span class="hs-identifier hs-var">SymbolKind_Key</span></a></span><span>
+</span><span id="line-113"></span><span>             </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">SymbolKind
+</span><a href="Language.LSP.Protocol.Internal.Types.SymbolKind.html#SymbolKind_Null"><span class="hs-identifier hs-var">SymbolKind_Null</span></a></span><span>
+</span><span id="line-114"></span><span>             </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">SymbolKind
+</span><a href="Language.LSP.Protocol.Internal.Types.SymbolKind.html#SymbolKind_EnumMember"><span class="hs-identifier hs-var">SymbolKind_EnumMember</span></a></span><span>
+</span><span id="line-115"></span><span>             </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">SymbolKind
+</span><a href="Language.LSP.Protocol.Internal.Types.SymbolKind.html#SymbolKind_Struct"><span class="hs-identifier hs-var">SymbolKind_Struct</span></a></span><span>
+</span><span id="line-116"></span><span>             </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">SymbolKind
+</span><a href="Language.LSP.Protocol.Internal.Types.SymbolKind.html#SymbolKind_Event"><span class="hs-identifier hs-var">SymbolKind_Event</span></a></span><span>
+</span><span id="line-117"></span><span>             </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">SymbolKind
+</span><a href="Language.LSP.Protocol.Internal.Types.SymbolKind.html#SymbolKind_Operator"><span class="hs-identifier hs-var">SymbolKind_Operator</span></a></span><span>
+</span><span id="line-118"></span><span>             </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">SymbolKind
+</span><a href="Language.LSP.Protocol.Internal.Types.SymbolKind.html#SymbolKind_TypeParameter"><span class="hs-identifier hs-var">SymbolKind_TypeParameter</span></a></span><span>
+</span><span id="line-119"></span><span>             </span><span class="hs-special">]</span><span>
+</span><span id="line-120"></span><span>
+</span><span id="line-121"></span><span>    </span><span class="hs-comment">-- Only one token format for now, just list it here</span><span>
+</span><span id="line-122"></span><span>    </span><span id="local-6989586621682257020"><span class="annot"><span class="annottext">tfs :: [TokenFormat]
+</span><a href="#local-6989586621682257020"><span class="hs-identifier hs-var hs-var">tfs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">TokenFormat
+</span><a href="Language.LSP.Protocol.Internal.Types.TokenFormat.html#TokenFormat_Relative"><span class="hs-identifier hs-var">TokenFormat_Relative</span></a></span><span> </span><span class="hs-special">]</span><span>
+</span><span id="line-123"></span><span>
+</span><span id="line-124"></span><span>    </span><span id="local-6989586621682256989"><span class="annot"><span class="annottext">semanticTokensCapabilities :: SemanticTokensClientCapabilities
+</span><a href="#local-6989586621682256989"><span class="hs-identifier hs-var hs-var">semanticTokensCapabilities</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.SemanticTokensClientCapabilities.html#SemanticTokensClientCapabilities"><span class="hs-identifier hs-type">SemanticTokensClientCapabilities</span></a></span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-125"></span><span>        </span><span class="annot"><span class="annottext">$sel:_dynamicRegistration:SemanticTokensClientCapabilities :: Maybe Bool
+</span><a href="#local-6989586621682256987"><span class="hs-identifier hs-var">_dynamicRegistration</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-126"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_requests:SemanticTokensClientCapabilities :: Rec
+  (Extend &quot;range&quot; (Maybe (Bool |? Rec ('R '[]))) ('R '[])
+   .+ ((&quot;full&quot;
+        .== Maybe (Bool |? Rec ((&quot;delta&quot; .== Maybe Bool) .+ 'R '[])))
+       .+ 'R '[]))
+</span><a href="#local-6989586621682256986"><span class="hs-identifier hs-var">_requests</span></a></span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. IsLabel &quot;range&quot; a =&gt; a
+</span><span class="">#range</span></span><span> </span><span class="annot"><span class="annottext">forall (l :: Symbol) a.
+KnownSymbol l =&gt;
+Label l -&gt; a -&gt; Rec (l .== a)
+</span><span class="hs-operator hs-var">.==</span></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. a -&gt; a |? b
+</span><a href="Language.LSP.Protocol.Types.Common.html#InL"><span class="hs-identifier hs-var">InL</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall (l :: Row (*)) (r :: Row (*)).
+FreeForall l =&gt;
+Rec l -&gt; Rec r -&gt; Rec (l .+ r)
+</span><span class="hs-operator hs-var">.+</span></span><span> </span><span class="annot"><span class="annottext">forall a. IsLabel &quot;full&quot; a =&gt; a
+</span><span class="">#full</span></span><span> </span><span class="annot"><span class="annottext">forall (l :: Symbol) a.
+KnownSymbol l =&gt;
+Label l -&gt; a -&gt; Rec (l .== a)
+</span><span class="hs-operator hs-var">.==</span></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. b -&gt; a |? b
+</span><a href="Language.LSP.Protocol.Types.Common.html#InR"><span class="hs-identifier hs-var">InR</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. IsLabel &quot;delta&quot; a =&gt; a
+</span><span class="">#delta</span></span><span> </span><span class="annot"><span class="annottext">forall (l :: Symbol) a.
+KnownSymbol l =&gt;
+Label l -&gt; a -&gt; Rec (l .== a)
+</span><span class="hs-operator hs-var">.==</span></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-127"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_tokenTypes:SemanticTokensClientCapabilities :: [Text]
+</span><a href="#local-6989586621682256982"><span class="hs-identifier hs-var">_tokenTypes</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. LspEnum a =&gt; a -&gt; EnumBaseType a
+</span><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall a. Set a -&gt; [a]
+</span><span class="hs-identifier hs-var">Set.toList</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. LspEnum a =&gt; Set a
+</span><a href="Language.LSP.Protocol.Types.LspEnum.html#knownValues"><span class="hs-identifier hs-var">knownValues</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.SemanticTokenTypes.html#SemanticTokenTypes"><span class="hs-identifier hs-type">SemanticTokenTypes</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-128"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_tokenModifiers:SemanticTokensClientCapabilities :: [Text]
+</span><a href="#local-6989586621682256977"><span class="hs-identifier hs-var">_tokenModifiers</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. LspEnum a =&gt; a -&gt; EnumBaseType a
+</span><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall a. Set a -&gt; [a]
+</span><span class="hs-identifier hs-var">Set.toList</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. LspEnum a =&gt; Set a
+</span><a href="Language.LSP.Protocol.Types.LspEnum.html#knownValues"><span class="hs-identifier hs-var">knownValues</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.SemanticTokenModifiers.html#SemanticTokenModifiers"><span class="hs-identifier hs-type">SemanticTokenModifiers</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-129"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_formats:SemanticTokensClientCapabilities :: [TokenFormat]
+</span><a href="#local-6989586621682256976"><span class="hs-identifier hs-var">_formats</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">[TokenFormat]
+</span><a href="#local-6989586621682257020"><span class="hs-identifier hs-var">tfs</span></a></span><span>
+</span><span id="line-130"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_overlappingTokenSupport:SemanticTokensClientCapabilities :: Maybe Bool
+</span><a href="#local-6989586621682256975"><span class="hs-identifier hs-var">_overlappingTokenSupport</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-131"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_multilineTokenSupport:SemanticTokensClientCapabilities :: Maybe Bool
+</span><a href="#local-6989586621682256974"><span class="hs-identifier hs-var">_multilineTokenSupport</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-132"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_serverCancelSupport:SemanticTokensClientCapabilities :: Maybe Bool
+</span><a href="#local-6989586621682256973"><span class="hs-identifier hs-var">_serverCancelSupport</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-133"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_augmentsSyntaxTokens:SemanticTokensClientCapabilities :: Maybe Bool
+</span><a href="#local-6989586621682256972"><span class="hs-identifier hs-var">_augmentsSyntaxTokens</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-134"></span><span>      </span><span class="hs-special">}</span><span>
+</span><span id="line-135"></span><span>
+</span><span id="line-136"></span><span>    </span><span id="local-6989586621682257087"><span class="annot"><span class="annottext">td :: TextDocumentClientCapabilities
+</span><a href="#local-6989586621682257087"><span class="hs-identifier hs-var hs-var">td</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.TextDocumentClientCapabilities.html#TextDocumentClientCapabilities"><span class="hs-identifier hs-type">TextDocumentClientCapabilities</span></a></span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-137"></span><span>          </span><span class="annot"><span class="annottext">$sel:_synchronization:TextDocumentClientCapabilities :: Maybe TextDocumentSyncClientCapabilities
+</span><a href="#local-6989586621682256970"><span class="hs-identifier hs-var">_synchronization</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">TextDocumentSyncClientCapabilities
+</span><a href="#local-6989586621682256969"><span class="hs-identifier hs-var">sync</span></a></span><span>
+</span><span id="line-138"></span><span>          </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_completion:TextDocumentClientCapabilities :: Maybe CompletionClientCapabilities
+</span><a href="#local-6989586621682256968"><span class="hs-identifier hs-var">_completion</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">CompletionClientCapabilities
+</span><a href="#local-6989586621682256967"><span class="hs-identifier hs-var">completionCapability</span></a></span><span>
+</span><span id="line-139"></span><span>          </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_hover:TextDocumentClientCapabilities :: Maybe HoverClientCapabilities
+</span><a href="#local-6989586621682256966"><span class="hs-identifier hs-var">_hover</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">HoverClientCapabilities
+</span><a href="#local-6989586621682256965"><span class="hs-identifier hs-var">hoverCapability</span></a></span><span>
+</span><span id="line-140"></span><span>          </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_signatureHelp:TextDocumentClientCapabilities :: Maybe SignatureHelpClientCapabilities
+</span><a href="#local-6989586621682256964"><span class="hs-identifier hs-var">_signatureHelp</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">SignatureHelpClientCapabilities
+</span><a href="#local-6989586621682256963"><span class="hs-identifier hs-var">signatureHelpCapability</span></a></span><span>
+</span><span id="line-141"></span><span>          </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_references:TextDocumentClientCapabilities :: Maybe ReferenceClientCapabilities
+</span><a href="#local-6989586621682256962"><span class="hs-identifier hs-var">_references</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe Bool -&gt; ReferenceClientCapabilities
+</span><a href="Language.LSP.Protocol.Internal.Types.ReferenceClientCapabilities.html#ReferenceClientCapabilities"><span class="hs-identifier hs-var">ReferenceClientCapabilities</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682257071"><span class="hs-identifier hs-var">dynamicReg</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-142"></span><span>          </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_documentHighlight:TextDocumentClientCapabilities :: Maybe DocumentHighlightClientCapabilities
+</span><a href="#local-6989586621682256960"><span class="hs-identifier hs-var">_documentHighlight</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe Bool -&gt; DocumentHighlightClientCapabilities
+</span><a href="Language.LSP.Protocol.Internal.Types.DocumentHighlightClientCapabilities.html#DocumentHighlightClientCapabilities"><span class="hs-identifier hs-var">DocumentHighlightClientCapabilities</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682257071"><span class="hs-identifier hs-var">dynamicReg</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-143"></span><span>          </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_documentSymbol:TextDocumentClientCapabilities :: Maybe DocumentSymbolClientCapabilities
+</span><a href="#local-6989586621682256958"><span class="hs-identifier hs-var">_documentSymbol</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">DocumentSymbolClientCapabilities
+</span><a href="#local-6989586621682256957"><span class="hs-identifier hs-var">documentSymbolCapability</span></a></span><span>
+</span><span id="line-144"></span><span>          </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_formatting:TextDocumentClientCapabilities :: Maybe DocumentFormattingClientCapabilities
+</span><a href="#local-6989586621682256956"><span class="hs-identifier hs-var">_formatting</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe Bool -&gt; DocumentFormattingClientCapabilities
+</span><a href="Language.LSP.Protocol.Internal.Types.DocumentFormattingClientCapabilities.html#DocumentFormattingClientCapabilities"><span class="hs-identifier hs-var">DocumentFormattingClientCapabilities</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682257071"><span class="hs-identifier hs-var">dynamicReg</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-145"></span><span>          </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_rangeFormatting:TextDocumentClientCapabilities :: Maybe DocumentRangeFormattingClientCapabilities
+</span><a href="#local-6989586621682256954"><span class="hs-identifier hs-var">_rangeFormatting</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe Bool -&gt; DocumentRangeFormattingClientCapabilities
+</span><a href="Language.LSP.Protocol.Internal.Types.DocumentRangeFormattingClientCapabilities.html#DocumentRangeFormattingClientCapabilities"><span class="hs-identifier hs-var">DocumentRangeFormattingClientCapabilities</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682257071"><span class="hs-identifier hs-var">dynamicReg</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-146"></span><span>          </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_onTypeFormatting:TextDocumentClientCapabilities :: Maybe DocumentOnTypeFormattingClientCapabilities
+</span><a href="#local-6989586621682256952"><span class="hs-identifier hs-var">_onTypeFormatting</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe Bool -&gt; DocumentOnTypeFormattingClientCapabilities
+</span><a href="Language.LSP.Protocol.Internal.Types.DocumentOnTypeFormattingClientCapabilities.html#DocumentOnTypeFormattingClientCapabilities"><span class="hs-identifier hs-var">DocumentOnTypeFormattingClientCapabilities</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682257071"><span class="hs-identifier hs-var">dynamicReg</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-147"></span><span>          </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_declaration:TextDocumentClientCapabilities :: Maybe DeclarationClientCapabilities
+</span><a href="#local-6989586621682256950"><span class="hs-identifier hs-var">_declaration</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. Int -&gt; Int -&gt; a -&gt; Maybe a
+</span><a href="#local-6989586621682257083"><span class="hs-identifier hs-var">since</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">14</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe Bool -&gt; Maybe Bool -&gt; DeclarationClientCapabilities
+</span><a href="Language.LSP.Protocol.Internal.Types.DeclarationClientCapabilities.html#DeclarationClientCapabilities"><span class="hs-identifier hs-var">DeclarationClientCapabilities</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682257071"><span class="hs-identifier hs-var">dynamicReg</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-148"></span><span>          </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_definition:TextDocumentClientCapabilities :: Maybe DefinitionClientCapabilities
+</span><a href="#local-6989586621682256948"><span class="hs-identifier hs-var">_definition</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe Bool -&gt; Maybe Bool -&gt; DefinitionClientCapabilities
+</span><a href="Language.LSP.Protocol.Internal.Types.DefinitionClientCapabilities.html#DefinitionClientCapabilities"><span class="hs-identifier hs-var">DefinitionClientCapabilities</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682257071"><span class="hs-identifier hs-var">dynamicReg</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Int -&gt; Int -&gt; a -&gt; Maybe a
+</span><a href="#local-6989586621682257083"><span class="hs-identifier hs-var">since</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">14</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-149"></span><span>          </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_typeDefinition:TextDocumentClientCapabilities :: Maybe TypeDefinitionClientCapabilities
+</span><a href="#local-6989586621682256946"><span class="hs-identifier hs-var">_typeDefinition</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. Int -&gt; Int -&gt; a -&gt; Maybe a
+</span><a href="#local-6989586621682257083"><span class="hs-identifier hs-var">since</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">6</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe Bool -&gt; Maybe Bool -&gt; TypeDefinitionClientCapabilities
+</span><a href="Language.LSP.Protocol.Internal.Types.TypeDefinitionClientCapabilities.html#TypeDefinitionClientCapabilities"><span class="hs-identifier hs-var">TypeDefinitionClientCapabilities</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682257071"><span class="hs-identifier hs-var">dynamicReg</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Int -&gt; Int -&gt; a -&gt; Maybe a
+</span><a href="#local-6989586621682257083"><span class="hs-identifier hs-var">since</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">14</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-150"></span><span>          </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_implementation:TextDocumentClientCapabilities :: Maybe ImplementationClientCapabilities
+</span><a href="#local-6989586621682256944"><span class="hs-identifier hs-var">_implementation</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. Int -&gt; Int -&gt; a -&gt; Maybe a
+</span><a href="#local-6989586621682257083"><span class="hs-identifier hs-var">since</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">6</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe Bool -&gt; Maybe Bool -&gt; ImplementationClientCapabilities
+</span><a href="Language.LSP.Protocol.Internal.Types.ImplementationClientCapabilities.html#ImplementationClientCapabilities"><span class="hs-identifier hs-var">ImplementationClientCapabilities</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682257071"><span class="hs-identifier hs-var">dynamicReg</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Int -&gt; Int -&gt; a -&gt; Maybe a
+</span><a href="#local-6989586621682257083"><span class="hs-identifier hs-var">since</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">14</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-151"></span><span>          </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_codeAction:TextDocumentClientCapabilities :: Maybe CodeActionClientCapabilities
+</span><a href="#local-6989586621682256942"><span class="hs-identifier hs-var">_codeAction</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">CodeActionClientCapabilities
+</span><a href="#local-6989586621682256941"><span class="hs-identifier hs-var">codeActionCapability</span></a></span><span>
+</span><span id="line-152"></span><span>          </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_codeLens:TextDocumentClientCapabilities :: Maybe CodeLensClientCapabilities
+</span><a href="#local-6989586621682256940"><span class="hs-identifier hs-var">_codeLens</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe Bool -&gt; CodeLensClientCapabilities
+</span><a href="Language.LSP.Protocol.Internal.Types.CodeLensClientCapabilities.html#CodeLensClientCapabilities"><span class="hs-identifier hs-var">CodeLensClientCapabilities</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682257071"><span class="hs-identifier hs-var">dynamicReg</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-153"></span><span>          </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_documentLink:TextDocumentClientCapabilities :: Maybe DocumentLinkClientCapabilities
+</span><a href="#local-6989586621682256938"><span class="hs-identifier hs-var">_documentLink</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe Bool -&gt; Maybe Bool -&gt; DocumentLinkClientCapabilities
+</span><a href="Language.LSP.Protocol.Internal.Types.DocumentLinkClientCapabilities.html#DocumentLinkClientCapabilities"><span class="hs-identifier hs-var">DocumentLinkClientCapabilities</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682257071"><span class="hs-identifier hs-var">dynamicReg</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Int -&gt; Int -&gt; a -&gt; Maybe a
+</span><a href="#local-6989586621682257083"><span class="hs-identifier hs-var">since</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">15</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-154"></span><span>          </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_colorProvider:TextDocumentClientCapabilities :: Maybe DocumentColorClientCapabilities
+</span><a href="#local-6989586621682256936"><span class="hs-identifier hs-var">_colorProvider</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. Int -&gt; Int -&gt; a -&gt; Maybe a
+</span><a href="#local-6989586621682257083"><span class="hs-identifier hs-var">since</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">6</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe Bool -&gt; DocumentColorClientCapabilities
+</span><a href="Language.LSP.Protocol.Internal.Types.DocumentColorClientCapabilities.html#DocumentColorClientCapabilities"><span class="hs-identifier hs-var">DocumentColorClientCapabilities</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682257071"><span class="hs-identifier hs-var">dynamicReg</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-155"></span><span>          </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_rename:TextDocumentClientCapabilities :: Maybe RenameClientCapabilities
+</span><a href="#local-6989586621682256934"><span class="hs-identifier hs-var">_rename</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe Bool
+-&gt; Maybe Bool
+-&gt; Maybe PrepareSupportDefaultBehavior
+-&gt; Maybe Bool
+-&gt; RenameClientCapabilities
+</span><a href="Language.LSP.Protocol.Internal.Types.RenameClientCapabilities.html#RenameClientCapabilities"><span class="hs-identifier hs-var">RenameClientCapabilities</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682257071"><span class="hs-identifier hs-var">dynamicReg</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Int -&gt; Int -&gt; a -&gt; Maybe a
+</span><a href="#local-6989586621682257083"><span class="hs-identifier hs-var">since</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">12</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Int -&gt; Int -&gt; a -&gt; Maybe a
+</span><a href="#local-6989586621682257083"><span class="hs-identifier hs-var">since</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">16</span></span><span> </span><span class="annot"><span class="annottext">PrepareSupportDefaultBehavior
+</span><a href="Language.LSP.Protocol.Internal.Types.PrepareSupportDefaultBehavior.html#PrepareSupportDefaultBehavior_Identifier"><span class="hs-identifier hs-var">PrepareSupportDefaultBehavior_Identifier</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Int -&gt; Int -&gt; a -&gt; Maybe a
+</span><a href="#local-6989586621682257083"><span class="hs-identifier hs-var">since</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">16</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-156"></span><span>          </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_publishDiagnostics:TextDocumentClientCapabilities :: Maybe PublishDiagnosticsClientCapabilities
+</span><a href="#local-6989586621682256931"><span class="hs-identifier hs-var">_publishDiagnostics</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">PublishDiagnosticsClientCapabilities
+</span><a href="#local-6989586621682256930"><span class="hs-identifier hs-var">publishDiagnosticsCapabilities</span></a></span><span>
+</span><span id="line-157"></span><span>          </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_foldingRange:TextDocumentClientCapabilities :: Maybe FoldingRangeClientCapabilities
+</span><a href="#local-6989586621682256929"><span class="hs-identifier hs-var">_foldingRange</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. Int -&gt; Int -&gt; a -&gt; Maybe a
+</span><a href="#local-6989586621682257083"><span class="hs-identifier hs-var">since</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">10</span></span><span> </span><span class="annot"><span class="annottext">FoldingRangeClientCapabilities
+</span><a href="#local-6989586621682256928"><span class="hs-identifier hs-var">foldingRangeCapability</span></a></span><span>
+</span><span id="line-158"></span><span>          </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_selectionRange:TextDocumentClientCapabilities :: Maybe SelectionRangeClientCapabilities
+</span><a href="#local-6989586621682256927"><span class="hs-identifier hs-var">_selectionRange</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. Int -&gt; Int -&gt; a -&gt; Maybe a
+</span><a href="#local-6989586621682257083"><span class="hs-identifier hs-var">since</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">5</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe Bool -&gt; SelectionRangeClientCapabilities
+</span><a href="Language.LSP.Protocol.Internal.Types.SelectionRangeClientCapabilities.html#SelectionRangeClientCapabilities"><span class="hs-identifier hs-var">SelectionRangeClientCapabilities</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682257071"><span class="hs-identifier hs-var">dynamicReg</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-159"></span><span>          </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_callHierarchy:TextDocumentClientCapabilities :: Maybe CallHierarchyClientCapabilities
+</span><a href="#local-6989586621682256925"><span class="hs-identifier hs-var">_callHierarchy</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. Int -&gt; Int -&gt; a -&gt; Maybe a
+</span><a href="#local-6989586621682257083"><span class="hs-identifier hs-var">since</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">16</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe Bool -&gt; CallHierarchyClientCapabilities
+</span><a href="Language.LSP.Protocol.Internal.Types.CallHierarchyClientCapabilities.html#CallHierarchyClientCapabilities"><span class="hs-identifier hs-var">CallHierarchyClientCapabilities</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682257071"><span class="hs-identifier hs-var">dynamicReg</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-160"></span><span>          </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_semanticTokens:TextDocumentClientCapabilities :: Maybe SemanticTokensClientCapabilities
+</span><a href="#local-6989586621682256923"><span class="hs-identifier hs-var">_semanticTokens</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. Int -&gt; Int -&gt; a -&gt; Maybe a
+</span><a href="#local-6989586621682257083"><span class="hs-identifier hs-var">since</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">16</span></span><span> </span><span class="annot"><span class="annottext">SemanticTokensClientCapabilities
+</span><a href="#local-6989586621682256989"><span class="hs-identifier hs-var">semanticTokensCapabilities</span></a></span><span>
+</span><span id="line-161"></span><span>          </span><span class="hs-comment">-- TODO</span><span>
+</span><span id="line-162"></span><span>          </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_linkedEditingRange:TextDocumentClientCapabilities :: Maybe LinkedEditingRangeClientCapabilities
+</span><a href="#local-6989586621682256922"><span class="hs-identifier hs-var">_linkedEditingRange</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-163"></span><span>          </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_moniker:TextDocumentClientCapabilities :: Maybe MonikerClientCapabilities
+</span><a href="#local-6989586621682256921"><span class="hs-identifier hs-var">_moniker</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-164"></span><span>          </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_typeHierarchy:TextDocumentClientCapabilities :: Maybe TypeHierarchyClientCapabilities
+</span><a href="#local-6989586621682256920"><span class="hs-identifier hs-var">_typeHierarchy</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-165"></span><span>          </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_inlineValue:TextDocumentClientCapabilities :: Maybe InlineValueClientCapabilities
+</span><a href="#local-6989586621682256919"><span class="hs-identifier hs-var">_inlineValue</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-166"></span><span>          </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_inlayHint:TextDocumentClientCapabilities :: Maybe InlayHintClientCapabilities
+</span><a href="#local-6989586621682256918"><span class="hs-identifier hs-var">_inlayHint</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-167"></span><span>          </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_diagnostic:TextDocumentClientCapabilities :: Maybe DiagnosticClientCapabilities
+</span><a href="#local-6989586621682256917"><span class="hs-identifier hs-var">_diagnostic</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-168"></span><span>        </span><span class="hs-special">}</span><span>
+</span><span id="line-169"></span><span>
+</span><span id="line-170"></span><span>    </span><span id="local-6989586621682256969"><span class="annot"><span class="annottext">sync :: TextDocumentSyncClientCapabilities
+</span><a href="#local-6989586621682256969"><span class="hs-identifier hs-var hs-var">sync</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-171"></span><span>      </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.TextDocumentSyncClientCapabilities.html#TextDocumentSyncClientCapabilities"><span class="hs-identifier hs-type">TextDocumentSyncClientCapabilities</span></a></span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-172"></span><span>        </span><span class="annot"><span class="annottext">$sel:_dynamicRegistration:TextDocumentSyncClientCapabilities :: Maybe Bool
+</span><a href="#local-6989586621682256915"><span class="hs-identifier hs-var">_dynamicRegistration</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682257071"><span class="hs-identifier hs-var">dynamicReg</span></a></span><span>
+</span><span id="line-173"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_willSave:TextDocumentSyncClientCapabilities :: Maybe Bool
+</span><a href="#local-6989586621682256914"><span class="hs-identifier hs-var">_willSave</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-174"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_willSaveWaitUntil:TextDocumentSyncClientCapabilities :: Maybe Bool
+</span><a href="#local-6989586621682256913"><span class="hs-identifier hs-var">_willSaveWaitUntil</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-175"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_didSave:TextDocumentSyncClientCapabilities :: Maybe Bool
+</span><a href="#local-6989586621682256912"><span class="hs-identifier hs-var">_didSave</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-176"></span><span>        </span><span class="hs-special">}</span><span>
+</span><span id="line-177"></span><span>
+</span><span id="line-178"></span><span>    </span><span id="local-6989586621682256967"><span class="annot"><span class="annottext">completionCapability :: CompletionClientCapabilities
+</span><a href="#local-6989586621682256967"><span class="hs-identifier hs-var hs-var">completionCapability</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-179"></span><span>      </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.CompletionClientCapabilities.html#CompletionClientCapabilities"><span class="hs-identifier hs-type">CompletionClientCapabilities</span></a></span><span class="hs-special">{</span><span>
+</span><span id="line-180"></span><span>        </span><span class="annot"><span class="annottext">$sel:_dynamicRegistration:CompletionClientCapabilities :: Maybe Bool
+</span><a href="#local-6989586621682256910"><span class="hs-identifier hs-var">_dynamicRegistration</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682257071"><span class="hs-identifier hs-var">dynamicReg</span></a></span><span>
+</span><span id="line-181"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_completionItem:CompletionClientCapabilities :: Maybe
+  (Rec
+     ((&quot;snippetSupport&quot; .== Maybe Bool)
+      .+ ((&quot;commitCharactersSupport&quot; .== Maybe Bool)
+          .+ (Extend &quot;documentationFormat&quot; (Maybe [MarkupKind]) ('R '[])
+              .+ ((&quot;deprecatedSupport&quot; .== Maybe Bool)
+                  .+ ((&quot;preselectSupport&quot; .== Maybe Bool)
+                      .+ ((&quot;tagSupport&quot;
+                           .== Maybe (Rec ((&quot;valueSet&quot; .== [CompletionItemTag]) .+ 'R '[])))
+                          .+ ((&quot;insertReplaceSupport&quot; .== Maybe Bool)
+                              .+ ((&quot;resolveSupport&quot;
+                                   .== Maybe (Rec ((&quot;properties&quot; .== [Text]) .+ 'R '[])))
+                                  .+ ((&quot;insertTextModeSupport&quot;
+                                       .== Maybe
+                                             (Rec ((&quot;valueSet&quot; .== [InsertTextMode]) .+ 'R '[])))
+                                      .+ ((&quot;labelDetailsSupport&quot; .== Maybe Bool)
+                                          .+ 'R '[])))))))))))
+</span><a href="#local-6989586621682256909"><span class="hs-identifier hs-var">_completionItem</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">forall {a} {a}.
+Rec
+  ('R
+     '[ &quot;commitCharactersSupport&quot; ':-&gt; Maybe Bool,
+        &quot;deprecatedSupport&quot; ':-&gt; Maybe Bool,
+        &quot;documentationFormat&quot; ':-&gt; Maybe [MarkupKind],
+        &quot;insertReplaceSupport&quot; ':-&gt; Maybe Bool,
+        &quot;insertTextModeSupport&quot;
+        ':-&gt; Maybe (Rec ('R '[ &quot;valueSet&quot; ':-&gt; [a]])),
+        &quot;labelDetailsSupport&quot; ':-&gt; Maybe Bool,
+        &quot;preselectSupport&quot; ':-&gt; Maybe Bool,
+        &quot;resolveSupport&quot;
+        ':-&gt; Maybe (Rec ('R '[ &quot;properties&quot; ':-&gt; [Text]])),
+        &quot;snippetSupport&quot; ':-&gt; Maybe Bool,
+        &quot;tagSupport&quot; ':-&gt; Maybe (Rec ('R '[ &quot;valueSet&quot; ':-&gt; [a]]))])
+</span><a href="#local-6989586621682256908"><span class="hs-identifier hs-var">completionItemCapabilities</span></a></span><span>
+</span><span id="line-182"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_completionItemKind:CompletionClientCapabilities :: Maybe (Rec ((&quot;valueSet&quot; .== Maybe [CompletionItemKind]) .+ 'R '[]))
+</span><a href="#local-6989586621682256907"><span class="hs-identifier hs-var">_completionItemKind</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. Int -&gt; Int -&gt; a -&gt; Maybe a
+</span><a href="#local-6989586621682257083"><span class="hs-identifier hs-var">since</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. IsLabel &quot;valueSet&quot; a =&gt; a
+</span><span class="">#valueSet</span></span><span> </span><span class="annot"><span class="annottext">forall (l :: Symbol) a.
+KnownSymbol l =&gt;
+Label l -&gt; a -&gt; Rec (l .== a)
+</span><span class="hs-operator hs-var">.==</span></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">[CompletionItemKind]
+</span><a href="#local-6989586621682256906"><span class="hs-identifier hs-var">ciKs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-183"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_insertTextMode:CompletionClientCapabilities :: Maybe InsertTextMode
+</span><a href="#local-6989586621682256905"><span class="hs-identifier hs-var">_insertTextMode</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. Int -&gt; Int -&gt; a -&gt; Maybe a
+</span><a href="#local-6989586621682257083"><span class="hs-identifier hs-var">since</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">17</span></span><span> </span><span class="annot"><span class="annottext">InsertTextMode
+</span><a href="Language.LSP.Protocol.Internal.Types.InsertTextMode.html#InsertTextMode_AsIs"><span class="hs-identifier hs-var">InsertTextMode_AsIs</span></a></span><span>
+</span><span id="line-184"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_contextSupport:CompletionClientCapabilities :: Maybe Bool
+</span><a href="#local-6989586621682256903"><span class="hs-identifier hs-var">_contextSupport</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. Int -&gt; Int -&gt; a -&gt; Maybe a
+</span><a href="#local-6989586621682257083"><span class="hs-identifier hs-var">since</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-185"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_completionList:CompletionClientCapabilities :: Maybe (Rec ((&quot;itemDefaults&quot; .== Maybe [Text]) .+ 'R '[]))
+</span><a href="#local-6989586621682256902"><span class="hs-identifier hs-var">_completionList</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. Int -&gt; Int -&gt; a -&gt; Maybe a
+</span><a href="#local-6989586621682257083"><span class="hs-identifier hs-var">since</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">17</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. IsLabel &quot;itemDefaults&quot; a =&gt; a
+</span><span class="">#itemDefaults</span></span><span> </span><span class="annot"><span class="annottext">forall (l :: Symbol) a.
+KnownSymbol l =&gt;
+Label l -&gt; a -&gt; Rec (l .== a)
+</span><span class="hs-operator hs-var">.==</span></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-186"></span><span>        </span><span class="hs-special">}</span><span>
+</span><span id="line-187"></span><span>
+</span><span id="line-188"></span><span>    </span><span id="local-6989586621682256908"><span class="annot"><span class="annottext">completionItemCapabilities :: Rec
+  ((((((((('R '[ &quot;snippetSupport&quot; ':-&gt; Maybe Bool]
+           .+ 'R '[ &quot;commitCharactersSupport&quot; ':-&gt; Maybe Bool])
+          .+ 'R '[ &quot;documentationFormat&quot; ':-&gt; Maybe [MarkupKind]])
+         .+ 'R '[ &quot;deprecatedSupport&quot; ':-&gt; Maybe Bool])
+        .+ 'R '[ &quot;preselectSupport&quot; ':-&gt; Maybe Bool])
+       .+ 'R
+            '[ &quot;tagSupport&quot; ':-&gt; Maybe (Rec ('R '[ &quot;valueSet&quot; ':-&gt; [a]]))])
+      .+ 'R '[ &quot;insertReplaceSupport&quot; ':-&gt; Maybe Bool])
+     .+ 'R
+          '[ &quot;resolveSupport&quot;
+             ':-&gt; Maybe (Rec ('R '[ &quot;properties&quot; ':-&gt; [Text]]))])
+    .+ 'R
+         '[ &quot;insertTextModeSupport&quot;
+            ':-&gt; Maybe (Rec ('R '[ &quot;valueSet&quot; ':-&gt; [a]]))])
+   .+ 'R '[ &quot;labelDetailsSupport&quot; ':-&gt; Maybe Bool])
+</span><a href="#local-6989586621682256908"><span class="hs-identifier hs-var hs-var">completionItemCapabilities</span></a></span></span><span> </span><span class="hs-glyph">=</span><span class="hs-cpp">
+      #snippetSupport .== Just True
+</span><span>      </span><span class="hs-operator">.+</span><span> </span><span class="">#commitCharactersSupport</span><span> </span><span class="hs-operator">.==</span><span> </span><span class="hs-identifier">Just</span><span> </span><span class="hs-identifier">True</span><span>
+</span><span id="line-191"></span><span>      </span><span class="hs-operator">.+</span><span> </span><span class="">#documentationFormat</span><span> </span><span class="hs-operator">.==</span><span> </span><span class="hs-identifier">since</span><span> </span><span class="hs-number">3</span><span> </span><span class="hs-number">3</span><span> </span><span class="hs-identifier">allMarkups</span><span>
+</span><span id="line-192"></span><span>      </span><span class="hs-operator">.+</span><span> </span><span class="">#deprecatedSupport</span><span> </span><span class="hs-operator">.==</span><span> </span><span class="hs-identifier">Just</span><span> </span><span class="hs-identifier">True</span><span>
+</span><span id="line-193"></span><span>      </span><span class="hs-operator">.+</span><span> </span><span class="">#preselectSupport</span><span> </span><span class="hs-operator">.==</span><span> </span><span class="hs-identifier">since</span><span> </span><span class="hs-number">3</span><span> </span><span class="hs-number">9</span><span> </span><span class="hs-identifier">True</span><span>
+</span><span id="line-194"></span><span>      </span><span class="hs-operator">.+</span><span> </span><span class="">#tagSupport</span><span> </span><span class="hs-operator">.==</span><span> </span><span class="hs-identifier">since</span><span> </span><span class="hs-number">3</span><span> </span><span class="hs-number">15</span><span> </span><span class="hs-special">(</span><span class="">#valueSet</span><span> </span><span class="hs-operator">.==</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-195"></span><span>      </span><span class="hs-operator">.+</span><span> </span><span class="">#insertReplaceSupport</span><span> </span><span class="hs-operator">.==</span><span> </span><span class="hs-identifier">since</span><span> </span><span class="hs-number">3</span><span> </span><span class="hs-number">16</span><span> </span><span class="hs-identifier">True</span><span>
+</span><span id="line-196"></span><span>      </span><span class="hs-operator">.+</span><span> </span><span class="">#resolveSupport</span><span> </span><span class="hs-operator">.==</span><span> </span><span class="hs-identifier">since</span><span> </span><span class="hs-number">3</span><span> </span><span class="hs-number">16</span><span> </span><span class="hs-special">(</span><span class="">#properties</span><span> </span><span class="hs-operator">.==</span><span> </span><span class="hs-special">[</span><span class="hs-string">&quot;documentation&quot;</span><span class="hs-special">,</span><span> </span><span class="hs-string">&quot;details&quot;</span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-197"></span><span>      </span><span class="hs-operator">.+</span><span> </span><span class="">#insertTextModeSupport</span><span> </span><span class="hs-operator">.==</span><span> </span><span class="hs-identifier">since</span><span> </span><span class="hs-number">3</span><span> </span><span class="hs-number">16</span><span> </span><span class="hs-special">(</span><span class="">#valueSet</span><span> </span><span class="hs-operator">.==</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-198"></span><span>      </span><span class="hs-operator">.+</span><span> </span><span class="">#labelDetailsSupport</span><span> </span><span class="hs-operator">.==</span><span> </span><span class="hs-identifier">since</span><span> </span><span class="hs-number">3</span><span> </span><span class="hs-number">17</span><span> </span><span class="hs-identifier">True</span><span>
+</span><span id="line-199"></span><span>
+</span><span id="line-200"></span><span>    </span><span id="local-6989586621682256906"><span class="annot"><span class="annottext">ciKs :: [CompletionItemKind]
+</span><a href="#local-6989586621682256906"><span class="hs-identifier hs-var hs-var">ciKs</span></a></span></span><span>
+</span><span id="line-201"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682257094"><span class="hs-identifier hs-var">maj</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682257093"><span class="hs-identifier hs-var">min</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[CompletionItemKind]
+</span><a href="#local-6989586621682256537"><span class="hs-identifier hs-var">oldCiKs</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">[CompletionItemKind]
+</span><a href="#local-6989586621682256536"><span class="hs-identifier hs-var">newCiKs</span></a></span><span>
+</span><span id="line-202"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>            </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[CompletionItemKind]
+</span><a href="#local-6989586621682256537"><span class="hs-identifier hs-var">oldCiKs</span></a></span><span>
+</span><span id="line-203"></span><span>
+</span><span id="line-204"></span><span>    </span><span id="local-6989586621682256537"><span class="annot"><span class="annottext">oldCiKs :: [CompletionItemKind]
+</span><a href="#local-6989586621682256537"><span class="hs-identifier hs-var hs-var">oldCiKs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>   </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Text"><span class="hs-identifier hs-var">CompletionItemKind_Text</span></a></span><span>
+</span><span id="line-205"></span><span>                </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Method"><span class="hs-identifier hs-var">CompletionItemKind_Method</span></a></span><span>
+</span><span id="line-206"></span><span>                </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Function"><span class="hs-identifier hs-var">CompletionItemKind_Function</span></a></span><span>
+</span><span id="line-207"></span><span>                </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Constructor"><span class="hs-identifier hs-var">CompletionItemKind_Constructor</span></a></span><span>
+</span><span id="line-208"></span><span>                </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Field"><span class="hs-identifier hs-var">CompletionItemKind_Field</span></a></span><span>
+</span><span id="line-209"></span><span>                </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Variable"><span class="hs-identifier hs-var">CompletionItemKind_Variable</span></a></span><span>
+</span><span id="line-210"></span><span>                </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Class"><span class="hs-identifier hs-var">CompletionItemKind_Class</span></a></span><span>
+</span><span id="line-211"></span><span>                </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Interface"><span class="hs-identifier hs-var">CompletionItemKind_Interface</span></a></span><span>
+</span><span id="line-212"></span><span>                </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Module"><span class="hs-identifier hs-var">CompletionItemKind_Module</span></a></span><span>
+</span><span id="line-213"></span><span>                </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Property"><span class="hs-identifier hs-var">CompletionItemKind_Property</span></a></span><span>
+</span><span id="line-214"></span><span>                </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Unit"><span class="hs-identifier hs-var">CompletionItemKind_Unit</span></a></span><span>
+</span><span id="line-215"></span><span>                </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Value"><span class="hs-identifier hs-var">CompletionItemKind_Value</span></a></span><span>
+</span><span id="line-216"></span><span>                </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Enum"><span class="hs-identifier hs-var">CompletionItemKind_Enum</span></a></span><span>
+</span><span id="line-217"></span><span>                </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Keyword"><span class="hs-identifier hs-var">CompletionItemKind_Keyword</span></a></span><span>
+</span><span id="line-218"></span><span>                </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Snippet"><span class="hs-identifier hs-var">CompletionItemKind_Snippet</span></a></span><span>
+</span><span id="line-219"></span><span>                </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Color"><span class="hs-identifier hs-var">CompletionItemKind_Color</span></a></span><span>
+</span><span id="line-220"></span><span>                </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_File"><span class="hs-identifier hs-var">CompletionItemKind_File</span></a></span><span>
+</span><span id="line-221"></span><span>                </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Reference"><span class="hs-identifier hs-var">CompletionItemKind_Reference</span></a></span><span>
+</span><span id="line-222"></span><span>                </span><span class="hs-special">]</span><span>
+</span><span id="line-223"></span><span>
+</span><span id="line-224"></span><span>    </span><span id="local-6989586621682256536"><span class="annot"><span class="annottext">newCiKs :: [CompletionItemKind]
+</span><a href="#local-6989586621682256536"><span class="hs-identifier hs-var hs-var">newCiKs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>   </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Folder"><span class="hs-identifier hs-var">CompletionItemKind_Folder</span></a></span><span>
+</span><span id="line-225"></span><span>                </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_EnumMember"><span class="hs-identifier hs-var">CompletionItemKind_EnumMember</span></a></span><span>
+</span><span id="line-226"></span><span>                </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Constant"><span class="hs-identifier hs-var">CompletionItemKind_Constant</span></a></span><span>
+</span><span id="line-227"></span><span>                </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Struct"><span class="hs-identifier hs-var">CompletionItemKind_Struct</span></a></span><span>
+</span><span id="line-228"></span><span>                </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Event"><span class="hs-identifier hs-var">CompletionItemKind_Event</span></a></span><span>
+</span><span id="line-229"></span><span>                </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_Operator"><span class="hs-identifier hs-var">CompletionItemKind_Operator</span></a></span><span>
+</span><span id="line-230"></span><span>                </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">CompletionItemKind
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemKind.html#CompletionItemKind_TypeParameter"><span class="hs-identifier hs-var">CompletionItemKind_TypeParameter</span></a></span><span>
+</span><span id="line-231"></span><span>                </span><span class="hs-special">]</span><span>
+</span><span id="line-232"></span><span>
+</span><span id="line-233"></span><span>    </span><span id="local-6989586621682256965"><span class="annot"><span class="annottext">hoverCapability :: HoverClientCapabilities
+</span><a href="#local-6989586621682256965"><span class="hs-identifier hs-var hs-var">hoverCapability</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-234"></span><span>      </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.HoverClientCapabilities.html#HoverClientCapabilities"><span class="hs-identifier hs-type">HoverClientCapabilities</span></a></span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-235"></span><span>        </span><span class="annot"><span class="annottext">$sel:_dynamicRegistration:HoverClientCapabilities :: Maybe Bool
+</span><a href="Language.LSP.Protocol.Internal.Types.HoverClientCapabilities.html#%24sel%3A_dynamicRegistration%3AHoverClientCapabilities"><span class="hs-identifier hs-var">_dynamicRegistration</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682257071"><span class="hs-identifier hs-var">dynamicReg</span></a></span><span>
+</span><span id="line-236"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_contentFormat:HoverClientCapabilities :: Maybe [MarkupKind]
+</span><a href="Language.LSP.Protocol.Internal.Types.HoverClientCapabilities.html#%24sel%3A_contentFormat%3AHoverClientCapabilities"><span class="hs-identifier hs-var">_contentFormat</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. Int -&gt; Int -&gt; a -&gt; Maybe a
+</span><a href="#local-6989586621682257083"><span class="hs-identifier hs-var">since</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">[MarkupKind]
+</span><a href="#local-6989586621682256538"><span class="hs-identifier hs-var">allMarkups</span></a></span><span>
+</span><span id="line-237"></span><span>      </span><span class="hs-special">}</span><span>
+</span><span id="line-238"></span><span>
+</span><span id="line-239"></span><span>    </span><span id="local-6989586621682256941"><span class="annot"><span class="annottext">codeActionCapability :: CodeActionClientCapabilities
+</span><a href="#local-6989586621682256941"><span class="hs-identifier hs-var hs-var">codeActionCapability</span></a></span></span><span>
+</span><span id="line-240"></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.CodeActionClientCapabilities.html#CodeActionClientCapabilities"><span class="hs-identifier hs-type">CodeActionClientCapabilities</span></a></span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-241"></span><span>          </span><span class="annot"><span class="annottext">$sel:_dynamicRegistration:CodeActionClientCapabilities :: Maybe Bool
+</span><a href="Language.LSP.Protocol.Internal.Types.CodeActionClientCapabilities.html#%24sel%3A_dynamicRegistration%3ACodeActionClientCapabilities"><span class="hs-identifier hs-var">_dynamicRegistration</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682257071"><span class="hs-identifier hs-var">dynamicReg</span></a></span><span>
+</span><span id="line-242"></span><span>          </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_codeActionLiteralSupport:CodeActionClientCapabilities :: Maybe
+  (Rec
+     ((&quot;codeActionKind&quot;
+       .== Rec ((&quot;valueSet&quot; .== [CodeActionKind]) .+ 'R '[]))
+      .+ 'R '[]))
+</span><a href="Language.LSP.Protocol.Internal.Types.CodeActionClientCapabilities.html#%24sel%3A_codeActionLiteralSupport%3ACodeActionClientCapabilities"><span class="hs-identifier hs-var">_codeActionLiteralSupport</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. Int -&gt; Int -&gt; a -&gt; Maybe a
+</span><a href="#local-6989586621682257083"><span class="hs-identifier hs-var">since</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. IsLabel &quot;codeActionKind&quot; a =&gt; a
+</span><span class="">#codeActionKind</span></span><span> </span><span class="annot"><span class="annottext">forall (l :: Symbol) a.
+KnownSymbol l =&gt;
+Label l -&gt; a -&gt; Rec (l .== a)
+</span><span class="hs-operator hs-var">.==</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. IsLabel &quot;valueSet&quot; a =&gt; a
+</span><span class="">#valueSet</span></span><span> </span><span class="annot"><span class="annottext">forall (l :: Symbol) a.
+KnownSymbol l =&gt;
+Label l -&gt; a -&gt; Rec (l .== a)
+</span><span class="hs-operator hs-var">.==</span></span><span> </span><span class="annot"><span class="annottext">forall a. Set a -&gt; [a]
+</span><span class="hs-identifier hs-var">Set.toList</span></span><span> </span><span class="annot"><span class="annottext">forall a. LspEnum a =&gt; Set a
+</span><a href="Language.LSP.Protocol.Types.LspEnum.html#knownValues"><span class="hs-identifier hs-var">knownValues</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-243"></span><span>          </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_isPreferredSupport:CodeActionClientCapabilities :: Maybe Bool
+</span><a href="Language.LSP.Protocol.Internal.Types.CodeActionClientCapabilities.html#%24sel%3A_isPreferredSupport%3ACodeActionClientCapabilities"><span class="hs-identifier hs-var">_isPreferredSupport</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. Int -&gt; Int -&gt; a -&gt; Maybe a
+</span><a href="#local-6989586621682257083"><span class="hs-identifier hs-var">since</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">15</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-244"></span><span>          </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_disabledSupport:CodeActionClientCapabilities :: Maybe Bool
+</span><a href="Language.LSP.Protocol.Internal.Types.CodeActionClientCapabilities.html#%24sel%3A_disabledSupport%3ACodeActionClientCapabilities"><span class="hs-identifier hs-var">_disabledSupport</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. Int -&gt; Int -&gt; a -&gt; Maybe a
+</span><a href="#local-6989586621682257083"><span class="hs-identifier hs-var">since</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">16</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-245"></span><span>          </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_dataSupport:CodeActionClientCapabilities :: Maybe Bool
+</span><a href="Language.LSP.Protocol.Internal.Types.CodeActionClientCapabilities.html#%24sel%3A_dataSupport%3ACodeActionClientCapabilities"><span class="hs-identifier hs-var">_dataSupport</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. Int -&gt; Int -&gt; a -&gt; Maybe a
+</span><a href="#local-6989586621682257083"><span class="hs-identifier hs-var">since</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">16</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-246"></span><span>          </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_resolveSupport:CodeActionClientCapabilities :: Maybe (Rec ((&quot;properties&quot; .== [Text]) .+ 'R '[]))
+</span><a href="Language.LSP.Protocol.Internal.Types.CodeActionClientCapabilities.html#%24sel%3A_resolveSupport%3ACodeActionClientCapabilities"><span class="hs-identifier hs-var">_resolveSupport</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. Int -&gt; Int -&gt; a -&gt; Maybe a
+</span><a href="#local-6989586621682257083"><span class="hs-identifier hs-var">since</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">16</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. IsLabel &quot;properties&quot; a =&gt; a
+</span><span class="">#properties</span></span><span> </span><span class="annot"><span class="annottext">forall (l :: Symbol) a.
+KnownSymbol l =&gt;
+Label l -&gt; a -&gt; Rec (l .== a)
+</span><span class="hs-operator hs-var">.==</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-247"></span><span>          </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_honorsChangeAnnotations:CodeActionClientCapabilities :: Maybe Bool
+</span><a href="Language.LSP.Protocol.Internal.Types.CodeActionClientCapabilities.html#%24sel%3A_honorsChangeAnnotations%3ACodeActionClientCapabilities"><span class="hs-identifier hs-var">_honorsChangeAnnotations</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. Int -&gt; Int -&gt; a -&gt; Maybe a
+</span><a href="#local-6989586621682257083"><span class="hs-identifier hs-var">since</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">16</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-248"></span><span>        </span><span class="hs-special">}</span><span>
+</span><span id="line-249"></span><span>
+</span><span id="line-250"></span><span>    </span><span id="local-6989586621682256963"><span class="annot"><span class="annottext">signatureHelpCapability :: SignatureHelpClientCapabilities
+</span><a href="#local-6989586621682256963"><span class="hs-identifier hs-var hs-var">signatureHelpCapability</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-251"></span><span>      </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.SignatureHelpClientCapabilities.html#SignatureHelpClientCapabilities"><span class="hs-identifier hs-type">SignatureHelpClientCapabilities</span></a></span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-252"></span><span>        </span><span class="annot"><span class="annottext">$sel:_dynamicRegistration:SignatureHelpClientCapabilities :: Maybe Bool
+</span><a href="Language.LSP.Protocol.Internal.Types.SignatureHelpClientCapabilities.html#%24sel%3A_dynamicRegistration%3ASignatureHelpClientCapabilities"><span class="hs-identifier hs-var">_dynamicRegistration</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682257071"><span class="hs-identifier hs-var">dynamicReg</span></a></span><span>
+</span><span id="line-253"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_signatureInformation:SignatureHelpClientCapabilities :: Maybe
+  (Rec
+     (Extend &quot;documentationFormat&quot; (Maybe [MarkupKind]) ('R '[])
+      .+ ((&quot;parameterInformation&quot;
+           .== Maybe (Rec ((&quot;labelOffsetSupport&quot; .== Maybe Bool) .+ 'R '[])))
+          .+ ((&quot;activeParameterSupport&quot; .== Maybe Bool) .+ 'R '[]))))
+</span><a href="Language.LSP.Protocol.Internal.Types.SignatureHelpClientCapabilities.html#%24sel%3A_signatureInformation%3ASignatureHelpClientCapabilities"><span class="hs-identifier hs-var">_signatureInformation</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. IsLabel &quot;documentationFormat&quot; a =&gt; a
+</span><span class="">#documentationFormat</span></span><span> </span><span class="annot"><span class="annottext">forall (l :: Symbol) a.
+KnownSymbol l =&gt;
+Label l -&gt; a -&gt; Rec (l .== a)
+</span><span class="hs-operator hs-var">.==</span></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">[MarkupKind]
+</span><a href="#local-6989586621682256538"><span class="hs-identifier hs-var">allMarkups</span></a></span><span> </span><span class="annot"><span class="annottext">forall (l :: Row (*)) (r :: Row (*)).
+FreeForall l =&gt;
+Rec l -&gt; Rec r -&gt; Rec (l .+ r)
+</span><span class="hs-operator hs-var">.+</span></span><span> </span><span class="annot"><span class="annottext">forall a. IsLabel &quot;parameterInformation&quot; a =&gt; a
+</span><span class="">#parameterInformation</span></span><span> </span><span class="annot"><span class="annottext">forall (l :: Symbol) a.
+KnownSymbol l =&gt;
+Label l -&gt; a -&gt; Rec (l .== a)
+</span><span class="hs-operator hs-var">.==</span></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. IsLabel &quot;labelOffsetSupport&quot; a =&gt; a
+</span><span class="">#labelOffsetSupport</span></span><span> </span><span class="annot"><span class="annottext">forall (l :: Symbol) a.
+KnownSymbol l =&gt;
+Label l -&gt; a -&gt; Rec (l .== a)
+</span><span class="hs-operator hs-var">.==</span></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall (l :: Row (*)) (r :: Row (*)).
+FreeForall l =&gt;
+Rec l -&gt; Rec r -&gt; Rec (l .+ r)
+</span><span class="hs-operator hs-var">.+</span></span><span> </span><span class="annot"><span class="annottext">forall a. IsLabel &quot;activeParameterSupport&quot; a =&gt; a
+</span><span class="">#activeParameterSupport</span></span><span> </span><span class="annot"><span class="annottext">forall (l :: Symbol) a.
+KnownSymbol l =&gt;
+Label l -&gt; a -&gt; Rec (l .== a)
+</span><span class="hs-operator hs-var">.==</span></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span class="hs-special">)</span><span>
+</span><span id="line-254"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_contextSupport:SignatureHelpClientCapabilities :: Maybe Bool
+</span><a href="Language.LSP.Protocol.Internal.Types.SignatureHelpClientCapabilities.html#%24sel%3A_contextSupport%3ASignatureHelpClientCapabilities"><span class="hs-identifier hs-var">_contextSupport</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. Int -&gt; Int -&gt; a -&gt; Maybe a
+</span><a href="#local-6989586621682257083"><span class="hs-identifier hs-var">since</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">16</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-255"></span><span>      </span><span class="hs-special">}</span><span>
+</span><span id="line-256"></span><span>
+</span><span id="line-257"></span><span>    </span><span id="local-6989586621682256957"><span class="annot"><span class="annottext">documentSymbolCapability :: DocumentSymbolClientCapabilities
+</span><a href="#local-6989586621682256957"><span class="hs-identifier hs-var hs-var">documentSymbolCapability</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-258"></span><span>      </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.DocumentSymbolClientCapabilities.html#DocumentSymbolClientCapabilities"><span class="hs-identifier hs-type">DocumentSymbolClientCapabilities</span></a></span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-259"></span><span>        </span><span class="annot"><span class="annottext">$sel:_dynamicRegistration:DocumentSymbolClientCapabilities :: Maybe Bool
+</span><a href="#local-6989586621682256494"><span class="hs-identifier hs-var">_dynamicRegistration</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682257071"><span class="hs-identifier hs-var">dynamicReg</span></a></span><span>
+</span><span id="line-260"></span><span>        </span><span class="hs-comment">-- same as workspace symbol kinds</span><span>
+</span><span id="line-261"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_symbolKind:DocumentSymbolClientCapabilities :: Maybe (Rec ((&quot;valueSet&quot; .== Maybe [SymbolKind]) .+ 'R '[]))
+</span><a href="#local-6989586621682256493"><span class="hs-identifier hs-var">_symbolKind</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. IsLabel &quot;valueSet&quot; a =&gt; a
+</span><span class="">#valueSet</span></span><span> </span><span class="annot"><span class="annottext">forall (l :: Symbol) a.
+KnownSymbol l =&gt;
+Label l -&gt; a -&gt; Rec (l .== a)
+</span><span class="hs-operator hs-var">.==</span></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">[SymbolKind]
+</span><a href="#local-6989586621682257051"><span class="hs-identifier hs-var">sKs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-262"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_hierarchicalDocumentSymbolSupport:DocumentSymbolClientCapabilities :: Maybe Bool
+</span><a href="#local-6989586621682256492"><span class="hs-identifier hs-var">_hierarchicalDocumentSymbolSupport</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. Int -&gt; Int -&gt; a -&gt; Maybe a
+</span><a href="#local-6989586621682257083"><span class="hs-identifier hs-var">since</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">10</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-263"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_tagSupport:DocumentSymbolClientCapabilities :: Maybe (Rec ((&quot;valueSet&quot; .== [SymbolTag]) .+ 'R '[]))
+</span><a href="#local-6989586621682256491"><span class="hs-identifier hs-var">_tagSupport</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. Int -&gt; Int -&gt; a -&gt; Maybe a
+</span><a href="#local-6989586621682257083"><span class="hs-identifier hs-var">since</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">16</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. IsLabel &quot;valueSet&quot; a =&gt; a
+</span><span class="">#valueSet</span></span><span> </span><span class="annot"><span class="annottext">forall (l :: Symbol) a.
+KnownSymbol l =&gt;
+Label l -&gt; a -&gt; Rec (l .== a)
+</span><span class="hs-operator hs-var">.==</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">SymbolTag
+</span><a href="Language.LSP.Protocol.Internal.Types.SymbolTag.html#SymbolTag_Deprecated"><span class="hs-identifier hs-var">SymbolTag_Deprecated</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-264"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_labelSupport:DocumentSymbolClientCapabilities :: Maybe Bool
+</span><a href="#local-6989586621682256490"><span class="hs-identifier hs-var">_labelSupport</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. Int -&gt; Int -&gt; a -&gt; Maybe a
+</span><a href="#local-6989586621682257083"><span class="hs-identifier hs-var">since</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">16</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-265"></span><span>      </span><span class="hs-special">}</span><span>
+</span><span id="line-266"></span><span>
+</span><span id="line-267"></span><span>    </span><span id="local-6989586621682256928"><span class="annot"><span class="annottext">foldingRangeCapability :: FoldingRangeClientCapabilities
+</span><a href="#local-6989586621682256928"><span class="hs-identifier hs-var hs-var">foldingRangeCapability</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-268"></span><span>      </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.FoldingRangeClientCapabilities.html#FoldingRangeClientCapabilities"><span class="hs-identifier hs-type">FoldingRangeClientCapabilities</span></a></span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-269"></span><span>        </span><span class="annot"><span class="annottext">$sel:_dynamicRegistration:FoldingRangeClientCapabilities :: Maybe Bool
+</span><a href="Language.LSP.Protocol.Internal.Types.FoldingRangeClientCapabilities.html#%24sel%3A_dynamicRegistration%3AFoldingRangeClientCapabilities"><span class="hs-identifier hs-var">_dynamicRegistration</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682257071"><span class="hs-identifier hs-var">dynamicReg</span></a></span><span>
+</span><span id="line-270"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_rangeLimit:FoldingRangeClientCapabilities :: Maybe UInt
+</span><a href="Language.LSP.Protocol.Internal.Types.FoldingRangeClientCapabilities.html#%24sel%3A_rangeLimit%3AFoldingRangeClientCapabilities"><span class="hs-identifier hs-var">_rangeLimit</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-271"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_lineFoldingOnly:FoldingRangeClientCapabilities :: Maybe Bool
+</span><a href="Language.LSP.Protocol.Internal.Types.FoldingRangeClientCapabilities.html#%24sel%3A_lineFoldingOnly%3AFoldingRangeClientCapabilities"><span class="hs-identifier hs-var">_lineFoldingOnly</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-272"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_foldingRangeKind:FoldingRangeClientCapabilities :: Maybe (Rec ((&quot;valueSet&quot; .== Maybe [FoldingRangeKind]) .+ 'R '[]))
+</span><a href="Language.LSP.Protocol.Internal.Types.FoldingRangeClientCapabilities.html#%24sel%3A_foldingRangeKind%3AFoldingRangeClientCapabilities"><span class="hs-identifier hs-var">_foldingRangeKind</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. Int -&gt; Int -&gt; a -&gt; Maybe a
+</span><a href="#local-6989586621682257083"><span class="hs-identifier hs-var">since</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">17</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. IsLabel &quot;valueSet&quot; a =&gt; a
+</span><span class="">#valueSet</span></span><span> </span><span class="annot"><span class="annottext">forall (l :: Symbol) a.
+KnownSymbol l =&gt;
+Label l -&gt; a -&gt; Rec (l .== a)
+</span><span class="hs-operator hs-var">.==</span></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-273"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_foldingRange:FoldingRangeClientCapabilities :: Maybe (Rec ((&quot;collapsedText&quot; .== Maybe Bool) .+ 'R '[]))
+</span><a href="Language.LSP.Protocol.Internal.Types.FoldingRangeClientCapabilities.html#%24sel%3A_foldingRange%3AFoldingRangeClientCapabilities"><span class="hs-identifier hs-var">_foldingRange</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. Int -&gt; Int -&gt; a -&gt; Maybe a
+</span><a href="#local-6989586621682257083"><span class="hs-identifier hs-var">since</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">16</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. IsLabel &quot;collapsedText&quot; a =&gt; a
+</span><span class="">#collapsedText</span></span><span> </span><span class="annot"><span class="annottext">forall (l :: Symbol) a.
+KnownSymbol l =&gt;
+Label l -&gt; a -&gt; Rec (l .== a)
+</span><span class="hs-operator hs-var">.==</span></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span class="hs-special">)</span><span>
+</span><span id="line-274"></span><span>      </span><span class="hs-special">}</span><span>
+</span><span id="line-275"></span><span>
+</span><span id="line-276"></span><span>    </span><span id="local-6989586621682256930"><span class="annot"><span class="annottext">publishDiagnosticsCapabilities :: PublishDiagnosticsClientCapabilities
+</span><a href="#local-6989586621682256930"><span class="hs-identifier hs-var hs-var">publishDiagnosticsCapabilities</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-277"></span><span>      </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.PublishDiagnosticsClientCapabilities.html#PublishDiagnosticsClientCapabilities"><span class="hs-identifier hs-type">PublishDiagnosticsClientCapabilities</span></a></span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-278"></span><span>        </span><span class="annot"><span class="annottext">$sel:_relatedInformation:PublishDiagnosticsClientCapabilities :: Maybe Bool
+</span><a href="Language.LSP.Protocol.Internal.Types.PublishDiagnosticsClientCapabilities.html#%24sel%3A_relatedInformation%3APublishDiagnosticsClientCapabilities"><span class="hs-identifier hs-var">_relatedInformation</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. Int -&gt; Int -&gt; a -&gt; Maybe a
+</span><a href="#local-6989586621682257083"><span class="hs-identifier hs-var">since</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">7</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-279"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_tagSupport:PublishDiagnosticsClientCapabilities :: Maybe (Rec ((&quot;valueSet&quot; .== [DiagnosticTag]) .+ 'R '[]))
+</span><a href="Language.LSP.Protocol.Internal.Types.PublishDiagnosticsClientCapabilities.html#%24sel%3A_tagSupport%3APublishDiagnosticsClientCapabilities"><span class="hs-identifier hs-var">_tagSupport</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. Int -&gt; Int -&gt; a -&gt; Maybe a
+</span><a href="#local-6989586621682257083"><span class="hs-identifier hs-var">since</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">15</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. IsLabel &quot;valueSet&quot; a =&gt; a
+</span><span class="">#valueSet</span></span><span> </span><span class="annot"><span class="annottext">forall (l :: Symbol) a.
+KnownSymbol l =&gt;
+Label l -&gt; a -&gt; Rec (l .== a)
+</span><span class="hs-operator hs-var">.==</span></span><span> </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">DiagnosticTag
+</span><a href="Language.LSP.Protocol.Internal.Types.DiagnosticTag.html#DiagnosticTag_Unnecessary"><span class="hs-identifier hs-var">DiagnosticTag_Unnecessary</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">DiagnosticTag
+</span><a href="Language.LSP.Protocol.Internal.Types.DiagnosticTag.html#DiagnosticTag_Deprecated"><span class="hs-identifier hs-var">DiagnosticTag_Deprecated</span></a></span><span> </span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-280"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_versionSupport:PublishDiagnosticsClientCapabilities :: Maybe Bool
+</span><a href="Language.LSP.Protocol.Internal.Types.PublishDiagnosticsClientCapabilities.html#%24sel%3A_versionSupport%3APublishDiagnosticsClientCapabilities"><span class="hs-identifier hs-var">_versionSupport</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. Int -&gt; Int -&gt; a -&gt; Maybe a
+</span><a href="#local-6989586621682257083"><span class="hs-identifier hs-var">since</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">15</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-281"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_codeDescriptionSupport:PublishDiagnosticsClientCapabilities :: Maybe Bool
+</span><a href="Language.LSP.Protocol.Internal.Types.PublishDiagnosticsClientCapabilities.html#%24sel%3A_codeDescriptionSupport%3APublishDiagnosticsClientCapabilities"><span class="hs-identifier hs-var">_codeDescriptionSupport</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. Int -&gt; Int -&gt; a -&gt; Maybe a
+</span><a href="#local-6989586621682257083"><span class="hs-identifier hs-var">since</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">16</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-282"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_dataSupport:PublishDiagnosticsClientCapabilities :: Maybe Bool
+</span><a href="Language.LSP.Protocol.Internal.Types.PublishDiagnosticsClientCapabilities.html#%24sel%3A_dataSupport%3APublishDiagnosticsClientCapabilities"><span class="hs-identifier hs-var">_dataSupport</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. Int -&gt; Int -&gt; a -&gt; Maybe a
+</span><a href="#local-6989586621682257083"><span class="hs-identifier hs-var">since</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">16</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-283"></span><span>      </span><span class="hs-special">}</span><span>
+</span><span id="line-284"></span><span>
+</span><span id="line-285"></span><span>    </span><span id="local-6989586621682257071"><span class="annot"><span class="annottext">dynamicReg :: Maybe Bool
+</span><a href="#local-6989586621682257071"><span class="hs-identifier hs-var hs-var">dynamicReg</span></a></span></span><span>
+</span><span id="line-286"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682257094"><span class="hs-identifier hs-var">maj</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-287"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-288"></span><span>    </span><span id="local-6989586621682257283"><span class="annot"><a href="#local-6989586621682257083"><span class="hs-identifier hs-type">since</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621682257283"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621682257283"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-289"></span><span>    </span><span id="local-6989586621682257083"><span class="annot"><span class="annottext">since :: forall a. Int -&gt; Int -&gt; a -&gt; Maybe a
+</span><a href="#local-6989586621682257083"><span class="hs-identifier hs-var hs-var">since</span></a></span></span><span> </span><span id="local-6989586621682256470"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682256470"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621682256469"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682256469"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span id="local-6989586621682256468"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682256468"><span class="hs-identifier hs-var">a</span></a></span></span><span>
+</span><span id="line-290"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682257094"><span class="hs-identifier hs-var">maj</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682256470"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682257093"><span class="hs-identifier hs-var">min</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682256469"><span class="hs-identifier hs-var">y</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682256468"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-291"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>            </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-292"></span><span>
+</span><span id="line-293"></span><span>    </span><span id="local-6989586621682257085"><span class="annot"><span class="annottext">window :: WindowClientCapabilities
+</span><a href="#local-6989586621682257085"><span class="hs-identifier hs-var hs-var">window</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-294"></span><span>      </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.WindowClientCapabilities.html#WindowClientCapabilities"><span class="hs-identifier hs-type">WindowClientCapabilities</span></a></span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-295"></span><span>        </span><span class="annot"><span class="annottext">$sel:_workDoneProgress:WindowClientCapabilities :: Maybe Bool
+</span><a href="Language.LSP.Protocol.Internal.Types.WindowClientCapabilities.html#%24sel%3A_workDoneProgress%3AWindowClientCapabilities"><span class="hs-identifier hs-var">_workDoneProgress</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. Int -&gt; Int -&gt; a -&gt; Maybe a
+</span><a href="#local-6989586621682257083"><span class="hs-identifier hs-var">since</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">15</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-296"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_showMessage:WindowClientCapabilities :: Maybe ShowMessageRequestClientCapabilities
+</span><a href="Language.LSP.Protocol.Internal.Types.WindowClientCapabilities.html#%24sel%3A_showMessage%3AWindowClientCapabilities"><span class="hs-identifier hs-var">_showMessage</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. Int -&gt; Int -&gt; a -&gt; Maybe a
+</span><a href="#local-6989586621682257083"><span class="hs-identifier hs-var">since</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">16</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Maybe
+  (Rec ((&quot;additionalPropertiesSupport&quot; .== Maybe Bool) .+ 'R '[]))
+-&gt; ShowMessageRequestClientCapabilities
+</span><a href="Language.LSP.Protocol.Internal.Types.ShowMessageRequestClientCapabilities.html#ShowMessageRequestClientCapabilities"><span class="hs-identifier hs-var">ShowMessageRequestClientCapabilities</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-297"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_showDocument:WindowClientCapabilities :: Maybe ShowDocumentClientCapabilities
+</span><a href="Language.LSP.Protocol.Internal.Types.WindowClientCapabilities.html#%24sel%3A_showDocument%3AWindowClientCapabilities"><span class="hs-identifier hs-var">_showDocument</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. Int -&gt; Int -&gt; a -&gt; Maybe a
+</span><a href="#local-6989586621682257083"><span class="hs-identifier hs-var">since</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">16</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; ShowDocumentClientCapabilities
+</span><a href="Language.LSP.Protocol.Internal.Types.ShowDocumentClientCapabilities.html#ShowDocumentClientCapabilities"><span class="hs-identifier hs-var">ShowDocumentClientCapabilities</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-298"></span><span>      </span><span class="hs-special">}</span><span>
+</span><span id="line-299"></span><span>
+</span><span id="line-300"></span><span>    </span><span id="local-6989586621682257082"><span class="annot"><span class="annottext">general :: GeneralClientCapabilities
+</span><a href="#local-6989586621682257082"><span class="hs-identifier hs-var hs-var">general</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.GeneralClientCapabilities.html#GeneralClientCapabilities"><span class="hs-identifier hs-type">GeneralClientCapabilities</span></a></span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-301"></span><span>      </span><span class="annot"><span class="annottext">$sel:_staleRequestSupport:GeneralClientCapabilities :: Maybe
+  (Rec
+     (Extend &quot;cancel&quot; Bool ('R '[])
+      .+ ((&quot;retryOnContentModified&quot; .== [Text]) .+ 'R '[])))
+</span><a href="Language.LSP.Protocol.Internal.Types.GeneralClientCapabilities.html#%24sel%3A_staleRequestSupport%3AGeneralClientCapabilities"><span class="hs-identifier hs-var">_staleRequestSupport</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. Int -&gt; Int -&gt; a -&gt; Maybe a
+</span><a href="#local-6989586621682257083"><span class="hs-identifier hs-var">since</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">16</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. IsLabel &quot;cancel&quot; a =&gt; a
+</span><span class="">#cancel</span></span><span> </span><span class="annot"><span class="annottext">forall (l :: Symbol) a.
+KnownSymbol l =&gt;
+Label l -&gt; a -&gt; Rec (l .== a)
+</span><span class="hs-operator hs-var">.==</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span> </span><span class="annot"><span class="annottext">forall (l :: Row (*)) (r :: Row (*)).
+FreeForall l =&gt;
+Rec l -&gt; Rec r -&gt; Rec (l .+ r)
+</span><span class="hs-operator hs-var">.+</span></span><span> </span><span class="annot"><span class="annottext">forall a. IsLabel &quot;retryOnContentModified&quot; a =&gt; a
+</span><span class="">#retryOnContentModified</span></span><span> </span><span class="annot"><span class="annottext">forall (l :: Symbol) a.
+KnownSymbol l =&gt;
+Label l -&gt; a -&gt; Rec (l .== a)
+</span><span class="hs-operator hs-var">.==</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-302"></span><span>      </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_regularExpressions:GeneralClientCapabilities :: Maybe RegularExpressionsClientCapabilities
+</span><a href="Language.LSP.Protocol.Internal.Types.GeneralClientCapabilities.html#%24sel%3A_regularExpressions%3AGeneralClientCapabilities"><span class="hs-identifier hs-var">_regularExpressions</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. Int -&gt; Int -&gt; a -&gt; Maybe a
+</span><a href="#local-6989586621682257083"><span class="hs-identifier hs-var">since</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">16</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Maybe Text -&gt; RegularExpressionsClientCapabilities
+</span><a href="Language.LSP.Protocol.Internal.Types.RegularExpressionsClientCapabilities.html#RegularExpressionsClientCapabilities"><span class="hs-identifier hs-var">RegularExpressionsClientCapabilities</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-303"></span><span>      </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_markdown:GeneralClientCapabilities :: Maybe MarkdownClientCapabilities
+</span><a href="Language.LSP.Protocol.Internal.Types.GeneralClientCapabilities.html#%24sel%3A_markdown%3AGeneralClientCapabilities"><span class="hs-identifier hs-var">_markdown</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. Int -&gt; Int -&gt; a -&gt; Maybe a
+</span><a href="#local-6989586621682257083"><span class="hs-identifier hs-var">since</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">16</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Maybe Text -&gt; Maybe [Text] -&gt; MarkdownClientCapabilities
+</span><a href="Language.LSP.Protocol.Internal.Types.MarkdownClientCapabilities.html#MarkdownClientCapabilities"><span class="hs-identifier hs-var">MarkdownClientCapabilities</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-304"></span><span>      </span><span class="hs-comment">-- TODO</span><span>
+</span><span id="line-305"></span><span>      </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:_positionEncodings:GeneralClientCapabilities :: Maybe [PositionEncodingKind]
+</span><a href="Language.LSP.Protocol.Internal.Types.GeneralClientCapabilities.html#%24sel%3A_positionEncodings%3AGeneralClientCapabilities"><span class="hs-identifier hs-var">_positionEncodings</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-306"></span><span>      </span><span class="hs-special">}</span><span>
+</span><span id="line-307"></span><span>
+</span><span id="line-308"></span><span>    </span><span id="local-6989586621682256538"><span class="annot"><span class="annottext">allMarkups :: [MarkupKind]
+</span><a href="#local-6989586621682256538"><span class="hs-identifier hs-var hs-var">allMarkups</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">MarkupKind
+</span><a href="Language.LSP.Protocol.Internal.Types.MarkupKind.html#MarkupKind_PlainText"><span class="hs-identifier hs-var">MarkupKind_PlainText</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">MarkupKind
+</span><a href="Language.LSP.Protocol.Internal.Types.MarkupKind.html#MarkupKind_Markdown"><span class="hs-identifier hs-var">MarkupKind_Markdown</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-309"></span></pre></body></html>

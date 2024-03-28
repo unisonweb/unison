@@ -1,0 +1,56 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Test.Hspec.Core.Formatters.Pretty.Parser.Types</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-4"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Test.Hspec.Core.Compat.html"><span class="hs-identifier">Test.Hspec.Core.Compat</span></a></span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">data</span><span> </span><span id="Expression"><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.Types.html#Expression"><span class="hs-identifier hs-var">Expression</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-7"></span><span>    </span><span id="Literal"><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.Types.html#Literal"><span class="hs-identifier hs-var">Literal</span></a></span></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.Types.html#Literal"><span class="hs-identifier hs-type">Literal</span></a></span><span>
+</span><span id="line-8"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Id"><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.Types.html#Id"><span class="hs-identifier hs-var">Id</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-9"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="App"><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.Types.html#App"><span class="hs-identifier hs-var">App</span></a></span></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.Types.html#Expression"><span class="hs-identifier hs-type">Expression</span></a></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.Types.html#Expression"><span class="hs-identifier hs-type">Expression</span></a></span><span>
+</span><span id="line-10"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Parentheses"><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.Types.html#Parentheses"><span class="hs-identifier hs-var">Parentheses</span></a></span></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.Types.html#Expression"><span class="hs-identifier hs-type">Expression</span></a></span><span>
+</span><span id="line-11"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Tuple"><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.Types.html#Tuple"><span class="hs-identifier hs-var">Tuple</span></a></span></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.Types.html#Expression"><span class="hs-identifier hs-type">Expression</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-12"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="List"><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.Types.html#List"><span class="hs-identifier hs-var">List</span></a></span></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.Types.html#Expression"><span class="hs-identifier hs-type">Expression</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-13"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Record"><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.Types.html#Record"><span class="hs-identifier hs-var">Record</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.Types.html#Expression"><span class="hs-identifier hs-type">Expression</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-14"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679156335"><span id="local-6989586621679156349"><span class="annot"><span class="annottext">Expression -&gt; Expression -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: Expression -&gt; Expression -&gt; Bool
+$c/= :: Expression -&gt; Expression -&gt; Bool
+== :: Expression -&gt; Expression -&gt; Bool
+$c== :: Expression -&gt; Expression -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679156306"><span id="local-6989586621679156308"><span id="local-6989586621679156330"><span class="annot"><span class="annottext">Int -&gt; Expression -&gt; ShowS
+[Expression] -&gt; ShowS
+Expression -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [Expression] -&gt; ShowS
+$cshowList :: [Expression] -&gt; ShowS
+show :: Expression -&gt; String
+$cshow :: Expression -&gt; String
+showsPrec :: Int -&gt; Expression -&gt; ShowS
+$cshowsPrec :: Int -&gt; Expression -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">data</span><span> </span><span id="Literal"><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.Types.html#Literal"><span class="hs-identifier hs-var">Literal</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-17"></span><span>    </span><span id="Char"><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.Types.html#Char"><span class="hs-identifier hs-var">Char</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Char</span></span><span>
+</span><span id="line-18"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="String"><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.Types.html#String"><span class="hs-identifier hs-var">String</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-19"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Integer"><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.Types.html#Integer"><span class="hs-identifier hs-var">Integer</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span>
+</span><span id="line-20"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Rational"><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.Types.html#Rational"><span class="hs-identifier hs-var">Rational</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-21"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679156290"><span id="local-6989586621679156297"><span class="annot"><span class="annottext">Literal -&gt; Literal -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: Literal -&gt; Literal -&gt; Bool
+$c/= :: Literal -&gt; Literal -&gt; Bool
+== :: Literal -&gt; Literal -&gt; Bool
+$c== :: Literal -&gt; Literal -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679156275"><span id="local-6989586621679156277"><span id="local-6989586621679156288"><span class="annot"><span class="annottext">Int -&gt; Literal -&gt; ShowS
+[Literal] -&gt; ShowS
+Literal -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [Literal] -&gt; ShowS
+$cshowList :: [Literal] -&gt; ShowS
+show :: Literal -&gt; String
+$cshow :: Literal -&gt; String
+showsPrec :: Int -&gt; Literal -&gt; ShowS
+$cshowsPrec :: Int -&gt; Literal -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span></pre></body></html>

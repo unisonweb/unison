@@ -1,0 +1,318 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Unison.Project.Util</span><span>
+</span><span id="line-2"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.Project.Util.html#projectPath"><span class="hs-identifier">projectPath</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-3"></span><span>    </span><span class="annot"><a href="Unison.Project.Util.html#projectBranchesPath"><span class="hs-identifier">projectBranchesPath</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-4"></span><span>    </span><span class="annot"><a href="Unison.Project.Util.html#projectBranchPath"><span class="hs-identifier">projectBranchPath</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-5"></span><span>    </span><span class="annot"><a href="Unison.Project.Util.html#projectBranchSegment"><span class="hs-identifier">projectBranchSegment</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-6"></span><span>    </span><span class="annot"><a href="Unison.Project.Util.html#projectPathPrism"><span class="hs-identifier">projectPathPrism</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><a href="Unison.Project.Util.html#projectBranchPathPrism"><span class="hs-identifier">projectBranchPathPrism</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>    </span><span class="annot"><a href="Unison.Project.Util.html#projectContextFromPath"><span class="hs-identifier">projectContextFromPath</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-9"></span><span>    </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Unison.Project.Util.html#UUIDNameSegment"><span class="hs-identifier">UUIDNameSegment</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-10"></span><span>    </span><span class="annot"><a href="Unison.Project.Util.html#ProjectContext"><span class="hs-identifier">ProjectContext</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-11"></span><span>    </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Unison.Project.Util.html#ProjectsNameSegment"><span class="hs-identifier">ProjectsNameSegment</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-12"></span><span>    </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Unison.Project.Util.html#BranchesNameSegment"><span class="hs-identifier">BranchesNameSegment</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-13"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Lens</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Text</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.UUID</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">UUID</span></span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.UUID</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">UUID</span></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">U.Codebase.Sqlite.DbId</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ProjectBranchId</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">ProjectId</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Codebase.Path.html"><span class="hs-identifier">Unison.Codebase.Path</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Path</span></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.NameSegment</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">NameSegment</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.NameSegment</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">NameSegment</span></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Project</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ProjectAndBranch</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span class="hs-comment">-- | Get the path that a project is stored at. Users aren't supposed to go here.</span><span>
+</span><span id="line-27"></span><span class="hs-comment">--</span><span>
+</span><span id="line-28"></span><span class="hs-comment">-- &gt;&gt;&gt; projectPath &quot;ABCD&quot;</span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- .__projects._ABCD</span><span>
+</span><span id="line-30"></span><span class="annot"><a href="Unison.Project.Util.html#projectPath"><span class="hs-identifier hs-type">projectPath</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ProjectId</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Codebase.Path.html#Absolute"><span class="hs-identifier hs-type">Path.Absolute</span></a></span><span>
+</span><span id="line-31"></span><span id="projectPath"><span class="annot"><span class="annottext">projectPath :: ProjectId -&gt; Absolute
+</span><a href="Unison.Project.Util.html#projectPath"><span class="hs-identifier hs-var hs-var">projectPath</span></a></span></span><span> </span><span id="local-6989586621680993058"><span class="annot"><span class="annottext">ProjectId
+</span><a href="#local-6989586621680993058"><span class="hs-identifier hs-var">projectId</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-32"></span><span>  </span><span class="annot"><span class="annottext">forall b (m :: * -&gt; *) t. MonadReader b m =&gt; AReview t b -&gt; m t
+</span><span class="hs-identifier hs-var">review</span></span><span> </span><span class="annot"><span class="annottext">Prism' Absolute ProjectId
+</span><a href="Unison.Project.Util.html#projectPathPrism"><span class="hs-identifier hs-var">projectPathPrism</span></a></span><span> </span><span class="annot"><span class="annottext">ProjectId
+</span><a href="#local-6989586621680993058"><span class="hs-identifier hs-var">projectId</span></a></span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="hs-comment">-- | Get the path that a project's branches are stored at. Users aren't supposed to go here.</span><span>
+</span><span id="line-35"></span><span class="hs-comment">--</span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- &gt;&gt;&gt; projectBranchesPath &quot;ABCD&quot;</span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- .__projects._ABCD.branches</span><span>
+</span><span id="line-38"></span><span class="annot"><a href="Unison.Project.Util.html#projectBranchesPath"><span class="hs-identifier hs-type">projectBranchesPath</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ProjectId</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Codebase.Path.html#Absolute"><span class="hs-identifier hs-type">Path.Absolute</span></a></span><span>
+</span><span id="line-39"></span><span id="projectBranchesPath"><span class="annot"><span class="annottext">projectBranchesPath :: ProjectId -&gt; Absolute
+</span><a href="Unison.Project.Util.html#projectBranchesPath"><span class="hs-identifier hs-var hs-var">projectBranchesPath</span></a></span></span><span> </span><span id="local-6989586621680993056"><span class="annot"><span class="annottext">ProjectId
+</span><a href="#local-6989586621680993056"><span class="hs-identifier hs-var">projectId</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-40"></span><span>  </span><span class="annot"><span class="annottext">forall s a. Snoc s s a a =&gt; s -&gt; a -&gt; s
+</span><span class="hs-identifier hs-var">snoc</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ProjectId -&gt; Absolute
+</span><a href="Unison.Project.Util.html#projectPath"><span class="hs-identifier hs-var">projectPath</span></a></span><span> </span><span class="annot"><span class="annottext">ProjectId
+</span><a href="#local-6989586621680993056"><span class="hs-identifier hs-var">projectId</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">NameSegment
+</span><a href="Unison.Project.Util.html#BranchesNameSegment"><span class="hs-identifier hs-var">BranchesNameSegment</span></a></span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span class="hs-comment">-- | Get the path that a branch is stored at. Users aren't supposed to go here.</span><span>
+</span><span id="line-43"></span><span class="hs-comment">--</span><span>
+</span><span id="line-44"></span><span class="hs-comment">-- &gt;&gt;&gt; projectBranchPath ProjectAndBranch { project = &quot;ABCD&quot;, branch = &quot;DEFG&quot; }</span><span>
+</span><span id="line-45"></span><span class="hs-comment">-- .__projects._ABCD.branches._DEFG</span><span>
+</span><span id="line-46"></span><span class="annot"><a href="Unison.Project.Util.html#projectBranchPath"><span class="hs-identifier hs-type">projectBranchPath</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ProjectAndBranch</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ProjectId</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ProjectBranchId</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Codebase.Path.html#Absolute"><span class="hs-identifier hs-type">Path.Absolute</span></a></span><span>
+</span><span id="line-47"></span><span id="projectBranchPath"><span class="annot"><span class="annottext">projectBranchPath :: ProjectAndBranch ProjectId ProjectBranchId -&gt; Absolute
+</span><a href="Unison.Project.Util.html#projectBranchPath"><span class="hs-identifier hs-var hs-var">projectBranchPath</span></a></span></span><span> </span><span id="local-6989586621680993054"><span class="annot"><span class="annottext">ProjectAndBranch ProjectId ProjectBranchId
+</span><a href="#local-6989586621680993054"><span class="hs-identifier hs-var">projectAndBranch</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-48"></span><span>  </span><span class="annot"><span class="annottext">forall b (m :: * -&gt; *) t. MonadReader b m =&gt; AReview t b -&gt; m t
+</span><span class="hs-identifier hs-var">review</span></span><span> </span><span class="annot"><span class="annottext">Prism' Absolute (ProjectAndBranch ProjectId ProjectBranchId, Path)
+</span><a href="Unison.Project.Util.html#projectBranchPathPrism"><span class="hs-identifier hs-var">projectBranchPathPrism</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ProjectAndBranch ProjectId ProjectBranchId
+</span><a href="#local-6989586621680993054"><span class="hs-identifier hs-var">projectAndBranch</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Path
+</span><a href="Unison.Codebase.Path.html#empty"><span class="hs-identifier hs-var">Path.empty</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span class="hs-comment">-- | Get the name segment that a branch is stored at.</span><span>
+</span><span id="line-51"></span><span class="hs-comment">--</span><span>
+</span><span id="line-52"></span><span class="hs-comment">-- &gt;&gt;&gt; projectBranchSegment &quot;DEFG&quot;</span><span>
+</span><span id="line-53"></span><span class="hs-comment">-- &quot;_DEFG&quot;</span><span>
+</span><span id="line-54"></span><span class="annot"><a href="Unison.Project.Util.html#projectBranchSegment"><span class="hs-identifier hs-type">projectBranchSegment</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ProjectBranchId</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">NameSegment</span></span><span>
+</span><span id="line-55"></span><span id="projectBranchSegment"><span class="annot"><span class="annottext">projectBranchSegment :: ProjectBranchId -&gt; NameSegment
+</span><a href="Unison.Project.Util.html#projectBranchSegment"><span class="hs-identifier hs-var hs-var">projectBranchSegment</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ProjectBranchId</span></span><span> </span><span id="local-6989586621680993051"><span class="annot"><span class="annottext">UUID
+</span><a href="#local-6989586621680993051"><span class="hs-identifier hs-var">branchId</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-56"></span><span>  </span><span class="annot"><span class="annottext">UUID -&gt; NameSegment
+</span><a href="Unison.Project.Util.html#UUIDNameSegment"><span class="hs-identifier hs-var">UUIDNameSegment</span></a></span><span> </span><span class="annot"><span class="annottext">UUID
+</span><a href="#local-6989586621680993051"><span class="hs-identifier hs-var">branchId</span></a></span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Unison.Project.Util.html#UUIDNameSegment"><span class="hs-identifier hs-type">UUIDNameSegment</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">UUID</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">NameSegment</span></span><span>
+</span><span id="line-59"></span><span class="hs-keyword">pattern</span><span> </span><span id="%24bUUIDNameSegment"><span id="%24mUUIDNameSegment"><span id="UUIDNameSegment"><span class="annot"><span class="annottext">$bUUIDNameSegment :: UUID -&gt; NameSegment
+$mUUIDNameSegment :: forall {r}. NameSegment -&gt; (UUID -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+</span><a href="Unison.Project.Util.html#%24bUUIDNameSegment"><span class="hs-identifier hs-var hs-var hs-var hs-var">UUIDNameSegment</span></a></span></span></span></span><span> </span><span class="annot"><a href="#local-6989586621680993048"><span class="hs-identifier hs-type">uuid</span></a></span><span> </span><span class="hs-glyph">&lt;-</span><span>
+</span><span id="line-60"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier hs-type">NameSegment.toUnescapedText</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-61"></span><span>      </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Text.uncons</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-char">'_'</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">UUID.fromText</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">.</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text.map</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621680993041"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621680993041"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621680993041"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'_'</span></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'-'</span></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621680993041"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621680993048"><span class="annot"><a href="#local-6989586621680993048"><span class="hs-identifier hs-var">uuid</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-62"></span><span>    </span><span class="hs-special">)</span><span>
+</span><span id="line-63"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-64"></span><span>    </span><span class="annot"><a href="Unison.Project.Util.html#UUIDNameSegment"><span class="hs-identifier hs-var">UUIDNameSegment</span></a></span><span> </span><span id="local-6989586621680993040"><span class="annot"><span class="annottext">UUID
+</span><a href="#local-6989586621680993040"><span class="hs-identifier hs-var">uuid</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-65"></span><span>      </span><span class="annot"><span class="annottext">Text -&gt; NameSegment
+</span><span class="hs-identifier hs-var">NameSegment</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Char -&gt; Text -&gt; Text
+</span><span class="hs-identifier hs-var">Text.cons</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'_'</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Char -&gt; Char) -&gt; Text -&gt; Text
+</span><span class="hs-identifier hs-var">Text.map</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621680993037"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621680993037"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621680993037"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'-'</span></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'_'</span></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621680993037"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">UUID -&gt; Text
+</span><span class="hs-identifier hs-var">UUID.toText</span></span><span> </span><span class="annot"><span class="annottext">UUID
+</span><a href="#local-6989586621680993040"><span class="hs-identifier hs-var">uuid</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span class="hs-comment">-- | The prism between paths like</span><span>
+</span><span id="line-68"></span><span class="hs-comment">--</span><span>
+</span><span id="line-69"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-70"></span><span class="hs-comment">-- .__projects._XX_XX</span><span>
+</span><span id="line-71"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-72"></span><span class="hs-comment">--</span><span>
+</span><span id="line-73"></span><span class="hs-comment">-- and the project id</span><span>
+</span><span id="line-74"></span><span class="hs-comment">--</span><span>
+</span><span id="line-75"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-76"></span><span class="hs-comment">-- XX-XX</span><span>
+</span><span id="line-77"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-78"></span><span class="annot"><a href="Unison.Project.Util.html#projectPathPrism"><span class="hs-identifier hs-type">projectPathPrism</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Prism'</span></span><span> </span><span class="annot"><a href="Unison.Codebase.Path.html#Absolute"><span class="hs-identifier hs-type">Path.Absolute</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ProjectId</span></span><span>
+</span><span id="line-79"></span><span id="projectPathPrism"><span class="annot"><span class="annottext">projectPathPrism :: Prism' Absolute ProjectId
+</span><a href="Unison.Project.Util.html#projectPathPrism"><span class="hs-identifier hs-var hs-var">projectPathPrism</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-80"></span><span>  </span><span class="annot"><span class="annottext">forall b s a. (b -&gt; s) -&gt; (s -&gt; Maybe a) -&gt; Prism s s a b
+</span><span class="hs-identifier hs-var">prism'</span></span><span> </span><span class="annot"><span class="annottext">ProjectId -&gt; Absolute
+</span><a href="#local-6989586621680993030"><span class="hs-identifier hs-var">toPath</span></a></span><span> </span><span class="annot"><span class="annottext">Absolute -&gt; Maybe ProjectId
+</span><a href="#local-6989586621680993029"><span class="hs-identifier hs-var">toId</span></a></span><span>
+</span><span id="line-81"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-82"></span><span>    </span><span class="annot"><a href="#local-6989586621680993030"><span class="hs-identifier hs-type">toPath</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ProjectId</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Codebase.Path.html#Absolute"><span class="hs-identifier hs-type">Path.Absolute</span></a></span><span>
+</span><span id="line-83"></span><span>    </span><span id="local-6989586621680993030"><span class="annot"><span class="annottext">toPath :: ProjectId -&gt; Absolute
+</span><a href="#local-6989586621680993030"><span class="hs-identifier hs-var hs-var">toPath</span></a></span></span><span> </span><span id="local-6989586621680993028"><span class="annot"><span class="annottext">ProjectId
+</span><a href="#local-6989586621680993028"><span class="hs-identifier hs-var">projectId</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-84"></span><span>      </span><span class="annot"><span class="annottext">Path -&gt; Absolute
+</span><a href="Unison.Codebase.Path.html#Absolute"><span class="hs-identifier hs-var">Path.Absolute</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[NameSegment] -&gt; Path
+</span><a href="Unison.Codebase.Path.html#fromList"><span class="hs-identifier hs-var">Path.fromList</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">NameSegment
+</span><a href="Unison.Project.Util.html#ProjectsNameSegment"><span class="hs-identifier hs-var">ProjectsNameSegment</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">UUID -&gt; NameSegment
+</span><a href="Unison.Project.Util.html#UUIDNameSegment"><span class="hs-identifier hs-var">UUIDNameSegment</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ProjectId -&gt; UUID
+</span><span class="hs-identifier hs-var">unProjectId</span></span><span> </span><span class="annot"><span class="annottext">ProjectId
+</span><a href="#local-6989586621680993028"><span class="hs-identifier hs-var">projectId</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-85"></span><span>
+</span><span id="line-86"></span><span>    </span><span class="annot"><a href="#local-6989586621680993029"><span class="hs-identifier hs-type">toId</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Codebase.Path.html#Absolute"><span class="hs-identifier hs-type">Path.Absolute</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ProjectId</span></span><span>
+</span><span id="line-87"></span><span>    </span><span id="local-6989586621680993029"><span class="annot"><span class="annottext">toId :: Absolute -&gt; Maybe ProjectId
+</span><a href="#local-6989586621680993029"><span class="hs-identifier hs-var hs-var">toId</span></a></span></span><span> </span><span id="local-6989586621680993024"><span class="annot"><span class="annottext">Absolute
+</span><a href="#local-6989586621680993024"><span class="hs-identifier hs-var">path</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-88"></span><span>      </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Path -&gt; [NameSegment]
+</span><a href="Unison.Codebase.Path.html#toList"><span class="hs-identifier hs-var">Path.toList</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Absolute -&gt; Path
+</span><a href="Unison.Codebase.Path.html#%24sel%3Aunabsolute%3AAbsolute"><span class="hs-identifier hs-var">Path.unabsolute</span></a></span><span> </span><span class="annot"><span class="annottext">Absolute
+</span><a href="#local-6989586621680993024"><span class="hs-identifier hs-var">path</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-89"></span><span>        </span><span class="hs-special">[</span><span class="annot"><span class="annottext">NameSegment
+</span><a href="Unison.Project.Util.html#ProjectsNameSegment"><span class="hs-identifier hs-var">ProjectsNameSegment</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Project.Util.html#UUIDNameSegment"><span class="hs-identifier hs-type">UUIDNameSegment</span></a></span><span> </span><span id="local-6989586621680993021"><span class="annot"><span class="annottext">UUID
+</span><a href="#local-6989586621680993021"><span class="hs-identifier hs-var">projectId</span></a></span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">UUID -&gt; ProjectId
+</span><span class="hs-identifier hs-var">ProjectId</span></span><span> </span><span class="annot"><span class="annottext">UUID
+</span><a href="#local-6989586621680993021"><span class="hs-identifier hs-var">projectId</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-90"></span><span>        </span><span class="annot"><span class="annottext">[NameSegment]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-91"></span><span>
+</span><span id="line-92"></span><span class="hs-comment">-- | The prism between paths like</span><span>
+</span><span id="line-93"></span><span class="hs-comment">--</span><span>
+</span><span id="line-94"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-95"></span><span class="hs-comment">-- .__projects._XX_XX.branches._YY_YY.foo.bar</span><span>
+</span><span id="line-96"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-97"></span><span class="hs-comment">--</span><span>
+</span><span id="line-98"></span><span class="hs-comment">-- and the @(project id, branch id, path)@ triple</span><span>
+</span><span id="line-99"></span><span class="hs-comment">--</span><span>
+</span><span id="line-100"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-101"></span><span class="hs-comment">-- (XX-XX, YY-YY, foo.bar)</span><span>
+</span><span id="line-102"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-103"></span><span class="annot"><a href="Unison.Project.Util.html#projectBranchPathPrism"><span class="hs-identifier hs-type">projectBranchPathPrism</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Prism'</span></span><span> </span><span class="annot"><a href="Unison.Codebase.Path.html#Absolute"><span class="hs-identifier hs-type">Path.Absolute</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ProjectAndBranch</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ProjectId</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ProjectBranchId</span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Codebase.Path.html#Path"><span class="hs-identifier hs-type">Path.Path</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-104"></span><span id="projectBranchPathPrism"><span class="annot"><span class="annottext">projectBranchPathPrism :: Prism' Absolute (ProjectAndBranch ProjectId ProjectBranchId, Path)
+</span><a href="Unison.Project.Util.html#projectBranchPathPrism"><span class="hs-identifier hs-var hs-var">projectBranchPathPrism</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-105"></span><span>  </span><span class="annot"><span class="annottext">forall b s a. (b -&gt; s) -&gt; (s -&gt; Maybe a) -&gt; Prism s s a b
+</span><span class="hs-identifier hs-var">prism'</span></span><span> </span><span class="annot"><span class="annottext">(ProjectAndBranch ProjectId ProjectBranchId, Path) -&gt; Absolute
+</span><a href="#local-6989586621680993015"><span class="hs-identifier hs-var">toPath</span></a></span><span> </span><span class="annot"><span class="annottext">Absolute
+-&gt; Maybe (ProjectAndBranch ProjectId ProjectBranchId, Path)
+</span><a href="#local-6989586621680993014"><span class="hs-identifier hs-var">toIds</span></a></span><span>
+</span><span id="line-106"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-107"></span><span>    </span><span class="annot"><a href="#local-6989586621680993015"><span class="hs-identifier hs-type">toPath</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ProjectAndBranch</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ProjectId</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ProjectBranchId</span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Codebase.Path.html#Path"><span class="hs-identifier hs-type">Path.Path</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Codebase.Path.html#Absolute"><span class="hs-identifier hs-type">Path.Absolute</span></a></span><span>
+</span><span id="line-108"></span><span>    </span><span id="local-6989586621680993015"><span class="annot"><span class="annottext">toPath :: (ProjectAndBranch ProjectId ProjectBranchId, Path) -&gt; Absolute
+</span><a href="#local-6989586621680993015"><span class="hs-identifier hs-var hs-var">toPath</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ProjectAndBranch</span></span><span> </span><span class="hs-special">{</span><span class="annot"><span class="annottext">project :: forall a b. ProjectAndBranch a b -&gt; a
+</span><span class="hs-identifier hs-var">project</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621680993011"><span class="annot"><span class="annottext">ProjectId
+</span><a href="#local-6989586621680993011"><span class="hs-identifier hs-var">projectId</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">branch :: forall a b. ProjectAndBranch a b -&gt; b
+</span><span class="hs-identifier hs-var">branch</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621680993009"><span class="annot"><span class="annottext">ProjectBranchId
+</span><a href="#local-6989586621680993009"><span class="hs-identifier hs-var">branchId</span></a></span></span><span class="hs-special">}</span><span class="hs-special">,</span><span> </span><span id="local-6989586621680993008"><span class="annot"><span class="annottext">Path
+</span><a href="#local-6989586621680993008"><span class="hs-identifier hs-var">restPath</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-109"></span><span>      </span><span class="annot"><span class="annottext">Path -&gt; Absolute
+</span><a href="Unison.Codebase.Path.html#Absolute"><span class="hs-identifier hs-var">Path.Absolute</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-110"></span><span>        </span><span class="annot"><span class="annottext">[NameSegment] -&gt; Path
+</span><a href="Unison.Codebase.Path.html#fromList"><span class="hs-identifier hs-var">Path.fromList</span></a></span><span>
+</span><span id="line-111"></span><span>          </span><span class="hs-special">(</span><span> </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">NameSegment
+</span><a href="Unison.Project.Util.html#ProjectsNameSegment"><span class="hs-identifier hs-var">ProjectsNameSegment</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-112"></span><span>              </span><span class="annot"><span class="annottext">UUID -&gt; NameSegment
+</span><a href="Unison.Project.Util.html#UUIDNameSegment"><span class="hs-identifier hs-var">UUIDNameSegment</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ProjectId -&gt; UUID
+</span><span class="hs-identifier hs-var">unProjectId</span></span><span> </span><span class="annot"><span class="annottext">ProjectId
+</span><a href="#local-6989586621680993011"><span class="hs-identifier hs-var">projectId</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-113"></span><span>              </span><span class="annot"><span class="annottext">NameSegment
+</span><a href="Unison.Project.Util.html#BranchesNameSegment"><span class="hs-identifier hs-var">BranchesNameSegment</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-114"></span><span>              </span><span class="annot"><span class="annottext">UUID -&gt; NameSegment
+</span><a href="Unison.Project.Util.html#UUIDNameSegment"><span class="hs-identifier hs-var">UUIDNameSegment</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ProjectBranchId -&gt; UUID
+</span><span class="hs-identifier hs-var">unProjectBranchId</span></span><span> </span><span class="annot"><span class="annottext">ProjectBranchId
+</span><a href="#local-6989586621680993009"><span class="hs-identifier hs-var">branchId</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-115"></span><span>            </span><span class="hs-special">]</span><span>
+</span><span id="line-116"></span><span>              </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">Path -&gt; [NameSegment]
+</span><a href="Unison.Codebase.Path.html#toList"><span class="hs-identifier hs-var">Path.toList</span></a></span><span> </span><span class="annot"><span class="annottext">Path
+</span><a href="#local-6989586621680993008"><span class="hs-identifier hs-var">restPath</span></a></span><span>
+</span><span id="line-117"></span><span>          </span><span class="hs-special">)</span><span>
+</span><span id="line-118"></span><span>
+</span><span id="line-119"></span><span>    </span><span class="annot"><a href="#local-6989586621680993014"><span class="hs-identifier hs-type">toIds</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Codebase.Path.html#Absolute"><span class="hs-identifier hs-type">Path.Absolute</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ProjectAndBranch</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ProjectId</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ProjectBranchId</span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Codebase.Path.html#Path"><span class="hs-identifier hs-type">Path.Path</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-120"></span><span>    </span><span id="local-6989586621680993014"><span class="annot"><span class="annottext">toIds :: Absolute
+-&gt; Maybe (ProjectAndBranch ProjectId ProjectBranchId, Path)
+</span><a href="#local-6989586621680993014"><span class="hs-identifier hs-var hs-var">toIds</span></a></span></span><span> </span><span id="local-6989586621680993006"><span class="annot"><span class="annottext">Absolute
+</span><a href="#local-6989586621680993006"><span class="hs-identifier hs-var">path</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-121"></span><span>      </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Path -&gt; [NameSegment]
+</span><a href="Unison.Codebase.Path.html#toList"><span class="hs-identifier hs-var">Path.toList</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Absolute -&gt; Path
+</span><a href="Unison.Codebase.Path.html#%24sel%3Aunabsolute%3AAbsolute"><span class="hs-identifier hs-var">Path.unabsolute</span></a></span><span> </span><span class="annot"><span class="annottext">Absolute
+</span><a href="#local-6989586621680993006"><span class="hs-identifier hs-var">path</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-122"></span><span>        </span><span class="annot"><span class="annottext">NameSegment
+</span><a href="Unison.Project.Util.html#ProjectsNameSegment"><span class="hs-identifier hs-var">ProjectsNameSegment</span></a></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span class="annot"><a href="Unison.Project.Util.html#UUIDNameSegment"><span class="hs-identifier hs-type">UUIDNameSegment</span></a></span><span> </span><span id="local-6989586621680993005"><span class="annot"><span class="annottext">UUID
+</span><a href="#local-6989586621680993005"><span class="hs-identifier hs-var">projectId</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span class="annot"><span class="annottext">NameSegment
+</span><a href="Unison.Project.Util.html#BranchesNameSegment"><span class="hs-identifier hs-var">BranchesNameSegment</span></a></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span class="annot"><a href="Unison.Project.Util.html#UUIDNameSegment"><span class="hs-identifier hs-type">UUIDNameSegment</span></a></span><span> </span><span id="local-6989586621680993004"><span class="annot"><span class="annottext">UUID
+</span><a href="#local-6989586621680993004"><span class="hs-identifier hs-var">branchId</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621680993003"><span class="annot"><span class="annottext">[NameSegment]
+</span><a href="#local-6989586621680993003"><span class="hs-identifier hs-var">restPath</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-123"></span><span>          </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ProjectAndBranch</span></span><span> </span><span class="hs-special">{</span><span class="annot"><span class="annottext">project :: ProjectId
+</span><span class="hs-identifier hs-var">project</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UUID -&gt; ProjectId
+</span><span class="hs-identifier hs-var">ProjectId</span></span><span> </span><span class="annot"><span class="annottext">UUID
+</span><a href="#local-6989586621680993005"><span class="hs-identifier hs-var">projectId</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">branch :: ProjectBranchId
+</span><span class="hs-identifier hs-var">branch</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UUID -&gt; ProjectBranchId
+</span><span class="hs-identifier hs-var">ProjectBranchId</span></span><span> </span><span class="annot"><span class="annottext">UUID
+</span><a href="#local-6989586621680993004"><span class="hs-identifier hs-var">branchId</span></a></span><span class="hs-special">}</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[NameSegment] -&gt; Path
+</span><a href="Unison.Codebase.Path.html#fromList"><span class="hs-identifier hs-var">Path.fromList</span></a></span><span> </span><span class="annot"><span class="annottext">[NameSegment]
+</span><a href="#local-6989586621680993003"><span class="hs-identifier hs-var">restPath</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-124"></span><span>        </span><span class="annot"><span class="annottext">[NameSegment]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-125"></span><span>
+</span><span id="line-126"></span><span class="hs-comment">-- | The project information about the current path.</span><span>
+</span><span id="line-127"></span><span class="hs-comment">-- NOTE: if the user has cd'd into the project storage area but NOT into a branch, (where they shouldn't ever</span><span>
+</span><span id="line-128"></span><span class="hs-comment">-- be), this will result in a LooseCodePath.</span><span>
+</span><span id="line-129"></span><span class="hs-keyword">data</span><span> </span><span id="ProjectContext"><span class="annot"><a href="Unison.Project.Util.html#ProjectContext"><span class="hs-identifier hs-var">ProjectContext</span></a></span></span><span>
+</span><span id="line-130"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="LooseCodePath"><span class="annot"><a href="Unison.Project.Util.html#LooseCodePath"><span class="hs-identifier hs-var">LooseCodePath</span></a></span></span><span> </span><span class="annot"><a href="Unison.Codebase.Path.html#Absolute"><span class="hs-identifier hs-type">Path.Absolute</span></a></span><span>
+</span><span id="line-131"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ProjectBranchPath"><span class="annot"><a href="Unison.Project.Util.html#ProjectBranchPath"><span class="hs-identifier hs-var">ProjectBranchPath</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ProjectId</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ProjectBranchId</span></span><span> </span><span class="annot"><a href="Unison.Codebase.Path.html#Path"><span class="hs-identifier hs-type">Path.Path</span></a></span><span> </span><span class="hs-comment">{- path from branch root -}</span><span>
+</span><span id="line-132"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621680992989"><span id="local-6989586621680992999"><span class="annot"><span class="annottext">ProjectContext -&gt; ProjectContext -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: ProjectContext -&gt; ProjectContext -&gt; Bool
+$c/= :: ProjectContext -&gt; ProjectContext -&gt; Bool
+== :: ProjectContext -&gt; ProjectContext -&gt; Bool
+$c== :: ProjectContext -&gt; ProjectContext -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680992971"><span id="local-6989586621680992973"><span id="local-6989586621680992986"><span class="annot"><span class="annottext">Int -&gt; ProjectContext -&gt; ShowS
+[ProjectContext] -&gt; ShowS
+ProjectContext -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [ProjectContext] -&gt; ShowS
+$cshowList :: [ProjectContext] -&gt; ShowS
+show :: ProjectContext -&gt; String
+$cshow :: ProjectContext -&gt; String
+showsPrec :: Int -&gt; ProjectContext -&gt; ShowS
+$cshowsPrec :: Int -&gt; ProjectContext -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-133"></span><span>
+</span><span id="line-134"></span><span class="annot"><a href="Unison.Project.Util.html#projectContextFromPath"><span class="hs-identifier hs-type">projectContextFromPath</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Codebase.Path.html#Absolute"><span class="hs-identifier hs-type">Path.Absolute</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Project.Util.html#ProjectContext"><span class="hs-identifier hs-type">ProjectContext</span></a></span><span>
+</span><span id="line-135"></span><span id="projectContextFromPath"><span class="annot"><span class="annottext">projectContextFromPath :: Absolute -&gt; ProjectContext
+</span><a href="Unison.Project.Util.html#projectContextFromPath"><span class="hs-identifier hs-var hs-var">projectContextFromPath</span></a></span></span><span> </span><span id="local-6989586621680992969"><span class="annot"><span class="annottext">Absolute
+</span><a href="#local-6989586621680992969"><span class="hs-identifier hs-var">path</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-136"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Absolute
+</span><a href="#local-6989586621680992969"><span class="hs-identifier hs-var">path</span></a></span><span> </span><span class="annot"><span class="annottext">forall s a. s -&gt; Getting (First a) s a -&gt; Maybe a
+</span><span class="hs-operator hs-var">^?</span></span><span> </span><span class="annot"><span class="annottext">Prism' Absolute (ProjectAndBranch ProjectId ProjectBranchId, Path)
+</span><a href="Unison.Project.Util.html#projectBranchPathPrism"><span class="hs-identifier hs-var">projectBranchPathPrism</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-137"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ProjectAndBranch</span></span><span> </span><span class="hs-special">{</span><span class="annot"><span class="annottext">project :: forall a b. ProjectAndBranch a b -&gt; a
+</span><span class="hs-identifier hs-var">project</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621680992967"><span class="annot"><span class="annottext">ProjectId
+</span><a href="#local-6989586621680992967"><span class="hs-identifier hs-var">projectId</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">branch :: forall a b. ProjectAndBranch a b -&gt; b
+</span><span class="hs-identifier hs-var">branch</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621680992966"><span class="annot"><span class="annottext">ProjectBranchId
+</span><a href="#local-6989586621680992966"><span class="hs-identifier hs-var">branchId</span></a></span></span><span class="hs-special">}</span><span class="hs-special">,</span><span> </span><span id="local-6989586621680992965"><span class="annot"><span class="annottext">Path
+</span><a href="#local-6989586621680992965"><span class="hs-identifier hs-var">restPath</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-138"></span><span>      </span><span class="annot"><span class="annottext">ProjectId -&gt; ProjectBranchId -&gt; Path -&gt; ProjectContext
+</span><a href="Unison.Project.Util.html#ProjectBranchPath"><span class="hs-identifier hs-var">ProjectBranchPath</span></a></span><span> </span><span class="annot"><span class="annottext">ProjectId
+</span><a href="#local-6989586621680992967"><span class="hs-identifier hs-var">projectId</span></a></span><span> </span><span class="annot"><span class="annottext">ProjectBranchId
+</span><a href="#local-6989586621680992966"><span class="hs-identifier hs-var">branchId</span></a></span><span> </span><span class="annot"><span class="annottext">Path
+</span><a href="#local-6989586621680992965"><span class="hs-identifier hs-var">restPath</span></a></span><span>
+</span><span id="line-139"></span><span>    </span><span class="annot"><span class="annottext">Maybe (ProjectAndBranch ProjectId ProjectBranchId, Path)
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-140"></span><span>      </span><span class="annot"><span class="annottext">Absolute -&gt; ProjectContext
+</span><a href="Unison.Project.Util.html#LooseCodePath"><span class="hs-identifier hs-var">LooseCodePath</span></a></span><span> </span><span class="annot"><span class="annottext">Absolute
+</span><a href="#local-6989586621680992969"><span class="hs-identifier hs-var">path</span></a></span><span>
+</span><span id="line-141"></span><span>
+</span><span id="line-142"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Unison.Project.Util.html#ProjectsNameSegment"><span class="hs-identifier hs-type">ProjectsNameSegment</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">NameSegment</span></span><span>
+</span><span id="line-143"></span><span class="hs-keyword">pattern</span><span> </span><span id="%24bProjectsNameSegment"><span id="%24mProjectsNameSegment"><span id="ProjectsNameSegment"><span class="annot"><span class="annottext">$bProjectsNameSegment :: NameSegment
+$mProjectsNameSegment :: forall {r}. NameSegment -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+</span><a href="Unison.Project.Util.html#%24bProjectsNameSegment"><span class="hs-identifier hs-var hs-var hs-var hs-var">ProjectsNameSegment</span></a></span></span></span></span><span> </span><span class="hs-glyph">&lt;-</span><span>
+</span><span id="line-144"></span><span>  </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-operator">==</span></span><span> </span><span class="annot"><span class="hs-identifier">projectsNameSegment</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">True</span></span><span class="hs-special">)</span><span>
+</span><span id="line-145"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-146"></span><span>    </span><span class="annot"><a href="Unison.Project.Util.html#ProjectsNameSegment"><span class="hs-identifier hs-var">ProjectsNameSegment</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">NameSegment
+</span><a href="Unison.Project.Util.html#projectsNameSegment"><span class="hs-identifier hs-var">projectsNameSegment</span></a></span><span>
+</span><span id="line-147"></span><span>
+</span><span id="line-148"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Unison.Project.Util.html#BranchesNameSegment"><span class="hs-identifier hs-type">BranchesNameSegment</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">NameSegment</span></span><span>
+</span><span id="line-149"></span><span class="hs-keyword">pattern</span><span> </span><span id="%24bBranchesNameSegment"><span id="%24mBranchesNameSegment"><span id="BranchesNameSegment"><span class="annot"><span class="annottext">$bBranchesNameSegment :: NameSegment
+$mBranchesNameSegment :: forall {r}. NameSegment -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+</span><a href="Unison.Project.Util.html#%24bBranchesNameSegment"><span class="hs-identifier hs-var hs-var hs-var hs-var">BranchesNameSegment</span></a></span></span></span></span><span> </span><span class="hs-glyph">&lt;-</span><span>
+</span><span id="line-150"></span><span>  </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-operator">==</span></span><span> </span><span class="annot"><span class="hs-identifier">branchesNameSegment</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">True</span></span><span class="hs-special">)</span><span>
+</span><span id="line-151"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-152"></span><span>    </span><span class="annot"><a href="Unison.Project.Util.html#BranchesNameSegment"><span class="hs-identifier hs-var">BranchesNameSegment</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">NameSegment
+</span><a href="Unison.Project.Util.html#branchesNameSegment"><span class="hs-identifier hs-var">branchesNameSegment</span></a></span><span>
+</span><span id="line-153"></span><span>
+</span><span id="line-154"></span><span class="annot"><a href="Unison.Project.Util.html#projectsNameSegment"><span class="hs-identifier hs-type">projectsNameSegment</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">NameSegment</span></span><span>
+</span><span id="line-155"></span><span id="projectsNameSegment"><span class="annot"><span class="annottext">projectsNameSegment :: NameSegment
+</span><a href="Unison.Project.Util.html#projectsNameSegment"><span class="hs-identifier hs-var hs-var">projectsNameSegment</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-156"></span><span>  </span><span class="annot"><span class="annottext">NameSegment
+</span><span class="hs-string">&quot;__projects&quot;</span></span><span>
+</span><span id="line-157"></span><span>
+</span><span id="line-158"></span><span class="annot"><a href="Unison.Project.Util.html#branchesNameSegment"><span class="hs-identifier hs-type">branchesNameSegment</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">NameSegment</span></span><span>
+</span><span id="line-159"></span><span id="branchesNameSegment"><span class="annot"><span class="annottext">branchesNameSegment :: NameSegment
+</span><a href="Unison.Project.Util.html#branchesNameSegment"><span class="hs-identifier hs-var hs-var">branchesNameSegment</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-160"></span><span>  </span><span class="annot"><span class="annottext">NameSegment
+</span><span class="hs-string">&quot;branches&quot;</span></span><span>
+</span><span id="line-161"></span></pre></body></html>

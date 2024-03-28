@@ -1,0 +1,40 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LINE 1 &quot;libraries/ghc-heap/GHC/Exts/Heap/InfoTable/Types.hsc&quot; #-}</span><span>
+</span><span id="line-1"></span><span class="hs-pragma">{-# LANGUAGE DeriveGeneric #-}</span><span>
+</span><span id="line-2"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">GHC.Exts.Heap.InfoTable.Types</span><span>
+</span><span id="line-3"></span><span>    </span><span class="hs-special">(</span><span> </span><span class="hs-identifier">StgInfoTable</span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-4"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="hs-identifier">EntryFunPtr</span><span>
+</span><span id="line-5"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="hs-identifier">HalfWord</span><span>
+</span><span id="line-6"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="hs-identifier">ItblCodes</span><span>
+</span><span id="line-7"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Prelude</span><span> </span><span class="hs-comment">-- See note [Why do we import Prelude here?]</span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">GHC.Generics</span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">GHC.Exts.Heap.ClosureTypes</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Foreign</span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">type</span><span> </span><span class="hs-identifier">ItblCodes</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">Either</span><span> </span><span class="hs-special">[</span><span class="hs-identifier">Word8</span><span class="hs-special">]</span><span> </span><span class="hs-special">[</span><span class="hs-identifier">Word32</span><span class="hs-special">]</span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- Ultra-minimalist version specially for constructors</span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-pragma">{-# LINE 21 &quot;libraries/ghc-heap/GHC/Exts/Heap/InfoTable/Types.hsc&quot; #-}</span><span>
+</span><span id="line-21"></span><span class="hs-keyword">type</span><span> </span><span class="hs-identifier">HalfWord</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">Word32</span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="hs-pragma">{-# LINE 27 &quot;libraries/ghc-heap/GHC/Exts/Heap/InfoTable/Types.hsc&quot; #-}</span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">type</span><span> </span><span class="hs-identifier">EntryFunPtr</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">FunPtr</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Ptr</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Ptr</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- | This is a somewhat faithful representation of an info table. See</span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- &lt;https://gitlab.haskell.org/ghc/ghc/blob/master/includes/rts/storage/InfoTables.h&gt;</span><span>
+</span><span id="line-32"></span><span class="hs-comment">-- for more details on this data structure.</span><span>
+</span><span id="line-33"></span><span class="hs-keyword">data</span><span> </span><span class="hs-identifier">StgInfoTable</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">StgInfoTable</span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-34"></span><span>   </span><span class="hs-identifier">entry</span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Maybe</span><span> </span><span class="hs-identifier">EntryFunPtr</span><span class="hs-special">,</span><span> </span><span class="hs-comment">-- Just &lt;=&gt; not TABLES_NEXT_TO_CODE</span><span>
+</span><span id="line-35"></span><span>   </span><span class="hs-identifier">ptrs</span><span>   </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">HalfWord</span><span class="hs-special">,</span><span>
+</span><span id="line-36"></span><span>   </span><span class="hs-identifier">nptrs</span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">HalfWord</span><span class="hs-special">,</span><span>
+</span><span id="line-37"></span><span>   </span><span class="hs-identifier">tipe</span><span>   </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">ClosureType</span><span class="hs-special">,</span><span>
+</span><span id="line-38"></span><span>   </span><span class="hs-identifier">srtlen</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">HalfWord</span><span class="hs-special">,</span><span>
+</span><span id="line-39"></span><span>   </span><span class="hs-identifier">code</span><span>   </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Maybe</span><span> </span><span class="hs-identifier">ItblCodes</span><span> </span><span class="hs-comment">-- Just &lt;=&gt; TABLES_NEXT_TO_CODE</span><span>
+</span><span id="line-40"></span><span>  </span><span class="hs-special">}</span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Show</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">Generic</span><span class="hs-special">)</span><span>
+</span><span id="line-41"></span></pre></body></html>

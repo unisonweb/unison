@@ -1,0 +1,370 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE FlexibleContexts #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE NoImplicitPrelude #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE TypeFamilies #-}</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- | The purpose of this module is to allow you to capture all exceptions</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- originating from within the enclosed computation, while still reacting</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- to asynchronous exceptions aimed at the calling thread.</span><span>
+</span><span id="line-8"></span><span class="hs-comment">--</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- This way, you can be sure that the function that calls, for example,</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- @'catchAny'@, will still respond to @'ThreadKilled'@ or @'Timeout'@</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- events raised by another thread (with @'throwTo'@), while capturing</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- all exceptions, synchronous or asynchronous, resulting from the</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- execution of the enclosed computation.</span><span>
+</span><span id="line-14"></span><span class="hs-comment">--</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- One particular use case is to allow the safe execution of code from various</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- libraries (which you do not control), capturing any faults that might</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- occur, while remaining responsive to higher level events and control</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- actions.</span><span>
+</span><span id="line-19"></span><span class="hs-comment">--</span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- This library was originally developed by Michael Snoyman for the</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- 'ClassyPrelude' library, and was latter 'spun-off' into a separate</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- independent package.</span><span>
+</span><span id="line-23"></span><span class="hs-comment">--</span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- For a more detailed explanation of the motivation behind this functions,</span><span>
+</span><span id="line-25"></span><span class="hs-comment">-- see:</span><span>
+</span><span id="line-26"></span><span class="hs-comment">--</span><span>
+</span><span id="line-27"></span><span class="hs-comment">-- &lt;https://www.fpcomplete.com/user/snoyberg/general-haskell/exceptions/catching-all-exceptions&gt;</span><span>
+</span><span id="line-28"></span><span class="hs-comment">--</span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- and</span><span>
+</span><span id="line-30"></span><span class="hs-comment">--</span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- &lt;https://groups.google.com/forum/#!topic/haskell-cafe/e9H2I-3uVJE&gt;</span><span>
+</span><span id="line-32"></span><span class="hs-comment">--</span><span>
+</span><span id="line-33"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Control.Exception.Enclosed</span><span>
+</span><span id="line-34"></span><span>    </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-comment">-- ** Exceptions</span></span><span>
+</span><span id="line-35"></span><span>      </span><span class="annot"><a href="Control.Exception.Enclosed.html#catchAny"><span class="hs-identifier">catchAny</span></a></span><span>
+</span><span id="line-36"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Exception.Enclosed.html#handleAny"><span class="hs-identifier">handleAny</span></a></span><span>
+</span><span id="line-37"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Exception.Enclosed.html#tryAny"><span class="hs-identifier">tryAny</span></a></span><span>
+</span><span id="line-38"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Exception.Enclosed.html#catchDeep"><span class="hs-identifier">catchDeep</span></a></span><span>
+</span><span id="line-39"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Exception.Enclosed.html#catchAnyDeep"><span class="hs-identifier">catchAnyDeep</span></a></span><span>
+</span><span id="line-40"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Exception.Enclosed.html#handleAnyDeep"><span class="hs-identifier">handleAnyDeep</span></a></span><span>
+</span><span id="line-41"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Exception.Enclosed.html#tryDeep"><span class="hs-identifier">tryDeep</span></a></span><span>
+</span><span id="line-42"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Exception.Enclosed.html#tryAnyDeep"><span class="hs-identifier">tryAnyDeep</span></a></span><span>
+</span><span id="line-43"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Exception.Enclosed.html#catchIO"><span class="hs-identifier">catchIO</span></a></span><span>
+</span><span id="line-44"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Exception.Enclosed.html#handleIO"><span class="hs-identifier">handleIO</span></a></span><span>
+</span><span id="line-45"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Exception.Enclosed.html#tryIO"><span class="hs-identifier">tryIO</span></a></span><span>
+</span><span id="line-46"></span><span>      </span><span class="annot"><span class="hs-comment">-- ** Force types</span></span><span>
+</span><span id="line-47"></span><span>      </span><span class="annot"><span class="hs-comment">-- | Helper functions for situations where type inferer gets confused.</span></span><span>
+</span><span id="line-48"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Exception.Enclosed.html#asIOException"><span class="hs-identifier">asIOException</span></a></span><span>
+</span><span id="line-49"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Exception.Enclosed.html#asSomeException"><span class="hs-identifier">asSomeException</span></a></span><span>
+</span><span id="line-50"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span>
+</span><span id="line-53"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Concurrent</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">forkIOWithUnmask</span></span><span class="hs-special">)</span><span>
+</span><span id="line-54"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Concurrent.MVar</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">newEmptyMVar</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">putMVar</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">readMVar</span></span><span class="hs-special">)</span><span>
+</span><span id="line-55"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Exception</span></span><span>
+</span><span id="line-56"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">liftM</span></span><span class="hs-special">)</span><span>
+</span><span id="line-57"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Base</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">liftBase</span></span><span class="hs-special">)</span><span>
+</span><span id="line-58"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Trans.Control</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">MonadBaseControl</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">liftBaseWith</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">restoreM</span></span><span class="hs-special">)</span><span>
+</span><span id="line-59"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">NFData</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-operator">($!!)</span></span><span class="hs-special">)</span><span>
+</span><span id="line-60"></span><span>
+</span><span id="line-61"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Control.Exception.Lifted</span></span><span>
+</span><span id="line-62"></span><span>
+</span><span id="line-63"></span><span class="hs-comment">-- | A version of 'catch' which is specialized for any exception. This</span><span>
+</span><span id="line-64"></span><span class="hs-comment">-- simplifies usage as no explicit type signatures are necessary.</span><span>
+</span><span id="line-65"></span><span class="hs-comment">--</span><span>
+</span><span id="line-66"></span><span class="hs-comment">-- Note that since version 0.5.9, this function now has proper support for</span><span>
+</span><span id="line-67"></span><span class="hs-comment">-- asynchronous exceptions, by only catching exceptions generated by the</span><span>
+</span><span id="line-68"></span><span class="hs-comment">-- internal (enclosed) action.</span><span>
+</span><span id="line-69"></span><span class="hs-comment">--</span><span>
+</span><span id="line-70"></span><span class="hs-comment">-- Since 0.5.6</span><span>
+</span><span id="line-71"></span><span id="local-6989586621679028678"><span id="local-6989586621679028680"><span class="annot"><a href="Control.Exception.Enclosed.html#catchAny"><span class="hs-identifier hs-type">catchAny</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadBaseControl</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679028680"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679028680"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679028678"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">SomeException</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679028680"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679028678"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679028680"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679028678"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-72"></span><span id="catchAny"><span class="annot"><span class="annottext">catchAny :: forall (m :: * -&gt; *) a.
+MonadBaseControl IO m =&gt;
+m a -&gt; (SomeException -&gt; m a) -&gt; m a
+</span><a href="Control.Exception.Enclosed.html#catchAny"><span class="hs-identifier hs-var hs-var">catchAny</span></a></span></span><span> </span><span id="local-6989586621679028536"><span class="annot"><span class="annottext">m a
+</span><a href="#local-6989586621679028536"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span id="local-6989586621679028535"><span class="annot"><span class="annottext">SomeException -&gt; m a
+</span><a href="#local-6989586621679028535"><span class="hs-identifier hs-var">onE</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a.
+MonadBaseControl IO m =&gt;
+m a -&gt; m (Either SomeException a)
+</span><a href="Control.Exception.Enclosed.html#tryAny"><span class="hs-identifier hs-var">tryAny</span></a></span><span> </span><span class="annot"><span class="annottext">m a
+</span><a href="#local-6989586621679028536"><span class="hs-identifier hs-var">action</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">forall a c b. (a -&gt; c) -&gt; (b -&gt; c) -&gt; Either a b -&gt; c
+</span><span class="hs-identifier hs-var">either</span></span><span> </span><span class="annot"><span class="annottext">SomeException -&gt; m a
+</span><a href="#local-6989586621679028535"><span class="hs-identifier hs-var">onE</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span>
+</span><span id="line-73"></span><span>
+</span><span id="line-74"></span><span class="hs-comment">-- | A version of 'handle' which is specialized for any exception.  This</span><span>
+</span><span id="line-75"></span><span class="hs-comment">-- simplifies usage as no explicit type signatures are necessary.</span><span>
+</span><span id="line-76"></span><span class="hs-comment">--</span><span>
+</span><span id="line-77"></span><span class="hs-comment">-- Note that since version 0.5.9, this function now has proper support for</span><span>
+</span><span id="line-78"></span><span class="hs-comment">-- asynchronous exceptions, by only catching exceptions generated by the</span><span>
+</span><span id="line-79"></span><span class="hs-comment">-- internal (enclosed) action.</span><span>
+</span><span id="line-80"></span><span class="hs-comment">--</span><span>
+</span><span id="line-81"></span><span class="hs-comment">-- Since 0.5.6</span><span>
+</span><span id="line-82"></span><span id="local-6989586621679028659"><span id="local-6989586621679028660"><span class="annot"><a href="Control.Exception.Enclosed.html#handleAny"><span class="hs-identifier hs-type">handleAny</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadBaseControl</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679028660"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">SomeException</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679028660"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679028659"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679028660"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679028659"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679028660"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679028659"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-83"></span><span id="handleAny"><span class="annot"><span class="annottext">handleAny :: forall (m :: * -&gt; *) a.
+MonadBaseControl IO m =&gt;
+(SomeException -&gt; m a) -&gt; m a -&gt; m a
+</span><a href="Control.Exception.Enclosed.html#handleAny"><span class="hs-identifier hs-var hs-var">handleAny</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b c. (a -&gt; b -&gt; c) -&gt; b -&gt; a -&gt; c
+</span><span class="hs-identifier hs-var">flip</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a.
+MonadBaseControl IO m =&gt;
+m a -&gt; (SomeException -&gt; m a) -&gt; m a
+</span><a href="Control.Exception.Enclosed.html#catchAny"><span class="hs-identifier hs-var">catchAny</span></a></span><span>
+</span><span id="line-84"></span><span>
+</span><span id="line-85"></span><span class="hs-comment">-- | A version of 'try' which is specialized for any exception.</span><span>
+</span><span id="line-86"></span><span class="hs-comment">-- This simplifies usage as no explicit type signatures are necessary.</span><span>
+</span><span id="line-87"></span><span class="hs-comment">--</span><span>
+</span><span id="line-88"></span><span class="hs-comment">-- Note that since version 0.5.9, this function now has proper support for</span><span>
+</span><span id="line-89"></span><span class="hs-comment">-- asynchronous exceptions, by only catching exceptions generated by the</span><span>
+</span><span id="line-90"></span><span class="hs-comment">-- internal (enclosed) action.</span><span>
+</span><span id="line-91"></span><span class="hs-comment">--</span><span>
+</span><span id="line-92"></span><span class="hs-comment">-- Since 0.5.6</span><span>
+</span><span id="line-93"></span><span id="local-6989586621679028668"><span id="local-6989586621679028669"><span class="annot"><a href="Control.Exception.Enclosed.html#tryAny"><span class="hs-identifier hs-type">tryAny</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadBaseControl</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679028669"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679028669"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679028668"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679028669"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">SomeException</span></span><span> </span><span class="annot"><a href="#local-6989586621679028668"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-94"></span><span id="tryAny"><span class="annot"><span class="annottext">tryAny :: forall (m :: * -&gt; *) a.
+MonadBaseControl IO m =&gt;
+m a -&gt; m (Either SomeException a)
+</span><a href="Control.Exception.Enclosed.html#tryAny"><span class="hs-identifier hs-var hs-var">tryAny</span></a></span></span><span> </span><span id="local-6989586621679028520"><span class="annot"><span class="annottext">m a
+</span><a href="#local-6989586621679028520"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-95"></span><span>    </span><span class="annot"><span class="annottext">forall (b :: * -&gt; *) (m :: * -&gt; *) a.
+MonadBaseControl b m =&gt;
+(RunInBase m b -&gt; b a) -&gt; m a
+</span><span class="hs-identifier hs-var">liftBaseWith</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679028519"><span class="annot"><span class="annottext">RunInBase m IO
+</span><a href="#local-6989586621679028519"><span class="hs-identifier hs-var">runInIO</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. IO a -&gt; IO (Either SomeException a)
+</span><a href="#local-6989586621679028518"><span class="hs-identifier hs-var">tryAnyIO</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">RunInBase m IO
+</span><a href="#local-6989586621679028519"><span class="hs-identifier hs-var">runInIO</span></a></span><span> </span><span class="annot"><span class="annottext">m a
+</span><a href="#local-6989586621679028520"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span>
+</span><span id="line-96"></span><span>    </span><span class="annot"><span class="annottext">forall a c b. (a -&gt; c) -&gt; (b -&gt; c) -&gt; Either a b -&gt; c
+</span><span class="hs-identifier hs-var">either</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a1 r. Monad m =&gt; (a1 -&gt; r) -&gt; m a1 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM</span></span><span> </span><span class="annot"><span class="annottext">forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall (b :: * -&gt; *) (m :: * -&gt; *) a.
+MonadBaseControl b m =&gt;
+StM m a -&gt; m a
+</span><span class="hs-identifier hs-var">restoreM</span></span><span class="hs-special">)</span><span>
+</span><span id="line-97"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-98"></span><span>    </span><span id="local-6989586621679028649"><span class="annot"><a href="#local-6989586621679028518"><span class="hs-identifier hs-type">tryAnyIO</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679028649"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">SomeException</span></span><span> </span><span class="annot"><a href="#local-6989586621679028649"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-99"></span><span>    </span><span id="local-6989586621679028518"><span class="annot"><span class="annottext">tryAnyIO :: forall a. IO a -&gt; IO (Either SomeException a)
+</span><a href="#local-6989586621679028518"><span class="hs-identifier hs-var hs-var">tryAnyIO</span></a></span></span><span> </span><span id="local-6989586621679028510"><span class="annot"><span class="annottext">IO a
+</span><a href="#local-6989586621679028510"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-100"></span><span>        </span><span id="local-6989586621679028509"><span class="annot"><span class="annottext">MVar (Either SomeException a)
+</span><a href="#local-6989586621679028509"><span class="hs-identifier hs-var">result</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a. IO (MVar a)
+</span><span class="hs-identifier hs-var">newEmptyMVar</span></span><span>
+</span><span id="line-101"></span><span>        </span><span class="annot"><span class="annottext">forall a b c. IO a -&gt; (a -&gt; IO b) -&gt; (a -&gt; IO c) -&gt; IO c
+</span><span class="hs-identifier hs-var">bracket</span></span><span>
+</span><span id="line-102"></span><span>            </span><span class="hs-special">(</span><span class="annot"><span class="annottext">((forall a. IO a -&gt; IO a) -&gt; IO ()) -&gt; IO ThreadId
+</span><span class="hs-identifier hs-var">forkIOWithUnmask</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679028507"><span class="annot"><span class="annottext">forall a. IO a -&gt; IO a
+</span><a href="#local-6989586621679028507"><span class="hs-identifier hs-var">restore</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall e a. Exception e =&gt; IO a -&gt; IO (Either e a)
+</span><span class="hs-identifier hs-var">try</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. IO a -&gt; IO a
+</span><a href="#local-6989586621679028507"><span class="hs-identifier hs-var">restore</span></a></span><span> </span><span class="annot"><span class="annottext">IO a
+</span><a href="#local-6989586621679028510"><span class="hs-identifier hs-var">action</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">forall a. MVar a -&gt; a -&gt; IO ()
+</span><span class="hs-identifier hs-var">putMVar</span></span><span> </span><span class="annot"><span class="annottext">MVar (Either SomeException a)
+</span><a href="#local-6989586621679028509"><span class="hs-identifier hs-var">result</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-103"></span><span>            </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679028505"><span class="annot"><span class="annottext">ThreadId
+</span><a href="#local-6989586621679028505"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall e. Exception e =&gt; ThreadId -&gt; e -&gt; IO ()
+</span><span class="hs-identifier hs-var">throwTo</span></span><span> </span><span class="annot"><span class="annottext">ThreadId
+</span><a href="#local-6989586621679028505"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="annot"><span class="annottext">AsyncException
+</span><span class="hs-identifier hs-var">ThreadKilled</span></span><span class="hs-special">)</span><span>
+</span><span id="line-104"></span><span>            </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="annot"><span class="annottext">ThreadId
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. Int -&gt; IO a -&gt; IO a
+</span><a href="#local-6989586621679028502"><span class="hs-identifier hs-var">retryCount</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">10</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. MVar a -&gt; IO a
+</span><span class="hs-identifier hs-var">readMVar</span></span><span> </span><span class="annot"><span class="annottext">MVar (Either SomeException a)
+</span><a href="#local-6989586621679028509"><span class="hs-identifier hs-var">result</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-105"></span><span>
+</span><span id="line-106"></span><span>    </span><span class="hs-comment">-- If the action supplied by the user ends up blocking on an MVar</span><span>
+</span><span id="line-107"></span><span>    </span><span class="hs-comment">-- or STM action, all threads currently blocked on such an action will</span><span>
+</span><span id="line-108"></span><span>    </span><span class="hs-comment">-- receive an exception. In general, this is a good thing from the GHC</span><span>
+</span><span id="line-109"></span><span>    </span><span class="hs-comment">-- RTS, but it is counter-productive for our purposes, where we know that</span><span>
+</span><span id="line-110"></span><span>    </span><span class="hs-comment">-- when the user action receives such an exception, our code above will</span><span>
+</span><span id="line-111"></span><span>    </span><span class="hs-comment">-- unblock and our main thread will not deadlock.</span><span>
+</span><span id="line-112"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-113"></span><span>    </span><span class="hs-comment">-- Workaround: we retry the readMVar action if we received a</span><span>
+</span><span id="line-114"></span><span>    </span><span class="hs-comment">-- BlockedIndefinitelyOnMVar. To remain on the safe side and avoid</span><span>
+</span><span id="line-115"></span><span>    </span><span class="hs-comment">-- deadlock, we cap this at an arbitrary number (10) above so that, if</span><span>
+</span><span id="line-116"></span><span>    </span><span class="hs-comment">-- there's a bug in this function, the runtime system can still recover.</span><span>
+</span><span id="line-117"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-118"></span><span>    </span><span class="hs-comment">-- For previous discussion of this topic, see:</span><span>
+</span><span id="line-119"></span><span>    </span><span class="hs-comment">-- https://github.com/simonmar/async/pull/15</span><span>
+</span><span id="line-120"></span><span>    </span><span id="local-6989586621679028625"><span class="annot"><a href="#local-6989586621679028502"><span class="hs-identifier hs-type">retryCount</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679028625"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679028625"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-121"></span><span>    </span><span id="local-6989586621679028502"><span class="annot"><span class="annottext">retryCount :: forall a. Int -&gt; IO a -&gt; IO a
+</span><a href="#local-6989586621679028502"><span class="hs-identifier hs-var hs-var">retryCount</span></a></span></span><span> </span><span id="local-6989586621679028493"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679028493"><span class="hs-identifier hs-var">cnt0</span></a></span></span><span> </span><span id="local-6989586621679028492"><span class="annot"><span class="annottext">IO a
+</span><a href="#local-6989586621679028492"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-122"></span><span>        </span><span class="annot"><span class="annottext">Int -&gt; IO a
+</span><a href="#local-6989586621679028491"><span class="hs-identifier hs-var">loop</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679028493"><span class="hs-identifier hs-var">cnt0</span></a></span><span>
+</span><span id="line-123"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-124"></span><span>        </span><span id="local-6989586621679028491"><span class="annot"><span class="annottext">loop :: Int -&gt; IO a
+</span><a href="#local-6989586621679028491"><span class="hs-identifier hs-var hs-var">loop</span></a></span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO a
+</span><a href="#local-6989586621679028492"><span class="hs-identifier hs-var">action</span></a></span><span>
+</span><span id="line-125"></span><span>        </span><span class="annot"><a href="#local-6989586621679028491"><span class="hs-identifier hs-var">loop</span></a></span><span> </span><span id="local-6989586621679028490"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679028490"><span class="hs-identifier hs-var">cnt</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO a
+</span><a href="#local-6989586621679028492"><span class="hs-identifier hs-var">action</span></a></span><span> </span><span class="annot"><span class="annottext">forall e a. Exception e =&gt; IO a -&gt; (e -&gt; IO a) -&gt; IO a
+</span><span class="hs-operator hs-var">`Control.Exception.catch`</span></span><span>
+</span><span id="line-126"></span><span>            </span><span class="hs-glyph">\</span><span class="annot"><span class="annottext">BlockedIndefinitelyOnMVar
+</span><span class="hs-identifier hs-var">BlockedIndefinitelyOnMVar</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; IO a
+</span><a href="#local-6989586621679028491"><span class="hs-identifier hs-var">loop</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679028490"><span class="hs-identifier hs-var">cnt</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span>
+</span><span id="line-127"></span><span>
+</span><span id="line-128"></span><span class="hs-comment">-- | An extension to @catch@ which ensures that the return value is fully</span><span>
+</span><span id="line-129"></span><span class="hs-comment">-- evaluated. See @tryAny@.</span><span>
+</span><span id="line-130"></span><span class="hs-comment">--</span><span>
+</span><span id="line-131"></span><span class="hs-comment">-- Since 1.0.1</span><span>
+</span><span id="line-132"></span><span id="local-6989586621679028615"><span id="local-6989586621679028617"><span id="local-6989586621679028618"><span class="annot"><a href="Control.Exception.Enclosed.html#catchDeep"><span class="hs-identifier hs-type">catchDeep</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Exception</span></span><span> </span><span class="annot"><a href="#local-6989586621679028618"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="#local-6989586621679028617"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadBaseControl</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679028615"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679028615"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679028617"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679028618"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679028615"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679028617"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679028615"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679028617"><span class="hs-identifier hs-type">a</span></a></span></span></span></span><span>
+</span><span id="line-133"></span><span id="catchDeep"><span class="annot"><span class="annottext">catchDeep :: forall e a (m :: * -&gt; *).
+(Exception e, NFData a, MonadBaseControl IO m) =&gt;
+m a -&gt; (e -&gt; m a) -&gt; m a
+</span><a href="Control.Exception.Enclosed.html#catchDeep"><span class="hs-identifier hs-var hs-var">catchDeep</span></a></span></span><span> </span><span id="local-6989586621679028477"><span class="annot"><span class="annottext">m a
+</span><a href="#local-6989586621679028477"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span id="local-6989586621679028476"><span class="annot"><span class="annottext">e -&gt; m a
+</span><a href="#local-6989586621679028476"><span class="hs-identifier hs-var">onE</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall e a (m :: * -&gt; *).
+(Exception e, NFData a, MonadBaseControl IO m) =&gt;
+m a -&gt; m (Either e a)
+</span><a href="Control.Exception.Enclosed.html#tryDeep"><span class="hs-identifier hs-var">tryDeep</span></a></span><span> </span><span class="annot"><span class="annottext">m a
+</span><a href="#local-6989586621679028477"><span class="hs-identifier hs-var">action</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">forall a c b. (a -&gt; c) -&gt; (b -&gt; c) -&gt; Either a b -&gt; c
+</span><span class="hs-identifier hs-var">either</span></span><span> </span><span class="annot"><span class="annottext">e -&gt; m a
+</span><a href="#local-6989586621679028476"><span class="hs-identifier hs-var">onE</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span>
+</span><span id="line-134"></span><span>
+</span><span id="line-135"></span><span class="hs-comment">-- | An extension to @catchAny@ which ensures that the return value is fully</span><span>
+</span><span id="line-136"></span><span class="hs-comment">-- evaluated. See @tryAnyDeep@.</span><span>
+</span><span id="line-137"></span><span class="hs-comment">--</span><span>
+</span><span id="line-138"></span><span class="hs-comment">-- Since 0.5.9</span><span>
+</span><span id="line-139"></span><span id="local-6989586621679028607"><span id="local-6989586621679028608"><span class="annot"><a href="Control.Exception.Enclosed.html#catchAnyDeep"><span class="hs-identifier hs-type">catchAnyDeep</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="#local-6989586621679028608"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadBaseControl</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679028607"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679028607"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679028608"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">SomeException</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679028607"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679028608"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679028607"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679028608"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-140"></span><span id="catchAnyDeep"><span class="annot"><span class="annottext">catchAnyDeep :: forall a (m :: * -&gt; *).
+(NFData a, MonadBaseControl IO m) =&gt;
+m a -&gt; (SomeException -&gt; m a) -&gt; m a
+</span><a href="Control.Exception.Enclosed.html#catchAnyDeep"><span class="hs-identifier hs-var hs-var">catchAnyDeep</span></a></span></span><span> </span><span id="local-6989586621679028467"><span class="annot"><span class="annottext">m a
+</span><a href="#local-6989586621679028467"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span id="local-6989586621679028466"><span class="annot"><span class="annottext">SomeException -&gt; m a
+</span><a href="#local-6989586621679028466"><span class="hs-identifier hs-var">onE</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a (m :: * -&gt; *).
+(NFData a, MonadBaseControl IO m) =&gt;
+m a -&gt; m (Either SomeException a)
+</span><a href="Control.Exception.Enclosed.html#tryAnyDeep"><span class="hs-identifier hs-var">tryAnyDeep</span></a></span><span> </span><span class="annot"><span class="annottext">m a
+</span><a href="#local-6989586621679028467"><span class="hs-identifier hs-var">action</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">forall a c b. (a -&gt; c) -&gt; (b -&gt; c) -&gt; Either a b -&gt; c
+</span><span class="hs-identifier hs-var">either</span></span><span> </span><span class="annot"><span class="annottext">SomeException -&gt; m a
+</span><a href="#local-6989586621679028466"><span class="hs-identifier hs-var">onE</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span>
+</span><span id="line-141"></span><span>
+</span><span id="line-142"></span><span class="hs-comment">-- | @flip catchAnyDeep@</span><span>
+</span><span id="line-143"></span><span class="hs-comment">--</span><span>
+</span><span id="line-144"></span><span class="hs-comment">-- Since 0.5.6</span><span>
+</span><span id="line-145"></span><span id="local-6989586621679028601"><span id="local-6989586621679028602"><span class="annot"><a href="Control.Exception.Enclosed.html#handleAnyDeep"><span class="hs-identifier hs-type">handleAnyDeep</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="#local-6989586621679028602"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadBaseControl</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679028601"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">SomeException</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679028601"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679028602"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679028601"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679028602"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679028601"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679028602"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-146"></span><span id="handleAnyDeep"><span class="annot"><span class="annottext">handleAnyDeep :: forall a (m :: * -&gt; *).
+(NFData a, MonadBaseControl IO m) =&gt;
+(SomeException -&gt; m a) -&gt; m a -&gt; m a
+</span><a href="Control.Exception.Enclosed.html#handleAnyDeep"><span class="hs-identifier hs-var hs-var">handleAnyDeep</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b c. (a -&gt; b -&gt; c) -&gt; b -&gt; a -&gt; c
+</span><span class="hs-identifier hs-var">flip</span></span><span> </span><span class="annot"><span class="annottext">forall a (m :: * -&gt; *).
+(NFData a, MonadBaseControl IO m) =&gt;
+m a -&gt; (SomeException -&gt; m a) -&gt; m a
+</span><a href="Control.Exception.Enclosed.html#catchAnyDeep"><span class="hs-identifier hs-var">catchAnyDeep</span></a></span><span>
+</span><span id="line-147"></span><span>
+</span><span id="line-148"></span><span class="hs-comment">-- | an extension to @try@ which ensures that the return value is fully</span><span>
+</span><span id="line-149"></span><span class="hs-comment">-- evaluated. in other words, if you get a @right@ response here, you can be</span><span>
+</span><span id="line-150"></span><span class="hs-comment">-- confident that using it will not result in another exception.</span><span>
+</span><span id="line-151"></span><span class="hs-comment">--</span><span>
+</span><span id="line-152"></span><span class="hs-comment">-- Since 1.0.1</span><span>
+</span><span id="line-153"></span><span id="local-6989586621679028609"><span id="local-6989586621679028610"><span id="local-6989586621679028611"><span class="annot"><a href="Control.Exception.Enclosed.html#tryDeep"><span class="hs-identifier hs-type">tryDeep</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Exception</span></span><span> </span><span class="annot"><a href="#local-6989586621679028611"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="#local-6989586621679028610"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadBaseControl</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679028609"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-154"></span><span>        </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679028609"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679028610"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-155"></span><span>        </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679028609"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="#local-6989586621679028611"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679028610"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-156"></span><span id="tryDeep"><span class="annot"><span class="annottext">tryDeep :: forall e a (m :: * -&gt; *).
+(Exception e, NFData a, MonadBaseControl IO m) =&gt;
+m a -&gt; m (Either e a)
+</span><a href="Control.Exception.Enclosed.html#tryDeep"><span class="hs-identifier hs-var hs-var">tryDeep</span></a></span></span><span> </span><span id="local-6989586621679028451"><span class="annot"><span class="annottext">m a
+</span><a href="#local-6989586621679028451"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) e a.
+(MonadBaseControl IO m, Exception e) =&gt;
+m a -&gt; m (Either e a)
+</span><span class="hs-identifier hs-var">Control.Exception.Lifted.try</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-157"></span><span>    </span><span id="local-6989586621679028449"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679028449"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">m a
+</span><a href="#local-6989586621679028451"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-158"></span><span>    </span><span class="annot"><span class="annottext">forall (b :: * -&gt; *) (m :: * -&gt; *) &#945;. MonadBase b m =&gt; b &#945; -&gt; m &#945;
+</span><span class="hs-identifier hs-var">liftBase</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; IO a
+</span><span class="hs-identifier hs-var">evaluate</span></span><span> </span><span class="annot"><span class="annottext">forall a b. NFData a =&gt; (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$!!</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679028449"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-159"></span><span>
+</span><span id="line-160"></span><span>
+</span><span id="line-161"></span><span class="hs-comment">-- | an extension to @tryany@ which ensures that the return value is fully</span><span>
+</span><span id="line-162"></span><span class="hs-comment">-- evaluated. in other words, if you get a @right@ response here, you can be</span><span>
+</span><span id="line-163"></span><span class="hs-comment">-- confident that using it will not result in another exception.</span><span>
+</span><span id="line-164"></span><span class="hs-comment">--</span><span>
+</span><span id="line-165"></span><span class="hs-comment">-- Since 0.5.9</span><span>
+</span><span id="line-166"></span><span id="local-6989586621679028603"><span id="local-6989586621679028604"><span class="annot"><a href="Control.Exception.Enclosed.html#tryAnyDeep"><span class="hs-identifier hs-type">tryAnyDeep</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="#local-6989586621679028604"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadBaseControl</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679028603"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-167"></span><span>           </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679028603"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679028604"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-168"></span><span>           </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679028603"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">SomeException</span></span><span> </span><span class="annot"><a href="#local-6989586621679028604"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-169"></span><span id="tryAnyDeep"><span class="annot"><span class="annottext">tryAnyDeep :: forall a (m :: * -&gt; *).
+(NFData a, MonadBaseControl IO m) =&gt;
+m a -&gt; m (Either SomeException a)
+</span><a href="Control.Exception.Enclosed.html#tryAnyDeep"><span class="hs-identifier hs-var hs-var">tryAnyDeep</span></a></span></span><span> </span><span id="local-6989586621679028439"><span class="annot"><span class="annottext">m a
+</span><a href="#local-6989586621679028439"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a.
+MonadBaseControl IO m =&gt;
+m a -&gt; m (Either SomeException a)
+</span><a href="Control.Exception.Enclosed.html#tryAny"><span class="hs-identifier hs-var">tryAny</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-170"></span><span>    </span><span id="local-6989586621679028438"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679028438"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">m a
+</span><a href="#local-6989586621679028439"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-171"></span><span>    </span><span class="annot"><span class="annottext">forall (b :: * -&gt; *) (m :: * -&gt; *) &#945;. MonadBase b m =&gt; b &#945; -&gt; m &#945;
+</span><span class="hs-identifier hs-var">liftBase</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; IO a
+</span><span class="hs-identifier hs-var">evaluate</span></span><span> </span><span class="annot"><span class="annottext">forall a b. NFData a =&gt; (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$!!</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679028438"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-172"></span><span>
+</span><span id="line-173"></span><span class="hs-comment">-- | A version of 'catch' which is specialized for IO exceptions. This</span><span>
+</span><span id="line-174"></span><span class="hs-comment">-- simplifies usage as no explicit type signatures are necessary.</span><span>
+</span><span id="line-175"></span><span class="hs-comment">--</span><span>
+</span><span id="line-176"></span><span class="hs-comment">-- Since 0.5.6</span><span>
+</span><span id="line-177"></span><span id="local-6989586621679028582"><span id="local-6989586621679028583"><span class="annot"><a href="Control.Exception.Enclosed.html#catchIO"><span class="hs-identifier hs-type">catchIO</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadBaseControl</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679028583"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679028583"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679028582"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IOException</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679028583"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679028582"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679028583"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679028582"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-178"></span><span id="catchIO"><span class="annot"><span class="annottext">catchIO :: forall (m :: * -&gt; *) a.
+MonadBaseControl IO m =&gt;
+m a -&gt; (IOException -&gt; m a) -&gt; m a
+</span><a href="Control.Exception.Enclosed.html#catchIO"><span class="hs-identifier hs-var hs-var">catchIO</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) e a.
+(MonadBaseControl IO m, Exception e) =&gt;
+m a -&gt; (e -&gt; m a) -&gt; m a
+</span><span class="hs-identifier hs-var">Control.Exception.Lifted.catch</span></span><span>
+</span><span id="line-179"></span><span>
+</span><span id="line-180"></span><span class="hs-comment">-- | A version of 'handle' which is specialized for IO exceptions.  This</span><span>
+</span><span id="line-181"></span><span class="hs-comment">-- simplifies usage as no explicit type signatures are necessary.</span><span>
+</span><span id="line-182"></span><span class="hs-comment">--</span><span>
+</span><span id="line-183"></span><span class="hs-comment">-- Since 0.5.6</span><span>
+</span><span id="line-184"></span><span id="local-6989586621679028575"><span id="local-6989586621679028576"><span class="annot"><a href="Control.Exception.Enclosed.html#handleIO"><span class="hs-identifier hs-type">handleIO</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadBaseControl</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679028576"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IOException</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679028576"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679028575"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679028576"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679028575"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679028576"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679028575"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-185"></span><span id="handleIO"><span class="annot"><span class="annottext">handleIO :: forall (m :: * -&gt; *) a.
+MonadBaseControl IO m =&gt;
+(IOException -&gt; m a) -&gt; m a -&gt; m a
+</span><a href="Control.Exception.Enclosed.html#handleIO"><span class="hs-identifier hs-var hs-var">handleIO</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) e a.
+(MonadBaseControl IO m, Exception e) =&gt;
+(e -&gt; m a) -&gt; m a -&gt; m a
+</span><span class="hs-identifier hs-var">Control.Exception.Lifted.handle</span></span><span>
+</span><span id="line-186"></span><span>
+</span><span id="line-187"></span><span class="hs-comment">-- | A version of 'try' which is specialized for IO exceptions.</span><span>
+</span><span id="line-188"></span><span class="hs-comment">-- This simplifies usage as no explicit type signatures are necessary.</span><span>
+</span><span id="line-189"></span><span class="hs-comment">--</span><span>
+</span><span id="line-190"></span><span class="hs-comment">-- Since 0.5.6</span><span>
+</span><span id="line-191"></span><span id="local-6989586621679028569"><span id="local-6989586621679028570"><span class="annot"><a href="Control.Exception.Enclosed.html#tryIO"><span class="hs-identifier hs-type">tryIO</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadBaseControl</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679028570"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679028570"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679028569"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679028570"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IOException</span></span><span> </span><span class="annot"><a href="#local-6989586621679028569"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-192"></span><span id="tryIO"><span class="annot"><span class="annottext">tryIO :: forall (m :: * -&gt; *) a.
+MonadBaseControl IO m =&gt;
+m a -&gt; m (Either IOException a)
+</span><a href="Control.Exception.Enclosed.html#tryIO"><span class="hs-identifier hs-var hs-var">tryIO</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) e a.
+(MonadBaseControl IO m, Exception e) =&gt;
+m a -&gt; m (Either e a)
+</span><span class="hs-identifier hs-var">Control.Exception.Lifted.try</span></span><span>
+</span><span id="line-193"></span><span>
+</span><span id="line-194"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-195"></span><span class="hs-comment">--</span><span>
+</span><span id="line-196"></span><span class="hs-comment">-- Since 0.5.6</span><span>
+</span><span id="line-197"></span><span class="annot"><a href="Control.Exception.Enclosed.html#asSomeException"><span class="hs-identifier hs-type">asSomeException</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">SomeException</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">SomeException</span></span><span>
+</span><span id="line-198"></span><span id="asSomeException"><span class="annot"><span class="annottext">asSomeException :: SomeException -&gt; SomeException
+</span><a href="Control.Exception.Enclosed.html#asSomeException"><span class="hs-identifier hs-var hs-var">asSomeException</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span>
+</span><span id="line-199"></span><span>
+</span><span id="line-200"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-201"></span><span class="hs-comment">--</span><span>
+</span><span id="line-202"></span><span class="hs-comment">-- Since 0.5.6</span><span>
+</span><span id="line-203"></span><span class="annot"><a href="Control.Exception.Enclosed.html#asIOException"><span class="hs-identifier hs-type">asIOException</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IOException</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IOException</span></span><span>
+</span><span id="line-204"></span><span id="asIOException"><span class="annot"><span class="annottext">asIOException :: IOException -&gt; IOException
+</span><a href="Control.Exception.Enclosed.html#asIOException"><span class="hs-identifier hs-var hs-var">asIOException</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span>
+</span><span id="line-205"></span></pre></body></html>

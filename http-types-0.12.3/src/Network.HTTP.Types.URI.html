@@ -1,0 +1,1009 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE OverloadedStrings, CPP #-}</span><span>
+</span><span id="line-2"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Network.HTTP.Types.URI</span><span>
+</span><span id="line-3"></span><span class="hs-special">(</span><span>
+</span><span id="line-4"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Query string</span></span><span>
+</span><span id="line-5"></span><span>  </span><span class="annot"><a href="Network.HTTP.Types.URI.html#QueryItem"><span class="hs-identifier">QueryItem</span></a></span><span>
+</span><span id="line-6"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Types.URI.html#Query"><span class="hs-identifier">Query</span></a></span><span>
+</span><span id="line-7"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Types.URI.html#SimpleQueryItem"><span class="hs-identifier">SimpleQueryItem</span></a></span><span>
+</span><span id="line-8"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Types.URI.html#SimpleQuery"><span class="hs-identifier">SimpleQuery</span></a></span><span>
+</span><span id="line-9"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Types.URI.html#simpleQueryToQuery"><span class="hs-identifier">simpleQueryToQuery</span></a></span><span>
+</span><span id="line-10"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Types.URI.html#renderQuery"><span class="hs-identifier">renderQuery</span></a></span><span>
+</span><span id="line-11"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Types.URI.html#renderQueryBuilder"><span class="hs-identifier">renderQueryBuilder</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Types.URI.html#renderSimpleQuery"><span class="hs-identifier">renderSimpleQuery</span></a></span><span>
+</span><span id="line-13"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Types.URI.html#parseQuery"><span class="hs-identifier">parseQuery</span></a></span><span>
+</span><span id="line-14"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Types.URI.html#parseQueryReplacePlus"><span class="hs-identifier">parseQueryReplacePlus</span></a></span><span>
+</span><span id="line-15"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Types.URI.html#parseSimpleQuery"><span class="hs-identifier">parseSimpleQuery</span></a></span><span>
+</span><span id="line-16"></span><span>  </span><span class="annot"><span class="hs-comment">-- **Escape only parts</span></span><span>
+</span><span id="line-17"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Types.URI.html#renderQueryPartialEscape"><span class="hs-identifier">renderQueryPartialEscape</span></a></span><span>
+</span><span id="line-18"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Types.URI.html#renderQueryBuilderPartialEscape"><span class="hs-identifier">renderQueryBuilderPartialEscape</span></a></span><span>
+</span><span id="line-19"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Types.URI.html#EscapeItem"><span class="hs-identifier">EscapeItem</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Types.URI.html#PartialEscapeQueryItem"><span class="hs-identifier">PartialEscapeQueryItem</span></a></span><span>
+</span><span id="line-21"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Types.URI.html#PartialEscapeQuery"><span class="hs-identifier">PartialEscapeQuery</span></a></span><span>
+</span><span id="line-22"></span><span>  </span><span class="annot"><span class="hs-comment">-- ** Text query string (UTF8 encoded)</span></span><span>
+</span><span id="line-23"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Types.URI.html#QueryText"><span class="hs-identifier">QueryText</span></a></span><span>
+</span><span id="line-24"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Types.URI.html#queryTextToQuery"><span class="hs-identifier">queryTextToQuery</span></a></span><span>
+</span><span id="line-25"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Types.URI.html#queryToQueryText"><span class="hs-identifier">queryToQueryText</span></a></span><span>
+</span><span id="line-26"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Types.URI.html#renderQueryText"><span class="hs-identifier">renderQueryText</span></a></span><span>
+</span><span id="line-27"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Types.URI.html#parseQueryText"><span class="hs-identifier">parseQueryText</span></a></span><span>
+</span><span id="line-28"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Path segments</span></span><span>
+</span><span id="line-29"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Types.URI.html#encodePathSegments"><span class="hs-identifier">encodePathSegments</span></a></span><span>
+</span><span id="line-30"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Types.URI.html#decodePathSegments"><span class="hs-identifier">decodePathSegments</span></a></span><span>
+</span><span id="line-31"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Types.URI.html#encodePathSegmentsRelative"><span class="hs-identifier">encodePathSegmentsRelative</span></a></span><span>
+</span><span id="line-32"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Path (segments + query string)</span></span><span>
+</span><span id="line-33"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Types.URI.html#extractPath"><span class="hs-identifier">extractPath</span></a></span><span>
+</span><span id="line-34"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Types.URI.html#encodePath"><span class="hs-identifier">encodePath</span></a></span><span>
+</span><span id="line-35"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Types.URI.html#decodePath"><span class="hs-identifier">decodePath</span></a></span><span>
+</span><span id="line-36"></span><span>  </span><span class="annot"><span class="hs-comment">-- * URL encoding / decoding</span></span><span>
+</span><span id="line-37"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Types.URI.html#urlEncodeBuilder"><span class="hs-identifier">urlEncodeBuilder</span></a></span><span>
+</span><span id="line-38"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Types.URI.html#urlEncode"><span class="hs-identifier">urlEncode</span></a></span><span>
+</span><span id="line-39"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Types.URI.html#urlDecode"><span class="hs-identifier">urlDecode</span></a></span><span>
+</span><span id="line-40"></span><span class="hs-special">)</span><span>
+</span><span id="line-41"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Arrow</span></span><span>
+</span><span id="line-44"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Bits</span></span><span>
+</span><span id="line-45"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Char</span></span><span>
+</span><span id="line-46"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.List</span></span><span>
+</span><span id="line-47"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Maybe</span></span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ &lt; 710
+</span><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data.Monoid</span><span class="hs-cpp">
+#endif
+</span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span>                      </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-52"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Text.Encoding</span></span><span>             </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">encodeUtf8</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">decodeUtf8With</span></span><span class="hs-special">)</span><span>
+</span><span id="line-53"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Text.Encoding.Error</span></span><span>       </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">lenientDecode</span></span><span class="hs-special">)</span><span>
+</span><span id="line-54"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Word</span></span><span>
+</span><span id="line-55"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString</span></span><span>                </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">B</span></span><span>
+</span><span id="line-56"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString.Builder</span></span><span>        </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">B</span></span><span>
+</span><span id="line-57"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString.Lazy</span></span><span>           </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">BL</span></span><span>
+</span><span id="line-58"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.ByteString.Char8</span></span><span>          </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-comment">{-IsString-}</span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span class="hs-comment">-- | Query item</span><span>
+</span><span id="line-61"></span><span class="hs-keyword">type</span><span> </span><span id="QueryItem"><span class="annot"><a href="Network.HTTP.Types.URI.html#QueryItem"><span class="hs-identifier hs-var">QueryItem</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span class="hs-special">)</span><span>
+</span><span id="line-62"></span><span>
+</span><span id="line-63"></span><span class="hs-comment">-- | Query.</span><span>
+</span><span id="line-64"></span><span class="hs-comment">-- </span><span>
+</span><span id="line-65"></span><span class="hs-comment">-- General form: @a=b&amp;c=d@, but if the value is Nothing, it becomes</span><span>
+</span><span id="line-66"></span><span class="hs-comment">-- @a&amp;c=d@.</span><span>
+</span><span id="line-67"></span><span class="hs-keyword">type</span><span> </span><span id="Query"><span class="annot"><a href="Network.HTTP.Types.URI.html#Query"><span class="hs-identifier hs-var">Query</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Network.HTTP.Types.URI.html#QueryItem"><span class="hs-identifier hs-type">QueryItem</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-68"></span><span>
+</span><span id="line-69"></span><span class="hs-comment">-- | Like Query, but with 'Text' instead of 'B.ByteString' (UTF8-encoded).</span><span>
+</span><span id="line-70"></span><span class="hs-keyword">type</span><span> </span><span id="QueryText"><span class="annot"><a href="Network.HTTP.Types.URI.html#QueryText"><span class="hs-identifier hs-var">QueryText</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-71"></span><span>
+</span><span id="line-72"></span><span class="hs-comment">-- | Convert 'QueryText' to 'Query'.</span><span>
+</span><span id="line-73"></span><span class="annot"><a href="Network.HTTP.Types.URI.html#queryTextToQuery"><span class="hs-identifier hs-type">queryTextToQuery</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP.Types.URI.html#QueryText"><span class="hs-identifier hs-type">QueryText</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP.Types.URI.html#Query"><span class="hs-identifier hs-type">Query</span></a></span><span>
+</span><span id="line-74"></span><span id="queryTextToQuery"><span class="annot"><span class="annottext">queryTextToQuery :: QueryText -&gt; Query
+</span><a href="Network.HTTP.Types.URI.html#queryTextToQuery"><span class="hs-identifier hs-var hs-var">queryTextToQuery</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; ByteString
+</span><span class="hs-identifier hs-var">encodeUtf8</span></span><span> </span><span class="annot"><span class="annottext">forall (a :: * -&gt; * -&gt; *) b c b' c'.
+Arrow a =&gt;
+a b c -&gt; a b' c' -&gt; a (b, b') (c, c')
+</span><span class="hs-operator hs-var">***</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; ByteString
+</span><span class="hs-identifier hs-var">encodeUtf8</span></span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span><span class="hs-comment">-- | Convert 'QueryText' to a 'B.Builder'.</span><span>
+</span><span id="line-77"></span><span class="annot"><a href="Network.HTTP.Types.URI.html#renderQueryText"><span class="hs-identifier hs-type">renderQueryText</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="hs-comment">-- ^ prepend a question mark?</span><span>
+</span><span id="line-78"></span><span>                </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP.Types.URI.html#QueryText"><span class="hs-identifier hs-type">QueryText</span></a></span><span>
+</span><span id="line-79"></span><span>                </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.Builder</span></span><span>
+</span><span id="line-80"></span><span id="renderQueryText"><span class="annot"><span class="annottext">renderQueryText :: Bool -&gt; QueryText -&gt; Builder
+</span><a href="Network.HTTP.Types.URI.html#renderQueryText"><span class="hs-identifier hs-var hs-var">renderQueryText</span></a></span></span><span> </span><span id="local-6989586621679049589"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679049589"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Query -&gt; Builder
+</span><a href="Network.HTTP.Types.URI.html#renderQueryBuilder"><span class="hs-identifier hs-var">renderQueryBuilder</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679049589"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">QueryText -&gt; Query
+</span><a href="Network.HTTP.Types.URI.html#queryTextToQuery"><span class="hs-identifier hs-var">queryTextToQuery</span></a></span><span>
+</span><span id="line-81"></span><span>
+</span><span id="line-82"></span><span class="hs-comment">-- | Convert 'Query' to 'QueryText' (leniently decoding the UTF-8).</span><span>
+</span><span id="line-83"></span><span class="annot"><a href="Network.HTTP.Types.URI.html#queryToQueryText"><span class="hs-identifier hs-type">queryToQueryText</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP.Types.URI.html#Query"><span class="hs-identifier hs-type">Query</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP.Types.URI.html#QueryText"><span class="hs-identifier hs-type">QueryText</span></a></span><span>
+</span><span id="line-84"></span><span id="queryToQueryText"><span class="annot"><span class="annottext">queryToQueryText :: Query -&gt; QueryText
+</span><a href="Network.HTTP.Types.URI.html#queryToQueryText"><span class="hs-identifier hs-var hs-var">queryToQueryText</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-85"></span><span>    </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Text
+</span><a href="#local-6989586621679049587"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">forall (a :: * -&gt; * -&gt; *) b c b' c'.
+Arrow a =&gt;
+a b c -&gt; a b' c' -&gt; a (b, b') (c, c')
+</span><span class="hs-operator hs-var">***</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Text
+</span><a href="#local-6989586621679049587"><span class="hs-identifier hs-var">go</span></a></span><span>
+</span><span id="line-86"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-87"></span><span>    </span><span id="local-6989586621679049587"><span class="annot"><span class="annottext">go :: ByteString -&gt; Text
+</span><a href="#local-6989586621679049587"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">OnDecodeError -&gt; ByteString -&gt; Text
+</span><span class="hs-identifier hs-var">decodeUtf8With</span></span><span> </span><span class="annot"><span class="annottext">OnDecodeError
+</span><span class="hs-identifier hs-var">lenientDecode</span></span><span>
+</span><span id="line-88"></span><span>
+</span><span id="line-89"></span><span class="hs-comment">-- | Parse 'QueryText' from a 'B.ByteString'. See 'parseQuery' for details.</span><span>
+</span><span id="line-90"></span><span class="annot"><a href="Network.HTTP.Types.URI.html#parseQueryText"><span class="hs-identifier hs-type">parseQueryText</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP.Types.URI.html#QueryText"><span class="hs-identifier hs-type">QueryText</span></a></span><span>
+</span><span id="line-91"></span><span id="parseQueryText"><span class="annot"><span class="annottext">parseQueryText :: ByteString -&gt; QueryText
+</span><a href="Network.HTTP.Types.URI.html#parseQueryText"><span class="hs-identifier hs-var hs-var">parseQueryText</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Query -&gt; QueryText
+</span><a href="Network.HTTP.Types.URI.html#queryToQueryText"><span class="hs-identifier hs-var">queryToQueryText</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Query
+</span><a href="Network.HTTP.Types.URI.html#parseQuery"><span class="hs-identifier hs-var">parseQuery</span></a></span><span>
+</span><span id="line-92"></span><span>
+</span><span id="line-93"></span><span class="hs-comment">-- | Simplified Query item type without support for parameter-less items.</span><span>
+</span><span id="line-94"></span><span class="hs-keyword">type</span><span> </span><span id="SimpleQueryItem"><span class="annot"><a href="Network.HTTP.Types.URI.html#SimpleQueryItem"><span class="hs-identifier hs-var">SimpleQueryItem</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span class="hs-special">)</span><span>
+</span><span id="line-95"></span><span>
+</span><span id="line-96"></span><span class="hs-comment">-- | Simplified Query type without support for parameter-less items.</span><span>
+</span><span id="line-97"></span><span class="hs-keyword">type</span><span> </span><span id="SimpleQuery"><span class="annot"><a href="Network.HTTP.Types.URI.html#SimpleQuery"><span class="hs-identifier hs-var">SimpleQuery</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Network.HTTP.Types.URI.html#SimpleQueryItem"><span class="hs-identifier hs-type">SimpleQueryItem</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-98"></span><span>
+</span><span id="line-99"></span><span class="hs-comment">-- | Convert 'SimpleQuery' to 'Query'.</span><span>
+</span><span id="line-100"></span><span class="annot"><a href="Network.HTTP.Types.URI.html#simpleQueryToQuery"><span class="hs-identifier hs-type">simpleQueryToQuery</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP.Types.URI.html#SimpleQuery"><span class="hs-identifier hs-type">SimpleQuery</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP.Types.URI.html#Query"><span class="hs-identifier hs-type">Query</span></a></span><span>
+</span><span id="line-101"></span><span id="simpleQueryToQuery"><span class="annot"><span class="annottext">simpleQueryToQuery :: SimpleQuery -&gt; Query
+</span><a href="Network.HTTP.Types.URI.html#simpleQueryToQuery"><span class="hs-identifier hs-var hs-var">simpleQueryToQuery</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (a :: * -&gt; * -&gt; *) b c d.
+Arrow a =&gt;
+a b c -&gt; a (d, b) (d, c)
+</span><span class="hs-identifier hs-var">second</span></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span class="hs-special">)</span><span>
+</span><span id="line-102"></span><span>
+</span><span id="line-103"></span><span class="hs-comment">-- | Convert 'Query' to a 'Builder'.</span><span>
+</span><span id="line-104"></span><span class="annot"><a href="Network.HTTP.Types.URI.html#renderQueryBuilder"><span class="hs-identifier hs-type">renderQueryBuilder</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="hs-comment">-- ^ prepend a question mark?</span><span>
+</span><span id="line-105"></span><span>                   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP.Types.URI.html#Query"><span class="hs-identifier hs-type">Query</span></a></span><span>
+</span><span id="line-106"></span><span>                   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.Builder</span></span><span>
+</span><span id="line-107"></span><span id="renderQueryBuilder"><span class="annot"><span class="annottext">renderQueryBuilder :: Bool -&gt; Query -&gt; Builder
+</span><a href="Network.HTTP.Types.URI.html#renderQueryBuilder"><span class="hs-identifier hs-var hs-var">renderQueryBuilder</span></a></span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-108"></span><span class="hs-comment">-- FIXME replace mconcat + map with foldr</span><span>
+</span><span id="line-109"></span><span class="annot"><a href="Network.HTTP.Types.URI.html#renderQueryBuilder"><span class="hs-identifier hs-var">renderQueryBuilder</span></a></span><span> </span><span id="local-6989586621679049585"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679049585"><span class="hs-identifier hs-var">qmark'</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679049584"><span class="annot"><span class="annottext">(ByteString, Maybe ByteString)
+</span><a href="#local-6989586621679049584"><span class="hs-identifier hs-var">p</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679049583"><span class="annot"><span class="annottext">Query
+</span><a href="#local-6989586621679049583"><span class="hs-identifier hs-var">ps</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Monoid a =&gt; [a] -&gt; a
+</span><span class="hs-identifier hs-var">mconcat</span></span><span>
+</span><span id="line-110"></span><span>    </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Builder -&gt; (ByteString, Maybe ByteString) -&gt; Builder
+</span><a href="#local-6989586621679049582"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679049585"><span class="hs-identifier hs-var">qmark'</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Builder
+</span><a href="#local-6989586621679049581"><span class="hs-identifier hs-var">qmark</span></a></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(ByteString, Maybe ByteString)
+</span><a href="#local-6989586621679049584"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-111"></span><span>    </span><span class="annot"><span class="annottext">forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Builder -&gt; (ByteString, Maybe ByteString) -&gt; Builder
+</span><a href="#local-6989586621679049582"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Builder
+</span><a href="#local-6989586621679049580"><span class="hs-identifier hs-var">amp</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Query
+</span><a href="#local-6989586621679049583"><span class="hs-identifier hs-var">ps</span></a></span><span>
+</span><span id="line-112"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-113"></span><span>    </span><span id="local-6989586621679049581"><span class="annot"><span class="annottext">qmark :: Builder
+</span><a href="#local-6989586621679049581"><span class="hs-identifier hs-var hs-var">qmark</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Builder
+</span><span class="hs-identifier hs-var">B.byteString</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;?&quot;</span></span><span>
+</span><span id="line-114"></span><span>    </span><span id="local-6989586621679049580"><span class="annot"><span class="annottext">amp :: Builder
+</span><a href="#local-6989586621679049580"><span class="hs-identifier hs-var hs-var">amp</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Builder
+</span><span class="hs-identifier hs-var">B.byteString</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;&amp;&quot;</span></span><span>
+</span><span id="line-115"></span><span>    </span><span id="local-6989586621679049575"><span class="annot"><span class="annottext">equal :: Builder
+</span><a href="#local-6989586621679049575"><span class="hs-identifier hs-var hs-var">equal</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Builder
+</span><span class="hs-identifier hs-var">B.byteString</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;=&quot;</span></span><span>
+</span><span id="line-116"></span><span>    </span><span id="local-6989586621679049582"><span class="annot"><span class="annottext">go :: Builder -&gt; (ByteString, Maybe ByteString) -&gt; Builder
+</span><a href="#local-6989586621679049582"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span id="local-6989586621679049571"><span class="annot"><span class="annottext">Builder
+</span><a href="#local-6989586621679049571"><span class="hs-identifier hs-var">sep</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679049570"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049570"><span class="hs-identifier hs-var">k</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679049569"><span class="annot"><span class="annottext">Maybe ByteString
+</span><a href="#local-6989586621679049569"><span class="hs-identifier hs-var">mv</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Monoid a =&gt; [a] -&gt; a
+</span><span class="hs-identifier hs-var">mconcat</span></span><span> </span><span class="hs-special">[</span><span>
+</span><span id="line-117"></span><span>                      </span><span class="annot"><span class="annottext">Builder
+</span><a href="#local-6989586621679049571"><span class="hs-identifier hs-var">sep</span></a></span><span>
+</span><span id="line-118"></span><span>                     </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; ByteString -&gt; Builder
+</span><a href="Network.HTTP.Types.URI.html#urlEncodeBuilder"><span class="hs-identifier hs-var">urlEncodeBuilder</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049570"><span class="hs-identifier hs-var">k</span></a></span><span>
+</span><span id="line-119"></span><span>                     </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Maybe ByteString
+</span><a href="#local-6989586621679049569"><span class="hs-identifier hs-var">mv</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-120"></span><span>                         </span><span class="annot"><span class="annottext">Maybe ByteString
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-121"></span><span>                         </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679049568"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049568"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Builder
+</span><a href="#local-6989586621679049575"><span class="hs-identifier hs-var">equal</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Monoid a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`mappend`</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; ByteString -&gt; Builder
+</span><a href="Network.HTTP.Types.URI.html#urlEncodeBuilder"><span class="hs-identifier hs-var">urlEncodeBuilder</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049568"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-122"></span><span>                     </span><span class="hs-special">]</span><span>
+</span><span id="line-123"></span><span>
+</span><span id="line-124"></span><span class="hs-comment">-- | Convert 'Query' to 'ByteString'.</span><span>
+</span><span id="line-125"></span><span class="annot"><a href="Network.HTTP.Types.URI.html#renderQuery"><span class="hs-identifier hs-type">renderQuery</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="hs-comment">-- ^ prepend question mark?</span><span>
+</span><span id="line-126"></span><span>            </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP.Types.URI.html#Query"><span class="hs-identifier hs-type">Query</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span>
+</span><span id="line-127"></span><span id="renderQuery"><span class="annot"><span class="annottext">renderQuery :: Bool -&gt; Query -&gt; ByteString
+</span><a href="Network.HTTP.Types.URI.html#renderQuery"><span class="hs-identifier hs-var hs-var">renderQuery</span></a></span></span><span> </span><span id="local-6989586621679049567"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679049567"><span class="hs-identifier hs-var">qm</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ByteString
+</span><span class="hs-identifier hs-var">BL.toStrict</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Builder -&gt; ByteString
+</span><span class="hs-identifier hs-var">B.toLazyByteString</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Query -&gt; Builder
+</span><a href="Network.HTTP.Types.URI.html#renderQueryBuilder"><span class="hs-identifier hs-var">renderQueryBuilder</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679049567"><span class="hs-identifier hs-var">qm</span></a></span><span>
+</span><span id="line-128"></span><span>
+</span><span id="line-129"></span><span class="hs-comment">-- | Convert 'SimpleQuery' to 'ByteString'.</span><span>
+</span><span id="line-130"></span><span class="annot"><a href="Network.HTTP.Types.URI.html#renderSimpleQuery"><span class="hs-identifier hs-type">renderSimpleQuery</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="hs-comment">-- ^ prepend question mark?</span><span>
+</span><span id="line-131"></span><span>                  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP.Types.URI.html#SimpleQuery"><span class="hs-identifier hs-type">SimpleQuery</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span>
+</span><span id="line-132"></span><span id="renderSimpleQuery"><span class="annot"><span class="annottext">renderSimpleQuery :: Bool -&gt; SimpleQuery -&gt; ByteString
+</span><a href="Network.HTTP.Types.URI.html#renderSimpleQuery"><span class="hs-identifier hs-var hs-var">renderSimpleQuery</span></a></span></span><span> </span><span id="local-6989586621679049564"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679049564"><span class="hs-identifier hs-var">useQuestionMark</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Query -&gt; ByteString
+</span><a href="Network.HTTP.Types.URI.html#renderQuery"><span class="hs-identifier hs-var">renderQuery</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679049564"><span class="hs-identifier hs-var">useQuestionMark</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">SimpleQuery -&gt; Query
+</span><a href="Network.HTTP.Types.URI.html#simpleQueryToQuery"><span class="hs-identifier hs-var">simpleQueryToQuery</span></a></span><span>
+</span><span id="line-133"></span><span>
+</span><span id="line-134"></span><span class="hs-comment">-- | Split out the query string into a list of keys and values. A few</span><span>
+</span><span id="line-135"></span><span class="hs-comment">-- importants points:</span><span>
+</span><span id="line-136"></span><span class="hs-comment">-- </span><span>
+</span><span id="line-137"></span><span class="hs-comment">-- * The result returned is still bytestrings, since we perform no character</span><span>
+</span><span id="line-138"></span><span class="hs-comment">-- decoding here. Most likely, you will want to use UTF-8 decoding, but this is</span><span>
+</span><span id="line-139"></span><span class="hs-comment">-- left to the user of the library.</span><span>
+</span><span id="line-140"></span><span class="hs-comment">-- </span><span>
+</span><span id="line-141"></span><span class="hs-comment">-- * Percent decoding errors are ignored. In particular, @&quot;%Q&quot;@ will be output as</span><span>
+</span><span id="line-142"></span><span class="hs-comment">-- @&quot;%Q&quot;@.</span><span>
+</span><span id="line-143"></span><span class="hs-comment">--</span><span>
+</span><span id="line-144"></span><span class="hs-comment">-- * It decodes @\'+\'@ characters to @\' \'@</span><span>
+</span><span id="line-145"></span><span class="annot"><a href="Network.HTTP.Types.URI.html#parseQuery"><span class="hs-identifier hs-type">parseQuery</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP.Types.URI.html#Query"><span class="hs-identifier hs-type">Query</span></a></span><span>
+</span><span id="line-146"></span><span id="parseQuery"><span class="annot"><span class="annottext">parseQuery :: ByteString -&gt; Query
+</span><a href="Network.HTTP.Types.URI.html#parseQuery"><span class="hs-identifier hs-var hs-var">parseQuery</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; ByteString -&gt; Query
+</span><a href="Network.HTTP.Types.URI.html#parseQueryReplacePlus"><span class="hs-identifier hs-var">parseQueryReplacePlus</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-147"></span><span>
+</span><span id="line-148"></span><span class="hs-comment">-- | Same functionality as 'parseQuery' with the option to decode @\'+\'@ characters to @\' \'@</span><span>
+</span><span id="line-149"></span><span class="hs-comment">-- or preserve @\'+\'@</span><span>
+</span><span id="line-150"></span><span class="annot"><a href="Network.HTTP.Types.URI.html#parseQueryReplacePlus"><span class="hs-identifier hs-type">parseQueryReplacePlus</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP.Types.URI.html#Query"><span class="hs-identifier hs-type">Query</span></a></span><span>
+</span><span id="line-151"></span><span id="parseQueryReplacePlus"><span class="annot"><span class="annottext">parseQueryReplacePlus :: Bool -&gt; ByteString -&gt; Query
+</span><a href="Network.HTTP.Types.URI.html#parseQueryReplacePlus"><span class="hs-identifier hs-var hs-var">parseQueryReplacePlus</span></a></span></span><span> </span><span id="local-6989586621679049563"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679049563"><span class="hs-identifier hs-var">replacePlus</span></a></span></span><span> </span><span id="local-6989586621679049562"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049562"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Query
+</span><a href="#local-6989586621679049561"><span class="hs-identifier hs-var">parseQueryString'</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ByteString
+</span><a href="#local-6989586621679049560"><span class="hs-identifier hs-var">dropQuestion</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049562"><span class="hs-identifier hs-var">bs</span></a></span><span>
+</span><span id="line-152"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-153"></span><span>    </span><span id="local-6989586621679049560"><span class="annot"><span class="annottext">dropQuestion :: ByteString -&gt; ByteString
+</span><a href="#local-6989586621679049560"><span class="hs-identifier hs-var hs-var">dropQuestion</span></a></span></span><span> </span><span id="local-6989586621679049556"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049556"><span class="hs-identifier hs-var">q</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-154"></span><span>        </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Maybe (Word8, ByteString)
+</span><span class="hs-identifier hs-var">B.uncons</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049556"><span class="hs-identifier hs-var">q</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-155"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">63</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679049554"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049554"><span class="hs-identifier hs-var">q'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049554"><span class="hs-identifier hs-var">q'</span></a></span><span>
+</span><span id="line-156"></span><span>            </span><span class="annot"><span class="annottext">Maybe (Word8, ByteString)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049556"><span class="hs-identifier hs-var">q</span></a></span><span>
+</span><span id="line-157"></span><span>    </span><span id="local-6989586621679049561"><span class="annot"><span class="annottext">parseQueryString' :: ByteString -&gt; Query
+</span><a href="#local-6989586621679049561"><span class="hs-identifier hs-var hs-var">parseQueryString'</span></a></span></span><span> </span><span id="local-6989586621679049553"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049553"><span class="hs-identifier hs-var">q</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Bool
+</span><span class="hs-identifier hs-var">B.null</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049553"><span class="hs-identifier hs-var">q</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-158"></span><span>    </span><span class="annot"><a href="#local-6989586621679049561"><span class="hs-identifier hs-var">parseQueryString'</span></a></span><span> </span><span id="local-6989586621679049551"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049551"><span class="hs-identifier hs-var">q</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-159"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679049550"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049550"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679049549"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049549"><span class="hs-identifier hs-var">xs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ByteString -&gt; (ByteString, ByteString)
+</span><a href="Network.HTTP.Types.URI.html#breakDiscard"><span class="hs-identifier hs-var">breakDiscard</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="Network.HTTP.Types.URI.html#queryStringSeparators"><span class="hs-identifier hs-var">queryStringSeparators</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049551"><span class="hs-identifier hs-var">q</span></a></span><span>
+</span><span id="line-160"></span><span>         </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; (ByteString, Maybe ByteString)
+</span><a href="#local-6989586621679049546"><span class="hs-identifier hs-var">parsePair</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049550"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Query
+</span><a href="#local-6989586621679049561"><span class="hs-identifier hs-var">parseQueryString'</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049549"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-161"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-162"></span><span>        </span><span id="local-6989586621679049546"><span class="annot"><span class="annottext">parsePair :: ByteString -&gt; (ByteString, Maybe ByteString)
+</span><a href="#local-6989586621679049546"><span class="hs-identifier hs-var hs-var">parsePair</span></a></span></span><span> </span><span id="local-6989586621679049545"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049545"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-163"></span><span>            </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679049542"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049542"><span class="hs-identifier hs-var">k</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679049541"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049541"><span class="hs-identifier hs-var">v</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Word8 -&gt; Bool) -&gt; ByteString -&gt; (ByteString, ByteString)
+</span><span class="hs-identifier hs-var">B.break</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">61</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049545"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="hs-comment">-- equal sign</span><span>
+</span><span id="line-164"></span><span>                </span><span id="local-6989586621679049539"><span class="annot"><span class="annottext">v'' :: Maybe ByteString
+</span><a href="#local-6989586621679049539"><span class="hs-identifier hs-var hs-var">v''</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-165"></span><span>                    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Maybe (Word8, ByteString)
+</span><span class="hs-identifier hs-var">B.uncons</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049541"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-166"></span><span>                        </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679049538"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049538"><span class="hs-identifier hs-var">v'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; ByteString -&gt; ByteString
+</span><a href="Network.HTTP.Types.URI.html#urlDecode"><span class="hs-identifier hs-var">urlDecode</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679049563"><span class="hs-identifier hs-var">replacePlus</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049538"><span class="hs-identifier hs-var">v'</span></a></span><span>
+</span><span id="line-167"></span><span>                        </span><span class="annot"><span class="annottext">Maybe (Word8, ByteString)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-168"></span><span>             </span><span class="hs-keyword">in</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; ByteString -&gt; ByteString
+</span><a href="Network.HTTP.Types.URI.html#urlDecode"><span class="hs-identifier hs-var">urlDecode</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679049563"><span class="hs-identifier hs-var">replacePlus</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049542"><span class="hs-identifier hs-var">k</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Maybe ByteString
+</span><a href="#local-6989586621679049539"><span class="hs-identifier hs-var">v''</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-169"></span><span>
+</span><span id="line-170"></span><span class="annot"><a href="Network.HTTP.Types.URI.html#queryStringSeparators"><span class="hs-identifier hs-type">queryStringSeparators</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span>
+</span><span id="line-171"></span><span id="queryStringSeparators"><span class="annot"><span class="annottext">queryStringSeparators :: ByteString
+</span><a href="Network.HTTP.Types.URI.html#queryStringSeparators"><span class="hs-identifier hs-var hs-var">queryStringSeparators</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Word8] -&gt; ByteString
+</span><span class="hs-identifier hs-var">B.pack</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">38</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">59</span></span><span class="hs-special">]</span><span> </span><span class="hs-comment">-- ampersand, semicolon</span><span>
+</span><span id="line-172"></span><span>
+</span><span id="line-173"></span><span class="hs-comment">-- | Break the second bytestring at the first occurrence of any bytes from</span><span>
+</span><span id="line-174"></span><span class="hs-comment">-- the first bytestring, discarding that byte.</span><span>
+</span><span id="line-175"></span><span class="annot"><a href="Network.HTTP.Types.URI.html#breakDiscard"><span class="hs-identifier hs-type">breakDiscard</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span class="hs-special">)</span><span>
+</span><span id="line-176"></span><span id="breakDiscard"><span class="annot"><span class="annottext">breakDiscard :: ByteString -&gt; ByteString -&gt; (ByteString, ByteString)
+</span><a href="Network.HTTP.Types.URI.html#breakDiscard"><span class="hs-identifier hs-var hs-var">breakDiscard</span></a></span></span><span> </span><span id="local-6989586621679049536"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049536"><span class="hs-identifier hs-var">seps</span></a></span></span><span> </span><span id="local-6989586621679049535"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049535"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-177"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679049534"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049534"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679049533"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049533"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Word8 -&gt; Bool) -&gt; ByteString -&gt; (ByteString, ByteString)
+</span><span class="hs-identifier hs-var">B.break</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8 -&gt; ByteString -&gt; Bool
+</span><span class="hs-operator hs-var">`B.elem`</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049536"><span class="hs-identifier hs-var">seps</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049535"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-178"></span><span>     </span><span class="hs-keyword">in</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049534"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int -&gt; ByteString -&gt; ByteString
+</span><span class="hs-identifier hs-var">B.drop</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049533"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-179"></span><span>
+</span><span id="line-180"></span><span class="hs-comment">-- | Parse 'SimpleQuery' from a 'ByteString'.</span><span>
+</span><span id="line-181"></span><span class="annot"><a href="Network.HTTP.Types.URI.html#parseSimpleQuery"><span class="hs-identifier hs-type">parseSimpleQuery</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP.Types.URI.html#SimpleQuery"><span class="hs-identifier hs-type">SimpleQuery</span></a></span><span>
+</span><span id="line-182"></span><span id="parseSimpleQuery"><span class="annot"><span class="annottext">parseSimpleQuery :: ByteString -&gt; SimpleQuery
+</span><a href="Network.HTTP.Types.URI.html#parseSimpleQuery"><span class="hs-identifier hs-var hs-var">parseSimpleQuery</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (a :: * -&gt; * -&gt; *) b c d.
+Arrow a =&gt;
+a b c -&gt; a (d, b) (d, c)
+</span><span class="hs-identifier hs-var">second</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a -&gt; a
+</span><span class="hs-identifier hs-var">fromMaybe</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-identifier hs-var">B.empty</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Query
+</span><a href="Network.HTTP.Types.URI.html#parseQuery"><span class="hs-identifier hs-var">parseQuery</span></a></span><span>
+</span><span id="line-183"></span><span>
+</span><span id="line-184"></span><span class="annot"><a href="Network.HTTP.Types.URI.html#ord8"><span class="hs-identifier hs-type">ord8</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Char</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span>
+</span><span id="line-185"></span><span id="ord8"><span class="annot"><span class="annottext">ord8 :: Char -&gt; Word8
+</span><a href="Network.HTTP.Types.URI.html#ord8"><span class="hs-identifier hs-var hs-var">ord8</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Int
+</span><span class="hs-identifier hs-var">ord</span></span><span>
+</span><span id="line-186"></span><span>
+</span><span id="line-187"></span><span class="annot"><a href="Network.HTTP.Types.URI.html#unreservedQS"><span class="hs-identifier hs-type">unreservedQS</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Types.URI.html#unreservedPI"><span class="hs-identifier hs-type">unreservedPI</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span class="hs-special">]</span><span>
+</span><span id="line-188"></span><span id="unreservedQS"><span class="annot"><span class="annottext">unreservedQS :: [Word8]
+</span><a href="Network.HTTP.Types.URI.html#unreservedQS"><span class="hs-identifier hs-var hs-var">unreservedQS</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Word8
+</span><a href="Network.HTTP.Types.URI.html#ord8"><span class="hs-identifier hs-var">ord8</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;-_.~&quot;</span></span><span>
+</span><span id="line-189"></span><span id="unreservedPI"><span class="annot"><span class="annottext">unreservedPI :: [Word8]
+</span><a href="Network.HTTP.Types.URI.html#unreservedPI"><span class="hs-identifier hs-var hs-var">unreservedPI</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Word8
+</span><a href="Network.HTTP.Types.URI.html#ord8"><span class="hs-identifier hs-var">ord8</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;-_.~:@&amp;=+$,&quot;</span></span><span>
+</span><span id="line-190"></span><span>
+</span><span id="line-191"></span><span class="hs-comment">-- | Percent-encoding for URLs.</span><span>
+</span><span id="line-192"></span><span class="annot"><a href="Network.HTTP.Types.URI.html#urlEncodeBuilder%27"><span class="hs-identifier hs-type">urlEncodeBuilder'</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.Builder</span></span><span>
+</span><span id="line-193"></span><span id="urlEncodeBuilder%27"><span class="annot"><span class="annottext">urlEncodeBuilder' :: [Word8] -&gt; ByteString -&gt; Builder
+</span><a href="Network.HTTP.Types.URI.html#urlEncodeBuilder%27"><span class="hs-identifier hs-var hs-var">urlEncodeBuilder'</span></a></span></span><span> </span><span id="local-6989586621679049523"><span class="annot"><span class="annottext">[Word8]
+</span><a href="#local-6989586621679049523"><span class="hs-identifier hs-var">extraUnreserved</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Monoid a =&gt; [a] -&gt; a
+</span><span class="hs-identifier hs-var">mconcat</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Builder
+</span><a href="#local-6989586621679049522"><span class="hs-identifier hs-var">encodeChar</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; [Word8]
+</span><span class="hs-identifier hs-var">B.unpack</span></span><span>
+</span><span id="line-194"></span><span>    </span><span class="hs-keyword">where</span><span>
+</span><span id="line-195"></span><span>      </span><span id="local-6989586621679049522"><span class="annot"><span class="annottext">encodeChar :: Word8 -&gt; Builder
+</span><a href="#local-6989586621679049522"><span class="hs-identifier hs-var hs-var">encodeChar</span></a></span></span><span> </span><span id="local-6989586621679049520"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679049520"><span class="hs-identifier hs-var">ch</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Bool
+</span><a href="#local-6989586621679049519"><span class="hs-identifier hs-var">unreserved</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679049520"><span class="hs-identifier hs-var">ch</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Builder
+</span><span class="hs-identifier hs-var">B.word8</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679049520"><span class="hs-identifier hs-var">ch</span></a></span><span>
+</span><span id="line-196"></span><span>                    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Builder
+</span><a href="#local-6989586621679049517"><span class="hs-identifier hs-var">h2</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679049520"><span class="hs-identifier hs-var">ch</span></a></span><span>
+</span><span id="line-197"></span><span>
+</span><span id="line-198"></span><span>      </span><span id="local-6989586621679049519"><span class="annot"><span class="annottext">unreserved :: Word8 -&gt; Bool
+</span><a href="#local-6989586621679049519"><span class="hs-identifier hs-var hs-var">unreserved</span></a></span></span><span> </span><span id="local-6989586621679049501"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679049501"><span class="hs-identifier hs-var">ch</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679049501"><span class="hs-identifier hs-var">ch</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">65</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679049501"><span class="hs-identifier hs-var">ch</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">90</span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span> </span><span class="hs-comment">-- A-Z</span><span>
+</span><span id="line-199"></span><span>                    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679049501"><span class="hs-identifier hs-var">ch</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">97</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679049501"><span class="hs-identifier hs-var">ch</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">122</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span> </span><span class="hs-comment">-- a-z</span><span>
+</span><span id="line-200"></span><span>                    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679049501"><span class="hs-identifier hs-var">ch</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">48</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679049501"><span class="hs-identifier hs-var">ch</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">57</span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span> </span><span class="hs-comment">-- 0-9</span><span>
+</span><span id="line-201"></span><span>      </span><span class="annot"><a href="#local-6989586621679049519"><span class="hs-identifier hs-var">unreserved</span></a></span><span> </span><span id="local-6989586621679049498"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679049498"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679049498"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. (Foldable t, Eq a) =&gt; a -&gt; t a -&gt; Bool
+</span><span class="hs-operator hs-var">`elem`</span></span><span> </span><span class="annot"><span class="annottext">[Word8]
+</span><a href="#local-6989586621679049523"><span class="hs-identifier hs-var">extraUnreserved</span></a></span><span>
+</span><span id="line-202"></span><span>
+</span><span id="line-203"></span><span>      </span><span class="hs-comment">-- must be upper-case</span><span>
+</span><span id="line-204"></span><span>      </span><span id="local-6989586621679049517"><span class="annot"><span class="annottext">h2 :: Word8 -&gt; Builder
+</span><a href="#local-6989586621679049517"><span class="hs-identifier hs-var hs-var">h2</span></a></span></span><span> </span><span id="local-6989586621679049489"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679049489"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Builder
+</span><span class="hs-identifier hs-var">B.word8</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">37</span></span><span> </span><span class="annot"><span class="annottext">forall a. Monoid a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`mappend`</span></span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Builder
+</span><span class="hs-identifier hs-var">B.word8</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall {a}. (Ord a, Num a) =&gt; a -&gt; a
+</span><a href="#local-6989586621679049488"><span class="hs-identifier hs-var">h</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679049487"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Monoid a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`mappend`</span></span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Builder
+</span><span class="hs-identifier hs-var">B.word8</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall {a}. (Ord a, Num a) =&gt; a -&gt; a
+</span><a href="#local-6989586621679049488"><span class="hs-identifier hs-var">h</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679049486"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-comment">-- 37 = %</span><span>
+</span><span id="line-205"></span><span>          </span><span class="hs-keyword">where</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679049487"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679049487"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679049486"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679049486"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679049489"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Integral a =&gt; a -&gt; a -&gt; (a, a)
+</span><span class="hs-operator hs-var">`divMod`</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">16</span></span><span>
+</span><span id="line-206"></span><span>      </span><span id="local-6989586621679049488"><span class="annot"><span class="annottext">h :: a -&gt; a
+</span><a href="#local-6989586621679049488"><span class="hs-identifier hs-var hs-var">h</span></a></span></span><span> </span><span id="local-6989586621679049471"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679049471"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679049471"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">10</span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">48</span></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679049471"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="hs-comment">-- zero (0)</span><span>
+</span><span id="line-207"></span><span>          </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">65</span></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679049471"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">10</span></span><span> </span><span class="hs-comment">-- 65: A</span><span>
+</span><span id="line-208"></span><span>
+</span><span id="line-209"></span><span class="hs-comment">-- | Percent-encoding for URLs (using 'B.Builder').</span><span>
+</span><span id="line-210"></span><span class="annot"><a href="Network.HTTP.Types.URI.html#urlEncodeBuilder"><span class="hs-identifier hs-type">urlEncodeBuilder</span></a></span><span>
+</span><span id="line-211"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="hs-comment">-- ^ Whether input is in query string. True: Query string, False: Path element</span><span>
+</span><span id="line-212"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span>
+</span><span id="line-213"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.Builder</span></span><span>
+</span><span id="line-214"></span><span id="urlEncodeBuilder"><span class="annot"><span class="annottext">urlEncodeBuilder :: Bool -&gt; ByteString -&gt; Builder
+</span><a href="Network.HTTP.Types.URI.html#urlEncodeBuilder"><span class="hs-identifier hs-var hs-var">urlEncodeBuilder</span></a></span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Word8] -&gt; ByteString -&gt; Builder
+</span><a href="Network.HTTP.Types.URI.html#urlEncodeBuilder%27"><span class="hs-identifier hs-var">urlEncodeBuilder'</span></a></span><span> </span><span class="annot"><span class="annottext">[Word8]
+</span><a href="Network.HTTP.Types.URI.html#unreservedQS"><span class="hs-identifier hs-var">unreservedQS</span></a></span><span>
+</span><span id="line-215"></span><span class="annot"><a href="Network.HTTP.Types.URI.html#urlEncodeBuilder"><span class="hs-identifier hs-var">urlEncodeBuilder</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Word8] -&gt; ByteString -&gt; Builder
+</span><a href="Network.HTTP.Types.URI.html#urlEncodeBuilder%27"><span class="hs-identifier hs-var">urlEncodeBuilder'</span></a></span><span> </span><span class="annot"><span class="annottext">[Word8]
+</span><a href="Network.HTTP.Types.URI.html#unreservedPI"><span class="hs-identifier hs-var">unreservedPI</span></a></span><span>
+</span><span id="line-216"></span><span>
+</span><span id="line-217"></span><span class="hs-comment">-- | Percent-encoding for URLs.</span><span>
+</span><span id="line-218"></span><span class="annot"><a href="Network.HTTP.Types.URI.html#urlEncode"><span class="hs-identifier hs-type">urlEncode</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="hs-comment">-- ^ Whether to decode @\'+\'@ to @\' \'@</span><span>
+</span><span id="line-219"></span><span>          </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span> </span><span class="hs-comment">-- ^ The ByteString to encode as URL</span><span>
+</span><span id="line-220"></span><span>          </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span> </span><span class="hs-comment">-- ^ The encoded URL</span><span>
+</span><span id="line-221"></span><span id="urlEncode"><span class="annot"><span class="annottext">urlEncode :: Bool -&gt; ByteString -&gt; ByteString
+</span><a href="Network.HTTP.Types.URI.html#urlEncode"><span class="hs-identifier hs-var hs-var">urlEncode</span></a></span></span><span> </span><span id="local-6989586621679049468"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679049468"><span class="hs-identifier hs-var">q</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ByteString
+</span><span class="hs-identifier hs-var">BL.toStrict</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Builder -&gt; ByteString
+</span><span class="hs-identifier hs-var">B.toLazyByteString</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; ByteString -&gt; Builder
+</span><a href="Network.HTTP.Types.URI.html#urlEncodeBuilder"><span class="hs-identifier hs-var">urlEncodeBuilder</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679049468"><span class="hs-identifier hs-var">q</span></a></span><span>
+</span><span id="line-222"></span><span>
+</span><span id="line-223"></span><span class="hs-comment">-- | Percent-decoding.</span><span>
+</span><span id="line-224"></span><span class="annot"><a href="Network.HTTP.Types.URI.html#urlDecode"><span class="hs-identifier hs-type">urlDecode</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="hs-comment">-- ^ Whether to decode @\'+\'@ to @\' \'@</span><span>
+</span><span id="line-225"></span><span>          </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span>
+</span><span id="line-226"></span><span id="urlDecode"><span class="annot"><span class="annottext">urlDecode :: Bool -&gt; ByteString -&gt; ByteString
+</span><a href="Network.HTTP.Types.URI.html#urlDecode"><span class="hs-identifier hs-var hs-var">urlDecode</span></a></span></span><span> </span><span id="local-6989586621679049467"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679049467"><span class="hs-identifier hs-var">replacePlus</span></a></span></span><span> </span><span id="local-6989586621679049466"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049466"><span class="hs-identifier hs-var">z</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (a, b) -&gt; a
+</span><span class="hs-identifier hs-var">fst</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall a.
+Int -&gt; (a -&gt; Maybe (Word8, a)) -&gt; a -&gt; (ByteString, Maybe a)
+</span><span class="hs-identifier hs-var">B.unfoldrN</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString -&gt; Int
+</span><span class="hs-identifier hs-var">B.length</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049466"><span class="hs-identifier hs-var">z</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Maybe (Word8, ByteString)
+</span><a href="#local-6989586621679049463"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049466"><span class="hs-identifier hs-var">z</span></a></span><span>
+</span><span id="line-227"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-228"></span><span>    </span><span id="local-6989586621679049463"><span class="annot"><span class="annottext">go :: ByteString -&gt; Maybe (Word8, ByteString)
+</span><a href="#local-6989586621679049463"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span id="local-6989586621679049447"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049447"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-229"></span><span>        </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Maybe (Word8, ByteString)
+</span><span class="hs-identifier hs-var">B.uncons</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049447"><span class="hs-identifier hs-var">bs</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-230"></span><span>            </span><span class="annot"><span class="annottext">Maybe (Word8, ByteString)
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-231"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">43</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679049446"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049446"><span class="hs-identifier hs-var">ws</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679049467"><span class="hs-identifier hs-var">replacePlus</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">32</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049446"><span class="hs-identifier hs-var">ws</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-comment">-- plus to space</span><span>
+</span><span id="line-232"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">37</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679049445"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049445"><span class="hs-identifier hs-var">ws</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a -&gt; a
+</span><span class="hs-identifier hs-var">fromMaybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">37</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049445"><span class="hs-identifier hs-var">ws</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span> </span><span class="hs-comment">-- percent</span><span>
+</span><span id="line-233"></span><span>                </span><span class="hs-special">(</span><span id="local-6989586621679049444"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679049444"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679049443"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049443"><span class="hs-identifier hs-var">xs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Maybe (Word8, ByteString)
+</span><span class="hs-identifier hs-var">B.uncons</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049445"><span class="hs-identifier hs-var">ws</span></a></span><span>
+</span><span id="line-234"></span><span>                </span><span id="local-6989586621679049442"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679049442"><span class="hs-identifier hs-var">x'</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall {a}. (Ord a, Num a) =&gt; a -&gt; Maybe a
+</span><a href="#local-6989586621679049441"><span class="hs-identifier hs-var">hexVal</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679049444"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-235"></span><span>                </span><span class="hs-special">(</span><span id="local-6989586621679049440"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679049440"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679049439"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049439"><span class="hs-identifier hs-var">ys</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Maybe (Word8, ByteString)
+</span><span class="hs-identifier hs-var">B.uncons</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049443"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-236"></span><span>                </span><span id="local-6989586621679049438"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679049438"><span class="hs-identifier hs-var">y'</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall {a}. (Ord a, Num a) =&gt; a -&gt; Maybe a
+</span><a href="#local-6989586621679049441"><span class="hs-identifier hs-var">hexVal</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679049440"><span class="hs-identifier hs-var">y</span></a></span><span>
+</span><span id="line-237"></span><span>                </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8 -&gt; Word8 -&gt; Word8
+</span><a href="#local-6989586621679049437"><span class="hs-identifier hs-var">combine</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679049442"><span class="hs-identifier hs-var">x'</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679049438"><span class="hs-identifier hs-var">y'</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049439"><span class="hs-identifier hs-var">ys</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-238"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679049436"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679049436"><span class="hs-identifier hs-var">w</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679049435"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049435"><span class="hs-identifier hs-var">ws</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679049436"><span class="hs-identifier hs-var">w</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049435"><span class="hs-identifier hs-var">ws</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-239"></span><span>    </span><span id="local-6989586621679049441"><span class="annot"><span class="annottext">hexVal :: a -&gt; Maybe a
+</span><a href="#local-6989586621679049441"><span class="hs-identifier hs-var hs-var">hexVal</span></a></span></span><span> </span><span id="local-6989586621679049414"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679049414"><span class="hs-identifier hs-var">w</span></a></span></span><span>
+</span><span id="line-240"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">48</span></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679049414"><span class="hs-identifier hs-var">w</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679049414"><span class="hs-identifier hs-var">w</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">57</span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679049414"><span class="hs-identifier hs-var">w</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">48</span></span><span> </span><span class="hs-comment">-- 0 - 9</span><span>
+</span><span id="line-241"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">65</span></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679049414"><span class="hs-identifier hs-var">w</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679049414"><span class="hs-identifier hs-var">w</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">70</span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679049414"><span class="hs-identifier hs-var">w</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">55</span></span><span> </span><span class="hs-comment">-- A - F</span><span>
+</span><span id="line-242"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">97</span></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679049414"><span class="hs-identifier hs-var">w</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679049414"><span class="hs-identifier hs-var">w</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">102</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679049414"><span class="hs-identifier hs-var">w</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">87</span></span><span> </span><span class="hs-comment">-- a - f</span><span>
+</span><span id="line-243"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-244"></span><span>    </span><span class="annot"><a href="#local-6989586621679049437"><span class="hs-identifier hs-type">combine</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span>
+</span><span id="line-245"></span><span>    </span><span id="local-6989586621679049437"><span class="annot"><span class="annottext">combine :: Word8 -&gt; Word8 -&gt; Word8
+</span><a href="#local-6989586621679049437"><span class="hs-identifier hs-var hs-var">combine</span></a></span></span><span> </span><span id="local-6989586621679049413"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679049413"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679049412"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679049412"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-identifier hs-var">shiftL</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679049413"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.|.</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679049412"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-246"></span><span>
+</span><span id="line-247"></span><span class="hs-comment">-- | Encodes a list of path segments into a valid URL fragment.</span><span>
+</span><span id="line-248"></span><span class="hs-comment">-- </span><span>
+</span><span id="line-249"></span><span class="hs-comment">-- This function takes the following three steps:</span><span>
+</span><span id="line-250"></span><span class="hs-comment">-- </span><span>
+</span><span id="line-251"></span><span class="hs-comment">-- * UTF-8 encodes the characters.</span><span>
+</span><span id="line-252"></span><span class="hs-comment">-- </span><span>
+</span><span id="line-253"></span><span class="hs-comment">-- * Performs percent encoding on all unreserved characters, as well as @\:\@\=\+\$@,</span><span>
+</span><span id="line-254"></span><span class="hs-comment">-- </span><span>
+</span><span id="line-255"></span><span class="hs-comment">-- * Prepends each segment with a slash.</span><span>
+</span><span id="line-256"></span><span class="hs-comment">-- </span><span>
+</span><span id="line-257"></span><span class="hs-comment">-- For example:</span><span>
+</span><span id="line-258"></span><span class="hs-comment">-- </span><span>
+</span><span id="line-259"></span><span class="hs-comment">-- &gt; encodePathSegments [\&quot;foo\&quot;, \&quot;bar\&quot;, \&quot;baz\&quot;]</span><span>
+</span><span id="line-260"></span><span class="hs-comment">-- \&quot;\/foo\/bar\/baz\&quot;</span><span>
+</span><span id="line-261"></span><span class="hs-comment">-- </span><span>
+</span><span id="line-262"></span><span class="hs-comment">-- &gt; encodePathSegments [\&quot;foo bar\&quot;, \&quot;baz\/bin\&quot;]</span><span>
+</span><span id="line-263"></span><span class="hs-comment">-- \&quot;\/foo\%20bar\/baz\%2Fbin\&quot;</span><span>
+</span><span id="line-264"></span><span class="hs-comment">-- </span><span>
+</span><span id="line-265"></span><span class="hs-comment">-- &gt; encodePathSegments [\&quot;&#1513;&#1500;&#1493;&#1501;\&quot;]</span><span>
+</span><span id="line-266"></span><span class="hs-comment">-- \&quot;\/%D7%A9%D7%9C%D7%95%D7%9D\&quot;</span><span>
+</span><span id="line-267"></span><span class="hs-comment">-- </span><span>
+</span><span id="line-268"></span><span class="hs-comment">-- Huge thanks to Jeremy Shaw who created the original implementation of this</span><span>
+</span><span id="line-269"></span><span class="hs-comment">-- function in web-routes and did such thorough research to determine all</span><span>
+</span><span id="line-270"></span><span class="hs-comment">-- correct escaping procedures.</span><span>
+</span><span id="line-271"></span><span class="annot"><a href="Network.HTTP.Types.URI.html#encodePathSegments"><span class="hs-identifier hs-type">encodePathSegments</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.Builder</span></span><span>
+</span><span id="line-272"></span><span id="encodePathSegments"><span class="annot"><span class="annottext">encodePathSegments :: [Text] -&gt; Builder
+</span><a href="Network.HTTP.Types.URI.html#encodePathSegments"><span class="hs-identifier hs-var hs-var">encodePathSegments</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a b.
+Foldable t =&gt;
+(a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><span class="hs-identifier hs-var">foldr</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679049408"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679049408"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. Monoid a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">mappend</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString -&gt; Builder
+</span><span class="hs-identifier hs-var">B.byteString</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;/&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a. Monoid a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`mappend`</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Builder
+</span><a href="Network.HTTP.Types.URI.html#encodePathSegment"><span class="hs-identifier hs-var">encodePathSegment</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679049408"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-273"></span><span>
+</span><span id="line-274"></span><span class="hs-comment">-- | Like encodePathSegments, but without the initial slash.</span><span>
+</span><span id="line-275"></span><span class="annot"><a href="Network.HTTP.Types.URI.html#encodePathSegmentsRelative"><span class="hs-identifier hs-type">encodePathSegmentsRelative</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.Builder</span></span><span>
+</span><span id="line-276"></span><span id="encodePathSegmentsRelative"><span class="annot"><span class="annottext">encodePathSegmentsRelative :: [Text] -&gt; Builder
+</span><a href="Network.HTTP.Types.URI.html#encodePathSegmentsRelative"><span class="hs-identifier hs-var hs-var">encodePathSegmentsRelative</span></a></span></span><span> </span><span id="local-6989586621679049406"><span class="annot"><span class="annottext">[Text]
+</span><a href="#local-6989586621679049406"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Monoid a =&gt; [a] -&gt; a
+</span><span class="hs-identifier hs-var">mconcat</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">intersperse</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString -&gt; Builder
+</span><span class="hs-identifier hs-var">B.byteString</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;/&quot;</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Builder
+</span><a href="Network.HTTP.Types.URI.html#encodePathSegment"><span class="hs-identifier hs-var">encodePathSegment</span></a></span><span> </span><span class="annot"><span class="annottext">[Text]
+</span><a href="#local-6989586621679049406"><span class="hs-identifier hs-var">xs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-277"></span><span>
+</span><span id="line-278"></span><span class="annot"><a href="Network.HTTP.Types.URI.html#encodePathSegment"><span class="hs-identifier hs-type">encodePathSegment</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.Builder</span></span><span>
+</span><span id="line-279"></span><span id="encodePathSegment"><span class="annot"><span class="annottext">encodePathSegment :: Text -&gt; Builder
+</span><a href="Network.HTTP.Types.URI.html#encodePathSegment"><span class="hs-identifier hs-var hs-var">encodePathSegment</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; ByteString -&gt; Builder
+</span><a href="Network.HTTP.Types.URI.html#urlEncodeBuilder"><span class="hs-identifier hs-var">urlEncodeBuilder</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; ByteString
+</span><span class="hs-identifier hs-var">encodeUtf8</span></span><span>
+</span><span id="line-280"></span><span>
+</span><span id="line-281"></span><span class="hs-comment">-- | Parse a list of path segments from a valid URL fragment.</span><span>
+</span><span id="line-282"></span><span class="annot"><a href="Network.HTTP.Types.URI.html#decodePathSegments"><span class="hs-identifier hs-type">decodePathSegments</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">]</span><span>
+</span><span id="line-283"></span><span id="decodePathSegments"><span class="annot"><span class="annottext">decodePathSegments :: ByteString -&gt; [Text]
+</span><a href="Network.HTTP.Types.URI.html#decodePathSegments"><span class="hs-identifier hs-var hs-var">decodePathSegments</span></a></span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-284"></span><span class="annot"><a href="Network.HTTP.Types.URI.html#decodePathSegments"><span class="hs-identifier hs-var">decodePathSegments</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;/&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-285"></span><span class="annot"><a href="Network.HTTP.Types.URI.html#decodePathSegments"><span class="hs-identifier hs-var">decodePathSegments</span></a></span><span> </span><span id="local-6989586621679049404"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049404"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-286"></span><span>    </span><span class="annot"><span class="annottext">ByteString -&gt; [Text]
+</span><a href="#local-6989586621679049403"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ByteString
+</span><a href="#local-6989586621679049402"><span class="hs-identifier hs-var">drop1Slash</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049404"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-287"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-288"></span><span>    </span><span id="local-6989586621679049402"><span class="annot"><span class="annottext">drop1Slash :: ByteString -&gt; ByteString
+</span><a href="#local-6989586621679049402"><span class="hs-identifier hs-var hs-var">drop1Slash</span></a></span></span><span> </span><span id="local-6989586621679049399"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049399"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-289"></span><span>        </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Maybe (Word8, ByteString)
+</span><span class="hs-identifier hs-var">B.uncons</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049399"><span class="hs-identifier hs-var">bs</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-290"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">47</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679049398"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049398"><span class="hs-identifier hs-var">bs'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049398"><span class="hs-identifier hs-var">bs'</span></a></span><span> </span><span class="hs-comment">-- 47 == /</span><span>
+</span><span id="line-291"></span><span>            </span><span class="annot"><span class="annottext">Maybe (Word8, ByteString)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049399"><span class="hs-identifier hs-var">bs</span></a></span><span>
+</span><span id="line-292"></span><span>    </span><span id="local-6989586621679049403"><span class="annot"><span class="annottext">go :: ByteString -&gt; [Text]
+</span><a href="#local-6989586621679049403"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span id="local-6989586621679049397"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049397"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-293"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679049394"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049394"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679049393"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049393"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Word8 -&gt; Bool) -&gt; ByteString -&gt; (ByteString, ByteString)
+</span><span class="hs-identifier hs-var">B.break</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">47</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049397"><span class="hs-identifier hs-var">bs</span></a></span><span>
+</span><span id="line-294"></span><span>         </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Text
+</span><a href="Network.HTTP.Types.URI.html#decodePathSegment"><span class="hs-identifier hs-var">decodePathSegment</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049394"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span>
+</span><span id="line-295"></span><span>            </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Bool
+</span><span class="hs-identifier hs-var">B.null</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049393"><span class="hs-identifier hs-var">y</span></a></span><span>
+</span><span id="line-296"></span><span>                </span><span class="hs-keyword">then</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-297"></span><span>                </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; [Text]
+</span><a href="#local-6989586621679049403"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; ByteString -&gt; ByteString
+</span><span class="hs-identifier hs-var">B.drop</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049393"><span class="hs-identifier hs-var">y</span></a></span><span>
+</span><span id="line-298"></span><span>
+</span><span id="line-299"></span><span class="annot"><a href="Network.HTTP.Types.URI.html#decodePathSegment"><span class="hs-identifier hs-type">decodePathSegment</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-300"></span><span id="decodePathSegment"><span class="annot"><span class="annottext">decodePathSegment :: ByteString -&gt; Text
+</span><a href="Network.HTTP.Types.URI.html#decodePathSegment"><span class="hs-identifier hs-var hs-var">decodePathSegment</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">OnDecodeError -&gt; ByteString -&gt; Text
+</span><span class="hs-identifier hs-var">decodeUtf8With</span></span><span> </span><span class="annot"><span class="annottext">OnDecodeError
+</span><span class="hs-identifier hs-var">lenientDecode</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; ByteString -&gt; ByteString
+</span><a href="Network.HTTP.Types.URI.html#urlDecode"><span class="hs-identifier hs-var">urlDecode</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-301"></span><span>
+</span><span id="line-302"></span><span class="hs-comment">-- | Extract whole path (path segments + query) from a</span><span>
+</span><span id="line-303"></span><span class="hs-comment">-- &lt;http://tools.ietf.org/html/rfc2616#section-5.1.2 RFC 2616 Request-URI&gt;.</span><span>
+</span><span id="line-304"></span><span class="hs-comment">--</span><span>
+</span><span id="line-305"></span><span class="hs-comment">-- &gt;&gt;&gt; extractPath &quot;/path&quot;</span><span>
+</span><span id="line-306"></span><span class="hs-comment">-- &quot;/path&quot;</span><span>
+</span><span id="line-307"></span><span class="hs-comment">--</span><span>
+</span><span id="line-308"></span><span class="hs-comment">-- &gt;&gt;&gt; extractPath &quot;http://example.com:8080/path&quot;</span><span>
+</span><span id="line-309"></span><span class="hs-comment">-- &quot;/path&quot;</span><span>
+</span><span id="line-310"></span><span class="hs-comment">--</span><span>
+</span><span id="line-311"></span><span class="hs-comment">-- &gt;&gt;&gt; extractPath &quot;http://example.com&quot;</span><span>
+</span><span id="line-312"></span><span class="hs-comment">-- &quot;/&quot;</span><span>
+</span><span id="line-313"></span><span class="hs-comment">--</span><span>
+</span><span id="line-314"></span><span class="hs-comment">-- &gt;&gt;&gt; extractPath &quot;&quot;</span><span>
+</span><span id="line-315"></span><span class="hs-comment">-- &quot;/&quot;</span><span>
+</span><span id="line-316"></span><span class="annot"><a href="Network.HTTP.Types.URI.html#extractPath"><span class="hs-identifier hs-type">extractPath</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span>
+</span><span id="line-317"></span><span id="extractPath"><span class="annot"><span class="annottext">extractPath :: ByteString -&gt; ByteString
+</span><a href="Network.HTTP.Types.URI.html#extractPath"><span class="hs-identifier hs-var hs-var">extractPath</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {a}. (Eq a, IsString a) =&gt; a -&gt; a
+</span><a href="#local-6989586621679049391"><span class="hs-identifier hs-var">ensureNonEmpty</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ByteString
+</span><a href="#local-6989586621679049390"><span class="hs-identifier hs-var">extract</span></a></span><span>
+</span><span id="line-318"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-319"></span><span>    </span><span id="local-6989586621679049390"><span class="annot"><span class="annottext">extract :: ByteString -&gt; ByteString
+</span><a href="#local-6989586621679049390"><span class="hs-identifier hs-var hs-var">extract</span></a></span></span><span> </span><span id="local-6989586621679049387"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049387"><span class="hs-identifier hs-var">path</span></a></span></span><span>
+</span><span id="line-320"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;http://&quot;</span></span><span>  </span><span class="annot"><span class="annottext">ByteString -&gt; ByteString -&gt; Bool
+</span><span class="hs-operator hs-var">`B.isPrefixOf`</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049387"><span class="hs-identifier hs-var">path</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. (a, b) -&gt; b
+</span><span class="hs-identifier hs-var">snd</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; (ByteString, ByteString)
+</span><a href="#local-6989586621679049385"><span class="hs-identifier hs-var">breakOnSlash</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; ByteString -&gt; ByteString
+</span><span class="hs-identifier hs-var">B.drop</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">7</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049387"><span class="hs-identifier hs-var">path</span></a></span><span>
+</span><span id="line-321"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;https://&quot;</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ByteString -&gt; Bool
+</span><span class="hs-operator hs-var">`B.isPrefixOf`</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049387"><span class="hs-identifier hs-var">path</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. (a, b) -&gt; b
+</span><span class="hs-identifier hs-var">snd</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; (ByteString, ByteString)
+</span><a href="#local-6989586621679049385"><span class="hs-identifier hs-var">breakOnSlash</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; ByteString -&gt; ByteString
+</span><span class="hs-identifier hs-var">B.drop</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049387"><span class="hs-identifier hs-var">path</span></a></span><span>
+</span><span id="line-322"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>                      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049387"><span class="hs-identifier hs-var">path</span></a></span><span>
+</span><span id="line-323"></span><span>    </span><span id="local-6989586621679049385"><span class="annot"><span class="annottext">breakOnSlash :: ByteString -&gt; (ByteString, ByteString)
+</span><a href="#local-6989586621679049385"><span class="hs-identifier hs-var hs-var">breakOnSlash</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Word8 -&gt; Bool) -&gt; ByteString -&gt; (ByteString, ByteString)
+</span><span class="hs-identifier hs-var">B.break</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">47</span></span><span class="hs-special">)</span><span>
+</span><span id="line-324"></span><span>    </span><span id="local-6989586621679049391"><span class="annot"><span class="annottext">ensureNonEmpty :: a -&gt; a
+</span><a href="#local-6989586621679049391"><span class="hs-identifier hs-var hs-var">ensureNonEmpty</span></a></span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-string">&quot;&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-string">&quot;/&quot;</span></span><span>
+</span><span id="line-325"></span><span>    </span><span class="annot"><a href="#local-6989586621679049391"><span class="hs-identifier hs-var">ensureNonEmpty</span></a></span><span> </span><span id="local-6989586621679049377"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679049377"><span class="hs-identifier hs-var">p</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679049377"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-326"></span><span>
+</span><span id="line-327"></span><span class="hs-comment">-- | Encode a whole path (path segments + query).</span><span>
+</span><span id="line-328"></span><span class="annot"><a href="Network.HTTP.Types.URI.html#encodePath"><span class="hs-identifier hs-type">encodePath</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP.Types.URI.html#Query"><span class="hs-identifier hs-type">Query</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.Builder</span></span><span>
+</span><span id="line-329"></span><span id="encodePath"><span class="annot"><span class="annottext">encodePath :: [Text] -&gt; Query -&gt; Builder
+</span><a href="Network.HTTP.Types.URI.html#encodePath"><span class="hs-identifier hs-var hs-var">encodePath</span></a></span></span><span> </span><span id="local-6989586621679049376"><span class="annot"><span class="annottext">[Text]
+</span><a href="#local-6989586621679049376"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Text] -&gt; Builder
+</span><a href="Network.HTTP.Types.URI.html#encodePathSegments"><span class="hs-identifier hs-var">encodePathSegments</span></a></span><span> </span><span class="annot"><span class="annottext">[Text]
+</span><a href="#local-6989586621679049376"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-330"></span><span class="annot"><a href="Network.HTTP.Types.URI.html#encodePath"><span class="hs-identifier hs-var">encodePath</span></a></span><span> </span><span id="local-6989586621679049375"><span class="annot"><span class="annottext">[Text]
+</span><a href="#local-6989586621679049375"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679049374"><span class="annot"><span class="annottext">Query
+</span><a href="#local-6989586621679049374"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Text] -&gt; Builder
+</span><a href="Network.HTTP.Types.URI.html#encodePathSegments"><span class="hs-identifier hs-var">encodePathSegments</span></a></span><span> </span><span class="annot"><span class="annottext">[Text]
+</span><a href="#local-6989586621679049375"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Monoid a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`mappend`</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Query -&gt; Builder
+</span><a href="Network.HTTP.Types.URI.html#renderQueryBuilder"><span class="hs-identifier hs-var">renderQueryBuilder</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span> </span><span class="annot"><span class="annottext">Query
+</span><a href="#local-6989586621679049374"><span class="hs-identifier hs-var">y</span></a></span><span>
+</span><span id="line-331"></span><span>
+</span><span id="line-332"></span><span class="hs-comment">-- | Decode a whole path (path segments + query).</span><span>
+</span><span id="line-333"></span><span class="annot"><a href="Network.HTTP.Types.URI.html#decodePath"><span class="hs-identifier hs-type">decodePath</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">]</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Types.URI.html#Query"><span class="hs-identifier hs-type">Query</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-334"></span><span id="decodePath"><span class="annot"><span class="annottext">decodePath :: ByteString -&gt; ([Text], Query)
+</span><a href="Network.HTTP.Types.URI.html#decodePath"><span class="hs-identifier hs-var hs-var">decodePath</span></a></span></span><span> </span><span id="local-6989586621679049373"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049373"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-335"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679049370"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049370"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679049369"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049369"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Word8 -&gt; Bool) -&gt; ByteString -&gt; (ByteString, ByteString)
+</span><span class="hs-identifier hs-var">B.break</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">63</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049373"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="hs-comment">-- question mark</span><span>
+</span><span id="line-336"></span><span>    </span><span class="hs-keyword">in</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString -&gt; [Text]
+</span><a href="Network.HTTP.Types.URI.html#decodePathSegments"><span class="hs-identifier hs-var">decodePathSegments</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049370"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Query
+</span><a href="Network.HTTP.Types.URI.html#parseQuery"><span class="hs-identifier hs-var">parseQuery</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049369"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-337"></span><span>
+</span><span id="line-338"></span><span class="hs-comment">-----------------------------------------------------------------------------------------</span><span>
+</span><span id="line-339"></span><span>
+</span><span id="line-340"></span><span class="hs-comment">-- | For some URIs characters must not be URI encoded,</span><span>
+</span><span id="line-341"></span><span class="hs-comment">-- e.g. @\'+\'@ or @\':\'@ in @q=a+language:haskell+created:2009-01-01..2009-02-01&amp;sort=stars@</span><span>
+</span><span id="line-342"></span><span class="hs-comment">-- The character list unreservedPI instead of unreservedQS would solve this.</span><span>
+</span><span id="line-343"></span><span class="hs-comment">-- But we explicitly decide what part to encode.</span><span>
+</span><span id="line-344"></span><span class="hs-comment">-- This is mandatory when searching for @\'+\'@: @q=%2B+language:haskell@.</span><span>
+</span><span id="line-345"></span><span class="hs-keyword">data</span><span> </span><span id="EscapeItem"><span class="annot"><a href="Network.HTTP.Types.URI.html#EscapeItem"><span class="hs-identifier hs-var">EscapeItem</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="QE"><span class="annot"><a href="Network.HTTP.Types.URI.html#QE"><span class="hs-identifier hs-var">QE</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span> </span><span class="hs-comment">-- will be URL encoded</span><span>
+</span><span id="line-346"></span><span>                </span><span class="hs-glyph">|</span><span> </span><span id="QN"><span class="annot"><a href="Network.HTTP.Types.URI.html#QN"><span class="hs-identifier hs-var">QN</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span> </span><span class="hs-comment">-- will not be url encoded, e.g. @\'+\'@ or @\':\'@</span><span>
+</span><span id="line-347"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679049355"><span id="local-6989586621679049357"><span id="local-6989586621679049365"><span class="annot"><span class="annottext">Int -&gt; EscapeItem -&gt; ShowS
+[EscapeItem] -&gt; ShowS
+EscapeItem -&gt; [Char]
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; [Char]) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [EscapeItem] -&gt; ShowS
+$cshowList :: [EscapeItem] -&gt; ShowS
+show :: EscapeItem -&gt; [Char]
+$cshow :: EscapeItem -&gt; [Char]
+showsPrec :: Int -&gt; EscapeItem -&gt; ShowS
+$cshowsPrec :: Int -&gt; EscapeItem -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679049348"><span id="local-6989586621679049352"><span class="annot"><span class="annottext">EscapeItem -&gt; EscapeItem -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: EscapeItem -&gt; EscapeItem -&gt; Bool
+$c/= :: EscapeItem -&gt; EscapeItem -&gt; Bool
+== :: EscapeItem -&gt; EscapeItem -&gt; Bool
+$c== :: EscapeItem -&gt; EscapeItem -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679049323"><span id="local-6989586621679049325"><span id="local-6989586621679049328"><span id="local-6989586621679049331"><span id="local-6989586621679049334"><span id="local-6989586621679049338"><span id="local-6989586621679049343"><span class="annot"><span class="annottext">Eq EscapeItem
+EscapeItem -&gt; EscapeItem -&gt; Bool
+EscapeItem -&gt; EscapeItem -&gt; Ordering
+EscapeItem -&gt; EscapeItem -&gt; EscapeItem
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: EscapeItem -&gt; EscapeItem -&gt; EscapeItem
+$cmin :: EscapeItem -&gt; EscapeItem -&gt; EscapeItem
+max :: EscapeItem -&gt; EscapeItem -&gt; EscapeItem
+$cmax :: EscapeItem -&gt; EscapeItem -&gt; EscapeItem
+&gt;= :: EscapeItem -&gt; EscapeItem -&gt; Bool
+$c&gt;= :: EscapeItem -&gt; EscapeItem -&gt; Bool
+&gt; :: EscapeItem -&gt; EscapeItem -&gt; Bool
+$c&gt; :: EscapeItem -&gt; EscapeItem -&gt; Bool
+&lt;= :: EscapeItem -&gt; EscapeItem -&gt; Bool
+$c&lt;= :: EscapeItem -&gt; EscapeItem -&gt; Bool
+&lt; :: EscapeItem -&gt; EscapeItem -&gt; Bool
+$c&lt; :: EscapeItem -&gt; EscapeItem -&gt; Bool
+compare :: EscapeItem -&gt; EscapeItem -&gt; Ordering
+$ccompare :: EscapeItem -&gt; EscapeItem -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-348"></span><span>
+</span><span id="line-349"></span><span class="hs-comment">-- | Query item</span><span>
+</span><span id="line-350"></span><span class="hs-keyword">type</span><span> </span><span id="PartialEscapeQueryItem"><span class="annot"><a href="Network.HTTP.Types.URI.html#PartialEscapeQueryItem"><span class="hs-identifier hs-var">PartialEscapeQueryItem</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span class="hs-special">,</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Network.HTTP.Types.URI.html#EscapeItem"><span class="hs-identifier hs-type">EscapeItem</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-351"></span><span>
+</span><span id="line-352"></span><span class="hs-comment">-- | Query with some chars that should not be escaped.</span><span>
+</span><span id="line-353"></span><span class="hs-comment">-- </span><span>
+</span><span id="line-354"></span><span class="hs-comment">-- General form: @a=b&amp;c=d:e+f&amp;g=h@</span><span>
+</span><span id="line-355"></span><span class="hs-keyword">type</span><span> </span><span id="PartialEscapeQuery"><span class="annot"><a href="Network.HTTP.Types.URI.html#PartialEscapeQuery"><span class="hs-identifier hs-var">PartialEscapeQuery</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Network.HTTP.Types.URI.html#PartialEscapeQueryItem"><span class="hs-identifier hs-type">PartialEscapeQueryItem</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-356"></span><span>
+</span><span id="line-357"></span><span class="hs-comment">-- | Convert 'PartialEscapeQuery' to 'ByteString'.</span><span>
+</span><span id="line-358"></span><span class="annot"><a href="Network.HTTP.Types.URI.html#renderQueryPartialEscape"><span class="hs-identifier hs-type">renderQueryPartialEscape</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="hs-comment">-- ^ prepend question mark?</span><span>
+</span><span id="line-359"></span><span>            </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP.Types.URI.html#PartialEscapeQuery"><span class="hs-identifier hs-type">PartialEscapeQuery</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span>
+</span><span id="line-360"></span><span id="renderQueryPartialEscape"><span class="annot"><span class="annottext">renderQueryPartialEscape :: Bool -&gt; PartialEscapeQuery -&gt; ByteString
+</span><a href="Network.HTTP.Types.URI.html#renderQueryPartialEscape"><span class="hs-identifier hs-var hs-var">renderQueryPartialEscape</span></a></span></span><span> </span><span id="local-6989586621679049321"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679049321"><span class="hs-identifier hs-var">qm</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ByteString
+</span><span class="hs-identifier hs-var">BL.toStrict</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Builder -&gt; ByteString
+</span><span class="hs-identifier hs-var">B.toLazyByteString</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; PartialEscapeQuery -&gt; Builder
+</span><a href="Network.HTTP.Types.URI.html#renderQueryBuilderPartialEscape"><span class="hs-identifier hs-var">renderQueryBuilderPartialEscape</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679049321"><span class="hs-identifier hs-var">qm</span></a></span><span>
+</span><span id="line-361"></span><span>
+</span><span id="line-362"></span><span class="hs-comment">-- | Convert 'PartialEscapeQuery' to a 'Builder'.</span><span>
+</span><span id="line-363"></span><span class="annot"><a href="Network.HTTP.Types.URI.html#renderQueryBuilderPartialEscape"><span class="hs-identifier hs-type">renderQueryBuilderPartialEscape</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="hs-comment">-- ^ prepend a question mark?</span><span>
+</span><span id="line-364"></span><span>                   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP.Types.URI.html#PartialEscapeQuery"><span class="hs-identifier hs-type">PartialEscapeQuery</span></a></span><span>
+</span><span id="line-365"></span><span>                   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.Builder</span></span><span>
+</span><span id="line-366"></span><span id="renderQueryBuilderPartialEscape"><span class="annot"><span class="annottext">renderQueryBuilderPartialEscape :: Bool -&gt; PartialEscapeQuery -&gt; Builder
+</span><a href="Network.HTTP.Types.URI.html#renderQueryBuilderPartialEscape"><span class="hs-identifier hs-var hs-var">renderQueryBuilderPartialEscape</span></a></span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-367"></span><span class="hs-comment">-- FIXME replace mconcat + map with foldr</span><span>
+</span><span id="line-368"></span><span class="annot"><a href="Network.HTTP.Types.URI.html#renderQueryBuilderPartialEscape"><span class="hs-identifier hs-var">renderQueryBuilderPartialEscape</span></a></span><span> </span><span id="local-6989586621679049320"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679049320"><span class="hs-identifier hs-var">qmark'</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679049319"><span class="annot"><span class="annottext">PartialEscapeQueryItem
+</span><a href="#local-6989586621679049319"><span class="hs-identifier hs-var">p</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679049318"><span class="annot"><span class="annottext">PartialEscapeQuery
+</span><a href="#local-6989586621679049318"><span class="hs-identifier hs-var">ps</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Monoid a =&gt; [a] -&gt; a
+</span><span class="hs-identifier hs-var">mconcat</span></span><span>
+</span><span id="line-369"></span><span>    </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Builder -&gt; PartialEscapeQueryItem -&gt; Builder
+</span><a href="#local-6989586621679049317"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679049320"><span class="hs-identifier hs-var">qmark'</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Builder
+</span><a href="#local-6989586621679049316"><span class="hs-identifier hs-var">qmark</span></a></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">PartialEscapeQueryItem
+</span><a href="#local-6989586621679049319"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-370"></span><span>    </span><span class="annot"><span class="annottext">forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Builder -&gt; PartialEscapeQueryItem -&gt; Builder
+</span><a href="#local-6989586621679049317"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Builder
+</span><a href="#local-6989586621679049315"><span class="hs-identifier hs-var">amp</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">PartialEscapeQuery
+</span><a href="#local-6989586621679049318"><span class="hs-identifier hs-var">ps</span></a></span><span>
+</span><span id="line-371"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-372"></span><span>    </span><span id="local-6989586621679049316"><span class="annot"><span class="annottext">qmark :: Builder
+</span><a href="#local-6989586621679049316"><span class="hs-identifier hs-var hs-var">qmark</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Builder
+</span><span class="hs-identifier hs-var">B.byteString</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;?&quot;</span></span><span>
+</span><span id="line-373"></span><span>    </span><span id="local-6989586621679049315"><span class="annot"><span class="annottext">amp :: Builder
+</span><a href="#local-6989586621679049315"><span class="hs-identifier hs-var hs-var">amp</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Builder
+</span><span class="hs-identifier hs-var">B.byteString</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;&amp;&quot;</span></span><span>
+</span><span id="line-374"></span><span>    </span><span id="local-6989586621679049311"><span class="annot"><span class="annottext">equal :: Builder
+</span><a href="#local-6989586621679049311"><span class="hs-identifier hs-var hs-var">equal</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Builder
+</span><span class="hs-identifier hs-var">B.byteString</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;=&quot;</span></span><span>
+</span><span id="line-375"></span><span>    </span><span id="local-6989586621679049317"><span class="annot"><span class="annottext">go :: Builder -&gt; PartialEscapeQueryItem -&gt; Builder
+</span><a href="#local-6989586621679049317"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span id="local-6989586621679049306"><span class="annot"><span class="annottext">Builder
+</span><a href="#local-6989586621679049306"><span class="hs-identifier hs-var">sep</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679049305"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049305"><span class="hs-identifier hs-var">k</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679049304"><span class="annot"><span class="annottext">[EscapeItem]
+</span><a href="#local-6989586621679049304"><span class="hs-identifier hs-var">mv</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Monoid a =&gt; [a] -&gt; a
+</span><span class="hs-identifier hs-var">mconcat</span></span><span> </span><span class="hs-special">[</span><span>
+</span><span id="line-376"></span><span>                      </span><span class="annot"><span class="annottext">Builder
+</span><a href="#local-6989586621679049306"><span class="hs-identifier hs-var">sep</span></a></span><span>
+</span><span id="line-377"></span><span>                     </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; ByteString -&gt; Builder
+</span><a href="Network.HTTP.Types.URI.html#urlEncodeBuilder"><span class="hs-identifier hs-var">urlEncodeBuilder</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049305"><span class="hs-identifier hs-var">k</span></a></span><span>
+</span><span id="line-378"></span><span>                     </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">[EscapeItem]
+</span><a href="#local-6989586621679049304"><span class="hs-identifier hs-var">mv</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-379"></span><span>                         </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-380"></span><span>                         </span><span id="local-6989586621679049303"><span class="annot"><span class="annottext">[EscapeItem]
+</span><a href="#local-6989586621679049303"><span class="hs-identifier hs-var">vs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Builder
+</span><a href="#local-6989586621679049311"><span class="hs-identifier hs-var">equal</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Monoid a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`mappend`</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Monoid a =&gt; [a] -&gt; a
+</span><span class="hs-identifier hs-var">mconcat</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">EscapeItem -&gt; Builder
+</span><a href="#local-6989586621679049302"><span class="hs-identifier hs-var">encode</span></a></span><span> </span><span class="annot"><span class="annottext">[EscapeItem]
+</span><a href="#local-6989586621679049303"><span class="hs-identifier hs-var">vs</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-381"></span><span>                     </span><span class="hs-special">]</span><span>
+</span><span id="line-382"></span><span>    </span><span id="local-6989586621679049302"><span class="annot"><span class="annottext">encode :: EscapeItem -&gt; Builder
+</span><a href="#local-6989586621679049302"><span class="hs-identifier hs-var hs-var">encode</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.HTTP.Types.URI.html#QE"><span class="hs-identifier hs-type">QE</span></a></span><span> </span><span id="local-6989586621679049301"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049301"><span class="hs-identifier hs-var">v</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; ByteString -&gt; Builder
+</span><a href="Network.HTTP.Types.URI.html#urlEncodeBuilder"><span class="hs-identifier hs-var">urlEncodeBuilder</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049301"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-383"></span><span>    </span><span class="annot"><a href="#local-6989586621679049302"><span class="hs-identifier hs-var">encode</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.HTTP.Types.URI.html#QN"><span class="hs-identifier hs-type">QN</span></a></span><span> </span><span id="local-6989586621679049300"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049300"><span class="hs-identifier hs-var">v</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Builder
+</span><span class="hs-identifier hs-var">B.byteString</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679049300"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-384"></span><span>
+</span><span id="line-385"></span></pre></body></html>

@@ -1,0 +1,155 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- THIS IS A GENERATED FILE, DO NOT EDIT</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-imports #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-matches #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-deprecations #-}</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.SymbolTag</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Hashable</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html"><span class="hs-identifier">Language.LSP.Protocol.Utils.Misc</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prettyprinter</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Aeson.html"><span class="hs-identifier">Data.Row.Aeson</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Hashable.html"><span class="hs-identifier">Data.Row.Hashable</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Hashable</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Set</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.String</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html"><span class="hs-identifier">Language.LSP.Protocol.Types.Common</span></a></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html"><span class="hs-identifier">Language.LSP.Protocol.Types.LspEnum</span></a></span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-comment">{-|
+Symbol tags are extra annotations that tweak the rendering of a symbol.
+
+@since 3.16
+-}</span><span>
+</span><span id="line-26"></span><span id="local-6989586621682136951"><span id="local-6989586621682136952"></span></span><span class="hs-keyword">data</span><span> </span><span id="SymbolTag"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.SymbolTag.html#SymbolTag"><span class="hs-identifier hs-var">SymbolTag</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span>
+</span><span id="line-27"></span><span>    </span><span class="hs-comment">{-|
+  Render a symbol as obsolete, usually using a strike-out.
+  -}</span><span>
+</span><span id="line-30"></span><span>  </span><span id="SymbolTag_Deprecated"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.SymbolTag.html#SymbolTag_Deprecated"><span class="hs-identifier hs-var">SymbolTag_Deprecated</span></a></span></span><span>
+</span><span id="line-31"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682136944"><span id="local-6989586621682136946"><span id="local-6989586621682136948"><span class="annot"><span class="annottext">Int -&gt; SymbolTag -&gt; ShowS
+[SymbolTag] -&gt; ShowS
+SymbolTag -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [SymbolTag] -&gt; ShowS
+$cshowList :: [SymbolTag] -&gt; ShowS
+show :: SymbolTag -&gt; String
+$cshow :: SymbolTag -&gt; String
+showsPrec :: Int -&gt; SymbolTag -&gt; ShowS
+$cshowsPrec :: Int -&gt; SymbolTag -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682136939"><span id="local-6989586621682136941"><span class="annot"><span class="annottext">SymbolTag -&gt; SymbolTag -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: SymbolTag -&gt; SymbolTag -&gt; Bool
+$c/= :: SymbolTag -&gt; SymbolTag -&gt; Bool
+== :: SymbolTag -&gt; SymbolTag -&gt; Bool
+$c== :: SymbolTag -&gt; SymbolTag -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682136919"><span id="local-6989586621682136921"><span id="local-6989586621682136924"><span id="local-6989586621682136927"><span id="local-6989586621682136930"><span id="local-6989586621682136932"><span id="local-6989586621682136934"><span class="annot"><span class="annottext">Eq SymbolTag
+SymbolTag -&gt; SymbolTag -&gt; Bool
+SymbolTag -&gt; SymbolTag -&gt; Ordering
+SymbolTag -&gt; SymbolTag -&gt; SymbolTag
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: SymbolTag -&gt; SymbolTag -&gt; SymbolTag
+$cmin :: SymbolTag -&gt; SymbolTag -&gt; SymbolTag
+max :: SymbolTag -&gt; SymbolTag -&gt; SymbolTag
+$cmax :: SymbolTag -&gt; SymbolTag -&gt; SymbolTag
+&gt;= :: SymbolTag -&gt; SymbolTag -&gt; Bool
+$c&gt;= :: SymbolTag -&gt; SymbolTag -&gt; Bool
+&gt; :: SymbolTag -&gt; SymbolTag -&gt; Bool
+$c&gt; :: SymbolTag -&gt; SymbolTag -&gt; Bool
+&lt;= :: SymbolTag -&gt; SymbolTag -&gt; Bool
+$c&lt;= :: SymbolTag -&gt; SymbolTag -&gt; Bool
+&lt; :: SymbolTag -&gt; SymbolTag -&gt; Bool
+$c&lt; :: SymbolTag -&gt; SymbolTag -&gt; Bool
+compare :: SymbolTag -&gt; SymbolTag -&gt; Ordering
+$ccompare :: SymbolTag -&gt; SymbolTag -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall x. Rep SymbolTag x -&gt; SymbolTag
+forall x. SymbolTag -&gt; Rep SymbolTag x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cto :: forall x. Rep SymbolTag x -&gt; SymbolTag
+$cfrom :: forall x. SymbolTag -&gt; Rep SymbolTag x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">anyclass</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682136913"><span class="annot"><span class="annottext">SymbolTag -&gt; ()
+forall a. (a -&gt; ()) -&gt; NFData a
+rnf :: SymbolTag -&gt; ()
+$crnf :: SymbolTag -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682136906"><span id="local-6989586621682136908"><span class="annot"><span class="annottext">Eq SymbolTag
+Int -&gt; SymbolTag -&gt; Int
+SymbolTag -&gt; Int
+forall a. Eq a -&gt; (Int -&gt; a -&gt; Int) -&gt; (a -&gt; Int) -&gt; Hashable a
+hash :: SymbolTag -&gt; Int
+$chash :: SymbolTag -&gt; Int
+hashWithSalt :: Int -&gt; SymbolTag -&gt; Int
+$chashWithSalt :: Int -&gt; SymbolTag -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Hashable</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span> </span><span id="local-6989586621682136881"><span id="local-6989586621682136888"><span id="local-6989586621682136895"><span id="local-6989586621682136903"><span class="annot"><span class="annottext">[SymbolTag] -&gt; Encoding
+[SymbolTag] -&gt; Value
+SymbolTag -&gt; Encoding
+SymbolTag -&gt; Value
+forall a.
+(a -&gt; Value)
+-&gt; (a -&gt; Encoding)
+-&gt; ([a] -&gt; Value)
+-&gt; ([a] -&gt; Encoding)
+-&gt; ToJSON a
+toEncodingList :: [SymbolTag] -&gt; Encoding
+$ctoEncodingList :: [SymbolTag] -&gt; Encoding
+toJSONList :: [SymbolTag] -&gt; Value
+$ctoJSONList :: [SymbolTag] -&gt; Value
+toEncoding :: SymbolTag -&gt; Encoding
+$ctoEncoding :: SymbolTag -&gt; Encoding
+toJSON :: SymbolTag -&gt; Value
+$ctoJSON :: SymbolTag -&gt; Value
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Aeson.ToJSON</span></span></span></span></span></span><span>
+</span><span id="line-34"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="local-6989586621682136857"><span id="local-6989586621682136866"><span class="annot"><span class="annottext">Value -&gt; Parser [SymbolTag]
+Value -&gt; Parser SymbolTag
+forall a.
+(Value -&gt; Parser a) -&gt; (Value -&gt; Parser [a]) -&gt; FromJSON a
+parseJSONList :: Value -&gt; Parser [SymbolTag]
+$cparseJSONList :: Value -&gt; Parser [SymbolTag]
+parseJSON :: Value -&gt; Parser SymbolTag
+$cparseJSON :: Value -&gt; Parser SymbolTag
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Aeson.FromJSON</span></span></span></span><span> </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">via</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#AsLspEnum"><span class="hs-identifier hs-type">Language.LSP.Protocol.Types.LspEnum.AsLspEnum</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.SymbolTag.html#SymbolTag"><span class="hs-identifier hs-type">SymbolTag</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#UInt"><span class="hs-identifier hs-type">Language.LSP.Protocol.Types.Common.UInt</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621682136837"><span id="local-6989586621682136843"><span class="annot"><span class="annottext">forall ann. [SymbolTag] -&gt; Doc ann
+forall ann. SymbolTag -&gt; Doc ann
+forall a.
+(forall ann. a -&gt; Doc ann)
+-&gt; (forall ann. [a] -&gt; Doc ann) -&gt; Pretty a
+prettyList :: forall ann. [SymbolTag] -&gt; Doc ann
+$cprettyList :: forall ann. [SymbolTag] -&gt; Doc ann
+pretty :: forall ann. SymbolTag -&gt; Doc ann
+$cpretty :: forall ann. SymbolTag -&gt; Doc ann
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Pretty</span></span></span></span><span> </span><span class="hs-keyword">via</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html#ViaJSON"><span class="hs-identifier hs-type">ViaJSON</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.SymbolTag.html#SymbolTag"><span class="hs-identifier hs-type">SymbolTag</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#LspEnum"><span class="hs-identifier hs-type">Language.LSP.Protocol.Types.LspEnum.LspEnum</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.SymbolTag.html#SymbolTag"><span class="hs-identifier hs-type">SymbolTag</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-38"></span><span>  </span><span id="local-6989586621682136826"><span class="annot"><span class="annottext">knownValues :: Set SymbolTag
+</span><a href="Language.LSP.Protocol.Types.LspEnum.html#knownValues"><span class="hs-identifier hs-var hs-var hs-var hs-var">knownValues</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; [a] -&gt; Set a
+</span><span class="hs-identifier hs-var">Data.Set.fromList</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">SymbolTag
+</span><a href="Language.LSP.Protocol.Internal.Types.SymbolTag.html#SymbolTag_Deprecated"><span class="hs-identifier hs-var">SymbolTag_Deprecated</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-39"></span><span>  </span><span class="hs-keyword">type</span><span> </span><span id="EnumBaseType"><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#EnumBaseType"><span class="hs-identifier hs-var">EnumBaseType</span></a></span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.SymbolTag.html#SymbolTag"><span class="hs-identifier hs-type">SymbolTag</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#UInt"><span class="hs-identifier hs-type">Language.LSP.Protocol.Types.Common.UInt</span></a></span><span>
+</span><span id="line-40"></span><span>  </span><span id="local-6989586621682136821"><span class="annot"><span class="annottext">toEnumBaseType :: SymbolTag -&gt; EnumBaseType SymbolTag
+</span><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var hs-var hs-var hs-var">toEnumBaseType</span></a></span></span><span> </span><span class="annot"><span class="annottext">SymbolTag
+</span><a href="Language.LSP.Protocol.Internal.Types.SymbolTag.html#SymbolTag_Deprecated"><span class="hs-identifier hs-var">SymbolTag_Deprecated</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UInt
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-41"></span><span>  </span><span id="local-6989586621682136814"><span class="annot"><span class="annottext">fromEnumBaseType :: EnumBaseType SymbolTag -&gt; Maybe SymbolTag
+</span><a href="Language.LSP.Protocol.Types.LspEnum.html#fromEnumBaseType"><span class="hs-identifier hs-var hs-var hs-var hs-var">fromEnumBaseType</span></a></span></span><span> </span><span class="annot"><span class="annottext">EnumBaseType SymbolTag
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">SymbolTag
+</span><a href="Language.LSP.Protocol.Internal.Types.SymbolTag.html#SymbolTag_Deprecated"><span class="hs-identifier hs-var">SymbolTag_Deprecated</span></a></span><span>
+</span><span id="line-42"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromEnumBaseType"><span class="hs-identifier hs-var">fromEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType SymbolTag
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span></pre></body></html>

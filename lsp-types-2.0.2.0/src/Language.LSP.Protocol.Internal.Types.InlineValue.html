@@ -1,0 +1,133 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- THIS IS A GENERATED FILE, DO NOT EDIT</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-imports #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-matches #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-deprecations #-}</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.InlineValue</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Hashable</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html"><span class="hs-identifier">Language.LSP.Protocol.Utils.Misc</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prettyprinter</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Aeson.html"><span class="hs-identifier">Data.Row.Aeson</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Hashable.html"><span class="hs-identifier">Data.Row.Hashable</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Hashable</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.InlineValueEvaluatableExpression.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.InlineValueEvaluatableExpression</span></a></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.InlineValueText.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.InlineValueText</span></a></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.InlineValueVariableLookup.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.InlineValueVariableLookup</span></a></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html"><span class="hs-identifier">Language.LSP.Protocol.Types.Common</span></a></span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-comment">{-|
+Inline value information can be provided by different means:
+- directly as a text value (class InlineValueText).
+- as a name to use for a variable lookup (class InlineValueVariableLookup)
+- as an evaluatable expression (class InlineValueEvaluatableExpression)
+The InlineValue types combines all inline value types into one type.
+
+@since 3.17.0
+-}</span><span>
+</span><span id="line-30"></span><span id="local-6989586621682173306"><span id="local-6989586621682173307"></span></span><span class="hs-keyword">newtype</span><span> </span><span id="InlineValue"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.InlineValue.html#InlineValue"><span class="hs-identifier hs-var">InlineValue</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="InlineValue"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.InlineValue.html#InlineValue"><span class="hs-identifier hs-var">InlineValue</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.InlineValueText.html#InlineValueText"><span class="hs-identifier hs-type">Language.LSP.Protocol.Internal.Types.InlineValueText.InlineValueText</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#%7C%3F"><span class="hs-operator hs-type">Language.LSP.Protocol.Types.Common.|?</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.InlineValueVariableLookup.html#InlineValueVariableLookup"><span class="hs-identifier hs-type">Language.LSP.Protocol.Internal.Types.InlineValueVariableLookup.InlineValueVariableLookup</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#%7C%3F"><span class="hs-operator hs-type">Language.LSP.Protocol.Types.Common.|?</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.InlineValueEvaluatableExpression.html#InlineValueEvaluatableExpression"><span class="hs-identifier hs-type">Language.LSP.Protocol.Internal.Types.InlineValueEvaluatableExpression.InlineValueEvaluatableExpression</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">newtype</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682173284"><span id="local-6989586621682173290"><span id="local-6989586621682173296"><span id="local-6989586621682173303"><span class="annot"><span class="annottext">[InlineValue] -&gt; Encoding
+[InlineValue] -&gt; Value
+InlineValue -&gt; Encoding
+InlineValue -&gt; Value
+forall a.
+(a -&gt; Value)
+-&gt; (a -&gt; Encoding)
+-&gt; ([a] -&gt; Value)
+-&gt; ([a] -&gt; Encoding)
+-&gt; ToJSON a
+toEncodingList :: [InlineValue] -&gt; Encoding
+$ctoEncodingList :: [InlineValue] -&gt; Encoding
+toJSONList :: [InlineValue] -&gt; Value
+$ctoJSONList :: [InlineValue] -&gt; Value
+toEncoding :: InlineValue -&gt; Encoding
+$ctoEncoding :: InlineValue -&gt; Encoding
+toJSON :: InlineValue -&gt; Value
+$ctoJSON :: InlineValue -&gt; Value
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Aeson.ToJSON</span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682173256"><span id="local-6989586621682173265"><span class="annot"><span class="annottext">Value -&gt; Parser [InlineValue]
+Value -&gt; Parser InlineValue
+forall a.
+(Value -&gt; Parser a) -&gt; (Value -&gt; Parser [a]) -&gt; FromJSON a
+parseJSONList :: Value -&gt; Parser [InlineValue]
+$cparseJSONList :: Value -&gt; Parser [InlineValue]
+parseJSON :: Value -&gt; Parser InlineValue
+$cparseJSON :: Value -&gt; Parser InlineValue
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Aeson.FromJSON</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682173225"><span id="local-6989586621682173227"><span id="local-6989586621682173235"><span class="annot"><span class="annottext">Int -&gt; InlineValue -&gt; ShowS
+[InlineValue] -&gt; ShowS
+InlineValue -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [InlineValue] -&gt; ShowS
+$cshowList :: [InlineValue] -&gt; ShowS
+show :: InlineValue -&gt; String
+$cshow :: InlineValue -&gt; String
+showsPrec :: Int -&gt; InlineValue -&gt; ShowS
+$cshowsPrec :: Int -&gt; InlineValue -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682173211"><span id="local-6989586621682173217"><span class="annot"><span class="annottext">InlineValue -&gt; InlineValue -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: InlineValue -&gt; InlineValue -&gt; Bool
+$c/= :: InlineValue -&gt; InlineValue -&gt; Bool
+== :: InlineValue -&gt; InlineValue -&gt; Bool
+$c== :: InlineValue -&gt; InlineValue -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682173179"><span id="local-6989586621682173181"><span id="local-6989586621682173184"><span id="local-6989586621682173187"><span id="local-6989586621682173190"><span id="local-6989586621682173195"><span id="local-6989586621682173201"><span class="annot"><span class="annottext">Eq InlineValue
+InlineValue -&gt; InlineValue -&gt; Bool
+InlineValue -&gt; InlineValue -&gt; Ordering
+InlineValue -&gt; InlineValue -&gt; InlineValue
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: InlineValue -&gt; InlineValue -&gt; InlineValue
+$cmin :: InlineValue -&gt; InlineValue -&gt; InlineValue
+max :: InlineValue -&gt; InlineValue -&gt; InlineValue
+$cmax :: InlineValue -&gt; InlineValue -&gt; InlineValue
+&gt;= :: InlineValue -&gt; InlineValue -&gt; Bool
+$c&gt;= :: InlineValue -&gt; InlineValue -&gt; Bool
+&gt; :: InlineValue -&gt; InlineValue -&gt; Bool
+$c&gt; :: InlineValue -&gt; InlineValue -&gt; Bool
+&lt;= :: InlineValue -&gt; InlineValue -&gt; Bool
+$c&lt;= :: InlineValue -&gt; InlineValue -&gt; Bool
+&lt; :: InlineValue -&gt; InlineValue -&gt; Bool
+$c&lt; :: InlineValue -&gt; InlineValue -&gt; Bool
+compare :: InlineValue -&gt; InlineValue -&gt; Ordering
+$ccompare :: InlineValue -&gt; InlineValue -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall x. Rep InlineValue x -&gt; InlineValue
+forall x. InlineValue -&gt; Rep InlineValue x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cto :: forall x. Rep InlineValue x -&gt; InlineValue
+$cfrom :: forall x. InlineValue -&gt; Rep InlineValue x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">anyclass</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682173166"><span class="annot"><span class="annottext">InlineValue -&gt; ()
+forall a. (a -&gt; ()) -&gt; NFData a
+rnf :: InlineValue -&gt; ()
+$crnf :: InlineValue -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682173159"><span id="local-6989586621682173161"><span class="annot"><span class="annottext">Eq InlineValue
+Int -&gt; InlineValue -&gt; Int
+InlineValue -&gt; Int
+forall a. Eq a -&gt; (Int -&gt; a -&gt; Int) -&gt; (a -&gt; Int) -&gt; Hashable a
+hash :: InlineValue -&gt; Int
+$chash :: InlineValue -&gt; Int
+hashWithSalt :: Int -&gt; InlineValue -&gt; Int
+$chashWithSalt :: Int -&gt; InlineValue -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Hashable</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-34"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621682173150"><span id="local-6989586621682173156"><span class="annot"><span class="annottext">forall ann. [InlineValue] -&gt; Doc ann
+forall ann. InlineValue -&gt; Doc ann
+forall a.
+(forall ann. a -&gt; Doc ann)
+-&gt; (forall ann. [a] -&gt; Doc ann) -&gt; Pretty a
+prettyList :: forall ann. [InlineValue] -&gt; Doc ann
+$cprettyList :: forall ann. [InlineValue] -&gt; Doc ann
+pretty :: forall ann. InlineValue -&gt; Doc ann
+$cpretty :: forall ann. InlineValue -&gt; Doc ann
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Pretty</span></span></span></span><span> </span><span class="hs-keyword">via</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html#ViaJSON"><span class="hs-identifier hs-type">ViaJSON</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.InlineValue.html#InlineValue"><span class="hs-identifier hs-type">InlineValue</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span></pre></body></html>

@@ -1,0 +1,442 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-2"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Test.Hspec.Core.Config</span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-3"></span><span>  </span><span class="annot"><a href="Test.Hspec.Core.Config.Definition.html#Config"><span class="hs-identifier">Config</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-4"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Config.Definition.html#ColorMode"><span class="hs-identifier">ColorMode</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-5"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Config.Definition.html#UnicodeMode"><span class="hs-identifier">UnicodeMode</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-6"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Config.Definition.html#defaultConfig"><span class="hs-identifier">defaultConfig</span></a></span><span>
+</span><span id="line-7"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Config.html#readConfig"><span class="hs-identifier">readConfig</span></a></span><span>
+</span><span id="line-8"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Config.html#configAddFilter"><span class="hs-identifier">configAddFilter</span></a></span><span>
+</span><span id="line-9"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Config.html#configQuickCheckArgs"><span class="hs-identifier">configQuickCheckArgs</span></a></span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Config.html#readFailureReportOnRerun"><span class="hs-identifier">readFailureReportOnRerun</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Config.html#applyFailureReport"><span class="hs-identifier">applyFailureReport</span></a></span><span class="hs-cpp">
+#ifdef TEST
+</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">readConfigFiles</span><span class="hs-cpp">
+#endif
+</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Test.Hspec.Core.Compat.html"><span class="hs-identifier">Test.Hspec.Core.Compat</span></a></span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Exception</span></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Maybe</span></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">System.IO</span></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">System.IO.Error</span></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">System.Exit</span></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">System.FilePath</span></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">System.Directory</span></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">System.Environment</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">getProgName</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">getEnvironment</span></span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Test.QuickCheck</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">QC</span></span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Test.Hspec.Core.Util.html"><span class="hs-identifier">Test.Hspec.Core.Util</span></a></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Test.Hspec.Core.Config.Options.html"><span class="hs-identifier">Test.Hspec.Core.Config.Options</span></a></span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Test.Hspec.Core.Config.Definition.html"><span class="hs-identifier">Test.Hspec.Core.Config.Definition</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.Hspec.Core.Config.Definition.html#Config"><span class="hs-identifier">Config</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Config.Definition.html#ColorMode"><span class="hs-identifier">ColorMode</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Config.Definition.html#UnicodeMode"><span class="hs-identifier">UnicodeMode</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Config.Definition.html#defaultConfig"><span class="hs-identifier">defaultConfig</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Config.Definition.html#filterOr"><span class="hs-identifier">filterOr</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Test.Hspec.Core.FailureReport.html"><span class="hs-identifier">Test.Hspec.Core.FailureReport</span></a></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Test.Hspec.Core.QuickCheckUtil.html"><span class="hs-identifier">Test.Hspec.Core.QuickCheckUtil</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.Hspec.Core.QuickCheckUtil.html#mkGen"><span class="hs-identifier">mkGen</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Test.Hspec.Core.Example.html"><span class="hs-identifier">Test.Hspec.Core.Example</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.Hspec.Core.Example.html#Params"><span class="hs-identifier">Params</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.html#defaultParams"><span class="hs-identifier">defaultParams</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- | Add a filter predicate to config.  If there is already a filter predicate,</span><span>
+</span><span id="line-39"></span><span class="hs-comment">-- then combine them with `||`.</span><span>
+</span><span id="line-40"></span><span class="annot"><a href="Test.Hspec.Core.Config.html#configAddFilter"><span class="hs-identifier hs-type">configAddFilter</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.Hspec.Core.Util.html#Path"><span class="hs-identifier hs-type">Path</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Config.Definition.html#Config"><span class="hs-identifier hs-type">Config</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Config.Definition.html#Config"><span class="hs-identifier hs-type">Config</span></a></span><span>
+</span><span id="line-41"></span><span id="configAddFilter"><span class="annot"><span class="annottext">configAddFilter :: (Path -&gt; Bool) -&gt; Config -&gt; Config
+</span><a href="Test.Hspec.Core.Config.html#configAddFilter"><span class="hs-identifier hs-var hs-var">configAddFilter</span></a></span></span><span> </span><span id="local-6989586621679163990"><span class="annot"><span class="annottext">Path -&gt; Bool
+</span><a href="#local-6989586621679163990"><span class="hs-identifier hs-var">p1</span></a></span></span><span> </span><span id="local-6989586621679163989"><span class="annot"><span class="annottext">Config
+</span><a href="#local-6989586621679163989"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Config
+</span><a href="#local-6989586621679163989"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-42"></span><span>    </span><span class="annot"><span class="annottext">configFilterPredicate :: Maybe (Path -&gt; Bool)
+</span><a href="Test.Hspec.Core.Config.Definition.html#configFilterPredicate"><span class="hs-identifier hs-var">configFilterPredicate</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Path -&gt; Bool
+</span><a href="#local-6989586621679163990"><span class="hs-identifier hs-var">p1</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe (Path -&gt; Bool)
+-&gt; Maybe (Path -&gt; Bool) -&gt; Maybe (Path -&gt; Bool)
+</span><a href="Test.Hspec.Core.Config.Definition.html#filterOr"><span class="hs-operator hs-var">`filterOr`</span></a></span><span> </span><span class="annot"><span class="annottext">Config -&gt; Maybe (Path -&gt; Bool)
+</span><a href="Test.Hspec.Core.Config.Definition.html#configFilterPredicate"><span class="hs-identifier hs-var">configFilterPredicate</span></a></span><span> </span><span class="annot"><span class="annottext">Config
+</span><a href="#local-6989586621679163989"><span class="hs-identifier hs-var">c</span></a></span><span>
+</span><span id="line-43"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span class="annot"><a href="Test.Hspec.Core.Config.html#applyFailureReport"><span class="hs-identifier hs-type">applyFailureReport</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Test.Hspec.Core.FailureReport.html#FailureReport"><span class="hs-identifier hs-type">FailureReport</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Config.Definition.html#Config"><span class="hs-identifier hs-type">Config</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Config.Definition.html#Config"><span class="hs-identifier hs-type">Config</span></a></span><span>
+</span><span id="line-46"></span><span id="applyFailureReport"><span class="annot"><span class="annottext">applyFailureReport :: Maybe FailureReport -&gt; Config -&gt; Config
+</span><a href="Test.Hspec.Core.Config.html#applyFailureReport"><span class="hs-identifier hs-var hs-var">applyFailureReport</span></a></span></span><span> </span><span id="local-6989586621679163987"><span class="annot"><span class="annottext">Maybe FailureReport
+</span><a href="#local-6989586621679163987"><span class="hs-identifier hs-var">mFailureReport</span></a></span></span><span> </span><span id="local-6989586621679163986"><span class="annot"><span class="annottext">Config
+</span><a href="#local-6989586621679163986"><span class="hs-identifier hs-var">opts</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Config
+</span><a href="#local-6989586621679163986"><span class="hs-identifier hs-var">opts</span></a></span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-47"></span><span>    </span><span class="annot"><span class="annottext">configFilterPredicate :: Maybe (Path -&gt; Bool)
+</span><a href="Test.Hspec.Core.Config.Definition.html#configFilterPredicate"><span class="hs-identifier hs-var">configFilterPredicate</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe (Path -&gt; Bool)
+</span><a href="#local-6989586621679163985"><span class="hs-identifier hs-var">matchFilter</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe (Path -&gt; Bool)
+-&gt; Maybe (Path -&gt; Bool) -&gt; Maybe (Path -&gt; Bool)
+</span><a href="Test.Hspec.Core.Config.Definition.html#filterOr"><span class="hs-operator hs-var">`filterOr`</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe (Path -&gt; Bool)
+</span><a href="#local-6989586621679163984"><span class="hs-identifier hs-var">rerunFilter</span></a></span><span>
+</span><span id="line-48"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">configQuickCheckSeed :: Maybe Integer
+</span><a href="Test.Hspec.Core.Config.Definition.html#configQuickCheckSeed"><span class="hs-identifier hs-var">configQuickCheckSeed</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe Integer
+</span><a href="#local-6989586621679163982"><span class="hs-identifier hs-var">mSeed</span></a></span><span>
+</span><span id="line-49"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">configQuickCheckMaxSuccess :: Maybe Int
+</span><a href="Test.Hspec.Core.Config.Definition.html#configQuickCheckMaxSuccess"><span class="hs-identifier hs-var">configQuickCheckMaxSuccess</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe Int
+</span><a href="#local-6989586621679163980"><span class="hs-identifier hs-var">mMaxSuccess</span></a></span><span>
+</span><span id="line-50"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">configQuickCheckMaxDiscardRatio :: Maybe Int
+</span><a href="Test.Hspec.Core.Config.Definition.html#configQuickCheckMaxDiscardRatio"><span class="hs-identifier hs-var">configQuickCheckMaxDiscardRatio</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe Int
+</span><a href="#local-6989586621679163978"><span class="hs-identifier hs-var">mMaxDiscardRatio</span></a></span><span>
+</span><span id="line-51"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">configQuickCheckMaxSize :: Maybe Int
+</span><a href="Test.Hspec.Core.Config.Definition.html#configQuickCheckMaxSize"><span class="hs-identifier hs-var">configQuickCheckMaxSize</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe Int
+</span><a href="#local-6989586621679163976"><span class="hs-identifier hs-var">mMaxSize</span></a></span><span>
+</span><span id="line-52"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-53"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span>    </span><span id="local-6989586621679163982"><span class="annot"><span class="annottext">mSeed :: Maybe Integer
+</span><a href="#local-6989586621679163982"><span class="hs-identifier hs-var hs-var">mSeed</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Config -&gt; Maybe Integer
+</span><a href="Test.Hspec.Core.Config.Definition.html#configQuickCheckSeed"><span class="hs-identifier hs-var">configQuickCheckSeed</span></a></span><span> </span><span class="annot"><span class="annottext">Config
+</span><a href="#local-6989586621679163986"><span class="hs-identifier hs-var">opts</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Alternative f =&gt; f a -&gt; f a -&gt; f a
+</span><span class="hs-operator hs-var">&lt;|&gt;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FailureReport -&gt; Integer
+</span><a href="Test.Hspec.Core.FailureReport.html#failureReportSeed"><span class="hs-identifier hs-var">failureReportSeed</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Maybe FailureReport
+</span><a href="#local-6989586621679163987"><span class="hs-identifier hs-var">mFailureReport</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-56"></span><span>    </span><span id="local-6989586621679163980"><span class="annot"><span class="annottext">mMaxSuccess :: Maybe Int
+</span><a href="#local-6989586621679163980"><span class="hs-identifier hs-var hs-var">mMaxSuccess</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Config -&gt; Maybe Int
+</span><a href="Test.Hspec.Core.Config.Definition.html#configQuickCheckMaxSuccess"><span class="hs-identifier hs-var">configQuickCheckMaxSuccess</span></a></span><span> </span><span class="annot"><span class="annottext">Config
+</span><a href="#local-6989586621679163986"><span class="hs-identifier hs-var">opts</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Alternative f =&gt; f a -&gt; f a -&gt; f a
+</span><span class="hs-operator hs-var">&lt;|&gt;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FailureReport -&gt; Int
+</span><a href="Test.Hspec.Core.FailureReport.html#failureReportMaxSuccess"><span class="hs-identifier hs-var">failureReportMaxSuccess</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Maybe FailureReport
+</span><a href="#local-6989586621679163987"><span class="hs-identifier hs-var">mFailureReport</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-57"></span><span>    </span><span id="local-6989586621679163976"><span class="annot"><span class="annottext">mMaxSize :: Maybe Int
+</span><a href="#local-6989586621679163976"><span class="hs-identifier hs-var hs-var">mMaxSize</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Config -&gt; Maybe Int
+</span><a href="Test.Hspec.Core.Config.Definition.html#configQuickCheckMaxSize"><span class="hs-identifier hs-var">configQuickCheckMaxSize</span></a></span><span> </span><span class="annot"><span class="annottext">Config
+</span><a href="#local-6989586621679163986"><span class="hs-identifier hs-var">opts</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Alternative f =&gt; f a -&gt; f a -&gt; f a
+</span><span class="hs-operator hs-var">&lt;|&gt;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FailureReport -&gt; Int
+</span><a href="Test.Hspec.Core.FailureReport.html#failureReportMaxSize"><span class="hs-identifier hs-var">failureReportMaxSize</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Maybe FailureReport
+</span><a href="#local-6989586621679163987"><span class="hs-identifier hs-var">mFailureReport</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-58"></span><span>    </span><span id="local-6989586621679163978"><span class="annot"><span class="annottext">mMaxDiscardRatio :: Maybe Int
+</span><a href="#local-6989586621679163978"><span class="hs-identifier hs-var hs-var">mMaxDiscardRatio</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Config -&gt; Maybe Int
+</span><a href="Test.Hspec.Core.Config.Definition.html#configQuickCheckMaxDiscardRatio"><span class="hs-identifier hs-var">configQuickCheckMaxDiscardRatio</span></a></span><span> </span><span class="annot"><span class="annottext">Config
+</span><a href="#local-6989586621679163986"><span class="hs-identifier hs-var">opts</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Alternative f =&gt; f a -&gt; f a -&gt; f a
+</span><span class="hs-operator hs-var">&lt;|&gt;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FailureReport -&gt; Int
+</span><a href="Test.Hspec.Core.FailureReport.html#failureReportMaxDiscardRatio"><span class="hs-identifier hs-var">failureReportMaxDiscardRatio</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Maybe FailureReport
+</span><a href="#local-6989586621679163987"><span class="hs-identifier hs-var">mFailureReport</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span>    </span><span id="local-6989586621679163985"><span class="annot"><span class="annottext">matchFilter :: Maybe (Path -&gt; Bool)
+</span><a href="#local-6989586621679163985"><span class="hs-identifier hs-var hs-var">matchFilter</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Config -&gt; Maybe (Path -&gt; Bool)
+</span><a href="Test.Hspec.Core.Config.Definition.html#configFilterPredicate"><span class="hs-identifier hs-var">configFilterPredicate</span></a></span><span> </span><span class="annot"><span class="annottext">Config
+</span><a href="#local-6989586621679163986"><span class="hs-identifier hs-var">opts</span></a></span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span><span>    </span><span id="local-6989586621679163984"><span class="annot"><span class="annottext">rerunFilter :: Maybe (Path -&gt; Bool)
+</span><a href="#local-6989586621679163984"><span class="hs-identifier hs-var hs-var">rerunFilter</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">FailureReport -&gt; [Path]
+</span><a href="Test.Hspec.Core.FailureReport.html#failureReportPaths"><span class="hs-identifier hs-var">failureReportPaths</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Maybe FailureReport
+</span><a href="#local-6989586621679163987"><span class="hs-identifier hs-var">mFailureReport</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-63"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-64"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679163949"><span class="annot"><span class="annottext">[Path]
+</span><a href="#local-6989586621679163949"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. (Foldable t, Eq a) =&gt; a -&gt; t a -&gt; Bool
+</span><span class="hs-operator hs-var">`elem`</span></span><span> </span><span class="annot"><span class="annottext">[Path]
+</span><a href="#local-6989586621679163949"><span class="hs-identifier hs-var">xs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-65"></span><span>      </span><span class="annot"><span class="annottext">Maybe [Path]
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span class="annot"><a href="Test.Hspec.Core.Config.html#configQuickCheckArgs"><span class="hs-identifier hs-type">configQuickCheckArgs</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Config.Definition.html#Config"><span class="hs-identifier hs-type">Config</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">QC.Args</span></span><span>
+</span><span id="line-68"></span><span id="configQuickCheckArgs"><span class="annot"><span class="annottext">configQuickCheckArgs :: Config -&gt; Args
+</span><a href="Test.Hspec.Core.Config.html#configQuickCheckArgs"><span class="hs-identifier hs-var hs-var">configQuickCheckArgs</span></a></span></span><span> </span><span id="local-6989586621679163947"><span class="annot"><span class="annottext">Config
+</span><a href="#local-6989586621679163947"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Args
+</span><a href="#local-6989586621679163946"><span class="hs-identifier hs-var">qcArgs</span></a></span><span>
+</span><span id="line-69"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-70"></span><span>    </span><span id="local-6989586621679163946"><span class="annot"><span class="annottext">qcArgs :: Args
+</span><a href="#local-6989586621679163946"><span class="hs-identifier hs-var hs-var">qcArgs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-71"></span><span>        </span><span class="annot"><span class="annottext">forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><span class="hs-identifier hs-var">maybe</span></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Args -&gt; Args
+</span><a href="#local-6989586621679163943"><span class="hs-identifier hs-var">setSeed</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Config -&gt; Maybe Integer
+</span><a href="Test.Hspec.Core.Config.Definition.html#configQuickCheckSeed"><span class="hs-identifier hs-var">configQuickCheckSeed</span></a></span><span> </span><span class="annot"><span class="annottext">Config
+</span><a href="#local-6989586621679163947"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-72"></span><span>      </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><span class="hs-identifier hs-var">maybe</span></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Args -&gt; Args
+</span><a href="#local-6989586621679163941"><span class="hs-identifier hs-var">setMaxShrinks</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Config -&gt; Maybe Int
+</span><a href="Test.Hspec.Core.Config.Definition.html#configQuickCheckMaxShrinks"><span class="hs-identifier hs-var">configQuickCheckMaxShrinks</span></a></span><span> </span><span class="annot"><span class="annottext">Config
+</span><a href="#local-6989586621679163947"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-73"></span><span>      </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><span class="hs-identifier hs-var">maybe</span></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Args -&gt; Args
+</span><a href="#local-6989586621679163939"><span class="hs-identifier hs-var">setMaxSize</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Config -&gt; Maybe Int
+</span><a href="Test.Hspec.Core.Config.Definition.html#configQuickCheckMaxSize"><span class="hs-identifier hs-var">configQuickCheckMaxSize</span></a></span><span> </span><span class="annot"><span class="annottext">Config
+</span><a href="#local-6989586621679163947"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-74"></span><span>      </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><span class="hs-identifier hs-var">maybe</span></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Args -&gt; Args
+</span><a href="#local-6989586621679163938"><span class="hs-identifier hs-var">setMaxDiscardRatio</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Config -&gt; Maybe Int
+</span><a href="Test.Hspec.Core.Config.Definition.html#configQuickCheckMaxDiscardRatio"><span class="hs-identifier hs-var">configQuickCheckMaxDiscardRatio</span></a></span><span> </span><span class="annot"><span class="annottext">Config
+</span><a href="#local-6989586621679163947"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-75"></span><span>      </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><span class="hs-identifier hs-var">maybe</span></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Args -&gt; Args
+</span><a href="#local-6989586621679163937"><span class="hs-identifier hs-var">setMaxSuccess</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Config -&gt; Maybe Int
+</span><a href="Test.Hspec.Core.Config.Definition.html#configQuickCheckMaxSuccess"><span class="hs-identifier hs-var">configQuickCheckMaxSuccess</span></a></span><span> </span><span class="annot"><span class="annottext">Config
+</span><a href="#local-6989586621679163947"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Params -&gt; Args
+</span><a href="Test.Hspec.Core.Example.html#paramsQuickCheckArgs"><span class="hs-identifier hs-var">paramsQuickCheckArgs</span></a></span><span> </span><span class="annot"><span class="annottext">Params
+</span><a href="Test.Hspec.Core.Example.html#defaultParams"><span class="hs-identifier hs-var">defaultParams</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-76"></span><span>
+</span><span id="line-77"></span><span>    </span><span class="annot"><a href="#local-6989586621679163937"><span class="hs-identifier hs-type">setMaxSuccess</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">QC.Args</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">QC.Args</span></span><span>
+</span><span id="line-78"></span><span>    </span><span id="local-6989586621679163937"><span class="annot"><span class="annottext">setMaxSuccess :: Int -&gt; Args -&gt; Args
+</span><a href="#local-6989586621679163937"><span class="hs-identifier hs-var hs-var">setMaxSuccess</span></a></span></span><span> </span><span id="local-6989586621679163935"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679163935"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621679163934"><span class="annot"><span class="annottext">Args
+</span><a href="#local-6989586621679163934"><span class="hs-identifier hs-var">args</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Args
+</span><a href="#local-6989586621679163934"><span class="hs-identifier hs-var">args</span></a></span><span> </span><span class="hs-special">{</span><span class="annot"><span class="annottext">maxSuccess :: Int
+</span><span class="hs-identifier hs-var">QC.maxSuccess</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679163935"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">}</span><span>
+</span><span id="line-79"></span><span>
+</span><span id="line-80"></span><span>    </span><span class="annot"><a href="#local-6989586621679163938"><span class="hs-identifier hs-type">setMaxDiscardRatio</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">QC.Args</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">QC.Args</span></span><span>
+</span><span id="line-81"></span><span>    </span><span id="local-6989586621679163938"><span class="annot"><span class="annottext">setMaxDiscardRatio :: Int -&gt; Args -&gt; Args
+</span><a href="#local-6989586621679163938"><span class="hs-identifier hs-var hs-var">setMaxDiscardRatio</span></a></span></span><span> </span><span id="local-6989586621679163932"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679163932"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621679163931"><span class="annot"><span class="annottext">Args
+</span><a href="#local-6989586621679163931"><span class="hs-identifier hs-var">args</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Args
+</span><a href="#local-6989586621679163931"><span class="hs-identifier hs-var">args</span></a></span><span> </span><span class="hs-special">{</span><span class="annot"><span class="annottext">maxDiscardRatio :: Int
+</span><span class="hs-identifier hs-var">QC.maxDiscardRatio</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679163932"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">}</span><span>
+</span><span id="line-82"></span><span>
+</span><span id="line-83"></span><span>    </span><span class="annot"><a href="#local-6989586621679163939"><span class="hs-identifier hs-type">setMaxSize</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">QC.Args</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">QC.Args</span></span><span>
+</span><span id="line-84"></span><span>    </span><span id="local-6989586621679163939"><span class="annot"><span class="annottext">setMaxSize :: Int -&gt; Args -&gt; Args
+</span><a href="#local-6989586621679163939"><span class="hs-identifier hs-var hs-var">setMaxSize</span></a></span></span><span> </span><span id="local-6989586621679163929"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679163929"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621679163928"><span class="annot"><span class="annottext">Args
+</span><a href="#local-6989586621679163928"><span class="hs-identifier hs-var">args</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Args
+</span><a href="#local-6989586621679163928"><span class="hs-identifier hs-var">args</span></a></span><span> </span><span class="hs-special">{</span><span class="annot"><span class="annottext">maxSize :: Int
+</span><span class="hs-identifier hs-var">QC.maxSize</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679163929"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">}</span><span>
+</span><span id="line-85"></span><span>
+</span><span id="line-86"></span><span>    </span><span class="annot"><a href="#local-6989586621679163941"><span class="hs-identifier hs-type">setMaxShrinks</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">QC.Args</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">QC.Args</span></span><span>
+</span><span id="line-87"></span><span>    </span><span id="local-6989586621679163941"><span class="annot"><span class="annottext">setMaxShrinks :: Int -&gt; Args -&gt; Args
+</span><a href="#local-6989586621679163941"><span class="hs-identifier hs-var hs-var">setMaxShrinks</span></a></span></span><span> </span><span id="local-6989586621679163926"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679163926"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621679163925"><span class="annot"><span class="annottext">Args
+</span><a href="#local-6989586621679163925"><span class="hs-identifier hs-var">args</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Args
+</span><a href="#local-6989586621679163925"><span class="hs-identifier hs-var">args</span></a></span><span> </span><span class="hs-special">{</span><span class="annot"><span class="annottext">maxShrinks :: Int
+</span><span class="hs-identifier hs-var">QC.maxShrinks</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679163926"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">}</span><span>
+</span><span id="line-88"></span><span>
+</span><span id="line-89"></span><span>    </span><span class="annot"><a href="#local-6989586621679163943"><span class="hs-identifier hs-type">setSeed</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">QC.Args</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">QC.Args</span></span><span>
+</span><span id="line-90"></span><span>    </span><span id="local-6989586621679163943"><span class="annot"><span class="annottext">setSeed :: Integer -&gt; Args -&gt; Args
+</span><a href="#local-6989586621679163943"><span class="hs-identifier hs-var hs-var">setSeed</span></a></span></span><span> </span><span id="local-6989586621679163923"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679163923"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621679163922"><span class="annot"><span class="annottext">Args
+</span><a href="#local-6989586621679163922"><span class="hs-identifier hs-var">args</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Args
+</span><a href="#local-6989586621679163922"><span class="hs-identifier hs-var">args</span></a></span><span> </span><span class="hs-special">{</span><span class="annot"><span class="annottext">replay :: Maybe (QCGen, Int)
+</span><span class="hs-identifier hs-var">QC.replay</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; QCGen
+</span><a href="Test.Hspec.Core.QuickCheckUtil.html#mkGen"><span class="hs-identifier hs-var">mkGen</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679163923"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span class="hs-special">}</span><span>
+</span><span id="line-91"></span><span>
+</span><span id="line-92"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-93"></span><span class="hs-comment">-- `readConfig` parses config options from several sources and constructs a</span><span>
+</span><span id="line-94"></span><span class="hs-comment">-- `Config` value.  It takes options from:</span><span>
+</span><span id="line-95"></span><span class="hs-comment">--</span><span>
+</span><span id="line-96"></span><span class="hs-comment">-- 1. @~/.hspec@ (a config file in the user's home directory)</span><span>
+</span><span id="line-97"></span><span class="hs-comment">-- 1. @.hspec@ (a config file in the current working directory)</span><span>
+</span><span id="line-98"></span><span class="hs-comment">-- 1. the environment variable @HSPEC_OPTIONS@</span><span>
+</span><span id="line-99"></span><span class="hs-comment">-- 1. the provided list of command-line options (the second argument to @readConfig@)</span><span>
+</span><span id="line-100"></span><span class="hs-comment">--</span><span>
+</span><span id="line-101"></span><span class="hs-comment">-- (precedence from low to high)</span><span>
+</span><span id="line-102"></span><span class="hs-comment">--</span><span>
+</span><span id="line-103"></span><span class="hs-comment">-- When parsing fails then @readConfig@ writes an error message to `stderr` and</span><span>
+</span><span id="line-104"></span><span class="hs-comment">-- exits with `exitFailure`.</span><span>
+</span><span id="line-105"></span><span class="hs-comment">--</span><span>
+</span><span id="line-106"></span><span class="hs-comment">-- When @--help@ is provided as a command-line option then @readConfig@ writes</span><span>
+</span><span id="line-107"></span><span class="hs-comment">-- a help message to `stdout` and exits with `exitSuccess`.</span><span>
+</span><span id="line-108"></span><span class="hs-comment">--</span><span>
+</span><span id="line-109"></span><span class="hs-comment">-- A common way to use @readConfig@ is:</span><span>
+</span><span id="line-110"></span><span class="hs-comment">--</span><span>
+</span><span id="line-111"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-112"></span><span class="hs-comment">-- `System.Environment.getArgs` &gt;&gt;= readConfig `defaultConfig`</span><span>
+</span><span id="line-113"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-114"></span><span class="annot"><a href="Test.Hspec.Core.Config.html#readConfig"><span class="hs-identifier hs-type">readConfig</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Config.Definition.html#Config"><span class="hs-identifier hs-type">Config</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Config.Definition.html#Config"><span class="hs-identifier hs-type">Config</span></a></span><span>
+</span><span id="line-115"></span><span id="readConfig"><span class="annot"><span class="annottext">readConfig :: Config -&gt; [String] -&gt; IO Config
+</span><a href="Test.Hspec.Core.Config.html#readConfig"><span class="hs-identifier hs-var hs-var">readConfig</span></a></span></span><span> </span><span id="local-6989586621679163920"><span class="annot"><span class="annottext">Config
+</span><a href="#local-6989586621679163920"><span class="hs-identifier hs-var">opts_</span></a></span></span><span> </span><span id="local-6989586621679163919"><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621679163919"><span class="hs-identifier hs-var">args</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-116"></span><span>  </span><span id="local-6989586621679163918"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679163918"><span class="hs-identifier hs-var">prog</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO String
+</span><span class="hs-identifier hs-var">getProgName</span></span><span>
+</span><span id="line-117"></span><span>  </span><span id="local-6989586621679163917"><span class="annot"><span class="annottext">[ConfigFile]
+</span><a href="#local-6989586621679163917"><span class="hs-identifier hs-var">configFiles</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-118"></span><span>    </span><span id="local-6989586621679163916"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679163916"><span class="hs-identifier hs-var">ignore</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Config -&gt; [String] -&gt; IO Bool
+</span><a href="Test.Hspec.Core.Config.Options.html#ignoreConfigFile"><span class="hs-identifier hs-var">ignoreConfigFile</span></a></span><span> </span><span class="annot"><span class="annottext">Config
+</span><a href="#local-6989586621679163920"><span class="hs-identifier hs-var">opts_</span></a></span><span> </span><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621679163919"><span class="hs-identifier hs-var">args</span></a></span><span>
+</span><span id="line-119"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679163916"><span class="hs-identifier hs-var">ignore</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-120"></span><span>      </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-121"></span><span>      </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IO [ConfigFile]
+</span><a href="Test.Hspec.Core.Config.html#readConfigFiles"><span class="hs-identifier hs-var">readConfigFiles</span></a></span><span>
+</span><span id="line-122"></span><span>  </span><span id="local-6989586621679163913"><span class="annot"><span class="annottext">[(String, String)]
+</span><a href="#local-6989586621679163913"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO [(String, String)]
+</span><span class="hs-identifier hs-var">getEnvironment</span></span><span>
+</span><span id="line-123"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679163909"><span class="annot"><span class="annottext">envVar :: Maybe [String]
+</span><a href="#local-6989586621679163909"><span class="hs-identifier hs-var hs-var">envVar</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; [String]
+</span><span class="hs-identifier hs-var">words</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall a b. Eq a =&gt; a -&gt; [(a, b)] -&gt; Maybe b
+</span><span class="hs-identifier hs-var">lookup</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="Test.Hspec.Core.Config.Options.html#envVarName"><span class="hs-identifier hs-var">envVarName</span></a></span><span> </span><span class="annot"><span class="annottext">[(String, String)]
+</span><a href="#local-6989586621679163913"><span class="hs-identifier hs-var">env</span></a></span><span>
+</span><span id="line-124"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Config
+-&gt; String
+-&gt; [ConfigFile]
+-&gt; Maybe [String]
+-&gt; [(String, String)]
+-&gt; [String]
+-&gt; Either (ExitCode, String) ([String], Config)
+</span><a href="Test.Hspec.Core.Config.Options.html#parseOptions"><span class="hs-identifier hs-var">parseOptions</span></a></span><span> </span><span class="annot"><span class="annottext">Config
+</span><a href="#local-6989586621679163920"><span class="hs-identifier hs-var">opts_</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679163918"><span class="hs-identifier hs-var">prog</span></a></span><span> </span><span class="annot"><span class="annottext">[ConfigFile]
+</span><a href="#local-6989586621679163917"><span class="hs-identifier hs-var">configFiles</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe [String]
+</span><a href="#local-6989586621679163909"><span class="hs-identifier hs-var">envVar</span></a></span><span> </span><span class="annot"><span class="annottext">[(String, String)]
+</span><a href="#local-6989586621679163913"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621679163919"><span class="hs-identifier hs-var">args</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-125"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679163904"><span class="annot"><span class="annottext">ExitCode
+</span><a href="#local-6989586621679163904"><span class="hs-identifier hs-var">err</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679163903"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679163903"><span class="hs-identifier hs-var">msg</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. ExitCode -&gt; String -&gt; IO a
+</span><a href="Test.Hspec.Core.Config.html#exitWithMessage"><span class="hs-identifier hs-var">exitWithMessage</span></a></span><span> </span><span class="annot"><span class="annottext">ExitCode
+</span><a href="#local-6989586621679163904"><span class="hs-identifier hs-var">err</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679163903"><span class="hs-identifier hs-var">msg</span></a></span><span>
+</span><span id="line-126"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679163901"><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621679163901"><span class="hs-identifier hs-var">warnings</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679163900"><span class="annot"><span class="annottext">Config
+</span><a href="#local-6989586621679163900"><span class="hs-identifier hs-var">opts</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-127"></span><span>      </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Foldable t, Monad m) =&gt;
+(a -&gt; m b) -&gt; t a -&gt; m ()
+</span><span class="hs-identifier hs-var">mapM_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Handle -&gt; String -&gt; IO ()
+</span><span class="hs-identifier hs-var">hPutStrLn</span></span><span> </span><span class="annot"><span class="annottext">Handle
+</span><span class="hs-identifier hs-var">stderr</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621679163901"><span class="hs-identifier hs-var">warnings</span></a></span><span>
+</span><span id="line-128"></span><span>      </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Config
+</span><a href="#local-6989586621679163900"><span class="hs-identifier hs-var">opts</span></a></span><span>
+</span><span id="line-129"></span><span>
+</span><span id="line-130"></span><span class="annot"><a href="Test.Hspec.Core.Config.html#readFailureReportOnRerun"><span class="hs-identifier hs-type">readFailureReportOnRerun</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Config.Definition.html#Config"><span class="hs-identifier hs-type">Config</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Test.Hspec.Core.FailureReport.html#FailureReport"><span class="hs-identifier hs-type">FailureReport</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-131"></span><span id="readFailureReportOnRerun"><span class="annot"><span class="annottext">readFailureReportOnRerun :: Config -&gt; IO (Maybe FailureReport)
+</span><a href="Test.Hspec.Core.Config.html#readFailureReportOnRerun"><span class="hs-identifier hs-var hs-var">readFailureReportOnRerun</span></a></span></span><span> </span><span id="local-6989586621679163896"><span class="annot"><span class="annottext">Config
+</span><a href="#local-6989586621679163896"><span class="hs-identifier hs-var">config</span></a></span></span><span>
+</span><span id="line-132"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Config -&gt; Bool
+</span><a href="Test.Hspec.Core.Config.Definition.html#configRerun"><span class="hs-identifier hs-var">configRerun</span></a></span><span> </span><span class="annot"><span class="annottext">Config
+</span><a href="#local-6989586621679163896"><span class="hs-identifier hs-var">config</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Config -&gt; IO (Maybe FailureReport)
+</span><a href="Test.Hspec.Core.FailureReport.html#readFailureReport"><span class="hs-identifier hs-var">readFailureReport</span></a></span><span> </span><span class="annot"><span class="annottext">Config
+</span><a href="#local-6989586621679163896"><span class="hs-identifier hs-var">config</span></a></span><span>
+</span><span id="line-133"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-134"></span><span>
+</span><span id="line-135"></span><span class="annot"><a href="Test.Hspec.Core.Config.html#readConfigFiles"><span class="hs-identifier hs-type">readConfigFiles</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Test.Hspec.Core.Config.Options.html#ConfigFile"><span class="hs-identifier hs-type">ConfigFile</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-136"></span><span id="readConfigFiles"><span class="annot"><span class="annottext">readConfigFiles :: IO [ConfigFile]
+</span><a href="Test.Hspec.Core.Config.html#readConfigFiles"><span class="hs-identifier hs-var hs-var">readConfigFiles</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-137"></span><span>  </span><span id="local-6989586621679163893"><span class="annot"><span class="annottext">Maybe ConfigFile
+</span><a href="#local-6989586621679163893"><span class="hs-identifier hs-var">global</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO (Maybe ConfigFile)
+</span><a href="Test.Hspec.Core.Config.html#readGlobalConfigFile"><span class="hs-identifier hs-var">readGlobalConfigFile</span></a></span><span>
+</span><span id="line-138"></span><span>  </span><span id="local-6989586621679163891"><span class="annot"><span class="annottext">Maybe ConfigFile
+</span><a href="#local-6989586621679163891"><span class="hs-identifier hs-var">local</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO (Maybe ConfigFile)
+</span><a href="Test.Hspec.Core.Config.html#readLocalConfigFile"><span class="hs-identifier hs-var">readLocalConfigFile</span></a></span><span>
+</span><span id="line-139"></span><span>  </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall a. [Maybe a] -&gt; [a]
+</span><span class="hs-identifier hs-var">catMaybes</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Maybe ConfigFile
+</span><a href="#local-6989586621679163893"><span class="hs-identifier hs-var">global</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Maybe ConfigFile
+</span><a href="#local-6989586621679163891"><span class="hs-identifier hs-var">local</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-140"></span><span>
+</span><span id="line-141"></span><span class="annot"><a href="Test.Hspec.Core.Config.html#readGlobalConfigFile"><span class="hs-identifier hs-type">readGlobalConfigFile</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Config.Options.html#ConfigFile"><span class="hs-identifier hs-type">ConfigFile</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-142"></span><span id="readGlobalConfigFile"><span class="annot"><span class="annottext">readGlobalConfigFile :: IO (Maybe ConfigFile)
+</span><a href="Test.Hspec.Core.Config.html#readGlobalConfigFile"><span class="hs-identifier hs-var hs-var">readGlobalConfigFile</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-143"></span><span>  </span><span id="local-6989586621679163888"><span class="annot"><span class="annottext">Either () String
+</span><a href="#local-6989586621679163888"><span class="hs-identifier hs-var">mHome</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall e b a.
+Exception e =&gt;
+(e -&gt; Maybe b) -&gt; IO a -&gt; IO (Either b a)
+</span><span class="hs-identifier hs-var">tryJust</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (f :: * -&gt; *). Alternative f =&gt; Bool -&gt; f ()
+</span><span class="hs-identifier hs-var">guard</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">IOError -&gt; Bool
+</span><span class="hs-identifier hs-var">isDoesNotExistError</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">IO String
+</span><span class="hs-identifier hs-var">getHomeDirectory</span></span><span>
+</span><span id="line-144"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Either () String
+</span><a href="#local-6989586621679163888"><span class="hs-identifier hs-var">mHome</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-145"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span class="annot"><span class="annottext">()
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-146"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span id="local-6989586621679163884"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679163884"><span class="hs-identifier hs-var">home</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; IO (Maybe ConfigFile)
+</span><a href="Test.Hspec.Core.Config.html#readConfigFile"><span class="hs-identifier hs-var">readConfigFile</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679163884"><span class="hs-identifier hs-var">home</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
+</span><span class="hs-operator hs-var">&lt;/&gt;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;.hspec&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-147"></span><span>
+</span><span id="line-148"></span><span class="annot"><a href="Test.Hspec.Core.Config.html#readLocalConfigFile"><span class="hs-identifier hs-type">readLocalConfigFile</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Config.Options.html#ConfigFile"><span class="hs-identifier hs-type">ConfigFile</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-149"></span><span id="readLocalConfigFile"><span class="annot"><span class="annottext">readLocalConfigFile :: IO (Maybe ConfigFile)
+</span><a href="Test.Hspec.Core.Config.html#readLocalConfigFile"><span class="hs-identifier hs-var hs-var">readLocalConfigFile</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-150"></span><span>  </span><span id="local-6989586621679163881"><span class="annot"><span class="annottext">Either () String
+</span><a href="#local-6989586621679163881"><span class="hs-identifier hs-var">mName</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall e b a.
+Exception e =&gt;
+(e -&gt; Maybe b) -&gt; IO a -&gt; IO (Either b a)
+</span><span class="hs-identifier hs-var">tryJust</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (f :: * -&gt; *). Alternative f =&gt; Bool -&gt; f ()
+</span><span class="hs-identifier hs-var">guard</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">IOError -&gt; Bool
+</span><span class="hs-identifier hs-var">isDoesNotExistError</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; IO String
+</span><span class="hs-identifier hs-var">canonicalizePath</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;.hspec&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-151"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Either () String
+</span><a href="#local-6989586621679163881"><span class="hs-identifier hs-var">mName</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-152"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span class="annot"><span class="annottext">()
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-153"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span id="local-6989586621679163879"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679163879"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; IO (Maybe ConfigFile)
+</span><a href="Test.Hspec.Core.Config.html#readConfigFile"><span class="hs-identifier hs-var">readConfigFile</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679163879"><span class="hs-identifier hs-var">name</span></a></span><span>
+</span><span id="line-154"></span><span>
+</span><span id="line-155"></span><span class="annot"><a href="Test.Hspec.Core.Config.html#readConfigFile"><span class="hs-identifier hs-type">readConfigFile</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Config.Options.html#ConfigFile"><span class="hs-identifier hs-type">ConfigFile</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-156"></span><span id="readConfigFile"><span class="annot"><span class="annottext">readConfigFile :: String -&gt; IO (Maybe ConfigFile)
+</span><a href="Test.Hspec.Core.Config.html#readConfigFile"><span class="hs-identifier hs-var hs-var">readConfigFile</span></a></span></span><span> </span><span id="local-6989586621679163877"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679163877"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-157"></span><span>  </span><span id="local-6989586621679163876"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679163876"><span class="hs-identifier hs-var">exists</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">String -&gt; IO Bool
+</span><span class="hs-identifier hs-var">doesFileExist</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679163877"><span class="hs-identifier hs-var">name</span></a></span><span>
+</span><span id="line-158"></span><span>  </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679163876"><span class="hs-identifier hs-var">exists</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">,</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679163877"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; [String]
+</span><span class="hs-identifier hs-var">words</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; IO String
+</span><span class="hs-identifier hs-var">readFile</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679163877"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-159"></span><span>
+</span><span id="line-160"></span><span id="local-6989586621679164053"><span class="annot"><a href="Test.Hspec.Core.Config.html#exitWithMessage"><span class="hs-identifier hs-type">exitWithMessage</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ExitCode</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679164053"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-161"></span><span id="exitWithMessage"><span class="annot"><span class="annottext">exitWithMessage :: forall a. ExitCode -&gt; String -&gt; IO a
+</span><a href="Test.Hspec.Core.Config.html#exitWithMessage"><span class="hs-identifier hs-var hs-var">exitWithMessage</span></a></span></span><span> </span><span id="local-6989586621679163872"><span class="annot"><span class="annottext">ExitCode
+</span><a href="#local-6989586621679163872"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span id="local-6989586621679163871"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679163871"><span class="hs-identifier hs-var">msg</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-162"></span><span>  </span><span class="annot"><span class="annottext">Handle -&gt; String -&gt; IO ()
+</span><span class="hs-identifier hs-var">hPutStr</span></span><span> </span><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621679163869"><span class="hs-identifier hs-var">h</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679163871"><span class="hs-identifier hs-var">msg</span></a></span><span>
+</span><span id="line-163"></span><span>  </span><span class="annot"><span class="annottext">forall a. ExitCode -&gt; IO a
+</span><span class="hs-identifier hs-var">exitWith</span></span><span> </span><span class="annot"><span class="annottext">ExitCode
+</span><a href="#local-6989586621679163872"><span class="hs-identifier hs-var">err</span></a></span><span>
+</span><span id="line-164"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-165"></span><span>    </span><span id="local-6989586621679163869"><span class="annot"><span class="annottext">h :: Handle
+</span><a href="#local-6989586621679163869"><span class="hs-identifier hs-var hs-var">h</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">ExitCode
+</span><a href="#local-6989586621679163872"><span class="hs-identifier hs-var">err</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-166"></span><span>      </span><span class="annot"><span class="annottext">ExitCode
+</span><span class="hs-identifier hs-var">ExitSuccess</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Handle
+</span><span class="hs-identifier hs-var">stdout</span></span><span>
+</span><span id="line-167"></span><span>      </span><span class="annot"><span class="annottext">ExitCode
+</span><span class="hs-identifier">_</span></span><span>           </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Handle
+</span><span class="hs-identifier hs-var">stderr</span></span><span>
+</span><span id="line-168"></span></pre></body></html>

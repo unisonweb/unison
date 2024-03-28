@@ -1,0 +1,127 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- THIS IS A GENERATED FILE, DO NOT EDIT</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-imports #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-matches #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-deprecations #-}</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.PrepareRenameResult</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Hashable</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html"><span class="hs-identifier">Language.LSP.Protocol.Utils.Misc</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prettyprinter</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Row</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Row</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Aeson.html"><span class="hs-identifier">Data.Row.Aeson</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Hashable.html"><span class="hs-identifier">Data.Row.Hashable</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Hashable</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.Range.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.Range</span></a></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html"><span class="hs-identifier">Language.LSP.Protocol.Types.Common</span></a></span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-comment">{-|
+
+-}</span><span>
+</span><span id="line-24"></span><span id="local-6989586621682156090"><span id="local-6989586621682156091"></span></span><span class="hs-keyword">newtype</span><span> </span><span id="PrepareRenameResult"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.PrepareRenameResult.html#PrepareRenameResult"><span class="hs-identifier hs-var">PrepareRenameResult</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="PrepareRenameResult"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.PrepareRenameResult.html#PrepareRenameResult"><span class="hs-identifier hs-var">PrepareRenameResult</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.Range.html#Range"><span class="hs-identifier hs-type">Language.LSP.Protocol.Internal.Types.Range.Range</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#%7C%3F"><span class="hs-operator hs-type">Language.LSP.Protocol.Types.Common.|?</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Row.Rec</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-string">&quot;range&quot;</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">Row..==</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.Range.html#Range"><span class="hs-identifier hs-type">Language.LSP.Protocol.Internal.Types.Range.Range</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">Row..+</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-string">&quot;placeholder&quot;</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">Row..==</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Data.Text.Text</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">Row..+</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Row.Empty</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#%7C%3F"><span class="hs-operator hs-type">Language.LSP.Protocol.Types.Common.|?</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Row.Rec</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-string">&quot;defaultBehavior&quot;</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">Row..==</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">Row..+</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Row.Empty</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">newtype</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682156068"><span id="local-6989586621682156074"><span id="local-6989586621682156080"><span id="local-6989586621682156086"><span class="annot"><span class="annottext">[PrepareRenameResult] -&gt; Encoding
+[PrepareRenameResult] -&gt; Value
+PrepareRenameResult -&gt; Encoding
+PrepareRenameResult -&gt; Value
+forall a.
+(a -&gt; Value)
+-&gt; (a -&gt; Encoding)
+-&gt; ([a] -&gt; Value)
+-&gt; ([a] -&gt; Encoding)
+-&gt; ToJSON a
+toEncodingList :: [PrepareRenameResult] -&gt; Encoding
+$ctoEncodingList :: [PrepareRenameResult] -&gt; Encoding
+toJSONList :: [PrepareRenameResult] -&gt; Value
+$ctoJSONList :: [PrepareRenameResult] -&gt; Value
+toEncoding :: PrepareRenameResult -&gt; Encoding
+$ctoEncoding :: PrepareRenameResult -&gt; Encoding
+toJSON :: PrepareRenameResult -&gt; Value
+$ctoJSON :: PrepareRenameResult -&gt; Value
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Aeson.ToJSON</span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682155908"><span id="local-6989586621682155914"><span class="annot"><span class="annottext">Value -&gt; Parser [PrepareRenameResult]
+Value -&gt; Parser PrepareRenameResult
+forall a.
+(Value -&gt; Parser a) -&gt; (Value -&gt; Parser [a]) -&gt; FromJSON a
+parseJSONList :: Value -&gt; Parser [PrepareRenameResult]
+$cparseJSONList :: Value -&gt; Parser [PrepareRenameResult]
+parseJSON :: Value -&gt; Parser PrepareRenameResult
+$cparseJSON :: Value -&gt; Parser PrepareRenameResult
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Aeson.FromJSON</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682155778"><span id="local-6989586621682155780"><span id="local-6989586621682155788"><span class="annot"><span class="annottext">Int -&gt; PrepareRenameResult -&gt; ShowS
+[PrepareRenameResult] -&gt; ShowS
+PrepareRenameResult -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [PrepareRenameResult] -&gt; ShowS
+$cshowList :: [PrepareRenameResult] -&gt; ShowS
+show :: PrepareRenameResult -&gt; String
+$cshow :: PrepareRenameResult -&gt; String
+showsPrec :: Int -&gt; PrepareRenameResult -&gt; ShowS
+$cshowsPrec :: Int -&gt; PrepareRenameResult -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682155735"><span id="local-6989586621682155741"><span class="annot"><span class="annottext">PrepareRenameResult -&gt; PrepareRenameResult -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: PrepareRenameResult -&gt; PrepareRenameResult -&gt; Bool
+$c/= :: PrepareRenameResult -&gt; PrepareRenameResult -&gt; Bool
+== :: PrepareRenameResult -&gt; PrepareRenameResult -&gt; Bool
+$c== :: PrepareRenameResult -&gt; PrepareRenameResult -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682155677"><span id="local-6989586621682155679"><span id="local-6989586621682155682"><span id="local-6989586621682155685"><span id="local-6989586621682155688"><span id="local-6989586621682155693"><span id="local-6989586621682155699"><span class="annot"><span class="annottext">Eq PrepareRenameResult
+PrepareRenameResult -&gt; PrepareRenameResult -&gt; Bool
+PrepareRenameResult -&gt; PrepareRenameResult -&gt; Ordering
+PrepareRenameResult -&gt; PrepareRenameResult -&gt; PrepareRenameResult
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: PrepareRenameResult -&gt; PrepareRenameResult -&gt; PrepareRenameResult
+$cmin :: PrepareRenameResult -&gt; PrepareRenameResult -&gt; PrepareRenameResult
+max :: PrepareRenameResult -&gt; PrepareRenameResult -&gt; PrepareRenameResult
+$cmax :: PrepareRenameResult -&gt; PrepareRenameResult -&gt; PrepareRenameResult
+&gt;= :: PrepareRenameResult -&gt; PrepareRenameResult -&gt; Bool
+$c&gt;= :: PrepareRenameResult -&gt; PrepareRenameResult -&gt; Bool
+&gt; :: PrepareRenameResult -&gt; PrepareRenameResult -&gt; Bool
+$c&gt; :: PrepareRenameResult -&gt; PrepareRenameResult -&gt; Bool
+&lt;= :: PrepareRenameResult -&gt; PrepareRenameResult -&gt; Bool
+$c&lt;= :: PrepareRenameResult -&gt; PrepareRenameResult -&gt; Bool
+&lt; :: PrepareRenameResult -&gt; PrepareRenameResult -&gt; Bool
+$c&lt; :: PrepareRenameResult -&gt; PrepareRenameResult -&gt; Bool
+compare :: PrepareRenameResult -&gt; PrepareRenameResult -&gt; Ordering
+$ccompare :: PrepareRenameResult -&gt; PrepareRenameResult -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall x. Rep PrepareRenameResult x -&gt; PrepareRenameResult
+forall x. PrepareRenameResult -&gt; Rep PrepareRenameResult x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cto :: forall x. Rep PrepareRenameResult x -&gt; PrepareRenameResult
+$cfrom :: forall x. PrepareRenameResult -&gt; Rep PrepareRenameResult x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">anyclass</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682155587"><span class="annot"><span class="annottext">PrepareRenameResult -&gt; ()
+forall a. (a -&gt; ()) -&gt; NFData a
+rnf :: PrepareRenameResult -&gt; ()
+$crnf :: PrepareRenameResult -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682155580"><span id="local-6989586621682155582"><span class="annot"><span class="annottext">Eq PrepareRenameResult
+Int -&gt; PrepareRenameResult -&gt; Int
+PrepareRenameResult -&gt; Int
+forall a. Eq a -&gt; (Int -&gt; a -&gt; Int) -&gt; (a -&gt; Int) -&gt; Hashable a
+hash :: PrepareRenameResult -&gt; Int
+$chash :: PrepareRenameResult -&gt; Int
+hashWithSalt :: Int -&gt; PrepareRenameResult -&gt; Int
+$chashWithSalt :: Int -&gt; PrepareRenameResult -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Hashable</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621682155571"><span id="local-6989586621682155577"><span class="annot"><span class="annottext">forall ann. [PrepareRenameResult] -&gt; Doc ann
+forall ann. PrepareRenameResult -&gt; Doc ann
+forall a.
+(forall ann. a -&gt; Doc ann)
+-&gt; (forall ann. [a] -&gt; Doc ann) -&gt; Pretty a
+prettyList :: forall ann. [PrepareRenameResult] -&gt; Doc ann
+$cprettyList :: forall ann. [PrepareRenameResult] -&gt; Doc ann
+pretty :: forall ann. PrepareRenameResult -&gt; Doc ann
+$cpretty :: forall ann. PrepareRenameResult -&gt; Doc ann
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Pretty</span></span></span></span><span> </span><span class="hs-keyword">via</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html#ViaJSON"><span class="hs-identifier hs-type">ViaJSON</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.PrepareRenameResult.html#PrepareRenameResult"><span class="hs-identifier hs-type">PrepareRenameResult</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span></pre></body></html>

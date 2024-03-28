@@ -1,0 +1,983 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DerivingStrategies #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE GeneralizedNewtypeDeriving #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE NoImplicitPrelude #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE Trustworthy #-}</span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- Module      :  Data.Bits</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- Copyright   :  (c) The University of Glasgow 2001</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- License     :  BSD-style (see the file libraries/base/LICENSE)</span><span>
+</span><span id="line-11"></span><span class="hs-comment">--</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- Maintainer  :  libraries@haskell.org</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- Stability   :  experimental</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- Portability :  portable</span><span>
+</span><span id="line-15"></span><span class="hs-comment">--</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- This module defines bitwise operations for signed and unsigned</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- integers.  Instances of the class 'Bits' for the 'Int' and</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- 'Integer' types are available from this module, and instances for</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- explicitly sized integral types are available from the</span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- &quot;Data.Int&quot; and &quot;Data.Word&quot; modules.</span><span>
+</span><span id="line-21"></span><span class="hs-comment">--</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Data.Bits</span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-25"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Type classes</span></span><span>
+</span><span id="line-26"></span><span>  </span><span class="annot"><a href="GHC.Bits.html#Bits"><span class="hs-identifier">Bits</span></a></span><span class="hs-special">(</span><span>
+</span><span id="line-27"></span><span>    </span><span class="annot"><a href="GHC.Bits.html#.%26."><span class="hs-operator">(.&amp;.)</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Bits.html#.%7C."><span class="hs-operator">(.|.)</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Bits.html#xor"><span class="hs-identifier">xor</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-28"></span><span>    </span><span class="annot"><a href="GHC.Bits.html#complement"><span class="hs-identifier">complement</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-29"></span><span>    </span><span class="annot"><a href="GHC.Bits.html#shift"><span class="hs-identifier">shift</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-30"></span><span>    </span><span class="annot"><a href="GHC.Bits.html#rotate"><span class="hs-identifier">rotate</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-31"></span><span>    </span><span class="annot"><a href="GHC.Bits.html#zeroBits"><span class="hs-identifier">zeroBits</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-32"></span><span>    </span><span class="annot"><a href="GHC.Bits.html#bit"><span class="hs-identifier">bit</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-33"></span><span>    </span><span class="annot"><a href="GHC.Bits.html#setBit"><span class="hs-identifier">setBit</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-34"></span><span>    </span><span class="annot"><a href="GHC.Bits.html#clearBit"><span class="hs-identifier">clearBit</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-35"></span><span>    </span><span class="annot"><a href="GHC.Bits.html#complementBit"><span class="hs-identifier">complementBit</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-36"></span><span>    </span><span class="annot"><a href="GHC.Bits.html#testBit"><span class="hs-identifier">testBit</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-37"></span><span>    </span><span class="annot"><a href="GHC.Bits.html#bitSizeMaybe"><span class="hs-identifier">bitSizeMaybe</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-38"></span><span>    </span><span class="annot"><a href="GHC.Bits.html#bitSize"><span class="hs-identifier">bitSize</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-39"></span><span>    </span><span class="annot"><a href="GHC.Bits.html#isSigned"><span class="hs-identifier">isSigned</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-40"></span><span>    </span><span class="annot"><a href="GHC.Bits.html#shiftL"><span class="hs-identifier">shiftL</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Bits.html#shiftR"><span class="hs-identifier">shiftR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-41"></span><span>    </span><span class="annot"><a href="GHC.Bits.html#unsafeShiftL"><span class="hs-identifier">unsafeShiftL</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Bits.html#unsafeShiftR"><span class="hs-identifier">unsafeShiftR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-42"></span><span>    </span><span class="annot"><a href="GHC.Bits.html#rotateL"><span class="hs-identifier">rotateL</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Bits.html#rotateR"><span class="hs-identifier">rotateR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-43"></span><span>    </span><span class="annot"><a href="GHC.Bits.html#popCount"><span class="hs-identifier">popCount</span></a></span><span>
+</span><span id="line-44"></span><span>  </span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-45"></span><span>  </span><span class="annot"><a href="GHC.Bits.html#FiniteBits"><span class="hs-identifier">FiniteBits</span></a></span><span class="hs-special">(</span><span>
+</span><span id="line-46"></span><span>    </span><span class="annot"><a href="GHC.Bits.html#finiteBitSize"><span class="hs-identifier">finiteBitSize</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-47"></span><span>    </span><span class="annot"><a href="GHC.Bits.html#countLeadingZeros"><span class="hs-identifier">countLeadingZeros</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-48"></span><span>    </span><span class="annot"><a href="GHC.Bits.html#countTrailingZeros"><span class="hs-identifier">countTrailingZeros</span></a></span><span>
+</span><span id="line-49"></span><span>  </span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-50"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Extra functions</span></span><span>
+</span><span id="line-51"></span><span>  </span><span class="annot"><a href="GHC.Bits.html#bitDefault"><span class="hs-identifier">bitDefault</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-52"></span><span>  </span><span class="annot"><a href="GHC.Bits.html#testBitDefault"><span class="hs-identifier">testBitDefault</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-53"></span><span>  </span><span class="annot"><a href="GHC.Bits.html#popCountDefault"><span class="hs-identifier">popCountDefault</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-54"></span><span>  </span><span class="annot"><a href="GHC.Bits.html#toIntegralSized"><span class="hs-identifier">toIntegralSized</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-55"></span><span>  </span><span class="annot"><a href="Data.Bits.html#oneBits"><span class="hs-identifier">oneBits</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-56"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Newtypes</span></span><span>
+</span><span id="line-57"></span><span>  </span><span class="annot"><a href="Data.Bits.html#And"><span class="hs-identifier">And</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Bits.html#Ior"><span class="hs-identifier">Ior</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Bits.html#Xor"><span class="hs-identifier">Xor</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Bits.html#Iff"><span class="hs-identifier">Iff</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-58"></span><span> </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Base.html"><span class="hs-identifier">GHC.Base</span></a></span><span>
+</span><span id="line-61"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Bits.html"><span class="hs-identifier">GHC.Bits</span></a></span><span>
+</span><span id="line-62"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Enum.html"><span class="hs-identifier">GHC.Enum</span></a></span><span>
+</span><span id="line-63"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Read.html"><span class="hs-identifier">GHC.Read</span></a></span><span>
+</span><span id="line-64"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Show.html"><span class="hs-identifier">GHC.Show</span></a></span><span>
+</span><span id="line-65"></span><span>
+</span><span id="line-66"></span><span class="hs-comment">-- $setup</span><span>
+</span><span id="line-67"></span><span class="hs-comment">-- &gt;&gt;&gt; import Prelude</span><span>
+</span><span id="line-68"></span><span class="hs-comment">-- &gt;&gt;&gt; import Data.Word</span><span>
+</span><span id="line-69"></span><span>
+</span><span id="line-70"></span><span class="hs-comment">-- | A more concise version of @complement zeroBits@.</span><span>
+</span><span id="line-71"></span><span class="hs-comment">--</span><span>
+</span><span id="line-72"></span><span class="hs-comment">-- &gt;&gt;&gt; complement (zeroBits :: Word) == (oneBits :: Word)</span><span>
+</span><span id="line-73"></span><span class="hs-comment">-- True</span><span>
+</span><span id="line-74"></span><span class="hs-comment">--</span><span>
+</span><span id="line-75"></span><span class="hs-comment">-- &gt;&gt;&gt; complement (oneBits :: Word) == (zeroBits :: Word)</span><span>
+</span><span id="line-76"></span><span class="hs-comment">-- True</span><span>
+</span><span id="line-77"></span><span class="hs-comment">--</span><span>
+</span><span id="line-78"></span><span class="hs-comment">-- = Note</span><span>
+</span><span id="line-79"></span><span class="hs-comment">--</span><span>
+</span><span id="line-80"></span><span class="hs-comment">-- The constraint on 'oneBits' is arguably too strong. However, as some types</span><span>
+</span><span id="line-81"></span><span class="hs-comment">-- (such as 'Natural') have undefined 'complement', this is the only safe</span><span>
+</span><span id="line-82"></span><span class="hs-comment">-- choice.</span><span>
+</span><span id="line-83"></span><span class="hs-comment">--</span><span>
+</span><span id="line-84"></span><span class="hs-comment">-- @since 4.16</span><span>
+</span><span id="line-85"></span><span id="local-6989586621679568681"><span class="annot"><a href="Data.Bits.html#oneBits"><span class="hs-identifier hs-type">oneBits</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Bits.html#FiniteBits"><span class="hs-identifier hs-type">FiniteBits</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679568681"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679568681"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-86"></span><span id="oneBits"><span class="annot"><span class="annottext">oneBits :: forall a. FiniteBits a =&gt; a
+</span><a href="Data.Bits.html#oneBits"><span class="hs-identifier hs-var hs-var">oneBits</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a
+</span><a href="GHC.Bits.html#complement"><span class="hs-identifier hs-var">complement</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a
+</span><a href="GHC.Bits.html#zeroBits"><span class="hs-identifier hs-var">zeroBits</span></a></span><span>
+</span><span id="line-87"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Bits.html#oneBits"><span class="hs-pragma hs-type">oneBits</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-88"></span><span>
+</span><span id="line-89"></span><span class="hs-comment">-- | Monoid under bitwise AND.</span><span>
+</span><span id="line-90"></span><span class="hs-comment">--</span><span>
+</span><span id="line-91"></span><span class="hs-comment">-- &gt;&gt;&gt; getAnd (And 0xab &lt;&gt; And 0x12) :: Word8</span><span>
+</span><span id="line-92"></span><span class="hs-comment">-- 2</span><span>
+</span><span id="line-93"></span><span class="hs-comment">--</span><span>
+</span><span id="line-94"></span><span class="hs-comment">-- @since 4.16</span><span>
+</span><span id="line-95"></span><span class="hs-keyword">newtype</span><span> </span><span id="And"><span class="annot"><a href="Data.Bits.html#And"><span class="hs-identifier hs-var">And</span></a></span></span><span> </span><span id="local-6989586621679568677"><span class="annot"><a href="#local-6989586621679568677"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="And"><span class="annot"><a href="Data.Bits.html#And"><span class="hs-identifier hs-var">And</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="getAnd"><span class="annot"><span class="annottext">forall a. And a -&gt; a
+</span><a href="Data.Bits.html#getAnd"><span class="hs-identifier hs-var hs-var">getAnd</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679568677"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-96"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">newtype</span></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-97"></span><span>                    </span><span id="local-6989586621679568511"><span id="local-6989586621679568515"><span class="annot"><span class="annottext">And a
+forall a. a -&gt; a -&gt; Bounded a
+forall a. Bounded a =&gt; And a
+maxBound :: And a
+$cmaxBound :: forall a. Bounded a =&gt; And a
+minBound :: And a
+$cminBound :: forall a. Bounded a =&gt; And a
+</span><a href="GHC.Enum.html#Bounded"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Bounded</span></a></span></span></span><span class="hs-special">,</span><span> </span><span class="hs-comment">-- ^ @since 4.16</span><span>
+</span><span id="line-98"></span><span>                    </span><span id="local-6989586621679568476"><span id="local-6989586621679568480"><span id="local-6989586621679568484"><span id="local-6989586621679568488"><span id="local-6989586621679568492"><span id="local-6989586621679568496"><span id="local-6989586621679568500"><span id="local-6989586621679568504"><span class="annot"><span class="annottext">Int -&gt; And a
+And a -&gt; Int
+And a -&gt; [And a]
+And a -&gt; And a
+And a -&gt; And a -&gt; [And a]
+And a -&gt; And a -&gt; And a -&gt; [And a]
+forall a. Enum a =&gt; Int -&gt; And a
+forall a. Enum a =&gt; And a -&gt; Int
+forall a. Enum a =&gt; And a -&gt; [And a]
+forall a. Enum a =&gt; And a -&gt; And a
+forall a. Enum a =&gt; And a -&gt; And a -&gt; [And a]
+forall a. Enum a =&gt; And a -&gt; And a -&gt; And a -&gt; [And a]
+forall a.
+(a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (Int -&gt; a)
+-&gt; (a -&gt; Int)
+-&gt; (a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; a -&gt; [a])
+-&gt; Enum a
+enumFromThenTo :: And a -&gt; And a -&gt; And a -&gt; [And a]
+$cenumFromThenTo :: forall a. Enum a =&gt; And a -&gt; And a -&gt; And a -&gt; [And a]
+enumFromTo :: And a -&gt; And a -&gt; [And a]
+$cenumFromTo :: forall a. Enum a =&gt; And a -&gt; And a -&gt; [And a]
+enumFromThen :: And a -&gt; And a -&gt; [And a]
+$cenumFromThen :: forall a. Enum a =&gt; And a -&gt; And a -&gt; [And a]
+enumFrom :: And a -&gt; [And a]
+$cenumFrom :: forall a. Enum a =&gt; And a -&gt; [And a]
+fromEnum :: And a -&gt; Int
+$cfromEnum :: forall a. Enum a =&gt; And a -&gt; Int
+toEnum :: Int -&gt; And a
+$ctoEnum :: forall a. Enum a =&gt; Int -&gt; And a
+pred :: And a -&gt; And a
+$cpred :: forall a. Enum a =&gt; And a -&gt; And a
+succ :: And a -&gt; And a
+$csucc :: forall a. Enum a =&gt; And a -&gt; And a
+</span><a href="GHC.Enum.html#Enum"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Enum</span></a></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="hs-comment">-- ^ @since 4.16</span><span>
+</span><span id="line-99"></span><span>                    </span><span id="local-6989586621679568381"><span id="local-6989586621679568385"><span id="local-6989586621679568389"><span id="local-6989586621679568393"><span id="local-6989586621679568397"><span id="local-6989586621679568401"><span id="local-6989586621679568405"><span id="local-6989586621679568409"><span id="local-6989586621679568413"><span id="local-6989586621679568417"><span id="local-6989586621679568421"><span id="local-6989586621679568425"><span id="local-6989586621679568429"><span id="local-6989586621679568433"><span id="local-6989586621679568437"><span id="local-6989586621679568441"><span id="local-6989586621679568445"><span id="local-6989586621679568449"><span id="local-6989586621679568453"><span id="local-6989586621679568457"><span id="local-6989586621679568461"><span id="local-6989586621679568465"><span class="annot"><span class="annottext">And a
+Int -&gt; And a
+And a -&gt; Bool
+And a -&gt; Int
+And a -&gt; Maybe Int
+And a -&gt; And a
+And a -&gt; Int -&gt; Bool
+And a -&gt; Int -&gt; And a
+And a -&gt; And a -&gt; And a
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; a
+-&gt; (Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; Bool)
+-&gt; (a -&gt; Maybe Int)
+-&gt; (a -&gt; Int)
+-&gt; (a -&gt; Bool)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int)
+-&gt; Bits a
+forall {a}. Bits a =&gt; Eq (And a)
+forall a. Bits a =&gt; And a
+forall a. Bits a =&gt; Int -&gt; And a
+forall a. Bits a =&gt; And a -&gt; Bool
+forall a. Bits a =&gt; And a -&gt; Int
+forall a. Bits a =&gt; And a -&gt; Maybe Int
+forall a. Bits a =&gt; And a -&gt; And a
+forall a. Bits a =&gt; And a -&gt; Int -&gt; Bool
+forall a. Bits a =&gt; And a -&gt; Int -&gt; And a
+forall a. Bits a =&gt; And a -&gt; And a -&gt; And a
+popCount :: And a -&gt; Int
+$cpopCount :: forall a. Bits a =&gt; And a -&gt; Int
+rotateR :: And a -&gt; Int -&gt; And a
+$crotateR :: forall a. Bits a =&gt; And a -&gt; Int -&gt; And a
+rotateL :: And a -&gt; Int -&gt; And a
+$crotateL :: forall a. Bits a =&gt; And a -&gt; Int -&gt; And a
+unsafeShiftR :: And a -&gt; Int -&gt; And a
+$cunsafeShiftR :: forall a. Bits a =&gt; And a -&gt; Int -&gt; And a
+shiftR :: And a -&gt; Int -&gt; And a
+$cshiftR :: forall a. Bits a =&gt; And a -&gt; Int -&gt; And a
+unsafeShiftL :: And a -&gt; Int -&gt; And a
+$cunsafeShiftL :: forall a. Bits a =&gt; And a -&gt; Int -&gt; And a
+shiftL :: And a -&gt; Int -&gt; And a
+$cshiftL :: forall a. Bits a =&gt; And a -&gt; Int -&gt; And a
+isSigned :: And a -&gt; Bool
+$cisSigned :: forall a. Bits a =&gt; And a -&gt; Bool
+bitSize :: And a -&gt; Int
+$cbitSize :: forall a. Bits a =&gt; And a -&gt; Int
+bitSizeMaybe :: And a -&gt; Maybe Int
+$cbitSizeMaybe :: forall a. Bits a =&gt; And a -&gt; Maybe Int
+testBit :: And a -&gt; Int -&gt; Bool
+$ctestBit :: forall a. Bits a =&gt; And a -&gt; Int -&gt; Bool
+complementBit :: And a -&gt; Int -&gt; And a
+$ccomplementBit :: forall a. Bits a =&gt; And a -&gt; Int -&gt; And a
+clearBit :: And a -&gt; Int -&gt; And a
+$cclearBit :: forall a. Bits a =&gt; And a -&gt; Int -&gt; And a
+setBit :: And a -&gt; Int -&gt; And a
+$csetBit :: forall a. Bits a =&gt; And a -&gt; Int -&gt; And a
+bit :: Int -&gt; And a
+$cbit :: forall a. Bits a =&gt; Int -&gt; And a
+zeroBits :: And a
+$czeroBits :: forall a. Bits a =&gt; And a
+rotate :: And a -&gt; Int -&gt; And a
+$crotate :: forall a. Bits a =&gt; And a -&gt; Int -&gt; And a
+shift :: And a -&gt; Int -&gt; And a
+$cshift :: forall a. Bits a =&gt; And a -&gt; Int -&gt; And a
+complement :: And a -&gt; And a
+$ccomplement :: forall a. Bits a =&gt; And a -&gt; And a
+xor :: And a -&gt; And a -&gt; And a
+$cxor :: forall a. Bits a =&gt; And a -&gt; And a -&gt; And a
+.|. :: And a -&gt; And a -&gt; And a
+$c.|. :: forall a. Bits a =&gt; And a -&gt; And a -&gt; And a
+.&amp;. :: And a -&gt; And a -&gt; And a
+$c.&amp;. :: forall a. Bits a =&gt; And a -&gt; And a -&gt; And a
+</span><a href="GHC.Bits.html#C%3ABits"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Bits</span></a></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="hs-comment">-- ^ @since 4.16</span><span>
+</span><span id="line-100"></span><span>                    </span><span id="local-6989586621679568362"><span id="local-6989586621679568366"><span id="local-6989586621679568370"><span class="annot"><span class="annottext">And a -&gt; Int
+forall b.
+Bits b -&gt; (b -&gt; Int) -&gt; (b -&gt; Int) -&gt; (b -&gt; Int) -&gt; FiniteBits b
+forall {a}. FiniteBits a =&gt; Bits (And a)
+forall a. FiniteBits a =&gt; And a -&gt; Int
+countTrailingZeros :: And a -&gt; Int
+$ccountTrailingZeros :: forall a. FiniteBits a =&gt; And a -&gt; Int
+countLeadingZeros :: And a -&gt; Int
+$ccountLeadingZeros :: forall a. FiniteBits a =&gt; And a -&gt; Int
+finiteBitSize :: And a -&gt; Int
+$cfiniteBitSize :: forall a. FiniteBits a =&gt; And a -&gt; Int
+</span><a href="GHC.Bits.html#C%3AFiniteBits"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">FiniteBits</span></a></span></span></span></span><span class="hs-special">,</span><span> </span><span class="hs-comment">-- ^ @since 4.16</span><span>
+</span><span id="line-101"></span><span>                    </span><span id="local-6989586621679568351"><span id="local-6989586621679568355"><span class="annot"><span class="annottext">And a -&gt; And a -&gt; Bool
+forall a. Eq a =&gt; And a -&gt; And a -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: And a -&gt; And a -&gt; Bool
+$c/= :: forall a. Eq a =&gt; And a -&gt; And a -&gt; Bool
+== :: And a -&gt; And a -&gt; Bool
+$c== :: forall a. Eq a =&gt; And a -&gt; And a -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#Eq"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></a></span></span></span><span> </span><span class="hs-comment">-- ^ @since 4.16</span><span>
+</span><span id="line-102"></span><span>                    </span><span class="hs-special">)</span><span>
+</span><span id="line-103"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-104"></span><span>                  </span><span id="local-6989586621679568339"><span id="local-6989586621679568341"><span id="local-6989586621679568346"><span class="annot"><span class="annottext">Int -&gt; And a -&gt; ShowS
+forall a. Show a =&gt; Int -&gt; And a -&gt; ShowS
+forall a. Show a =&gt; [And a] -&gt; ShowS
+forall a. Show a =&gt; And a -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [And a] -&gt; ShowS
+$cshowList :: forall a. Show a =&gt; [And a] -&gt; ShowS
+show :: And a -&gt; String
+$cshow :: forall a. Show a =&gt; And a -&gt; String
+showsPrec :: Int -&gt; And a -&gt; ShowS
+$cshowsPrec :: forall a. Show a =&gt; Int -&gt; And a -&gt; ShowS
+</span><a href="GHC.Show.html#Show"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></a></span></span></span></span><span class="hs-special">,</span><span> </span><span class="hs-comment">-- ^ @since 4.16</span><span>
+</span><span id="line-105"></span><span>                  </span><span id="local-6989586621679568322"><span id="local-6989586621679568331"><span id="local-6989586621679568334"><span id="local-6989586621679568336"><span class="annot"><span class="annottext">ReadPrec [And a]
+ReadPrec (And a)
+ReadS [And a]
+forall a. Read a =&gt; ReadPrec [And a]
+forall a. Read a =&gt; ReadPrec (And a)
+forall a. Read a =&gt; Int -&gt; ReadS (And a)
+forall a. Read a =&gt; ReadS [And a]
+forall a.
+(Int -&gt; ReadS a)
+-&gt; ReadS [a] -&gt; ReadPrec a -&gt; ReadPrec [a] -&gt; Read a
+readListPrec :: ReadPrec [And a]
+$creadListPrec :: forall a. Read a =&gt; ReadPrec [And a]
+readPrec :: ReadPrec (And a)
+$creadPrec :: forall a. Read a =&gt; ReadPrec (And a)
+readList :: ReadS [And a]
+$creadList :: forall a. Read a =&gt; ReadS [And a]
+readsPrec :: Int -&gt; ReadS (And a)
+$creadsPrec :: forall a. Read a =&gt; Int -&gt; ReadS (And a)
+</span><a href="GHC.Read.html#Read"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Read</span></a></span></span></span></span></span><span> </span><span class="hs-comment">-- ^ @since 4.16</span><span>
+</span><span id="line-106"></span><span>                 </span><span class="hs-special">)</span><span>
+</span><span id="line-107"></span><span>
+</span><span id="line-108"></span><span class="hs-comment">-- | @since 4.16</span><span>
+</span><span id="line-109"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679568315"><span id="local-6989586621679568317"><span id="local-6989586621679568660"><span class="hs-special">(</span><span class="annot"><a href="GHC.Bits.html#Bits"><span class="hs-identifier hs-type">Bits</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679568660"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="GHC.Base.html#Semigroup"><span class="hs-identifier hs-type">Semigroup</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bits.html#And"><span class="hs-identifier hs-type">And</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679568660"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-110"></span><span>  </span><span class="annot"><a href="Data.Bits.html#And"><span class="hs-identifier hs-type">And</span></a></span><span> </span><span id="local-6989586621679568312"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679568312"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679568311"><span class="annot"><span class="annottext">&lt;&gt; :: And a -&gt; And a -&gt; And a
+</span><a href="GHC.Base.html#%3C%3E"><span class="hs-operator hs-var hs-var hs-var hs-var">&lt;&gt;</span></a></span></span><span> </span><span class="annot"><a href="Data.Bits.html#And"><span class="hs-identifier hs-type">And</span></a></span><span> </span><span id="local-6989586621679568310"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679568310"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; And a
+</span><a href="Data.Bits.html#And"><span class="hs-identifier hs-var">And</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679568312"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><a href="GHC.Bits.html#.%26."><span class="hs-operator hs-var">.&amp;.</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679568310"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-111"></span><span>
+</span><span id="line-112"></span><span class="hs-comment">-- | This constraint is arguably too strong. However,</span><span>
+</span><span id="line-113"></span><span class="hs-comment">-- as some types (such as 'Natural') have undefined 'complement', this is the</span><span>
+</span><span id="line-114"></span><span class="hs-comment">-- only safe choice.</span><span>
+</span><span id="line-115"></span><span class="hs-comment">--</span><span>
+</span><span id="line-116"></span><span class="hs-comment">-- @since 4.16</span><span>
+</span><span id="line-117"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679568303"><span id="local-6989586621679568305"><span id="local-6989586621679568658"><span class="hs-special">(</span><span class="annot"><a href="GHC.Bits.html#FiniteBits"><span class="hs-identifier hs-type">FiniteBits</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679568658"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="GHC.Base.html#Monoid"><span class="hs-identifier hs-type">Monoid</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bits.html#And"><span class="hs-identifier hs-type">And</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679568658"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-118"></span><span>  </span><span id="local-6989586621679568300"><span class="annot"><span class="annottext">mempty :: And a
+</span><a href="GHC.Base.html#mempty"><span class="hs-identifier hs-var hs-var hs-var hs-var">mempty</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; And a
+</span><a href="Data.Bits.html#And"><span class="hs-identifier hs-var">And</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FiniteBits a =&gt; a
+</span><a href="Data.Bits.html#oneBits"><span class="hs-identifier hs-var">oneBits</span></a></span><span>
+</span><span id="line-119"></span><span>
+</span><span id="line-120"></span><span class="hs-comment">-- | Monoid under bitwise inclusive OR.</span><span>
+</span><span id="line-121"></span><span class="hs-comment">--</span><span>
+</span><span id="line-122"></span><span class="hs-comment">-- &gt;&gt;&gt; getIor (Ior 0xab &lt;&gt; Ior 0x12) :: Word8</span><span>
+</span><span id="line-123"></span><span class="hs-comment">-- 187</span><span>
+</span><span id="line-124"></span><span class="hs-comment">--</span><span>
+</span><span id="line-125"></span><span class="hs-comment">-- @since 4.16</span><span>
+</span><span id="line-126"></span><span class="hs-keyword">newtype</span><span> </span><span id="Ior"><span class="annot"><a href="Data.Bits.html#Ior"><span class="hs-identifier hs-var">Ior</span></a></span></span><span> </span><span id="local-6989586621679568657"><span class="annot"><a href="#local-6989586621679568657"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Ior"><span class="annot"><a href="Data.Bits.html#Ior"><span class="hs-identifier hs-var">Ior</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="getIor"><span class="annot"><span class="annottext">forall a. Ior a -&gt; a
+</span><a href="Data.Bits.html#getIor"><span class="hs-identifier hs-var hs-var">getIor</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679568657"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-127"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">newtype</span></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-128"></span><span>                    </span><span id="local-6989586621679568291"><span id="local-6989586621679568295"><span class="annot"><span class="annottext">Ior a
+forall a. a -&gt; a -&gt; Bounded a
+forall a. Bounded a =&gt; Ior a
+maxBound :: Ior a
+$cmaxBound :: forall a. Bounded a =&gt; Ior a
+minBound :: Ior a
+$cminBound :: forall a. Bounded a =&gt; Ior a
+</span><a href="GHC.Enum.html#Bounded"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Bounded</span></a></span></span></span><span class="hs-special">,</span><span> </span><span class="hs-comment">-- ^ @since 4.16</span><span>
+</span><span id="line-129"></span><span>                    </span><span id="local-6989586621679568257"><span id="local-6989586621679568261"><span id="local-6989586621679568265"><span id="local-6989586621679568269"><span id="local-6989586621679568273"><span id="local-6989586621679568277"><span id="local-6989586621679568281"><span id="local-6989586621679568285"><span class="annot"><span class="annottext">Int -&gt; Ior a
+Ior a -&gt; Int
+Ior a -&gt; [Ior a]
+Ior a -&gt; Ior a
+Ior a -&gt; Ior a -&gt; [Ior a]
+Ior a -&gt; Ior a -&gt; Ior a -&gt; [Ior a]
+forall a. Enum a =&gt; Int -&gt; Ior a
+forall a. Enum a =&gt; Ior a -&gt; Int
+forall a. Enum a =&gt; Ior a -&gt; [Ior a]
+forall a. Enum a =&gt; Ior a -&gt; Ior a
+forall a. Enum a =&gt; Ior a -&gt; Ior a -&gt; [Ior a]
+forall a. Enum a =&gt; Ior a -&gt; Ior a -&gt; Ior a -&gt; [Ior a]
+forall a.
+(a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (Int -&gt; a)
+-&gt; (a -&gt; Int)
+-&gt; (a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; a -&gt; [a])
+-&gt; Enum a
+enumFromThenTo :: Ior a -&gt; Ior a -&gt; Ior a -&gt; [Ior a]
+$cenumFromThenTo :: forall a. Enum a =&gt; Ior a -&gt; Ior a -&gt; Ior a -&gt; [Ior a]
+enumFromTo :: Ior a -&gt; Ior a -&gt; [Ior a]
+$cenumFromTo :: forall a. Enum a =&gt; Ior a -&gt; Ior a -&gt; [Ior a]
+enumFromThen :: Ior a -&gt; Ior a -&gt; [Ior a]
+$cenumFromThen :: forall a. Enum a =&gt; Ior a -&gt; Ior a -&gt; [Ior a]
+enumFrom :: Ior a -&gt; [Ior a]
+$cenumFrom :: forall a. Enum a =&gt; Ior a -&gt; [Ior a]
+fromEnum :: Ior a -&gt; Int
+$cfromEnum :: forall a. Enum a =&gt; Ior a -&gt; Int
+toEnum :: Int -&gt; Ior a
+$ctoEnum :: forall a. Enum a =&gt; Int -&gt; Ior a
+pred :: Ior a -&gt; Ior a
+$cpred :: forall a. Enum a =&gt; Ior a -&gt; Ior a
+succ :: Ior a -&gt; Ior a
+$csucc :: forall a. Enum a =&gt; Ior a -&gt; Ior a
+</span><a href="GHC.Enum.html#Enum"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Enum</span></a></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="hs-comment">-- ^ @since 4.16</span><span>
+</span><span id="line-130"></span><span>                    </span><span id="local-6989586621679568163"><span id="local-6989586621679568167"><span id="local-6989586621679568171"><span id="local-6989586621679568175"><span id="local-6989586621679568179"><span id="local-6989586621679568183"><span id="local-6989586621679568187"><span id="local-6989586621679568191"><span id="local-6989586621679568195"><span id="local-6989586621679568199"><span id="local-6989586621679568203"><span id="local-6989586621679568207"><span id="local-6989586621679568211"><span id="local-6989586621679568215"><span id="local-6989586621679568219"><span id="local-6989586621679568223"><span id="local-6989586621679568227"><span id="local-6989586621679568231"><span id="local-6989586621679568235"><span id="local-6989586621679568239"><span id="local-6989586621679568243"><span id="local-6989586621679568247"><span class="annot"><span class="annottext">Ior a
+Int -&gt; Ior a
+Ior a -&gt; Bool
+Ior a -&gt; Int
+Ior a -&gt; Maybe Int
+Ior a -&gt; Ior a
+Ior a -&gt; Int -&gt; Bool
+Ior a -&gt; Int -&gt; Ior a
+Ior a -&gt; Ior a -&gt; Ior a
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; a
+-&gt; (Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; Bool)
+-&gt; (a -&gt; Maybe Int)
+-&gt; (a -&gt; Int)
+-&gt; (a -&gt; Bool)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int)
+-&gt; Bits a
+forall {a}. Bits a =&gt; Eq (Ior a)
+forall a. Bits a =&gt; Ior a
+forall a. Bits a =&gt; Int -&gt; Ior a
+forall a. Bits a =&gt; Ior a -&gt; Bool
+forall a. Bits a =&gt; Ior a -&gt; Int
+forall a. Bits a =&gt; Ior a -&gt; Maybe Int
+forall a. Bits a =&gt; Ior a -&gt; Ior a
+forall a. Bits a =&gt; Ior a -&gt; Int -&gt; Bool
+forall a. Bits a =&gt; Ior a -&gt; Int -&gt; Ior a
+forall a. Bits a =&gt; Ior a -&gt; Ior a -&gt; Ior a
+popCount :: Ior a -&gt; Int
+$cpopCount :: forall a. Bits a =&gt; Ior a -&gt; Int
+rotateR :: Ior a -&gt; Int -&gt; Ior a
+$crotateR :: forall a. Bits a =&gt; Ior a -&gt; Int -&gt; Ior a
+rotateL :: Ior a -&gt; Int -&gt; Ior a
+$crotateL :: forall a. Bits a =&gt; Ior a -&gt; Int -&gt; Ior a
+unsafeShiftR :: Ior a -&gt; Int -&gt; Ior a
+$cunsafeShiftR :: forall a. Bits a =&gt; Ior a -&gt; Int -&gt; Ior a
+shiftR :: Ior a -&gt; Int -&gt; Ior a
+$cshiftR :: forall a. Bits a =&gt; Ior a -&gt; Int -&gt; Ior a
+unsafeShiftL :: Ior a -&gt; Int -&gt; Ior a
+$cunsafeShiftL :: forall a. Bits a =&gt; Ior a -&gt; Int -&gt; Ior a
+shiftL :: Ior a -&gt; Int -&gt; Ior a
+$cshiftL :: forall a. Bits a =&gt; Ior a -&gt; Int -&gt; Ior a
+isSigned :: Ior a -&gt; Bool
+$cisSigned :: forall a. Bits a =&gt; Ior a -&gt; Bool
+bitSize :: Ior a -&gt; Int
+$cbitSize :: forall a. Bits a =&gt; Ior a -&gt; Int
+bitSizeMaybe :: Ior a -&gt; Maybe Int
+$cbitSizeMaybe :: forall a. Bits a =&gt; Ior a -&gt; Maybe Int
+testBit :: Ior a -&gt; Int -&gt; Bool
+$ctestBit :: forall a. Bits a =&gt; Ior a -&gt; Int -&gt; Bool
+complementBit :: Ior a -&gt; Int -&gt; Ior a
+$ccomplementBit :: forall a. Bits a =&gt; Ior a -&gt; Int -&gt; Ior a
+clearBit :: Ior a -&gt; Int -&gt; Ior a
+$cclearBit :: forall a. Bits a =&gt; Ior a -&gt; Int -&gt; Ior a
+setBit :: Ior a -&gt; Int -&gt; Ior a
+$csetBit :: forall a. Bits a =&gt; Ior a -&gt; Int -&gt; Ior a
+bit :: Int -&gt; Ior a
+$cbit :: forall a. Bits a =&gt; Int -&gt; Ior a
+zeroBits :: Ior a
+$czeroBits :: forall a. Bits a =&gt; Ior a
+rotate :: Ior a -&gt; Int -&gt; Ior a
+$crotate :: forall a. Bits a =&gt; Ior a -&gt; Int -&gt; Ior a
+shift :: Ior a -&gt; Int -&gt; Ior a
+$cshift :: forall a. Bits a =&gt; Ior a -&gt; Int -&gt; Ior a
+complement :: Ior a -&gt; Ior a
+$ccomplement :: forall a. Bits a =&gt; Ior a -&gt; Ior a
+xor :: Ior a -&gt; Ior a -&gt; Ior a
+$cxor :: forall a. Bits a =&gt; Ior a -&gt; Ior a -&gt; Ior a
+.|. :: Ior a -&gt; Ior a -&gt; Ior a
+$c.|. :: forall a. Bits a =&gt; Ior a -&gt; Ior a -&gt; Ior a
+.&amp;. :: Ior a -&gt; Ior a -&gt; Ior a
+$c.&amp;. :: forall a. Bits a =&gt; Ior a -&gt; Ior a -&gt; Ior a
+</span><a href="#local-6989586621679568163"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Bits</span></a></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="hs-comment">-- ^ @since 4.16</span><span>
+</span><span id="line-131"></span><span>                    </span><span id="local-6989586621679568146"><span id="local-6989586621679568150"><span id="local-6989586621679568154"><span class="annot"><span class="annottext">Ior a -&gt; Int
+forall b.
+Bits b -&gt; (b -&gt; Int) -&gt; (b -&gt; Int) -&gt; (b -&gt; Int) -&gt; FiniteBits b
+forall {a}. FiniteBits a =&gt; Bits (Ior a)
+forall a. FiniteBits a =&gt; Ior a -&gt; Int
+countTrailingZeros :: Ior a -&gt; Int
+$ccountTrailingZeros :: forall a. FiniteBits a =&gt; Ior a -&gt; Int
+countLeadingZeros :: Ior a -&gt; Int
+$ccountLeadingZeros :: forall a. FiniteBits a =&gt; Ior a -&gt; Int
+finiteBitSize :: Ior a -&gt; Int
+$cfiniteBitSize :: forall a. FiniteBits a =&gt; Ior a -&gt; Int
+</span><a href="#local-6989586621679568146"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">FiniteBits</span></a></span></span></span></span><span class="hs-special">,</span><span> </span><span class="hs-comment">-- ^ @since 4.16</span><span>
+</span><span id="line-132"></span><span>                    </span><span id="local-6989586621679568136"><span id="local-6989586621679568140"><span class="annot"><span class="annottext">Ior a -&gt; Ior a -&gt; Bool
+forall a. Eq a =&gt; Ior a -&gt; Ior a -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: Ior a -&gt; Ior a -&gt; Bool
+$c/= :: forall a. Eq a =&gt; Ior a -&gt; Ior a -&gt; Bool
+== :: Ior a -&gt; Ior a -&gt; Bool
+$c== :: forall a. Eq a =&gt; Ior a -&gt; Ior a -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#Eq"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></a></span></span></span><span> </span><span class="hs-comment">-- ^ @since 4.16</span><span>
+</span><span id="line-133"></span><span>                    </span><span class="hs-special">)</span><span>
+</span><span id="line-134"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-135"></span><span>                  </span><span id="local-6989586621679568126"><span id="local-6989586621679568128"><span id="local-6989586621679568132"><span class="annot"><span class="annottext">Int -&gt; Ior a -&gt; ShowS
+forall a. Show a =&gt; Int -&gt; Ior a -&gt; ShowS
+forall a. Show a =&gt; [Ior a] -&gt; ShowS
+forall a. Show a =&gt; Ior a -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [Ior a] -&gt; ShowS
+$cshowList :: forall a. Show a =&gt; [Ior a] -&gt; ShowS
+show :: Ior a -&gt; String
+$cshow :: forall a. Show a =&gt; Ior a -&gt; String
+showsPrec :: Int -&gt; Ior a -&gt; ShowS
+$cshowsPrec :: forall a. Show a =&gt; Int -&gt; Ior a -&gt; ShowS
+</span><a href="GHC.Show.html#Show"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></a></span></span></span></span><span class="hs-special">,</span><span> </span><span class="hs-comment">-- ^ @since 4.16</span><span>
+</span><span id="line-136"></span><span>                  </span><span id="local-6989586621679568111"><span id="local-6989586621679568119"><span id="local-6989586621679568122"><span id="local-6989586621679568124"><span class="annot"><span class="annottext">ReadPrec [Ior a]
+ReadPrec (Ior a)
+ReadS [Ior a]
+forall a. Read a =&gt; ReadPrec [Ior a]
+forall a. Read a =&gt; ReadPrec (Ior a)
+forall a. Read a =&gt; Int -&gt; ReadS (Ior a)
+forall a. Read a =&gt; ReadS [Ior a]
+forall a.
+(Int -&gt; ReadS a)
+-&gt; ReadS [a] -&gt; ReadPrec a -&gt; ReadPrec [a] -&gt; Read a
+readListPrec :: ReadPrec [Ior a]
+$creadListPrec :: forall a. Read a =&gt; ReadPrec [Ior a]
+readPrec :: ReadPrec (Ior a)
+$creadPrec :: forall a. Read a =&gt; ReadPrec (Ior a)
+readList :: ReadS [Ior a]
+$creadList :: forall a. Read a =&gt; ReadS [Ior a]
+readsPrec :: Int -&gt; ReadS (Ior a)
+$creadsPrec :: forall a. Read a =&gt; Int -&gt; ReadS (Ior a)
+</span><a href="GHC.Read.html#Read"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Read</span></a></span></span></span></span></span><span> </span><span class="hs-comment">-- ^ @since 4.16</span><span>
+</span><span id="line-137"></span><span>                 </span><span class="hs-special">)</span><span>
+</span><span id="line-138"></span><span>
+</span><span id="line-139"></span><span class="hs-comment">-- | @since 4.16</span><span>
+</span><span id="line-140"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679568105"><span id="local-6989586621679568107"><span id="local-6989586621679568650"><span class="hs-special">(</span><span class="annot"><a href="GHC.Bits.html#Bits"><span class="hs-identifier hs-type">Bits</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679568650"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="GHC.Base.html#Semigroup"><span class="hs-identifier hs-type">Semigroup</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bits.html#Ior"><span class="hs-identifier hs-type">Ior</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679568650"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-141"></span><span>  </span><span class="annot"><a href="Data.Bits.html#Ior"><span class="hs-identifier hs-type">Ior</span></a></span><span> </span><span id="local-6989586621679568103"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679568103"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679568102"><span class="annot"><span class="annottext">&lt;&gt; :: Ior a -&gt; Ior a -&gt; Ior a
+</span><a href="GHC.Base.html#%3C%3E"><span class="hs-operator hs-var hs-var hs-var hs-var">&lt;&gt;</span></a></span></span><span> </span><span class="annot"><a href="Data.Bits.html#Ior"><span class="hs-identifier hs-type">Ior</span></a></span><span> </span><span id="local-6989586621679568101"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679568101"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Ior a
+</span><a href="Data.Bits.html#Ior"><span class="hs-identifier hs-var">Ior</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679568103"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><a href="GHC.Bits.html#.%7C."><span class="hs-operator hs-var">.|.</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679568101"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-142"></span><span>
+</span><span id="line-143"></span><span class="hs-comment">-- | @since 4.16</span><span>
+</span><span id="line-144"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679568094"><span id="local-6989586621679568096"><span id="local-6989586621679568649"><span class="hs-special">(</span><span class="annot"><a href="GHC.Bits.html#Bits"><span class="hs-identifier hs-type">Bits</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679568649"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="GHC.Base.html#Monoid"><span class="hs-identifier hs-type">Monoid</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bits.html#Ior"><span class="hs-identifier hs-type">Ior</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679568649"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-145"></span><span>  </span><span id="local-6989586621679568092"><span class="annot"><span class="annottext">mempty :: Ior a
+</span><a href="GHC.Base.html#mempty"><span class="hs-identifier hs-var hs-var hs-var hs-var">mempty</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Ior a
+</span><a href="Data.Bits.html#Ior"><span class="hs-identifier hs-var">Ior</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a
+</span><a href="GHC.Bits.html#zeroBits"><span class="hs-identifier hs-var">zeroBits</span></a></span><span>
+</span><span id="line-146"></span><span>
+</span><span id="line-147"></span><span class="hs-comment">-- | Monoid under bitwise XOR.</span><span>
+</span><span id="line-148"></span><span class="hs-comment">--</span><span>
+</span><span id="line-149"></span><span class="hs-comment">-- &gt;&gt;&gt; getXor (Xor 0xab &lt;&gt; Xor 0x12) :: Word8</span><span>
+</span><span id="line-150"></span><span class="hs-comment">-- 185</span><span>
+</span><span id="line-151"></span><span class="hs-comment">--</span><span>
+</span><span id="line-152"></span><span class="hs-comment">-- @since 4.16</span><span>
+</span><span id="line-153"></span><span class="hs-keyword">newtype</span><span> </span><span id="Xor"><span class="annot"><a href="Data.Bits.html#Xor"><span class="hs-identifier hs-var">Xor</span></a></span></span><span> </span><span id="local-6989586621679568648"><span class="annot"><a href="#local-6989586621679568648"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Xor"><span class="annot"><a href="Data.Bits.html#Xor"><span class="hs-identifier hs-var">Xor</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="getXor"><span class="annot"><span class="annottext">forall a. Xor a -&gt; a
+</span><a href="Data.Bits.html#getXor"><span class="hs-identifier hs-var hs-var">getXor</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679568648"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-154"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">newtype</span></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-155"></span><span>                    </span><span id="local-6989586621679568083"><span id="local-6989586621679568087"><span class="annot"><span class="annottext">Xor a
+forall a. a -&gt; a -&gt; Bounded a
+forall a. Bounded a =&gt; Xor a
+maxBound :: Xor a
+$cmaxBound :: forall a. Bounded a =&gt; Xor a
+minBound :: Xor a
+$cminBound :: forall a. Bounded a =&gt; Xor a
+</span><a href="GHC.Enum.html#Bounded"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Bounded</span></a></span></span></span><span class="hs-special">,</span><span> </span><span class="hs-comment">-- ^ @since 4.16</span><span>
+</span><span id="line-156"></span><span>                    </span><span id="local-6989586621679568049"><span id="local-6989586621679568053"><span id="local-6989586621679568057"><span id="local-6989586621679568061"><span id="local-6989586621679568065"><span id="local-6989586621679568069"><span id="local-6989586621679568073"><span id="local-6989586621679568077"><span class="annot"><span class="annottext">Int -&gt; Xor a
+Xor a -&gt; Int
+Xor a -&gt; [Xor a]
+Xor a -&gt; Xor a
+Xor a -&gt; Xor a -&gt; [Xor a]
+Xor a -&gt; Xor a -&gt; Xor a -&gt; [Xor a]
+forall a. Enum a =&gt; Int -&gt; Xor a
+forall a. Enum a =&gt; Xor a -&gt; Int
+forall a. Enum a =&gt; Xor a -&gt; [Xor a]
+forall a. Enum a =&gt; Xor a -&gt; Xor a
+forall a. Enum a =&gt; Xor a -&gt; Xor a -&gt; [Xor a]
+forall a. Enum a =&gt; Xor a -&gt; Xor a -&gt; Xor a -&gt; [Xor a]
+forall a.
+(a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (Int -&gt; a)
+-&gt; (a -&gt; Int)
+-&gt; (a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; a -&gt; [a])
+-&gt; Enum a
+enumFromThenTo :: Xor a -&gt; Xor a -&gt; Xor a -&gt; [Xor a]
+$cenumFromThenTo :: forall a. Enum a =&gt; Xor a -&gt; Xor a -&gt; Xor a -&gt; [Xor a]
+enumFromTo :: Xor a -&gt; Xor a -&gt; [Xor a]
+$cenumFromTo :: forall a. Enum a =&gt; Xor a -&gt; Xor a -&gt; [Xor a]
+enumFromThen :: Xor a -&gt; Xor a -&gt; [Xor a]
+$cenumFromThen :: forall a. Enum a =&gt; Xor a -&gt; Xor a -&gt; [Xor a]
+enumFrom :: Xor a -&gt; [Xor a]
+$cenumFrom :: forall a. Enum a =&gt; Xor a -&gt; [Xor a]
+fromEnum :: Xor a -&gt; Int
+$cfromEnum :: forall a. Enum a =&gt; Xor a -&gt; Int
+toEnum :: Int -&gt; Xor a
+$ctoEnum :: forall a. Enum a =&gt; Int -&gt; Xor a
+pred :: Xor a -&gt; Xor a
+$cpred :: forall a. Enum a =&gt; Xor a -&gt; Xor a
+succ :: Xor a -&gt; Xor a
+$csucc :: forall a. Enum a =&gt; Xor a -&gt; Xor a
+</span><a href="GHC.Enum.html#Enum"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Enum</span></a></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="hs-comment">-- ^ @since 4.16</span><span>
+</span><span id="line-157"></span><span>                    </span><span id="local-6989586621679567955"><span id="local-6989586621679567959"><span id="local-6989586621679567963"><span id="local-6989586621679567967"><span id="local-6989586621679567971"><span id="local-6989586621679567975"><span id="local-6989586621679567979"><span id="local-6989586621679567983"><span id="local-6989586621679567987"><span id="local-6989586621679567991"><span id="local-6989586621679567995"><span id="local-6989586621679567999"><span id="local-6989586621679568003"><span id="local-6989586621679568007"><span id="local-6989586621679568011"><span id="local-6989586621679568015"><span id="local-6989586621679568019"><span id="local-6989586621679568023"><span id="local-6989586621679568027"><span id="local-6989586621679568031"><span id="local-6989586621679568035"><span id="local-6989586621679568039"><span class="annot"><span class="annottext">Xor a
+Int -&gt; Xor a
+Xor a -&gt; Bool
+Xor a -&gt; Int
+Xor a -&gt; Maybe Int
+Xor a -&gt; Xor a
+Xor a -&gt; Int -&gt; Bool
+Xor a -&gt; Int -&gt; Xor a
+Xor a -&gt; Xor a -&gt; Xor a
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; a
+-&gt; (Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; Bool)
+-&gt; (a -&gt; Maybe Int)
+-&gt; (a -&gt; Int)
+-&gt; (a -&gt; Bool)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int)
+-&gt; Bits a
+forall {a}. Bits a =&gt; Eq (Xor a)
+forall a. Bits a =&gt; Xor a
+forall a. Bits a =&gt; Int -&gt; Xor a
+forall a. Bits a =&gt; Xor a -&gt; Bool
+forall a. Bits a =&gt; Xor a -&gt; Int
+forall a. Bits a =&gt; Xor a -&gt; Maybe Int
+forall a. Bits a =&gt; Xor a -&gt; Xor a
+forall a. Bits a =&gt; Xor a -&gt; Int -&gt; Bool
+forall a. Bits a =&gt; Xor a -&gt; Int -&gt; Xor a
+forall a. Bits a =&gt; Xor a -&gt; Xor a -&gt; Xor a
+popCount :: Xor a -&gt; Int
+$cpopCount :: forall a. Bits a =&gt; Xor a -&gt; Int
+rotateR :: Xor a -&gt; Int -&gt; Xor a
+$crotateR :: forall a. Bits a =&gt; Xor a -&gt; Int -&gt; Xor a
+rotateL :: Xor a -&gt; Int -&gt; Xor a
+$crotateL :: forall a. Bits a =&gt; Xor a -&gt; Int -&gt; Xor a
+unsafeShiftR :: Xor a -&gt; Int -&gt; Xor a
+$cunsafeShiftR :: forall a. Bits a =&gt; Xor a -&gt; Int -&gt; Xor a
+shiftR :: Xor a -&gt; Int -&gt; Xor a
+$cshiftR :: forall a. Bits a =&gt; Xor a -&gt; Int -&gt; Xor a
+unsafeShiftL :: Xor a -&gt; Int -&gt; Xor a
+$cunsafeShiftL :: forall a. Bits a =&gt; Xor a -&gt; Int -&gt; Xor a
+shiftL :: Xor a -&gt; Int -&gt; Xor a
+$cshiftL :: forall a. Bits a =&gt; Xor a -&gt; Int -&gt; Xor a
+isSigned :: Xor a -&gt; Bool
+$cisSigned :: forall a. Bits a =&gt; Xor a -&gt; Bool
+bitSize :: Xor a -&gt; Int
+$cbitSize :: forall a. Bits a =&gt; Xor a -&gt; Int
+bitSizeMaybe :: Xor a -&gt; Maybe Int
+$cbitSizeMaybe :: forall a. Bits a =&gt; Xor a -&gt; Maybe Int
+testBit :: Xor a -&gt; Int -&gt; Bool
+$ctestBit :: forall a. Bits a =&gt; Xor a -&gt; Int -&gt; Bool
+complementBit :: Xor a -&gt; Int -&gt; Xor a
+$ccomplementBit :: forall a. Bits a =&gt; Xor a -&gt; Int -&gt; Xor a
+clearBit :: Xor a -&gt; Int -&gt; Xor a
+$cclearBit :: forall a. Bits a =&gt; Xor a -&gt; Int -&gt; Xor a
+setBit :: Xor a -&gt; Int -&gt; Xor a
+$csetBit :: forall a. Bits a =&gt; Xor a -&gt; Int -&gt; Xor a
+bit :: Int -&gt; Xor a
+$cbit :: forall a. Bits a =&gt; Int -&gt; Xor a
+zeroBits :: Xor a
+$czeroBits :: forall a. Bits a =&gt; Xor a
+rotate :: Xor a -&gt; Int -&gt; Xor a
+$crotate :: forall a. Bits a =&gt; Xor a -&gt; Int -&gt; Xor a
+shift :: Xor a -&gt; Int -&gt; Xor a
+$cshift :: forall a. Bits a =&gt; Xor a -&gt; Int -&gt; Xor a
+complement :: Xor a -&gt; Xor a
+$ccomplement :: forall a. Bits a =&gt; Xor a -&gt; Xor a
+xor :: Xor a -&gt; Xor a -&gt; Xor a
+$cxor :: forall a. Bits a =&gt; Xor a -&gt; Xor a -&gt; Xor a
+.|. :: Xor a -&gt; Xor a -&gt; Xor a
+$c.|. :: forall a. Bits a =&gt; Xor a -&gt; Xor a -&gt; Xor a
+.&amp;. :: Xor a -&gt; Xor a -&gt; Xor a
+$c.&amp;. :: forall a. Bits a =&gt; Xor a -&gt; Xor a -&gt; Xor a
+</span><a href="#local-6989586621679567955"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Bits</span></a></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="hs-comment">-- ^ @since 4.16</span><span>
+</span><span id="line-158"></span><span>                    </span><span id="local-6989586621679567938"><span id="local-6989586621679567942"><span id="local-6989586621679567946"><span class="annot"><span class="annottext">Xor a -&gt; Int
+forall b.
+Bits b -&gt; (b -&gt; Int) -&gt; (b -&gt; Int) -&gt; (b -&gt; Int) -&gt; FiniteBits b
+forall {a}. FiniteBits a =&gt; Bits (Xor a)
+forall a. FiniteBits a =&gt; Xor a -&gt; Int
+countTrailingZeros :: Xor a -&gt; Int
+$ccountTrailingZeros :: forall a. FiniteBits a =&gt; Xor a -&gt; Int
+countLeadingZeros :: Xor a -&gt; Int
+$ccountLeadingZeros :: forall a. FiniteBits a =&gt; Xor a -&gt; Int
+finiteBitSize :: Xor a -&gt; Int
+$cfiniteBitSize :: forall a. FiniteBits a =&gt; Xor a -&gt; Int
+</span><a href="#local-6989586621679567938"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">FiniteBits</span></a></span></span></span></span><span class="hs-special">,</span><span> </span><span class="hs-comment">-- ^ @since 4.16</span><span>
+</span><span id="line-159"></span><span>                    </span><span id="local-6989586621679567928"><span id="local-6989586621679567932"><span class="annot"><span class="annottext">Xor a -&gt; Xor a -&gt; Bool
+forall a. Eq a =&gt; Xor a -&gt; Xor a -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: Xor a -&gt; Xor a -&gt; Bool
+$c/= :: forall a. Eq a =&gt; Xor a -&gt; Xor a -&gt; Bool
+== :: Xor a -&gt; Xor a -&gt; Bool
+$c== :: forall a. Eq a =&gt; Xor a -&gt; Xor a -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#Eq"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></a></span></span></span><span> </span><span class="hs-comment">-- ^ @since 4.16</span><span>
+</span><span id="line-160"></span><span>                    </span><span class="hs-special">)</span><span>
+</span><span id="line-161"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-162"></span><span>                  </span><span id="local-6989586621679567918"><span id="local-6989586621679567920"><span id="local-6989586621679567924"><span class="annot"><span class="annottext">Int -&gt; Xor a -&gt; ShowS
+forall a. Show a =&gt; Int -&gt; Xor a -&gt; ShowS
+forall a. Show a =&gt; [Xor a] -&gt; ShowS
+forall a. Show a =&gt; Xor a -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [Xor a] -&gt; ShowS
+$cshowList :: forall a. Show a =&gt; [Xor a] -&gt; ShowS
+show :: Xor a -&gt; String
+$cshow :: forall a. Show a =&gt; Xor a -&gt; String
+showsPrec :: Int -&gt; Xor a -&gt; ShowS
+$cshowsPrec :: forall a. Show a =&gt; Int -&gt; Xor a -&gt; ShowS
+</span><a href="GHC.Show.html#Show"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></a></span></span></span></span><span class="hs-special">,</span><span> </span><span class="hs-comment">-- ^ @since 4.16</span><span>
+</span><span id="line-163"></span><span>                  </span><span id="local-6989586621679567903"><span id="local-6989586621679567911"><span id="local-6989586621679567914"><span id="local-6989586621679567916"><span class="annot"><span class="annottext">ReadPrec [Xor a]
+ReadPrec (Xor a)
+ReadS [Xor a]
+forall a. Read a =&gt; ReadPrec [Xor a]
+forall a. Read a =&gt; ReadPrec (Xor a)
+forall a. Read a =&gt; Int -&gt; ReadS (Xor a)
+forall a. Read a =&gt; ReadS [Xor a]
+forall a.
+(Int -&gt; ReadS a)
+-&gt; ReadS [a] -&gt; ReadPrec a -&gt; ReadPrec [a] -&gt; Read a
+readListPrec :: ReadPrec [Xor a]
+$creadListPrec :: forall a. Read a =&gt; ReadPrec [Xor a]
+readPrec :: ReadPrec (Xor a)
+$creadPrec :: forall a. Read a =&gt; ReadPrec (Xor a)
+readList :: ReadS [Xor a]
+$creadList :: forall a. Read a =&gt; ReadS [Xor a]
+readsPrec :: Int -&gt; ReadS (Xor a)
+$creadsPrec :: forall a. Read a =&gt; Int -&gt; ReadS (Xor a)
+</span><a href="GHC.Read.html#Read"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Read</span></a></span></span></span></span></span><span> </span><span class="hs-comment">-- ^ @since 4.16</span><span>
+</span><span id="line-164"></span><span>                 </span><span class="hs-special">)</span><span>
+</span><span id="line-165"></span><span>
+</span><span id="line-166"></span><span class="hs-comment">-- | @since 4.16</span><span>
+</span><span id="line-167"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679567897"><span id="local-6989586621679567899"><span id="local-6989586621679568641"><span class="hs-special">(</span><span class="annot"><a href="GHC.Bits.html#Bits"><span class="hs-identifier hs-type">Bits</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679568641"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="GHC.Base.html#Semigroup"><span class="hs-identifier hs-type">Semigroup</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bits.html#Xor"><span class="hs-identifier hs-type">Xor</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679568641"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-168"></span><span>  </span><span class="annot"><a href="Data.Bits.html#Xor"><span class="hs-identifier hs-type">Xor</span></a></span><span> </span><span id="local-6989586621679567895"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679567895"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679567894"><span class="annot"><span class="annottext">&lt;&gt; :: Xor a -&gt; Xor a -&gt; Xor a
+</span><a href="GHC.Base.html#%3C%3E"><span class="hs-operator hs-var hs-var hs-var hs-var">&lt;&gt;</span></a></span></span><span> </span><span class="annot"><a href="Data.Bits.html#Xor"><span class="hs-identifier hs-type">Xor</span></a></span><span> </span><span id="local-6989586621679567893"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679567893"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Xor a
+</span><a href="Data.Bits.html#Xor"><span class="hs-identifier hs-var">Xor</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679567895"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><a href="GHC.Bits.html#xor"><span class="hs-operator hs-var">`xor`</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679567893"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-169"></span><span>
+</span><span id="line-170"></span><span class="hs-comment">-- | @since 4.16</span><span>
+</span><span id="line-171"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679567886"><span id="local-6989586621679567888"><span id="local-6989586621679568640"><span class="hs-special">(</span><span class="annot"><a href="GHC.Bits.html#Bits"><span class="hs-identifier hs-type">Bits</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679568640"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="GHC.Base.html#Monoid"><span class="hs-identifier hs-type">Monoid</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bits.html#Xor"><span class="hs-identifier hs-type">Xor</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679568640"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-172"></span><span>  </span><span id="local-6989586621679567884"><span class="annot"><span class="annottext">mempty :: Xor a
+</span><a href="GHC.Base.html#mempty"><span class="hs-identifier hs-var hs-var hs-var hs-var">mempty</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Xor a
+</span><a href="Data.Bits.html#Xor"><span class="hs-identifier hs-var">Xor</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a
+</span><a href="GHC.Bits.html#zeroBits"><span class="hs-identifier hs-var">zeroBits</span></a></span><span>
+</span><span id="line-173"></span><span>
+</span><span id="line-174"></span><span class="hs-comment">-- | Monoid under bitwise \'equality\'; defined as @1@ if the corresponding</span><span>
+</span><span id="line-175"></span><span class="hs-comment">-- bits match, and @0@ otherwise.</span><span>
+</span><span id="line-176"></span><span class="hs-comment">--</span><span>
+</span><span id="line-177"></span><span class="hs-comment">-- &gt;&gt;&gt; getIff (Iff 0xab &lt;&gt; Iff 0x12) :: Word8</span><span>
+</span><span id="line-178"></span><span class="hs-comment">-- 70</span><span>
+</span><span id="line-179"></span><span class="hs-comment">--</span><span>
+</span><span id="line-180"></span><span class="hs-comment">-- @since 4.16</span><span>
+</span><span id="line-181"></span><span class="hs-keyword">newtype</span><span> </span><span id="Iff"><span class="annot"><a href="Data.Bits.html#Iff"><span class="hs-identifier hs-var">Iff</span></a></span></span><span> </span><span id="local-6989586621679568639"><span class="annot"><a href="#local-6989586621679568639"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Iff"><span class="annot"><a href="Data.Bits.html#Iff"><span class="hs-identifier hs-var">Iff</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="getIff"><span class="annot"><span class="annottext">forall a. Iff a -&gt; a
+</span><a href="Data.Bits.html#getIff"><span class="hs-identifier hs-var hs-var">getIff</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679568639"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-182"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">newtype</span></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-183"></span><span>                    </span><span id="local-6989586621679567875"><span id="local-6989586621679567879"><span class="annot"><span class="annottext">Iff a
+forall a. a -&gt; a -&gt; Bounded a
+forall a. Bounded a =&gt; Iff a
+maxBound :: Iff a
+$cmaxBound :: forall a. Bounded a =&gt; Iff a
+minBound :: Iff a
+$cminBound :: forall a. Bounded a =&gt; Iff a
+</span><a href="GHC.Enum.html#Bounded"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Bounded</span></a></span></span></span><span class="hs-special">,</span><span> </span><span class="hs-comment">-- ^ @since 4.16</span><span>
+</span><span id="line-184"></span><span>                    </span><span id="local-6989586621679567841"><span id="local-6989586621679567845"><span id="local-6989586621679567849"><span id="local-6989586621679567853"><span id="local-6989586621679567857"><span id="local-6989586621679567861"><span id="local-6989586621679567865"><span id="local-6989586621679567869"><span class="annot"><span class="annottext">Int -&gt; Iff a
+Iff a -&gt; Int
+Iff a -&gt; [Iff a]
+Iff a -&gt; Iff a
+Iff a -&gt; Iff a -&gt; [Iff a]
+Iff a -&gt; Iff a -&gt; Iff a -&gt; [Iff a]
+forall a. Enum a =&gt; Int -&gt; Iff a
+forall a. Enum a =&gt; Iff a -&gt; Int
+forall a. Enum a =&gt; Iff a -&gt; [Iff a]
+forall a. Enum a =&gt; Iff a -&gt; Iff a
+forall a. Enum a =&gt; Iff a -&gt; Iff a -&gt; [Iff a]
+forall a. Enum a =&gt; Iff a -&gt; Iff a -&gt; Iff a -&gt; [Iff a]
+forall a.
+(a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (Int -&gt; a)
+-&gt; (a -&gt; Int)
+-&gt; (a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; a -&gt; [a])
+-&gt; Enum a
+enumFromThenTo :: Iff a -&gt; Iff a -&gt; Iff a -&gt; [Iff a]
+$cenumFromThenTo :: forall a. Enum a =&gt; Iff a -&gt; Iff a -&gt; Iff a -&gt; [Iff a]
+enumFromTo :: Iff a -&gt; Iff a -&gt; [Iff a]
+$cenumFromTo :: forall a. Enum a =&gt; Iff a -&gt; Iff a -&gt; [Iff a]
+enumFromThen :: Iff a -&gt; Iff a -&gt; [Iff a]
+$cenumFromThen :: forall a. Enum a =&gt; Iff a -&gt; Iff a -&gt; [Iff a]
+enumFrom :: Iff a -&gt; [Iff a]
+$cenumFrom :: forall a. Enum a =&gt; Iff a -&gt; [Iff a]
+fromEnum :: Iff a -&gt; Int
+$cfromEnum :: forall a. Enum a =&gt; Iff a -&gt; Int
+toEnum :: Int -&gt; Iff a
+$ctoEnum :: forall a. Enum a =&gt; Int -&gt; Iff a
+pred :: Iff a -&gt; Iff a
+$cpred :: forall a. Enum a =&gt; Iff a -&gt; Iff a
+succ :: Iff a -&gt; Iff a
+$csucc :: forall a. Enum a =&gt; Iff a -&gt; Iff a
+</span><a href="GHC.Enum.html#Enum"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Enum</span></a></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="hs-comment">-- ^ @since 4.16</span><span>
+</span><span id="line-185"></span><span>                    </span><span id="local-6989586621679567747"><span id="local-6989586621679567751"><span id="local-6989586621679567755"><span id="local-6989586621679567759"><span id="local-6989586621679567763"><span id="local-6989586621679567767"><span id="local-6989586621679567771"><span id="local-6989586621679567775"><span id="local-6989586621679567779"><span id="local-6989586621679567783"><span id="local-6989586621679567787"><span id="local-6989586621679567791"><span id="local-6989586621679567795"><span id="local-6989586621679567799"><span id="local-6989586621679567803"><span id="local-6989586621679567807"><span id="local-6989586621679567811"><span id="local-6989586621679567815"><span id="local-6989586621679567819"><span id="local-6989586621679567823"><span id="local-6989586621679567827"><span id="local-6989586621679567831"><span class="annot"><span class="annottext">Iff a
+Int -&gt; Iff a
+Iff a -&gt; Bool
+Iff a -&gt; Int
+Iff a -&gt; Maybe Int
+Iff a -&gt; Iff a
+Iff a -&gt; Int -&gt; Bool
+Iff a -&gt; Int -&gt; Iff a
+Iff a -&gt; Iff a -&gt; Iff a
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; a
+-&gt; (Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; Bool)
+-&gt; (a -&gt; Maybe Int)
+-&gt; (a -&gt; Int)
+-&gt; (a -&gt; Bool)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int)
+-&gt; Bits a
+forall {a}. Bits a =&gt; Eq (Iff a)
+forall a. Bits a =&gt; Iff a
+forall a. Bits a =&gt; Int -&gt; Iff a
+forall a. Bits a =&gt; Iff a -&gt; Bool
+forall a. Bits a =&gt; Iff a -&gt; Int
+forall a. Bits a =&gt; Iff a -&gt; Maybe Int
+forall a. Bits a =&gt; Iff a -&gt; Iff a
+forall a. Bits a =&gt; Iff a -&gt; Int -&gt; Bool
+forall a. Bits a =&gt; Iff a -&gt; Int -&gt; Iff a
+forall a. Bits a =&gt; Iff a -&gt; Iff a -&gt; Iff a
+popCount :: Iff a -&gt; Int
+$cpopCount :: forall a. Bits a =&gt; Iff a -&gt; Int
+rotateR :: Iff a -&gt; Int -&gt; Iff a
+$crotateR :: forall a. Bits a =&gt; Iff a -&gt; Int -&gt; Iff a
+rotateL :: Iff a -&gt; Int -&gt; Iff a
+$crotateL :: forall a. Bits a =&gt; Iff a -&gt; Int -&gt; Iff a
+unsafeShiftR :: Iff a -&gt; Int -&gt; Iff a
+$cunsafeShiftR :: forall a. Bits a =&gt; Iff a -&gt; Int -&gt; Iff a
+shiftR :: Iff a -&gt; Int -&gt; Iff a
+$cshiftR :: forall a. Bits a =&gt; Iff a -&gt; Int -&gt; Iff a
+unsafeShiftL :: Iff a -&gt; Int -&gt; Iff a
+$cunsafeShiftL :: forall a. Bits a =&gt; Iff a -&gt; Int -&gt; Iff a
+shiftL :: Iff a -&gt; Int -&gt; Iff a
+$cshiftL :: forall a. Bits a =&gt; Iff a -&gt; Int -&gt; Iff a
+isSigned :: Iff a -&gt; Bool
+$cisSigned :: forall a. Bits a =&gt; Iff a -&gt; Bool
+bitSize :: Iff a -&gt; Int
+$cbitSize :: forall a. Bits a =&gt; Iff a -&gt; Int
+bitSizeMaybe :: Iff a -&gt; Maybe Int
+$cbitSizeMaybe :: forall a. Bits a =&gt; Iff a -&gt; Maybe Int
+testBit :: Iff a -&gt; Int -&gt; Bool
+$ctestBit :: forall a. Bits a =&gt; Iff a -&gt; Int -&gt; Bool
+complementBit :: Iff a -&gt; Int -&gt; Iff a
+$ccomplementBit :: forall a. Bits a =&gt; Iff a -&gt; Int -&gt; Iff a
+clearBit :: Iff a -&gt; Int -&gt; Iff a
+$cclearBit :: forall a. Bits a =&gt; Iff a -&gt; Int -&gt; Iff a
+setBit :: Iff a -&gt; Int -&gt; Iff a
+$csetBit :: forall a. Bits a =&gt; Iff a -&gt; Int -&gt; Iff a
+bit :: Int -&gt; Iff a
+$cbit :: forall a. Bits a =&gt; Int -&gt; Iff a
+zeroBits :: Iff a
+$czeroBits :: forall a. Bits a =&gt; Iff a
+rotate :: Iff a -&gt; Int -&gt; Iff a
+$crotate :: forall a. Bits a =&gt; Iff a -&gt; Int -&gt; Iff a
+shift :: Iff a -&gt; Int -&gt; Iff a
+$cshift :: forall a. Bits a =&gt; Iff a -&gt; Int -&gt; Iff a
+complement :: Iff a -&gt; Iff a
+$ccomplement :: forall a. Bits a =&gt; Iff a -&gt; Iff a
+xor :: Iff a -&gt; Iff a -&gt; Iff a
+$cxor :: forall a. Bits a =&gt; Iff a -&gt; Iff a -&gt; Iff a
+.|. :: Iff a -&gt; Iff a -&gt; Iff a
+$c.|. :: forall a. Bits a =&gt; Iff a -&gt; Iff a -&gt; Iff a
+.&amp;. :: Iff a -&gt; Iff a -&gt; Iff a
+$c.&amp;. :: forall a. Bits a =&gt; Iff a -&gt; Iff a -&gt; Iff a
+</span><a href="#local-6989586621679567747"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Bits</span></a></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="hs-comment">-- ^ @since 4.16</span><span>
+</span><span id="line-186"></span><span>                    </span><span id="local-6989586621679567730"><span id="local-6989586621679567734"><span id="local-6989586621679567738"><span class="annot"><span class="annottext">Iff a -&gt; Int
+forall b.
+Bits b -&gt; (b -&gt; Int) -&gt; (b -&gt; Int) -&gt; (b -&gt; Int) -&gt; FiniteBits b
+forall {a}. FiniteBits a =&gt; Bits (Iff a)
+forall a. FiniteBits a =&gt; Iff a -&gt; Int
+countTrailingZeros :: Iff a -&gt; Int
+$ccountTrailingZeros :: forall a. FiniteBits a =&gt; Iff a -&gt; Int
+countLeadingZeros :: Iff a -&gt; Int
+$ccountLeadingZeros :: forall a. FiniteBits a =&gt; Iff a -&gt; Int
+finiteBitSize :: Iff a -&gt; Int
+$cfiniteBitSize :: forall a. FiniteBits a =&gt; Iff a -&gt; Int
+</span><a href="#local-6989586621679567730"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">FiniteBits</span></a></span></span></span></span><span class="hs-special">,</span><span> </span><span class="hs-comment">-- ^ @since 4.16</span><span>
+</span><span id="line-187"></span><span>                    </span><span id="local-6989586621679567720"><span id="local-6989586621679567724"><span class="annot"><span class="annottext">Iff a -&gt; Iff a -&gt; Bool
+forall a. Eq a =&gt; Iff a -&gt; Iff a -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: Iff a -&gt; Iff a -&gt; Bool
+$c/= :: forall a. Eq a =&gt; Iff a -&gt; Iff a -&gt; Bool
+== :: Iff a -&gt; Iff a -&gt; Bool
+$c== :: forall a. Eq a =&gt; Iff a -&gt; Iff a -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#Eq"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></a></span></span></span><span> </span><span class="hs-comment">-- ^ @since 4.16</span><span>
+</span><span id="line-188"></span><span>                    </span><span class="hs-special">)</span><span>
+</span><span id="line-189"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-190"></span><span>                  </span><span id="local-6989586621679567710"><span id="local-6989586621679567712"><span id="local-6989586621679567716"><span class="annot"><span class="annottext">Int -&gt; Iff a -&gt; ShowS
+forall a. Show a =&gt; Int -&gt; Iff a -&gt; ShowS
+forall a. Show a =&gt; [Iff a] -&gt; ShowS
+forall a. Show a =&gt; Iff a -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [Iff a] -&gt; ShowS
+$cshowList :: forall a. Show a =&gt; [Iff a] -&gt; ShowS
+show :: Iff a -&gt; String
+$cshow :: forall a. Show a =&gt; Iff a -&gt; String
+showsPrec :: Int -&gt; Iff a -&gt; ShowS
+$cshowsPrec :: forall a. Show a =&gt; Int -&gt; Iff a -&gt; ShowS
+</span><a href="GHC.Show.html#Show"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></a></span></span></span></span><span class="hs-special">,</span><span> </span><span class="hs-comment">-- ^ @since 4.16</span><span>
+</span><span id="line-191"></span><span>                  </span><span id="local-6989586621679567695"><span id="local-6989586621679567703"><span id="local-6989586621679567706"><span id="local-6989586621679567708"><span class="annot"><span class="annottext">ReadPrec [Iff a]
+ReadPrec (Iff a)
+ReadS [Iff a]
+forall a. Read a =&gt; ReadPrec [Iff a]
+forall a. Read a =&gt; ReadPrec (Iff a)
+forall a. Read a =&gt; Int -&gt; ReadS (Iff a)
+forall a. Read a =&gt; ReadS [Iff a]
+forall a.
+(Int -&gt; ReadS a)
+-&gt; ReadS [a] -&gt; ReadPrec a -&gt; ReadPrec [a] -&gt; Read a
+readListPrec :: ReadPrec [Iff a]
+$creadListPrec :: forall a. Read a =&gt; ReadPrec [Iff a]
+readPrec :: ReadPrec (Iff a)
+$creadPrec :: forall a. Read a =&gt; ReadPrec (Iff a)
+readList :: ReadS [Iff a]
+$creadList :: forall a. Read a =&gt; ReadS [Iff a]
+readsPrec :: Int -&gt; ReadS (Iff a)
+$creadsPrec :: forall a. Read a =&gt; Int -&gt; ReadS (Iff a)
+</span><a href="GHC.Read.html#Read"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Read</span></a></span></span></span></span></span><span> </span><span class="hs-comment">-- ^ @since 4.16</span><span>
+</span><span id="line-192"></span><span>                 </span><span class="hs-special">)</span><span>
+</span><span id="line-193"></span><span>
+</span><span id="line-194"></span><span class="hs-comment">-- | This constraint is arguably</span><span>
+</span><span id="line-195"></span><span class="hs-comment">-- too strong. However, as some types (such as 'Natural') have undefined</span><span>
+</span><span id="line-196"></span><span class="hs-comment">-- 'complement', this is the only safe choice.</span><span>
+</span><span id="line-197"></span><span class="hs-comment">--</span><span>
+</span><span id="line-198"></span><span class="hs-comment">-- @since 4.16</span><span>
+</span><span id="line-199"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679567689"><span id="local-6989586621679567691"><span id="local-6989586621679568632"><span class="hs-special">(</span><span class="annot"><a href="GHC.Bits.html#FiniteBits"><span class="hs-identifier hs-type">FiniteBits</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679568632"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="GHC.Base.html#Semigroup"><span class="hs-identifier hs-type">Semigroup</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bits.html#Iff"><span class="hs-identifier hs-type">Iff</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679568632"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-200"></span><span>  </span><span class="annot"><a href="Data.Bits.html#Iff"><span class="hs-identifier hs-type">Iff</span></a></span><span> </span><span id="local-6989586621679567686"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679567686"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679567685"><span class="annot"><span class="annottext">&lt;&gt; :: Iff a -&gt; Iff a -&gt; Iff a
+</span><a href="GHC.Base.html#%3C%3E"><span class="hs-operator hs-var hs-var hs-var hs-var">&lt;&gt;</span></a></span></span><span> </span><span class="annot"><a href="Data.Bits.html#Iff"><span class="hs-identifier hs-type">Iff</span></a></span><span> </span><span id="local-6989586621679567684"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679567684"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Iff a
+</span><a href="Data.Bits.html#Iff"><span class="hs-identifier hs-var">Iff</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="GHC.Base.html#."><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a
+</span><a href="GHC.Bits.html#complement"><span class="hs-identifier hs-var">complement</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="GHC.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679567686"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><a href="GHC.Bits.html#xor"><span class="hs-operator hs-var">`xor`</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679567684"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-201"></span><span>
+</span><span id="line-202"></span><span class="hs-comment">-- | This constraint is arguably</span><span>
+</span><span id="line-203"></span><span class="hs-comment">-- too strong. However, as some types (such as 'Natural') have undefined</span><span>
+</span><span id="line-204"></span><span class="hs-comment">-- 'complement', this is the only safe choice.</span><span>
+</span><span id="line-205"></span><span class="hs-comment">--</span><span>
+</span><span id="line-206"></span><span class="hs-comment">-- @since 4.16</span><span>
+</span><span id="line-207"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679567676"><span id="local-6989586621679567678"><span id="local-6989586621679568625"><span class="hs-special">(</span><span class="annot"><a href="GHC.Bits.html#FiniteBits"><span class="hs-identifier hs-type">FiniteBits</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679568625"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="GHC.Base.html#Monoid"><span class="hs-identifier hs-type">Monoid</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bits.html#Iff"><span class="hs-identifier hs-type">Iff</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679568625"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-208"></span><span>  </span><span id="local-6989586621679567674"><span class="annot"><span class="annottext">mempty :: Iff a
+</span><a href="GHC.Base.html#mempty"><span class="hs-identifier hs-var hs-var hs-var hs-var">mempty</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Iff a
+</span><a href="Data.Bits.html#Iff"><span class="hs-identifier hs-var">Iff</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FiniteBits a =&gt; a
+</span><a href="Data.Bits.html#oneBits"><span class="hs-identifier hs-var">oneBits</span></a></span><span>
+</span><span id="line-209"></span></pre></body></html>

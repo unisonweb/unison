@@ -1,0 +1,357 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP
+            ,MultiParamTypeClasses
+            ,FlexibleContexts
+            ,FlexibleInstances
+            ,TypeFamilies
+            ,UndecidableInstances #-}</span><span>
+</span><span id="line-7"></span><span class="hs-pragma">{-# LANGUAGE TypeOperators #-}</span><span>  </span><span class="hs-comment">-- for GHC &gt;= 9.4</span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ &lt; 710
+</span><span class="hs-pragma">{-# LANGUAGE OverlappingInstances #-}</span><span class="hs-cpp">
+#endif
+</span><span class="hs-pragma">{-# OPTIONS -fno-warn-orphans #-}</span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- | ListLike instance for any type supporting the @Data.Vector.Generic@</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- interface.  To avoid collisions with other Vector instances, this module</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- must be imported directly.</span><span>
+</span><span id="line-16"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Data.ListLike.Vector.Generic</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">P</span></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Vector.Generic</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">V</span></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Vector.Generic</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-operator">(!)</span></span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Data.ListLike.Base.html"><span class="hs-identifier">Data.ListLike.Base</span></a></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Data.ListLike.FoldableLL.html"><span class="hs-identifier">Data.ListLike.FoldableLL</span></a></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Data.ListLike.String.html"><span class="hs-identifier">Data.ListLike.String</span></a></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.String</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">IsString</span></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">GHC.Exts</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">IsList</span></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-pragma">{-# OVERLAPPABLE</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span id="local-6989586621679104636"><span id="local-6989586621679104637"><span class="annot"><span class="hs-identifier hs-type">V.Vector</span></span><span> </span><span class="annot"><a href="#local-6989586621679104637"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679104636"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.ListLike.FoldableLL.html#FoldableLL"><span class="hs-identifier hs-type">FoldableLL</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679104637"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679104636"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679104636"><span class="hs-identifier hs-type">a</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-30"></span><span>    </span><span id="local-6989586621679104334"><span class="annot"><span class="annottext">foldl :: forall a. (a -&gt; a -&gt; a) -&gt; a -&gt; v a -&gt; a
+</span><a href="Data.ListLike.FoldableLL.html#foldl"><span class="hs-identifier hs-var hs-var hs-var hs-var">foldl</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) b a.
+Vector v b =&gt;
+(a -&gt; b -&gt; a) -&gt; a -&gt; v b -&gt; a
+</span><span class="hs-identifier hs-var">V.foldl</span></span><span>
+</span><span id="line-31"></span><span>    </span><span id="local-6989586621679104330"><span class="annot"><span class="annottext">foldl' :: forall a. (a -&gt; a -&gt; a) -&gt; a -&gt; v a -&gt; a
+</span><a href="Data.ListLike.FoldableLL.html#foldl%27"><span class="hs-identifier hs-var hs-var hs-var hs-var">foldl'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) b a.
+Vector v b =&gt;
+(a -&gt; b -&gt; a) -&gt; a -&gt; v b -&gt; a
+</span><span class="hs-identifier hs-var">V.foldl'</span></span><span>
+</span><span id="line-32"></span><span>    </span><span id="local-6989586621679104326"><span class="annot"><span class="annottext">foldl1 :: (a -&gt; a -&gt; a) -&gt; v a -&gt; a
+</span><a href="Data.ListLike.FoldableLL.html#foldl1"><span class="hs-identifier hs-var hs-var hs-var hs-var">foldl1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; (a -&gt; a -&gt; a) -&gt; v a -&gt; a
+</span><span class="hs-identifier hs-var">V.foldl1</span></span><span>
+</span><span id="line-33"></span><span>    </span><span id="local-6989586621679104322"><span class="annot"><span class="annottext">foldr :: forall b. (a -&gt; b -&gt; b) -&gt; b -&gt; v a -&gt; b
+</span><a href="Data.ListLike.FoldableLL.html#foldr"><span class="hs-identifier hs-var hs-var hs-var hs-var">foldr</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a b.
+Vector v a =&gt;
+(a -&gt; b -&gt; b) -&gt; b -&gt; v a -&gt; b
+</span><span class="hs-identifier hs-var">V.foldr</span></span><span>
+</span><span id="line-34"></span><span>    </span><span id="local-6989586621679104318"><span class="annot"><span class="annottext">foldr' :: forall b. (a -&gt; b -&gt; b) -&gt; b -&gt; v a -&gt; b
+</span><a href="Data.ListLike.FoldableLL.html#foldr%27"><span class="hs-identifier hs-var hs-var hs-var hs-var">foldr'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a b.
+Vector v a =&gt;
+(a -&gt; b -&gt; b) -&gt; b -&gt; v a -&gt; b
+</span><span class="hs-identifier hs-var">V.foldr'</span></span><span>
+</span><span id="line-35"></span><span>    </span><span id="local-6989586621679104314"><span class="annot"><span class="annottext">foldr1 :: (a -&gt; a -&gt; a) -&gt; v a -&gt; a
+</span><a href="Data.ListLike.FoldableLL.html#foldr1"><span class="hs-identifier hs-var hs-var hs-var hs-var">foldr1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; (a -&gt; a -&gt; a) -&gt; v a -&gt; a
+</span><span class="hs-identifier hs-var">V.foldr1</span></span><span class="hs-cpp">
+
+#if 0
+</span><span class="hs-keyword">instance</span><span> </span><span class="hs-pragma">{-# OVERLAPPABLE</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Monoid</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">v</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">Eq</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">v</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">V.Vector</span><span> </span><span class="hs-identifier">v</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-identifier">IsList</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">v</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-39"></span><span>    </span><span class="hs-keyword">type</span><span> </span><span class="hs-identifier">Item</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">v</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">a</span><span>
+</span><span id="line-40"></span><span>    </span><span class="hs-identifier">toList</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">V.toList</span><span>
+</span><span id="line-41"></span><span>    </span><span class="hs-identifier">fromList</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">V.fromList</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-44"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-pragma">{-# OVERLAPPABLE</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span id="local-6989586621679104192"><span id="local-6989586621679104197"><span id="local-6989586621679104199"><span id="local-6989586621679104201"><span id="local-6989586621679104203"><span id="local-6989586621679104205"><span id="local-6989586621679104207"><span id="local-6989586621679104209"><span id="local-6989586621679104211"><span id="local-6989586621679104213"><span id="local-6989586621679104215"><span id="local-6989586621679104217"><span id="local-6989586621679104219"><span id="local-6989586621679104221"><span id="local-6989586621679104223"><span id="local-6989586621679104225"><span id="local-6989586621679104227"><span id="local-6989586621679104229"><span id="local-6989586621679104231"><span id="local-6989586621679104233"><span id="local-6989586621679104237"><span id="local-6989586621679104240"><span id="local-6989586621679104242"><span id="local-6989586621679104245"><span id="local-6989586621679104249"><span id="local-6989586621679104252"><span id="local-6989586621679104254"><span id="local-6989586621679104256"><span id="local-6989586621679104260"><span id="local-6989586621679104262"><span id="local-6989586621679104264"><span id="local-6989586621679104268"><span id="local-6989586621679104272"><span id="local-6989586621679104282"><span id="local-6989586621679104285"><span id="local-6989586621679104289"><span id="local-6989586621679104296"><span id="local-6989586621679104603"><span id="local-6989586621679104604"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IsList</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679104604"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679104603"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Item</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679104604"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679104603"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-operator hs-type">~</span></span><span> </span><span class="annot"><a href="#local-6989586621679104603"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monoid</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679104604"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679104603"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679104604"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679104603"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">V.Vector</span></span><span> </span><span class="annot"><a href="#local-6989586621679104604"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679104603"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.ListLike.Base.html#ListLike"><span class="hs-identifier hs-type">ListLike</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679104604"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679104603"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679104603"><span class="hs-identifier hs-type">a</span></a></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-45"></span><span>    </span><span id="local-6989586621679104188"><span class="annot"><span class="annottext">empty :: v a
+</span><a href="Data.ListLike.Base.html#empty"><span class="hs-identifier hs-var hs-var hs-var hs-var">empty</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; v a
+</span><span class="hs-identifier hs-var">V.empty</span></span><span>
+</span><span id="line-46"></span><span>    </span><span id="local-6989586621679104184"><span class="annot"><span class="annottext">singleton :: a -&gt; v a
+</span><a href="Data.ListLike.Base.html#singleton"><span class="hs-identifier hs-var hs-var hs-var hs-var">singleton</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; a -&gt; v a
+</span><span class="hs-identifier hs-var">V.singleton</span></span><span>
+</span><span id="line-47"></span><span>    </span><span id="local-6989586621679104180"><span class="annot"><span class="annottext">cons :: a -&gt; v a -&gt; v a
+</span><a href="Data.ListLike.Base.html#cons"><span class="hs-identifier hs-var hs-var hs-var hs-var">cons</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; a -&gt; v a -&gt; v a
+</span><span class="hs-identifier hs-var">V.cons</span></span><span>
+</span><span id="line-48"></span><span>    </span><span id="local-6989586621679104176"><span class="annot"><span class="annottext">snoc :: v a -&gt; a -&gt; v a
+</span><a href="Data.ListLike.Base.html#snoc"><span class="hs-identifier hs-var hs-var hs-var hs-var">snoc</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; v a -&gt; a -&gt; v a
+</span><span class="hs-identifier hs-var">V.snoc</span></span><span>
+</span><span id="line-49"></span><span>    </span><span id="local-6989586621679104172"><span class="annot"><span class="annottext">append :: v a -&gt; v a -&gt; v a
+</span><a href="Data.ListLike.Base.html#append"><span class="hs-identifier hs-var hs-var hs-var hs-var">append</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Monoid a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">mappend</span></span><span>
+</span><span id="line-50"></span><span>    </span><span id="local-6989586621679104169"><span class="annot"><span class="annottext">head :: v a -&gt; a
+</span><a href="Data.ListLike.Base.html#head"><span class="hs-identifier hs-var hs-var hs-var hs-var">head</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; v a -&gt; a
+</span><span class="hs-identifier hs-var">V.head</span></span><span>
+</span><span id="line-51"></span><span>    </span><span id="local-6989586621679104165"><span class="annot"><span class="annottext">last :: v a -&gt; a
+</span><a href="Data.ListLike.Base.html#last"><span class="hs-identifier hs-var hs-var hs-var hs-var">last</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; v a -&gt; a
+</span><span class="hs-identifier hs-var">V.last</span></span><span>
+</span><span id="line-52"></span><span>    </span><span id="local-6989586621679104161"><span class="annot"><span class="annottext">tail :: v a -&gt; v a
+</span><a href="Data.ListLike.Base.html#tail"><span class="hs-identifier hs-var hs-var hs-var hs-var">tail</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; v a -&gt; v a
+</span><span class="hs-identifier hs-var">V.tail</span></span><span>
+</span><span id="line-53"></span><span>    </span><span id="local-6989586621679104157"><span class="annot"><span class="annottext">init :: v a -&gt; v a
+</span><a href="Data.ListLike.Base.html#init"><span class="hs-identifier hs-var hs-var hs-var hs-var">init</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; v a -&gt; v a
+</span><span class="hs-identifier hs-var">V.init</span></span><span>
+</span><span id="line-54"></span><span>    </span><span id="local-6989586621679104153"><span class="annot"><span class="annottext">null :: v a -&gt; Bool
+</span><a href="Data.ListLike.Base.html#null"><span class="hs-identifier hs-var hs-var hs-var hs-var">null</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; v a -&gt; Bool
+</span><span class="hs-identifier hs-var">V.null</span></span><span>
+</span><span id="line-55"></span><span>    </span><span id="local-6989586621679104149"><span class="annot"><span class="annottext">length :: v a -&gt; Int
+</span><a href="Data.ListLike.Base.html#length"><span class="hs-identifier hs-var hs-var hs-var hs-var">length</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; v a -&gt; Int
+</span><span class="hs-identifier hs-var">V.length</span></span><span>
+</span><span id="line-56"></span><span>    </span><span id="local-6989586621679104144"><span class="annot"><span class="annottext">rigidMap :: (a -&gt; a) -&gt; v a -&gt; v a
+</span><a href="Data.ListLike.Base.html#rigidMap"><span class="hs-identifier hs-var hs-var hs-var hs-var">rigidMap</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a b.
+(Vector v a, Vector v b) =&gt;
+(a -&gt; b) -&gt; v a -&gt; v b
+</span><span class="hs-identifier hs-var">V.map</span></span><span>
+</span><span id="line-57"></span><span>    </span><span id="local-6989586621679104140"><span class="annot"><span class="annottext">reverse :: v a -&gt; v a
+</span><a href="Data.ListLike.Base.html#reverse"><span class="hs-identifier hs-var hs-var hs-var hs-var">reverse</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; v a -&gt; v a
+</span><span class="hs-identifier hs-var">V.reverse</span></span><span>
+</span><span id="line-58"></span><span>    </span><span class="hs-comment">--intersperse =</span><span>
+</span><span id="line-59"></span><span>    </span><span id="local-6989586621679104128"><span class="annot"><span class="annottext">concat :: forall full'. ListLike full' (v a) =&gt; full' -&gt; v a
+</span><a href="Data.ListLike.Base.html#concat"><span class="hs-identifier hs-var hs-var hs-var hs-var">concat</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; [v a] -&gt; v a
+</span><span class="hs-identifier hs-var">V.concat</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall l. IsList l =&gt; l -&gt; [Item l]
+</span><span class="hs-identifier hs-var">toList</span></span><span>
+</span><span id="line-60"></span><span>    </span><span id="local-6989586621679104122"><span class="annot"><span class="annottext">rigidConcatMap :: (a -&gt; v a) -&gt; v a -&gt; v a
+</span><a href="Data.ListLike.Base.html#rigidConcatMap"><span class="hs-identifier hs-var hs-var hs-var hs-var">rigidConcatMap</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a b.
+(Vector v a, Vector v b) =&gt;
+(a -&gt; v b) -&gt; v a -&gt; v b
+</span><span class="hs-identifier hs-var">V.concatMap</span></span><span>
+</span><span id="line-61"></span><span>    </span><span id="local-6989586621679104118"><span class="annot"><span class="annottext">any :: (a -&gt; Bool) -&gt; v a -&gt; Bool
+</span><a href="Data.ListLike.Base.html#any"><span class="hs-identifier hs-var hs-var hs-var hs-var">any</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; (a -&gt; Bool) -&gt; v a -&gt; Bool
+</span><span class="hs-identifier hs-var">V.any</span></span><span>
+</span><span id="line-62"></span><span>    </span><span id="local-6989586621679104114"><span class="annot"><span class="annottext">all :: (a -&gt; Bool) -&gt; v a -&gt; Bool
+</span><a href="Data.ListLike.Base.html#all"><span class="hs-identifier hs-var hs-var hs-var hs-var">all</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; (a -&gt; Bool) -&gt; v a -&gt; Bool
+</span><span class="hs-identifier hs-var">V.all</span></span><span>
+</span><span id="line-63"></span><span>    </span><span id="local-6989586621679104108"><span class="annot"><span class="annottext">maximum :: Ord a =&gt; v a -&gt; a
+</span><a href="Data.ListLike.Base.html#maximum"><span class="hs-identifier hs-var hs-var hs-var hs-var">maximum</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. (Vector v a, Ord a) =&gt; v a -&gt; a
+</span><span class="hs-identifier hs-var">V.maximum</span></span><span>
+</span><span id="line-64"></span><span>    </span><span id="local-6989586621679104102"><span class="annot"><span class="annottext">minimum :: Ord a =&gt; v a -&gt; a
+</span><a href="Data.ListLike.Base.html#minimum"><span class="hs-identifier hs-var hs-var hs-var hs-var">minimum</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. (Vector v a, Ord a) =&gt; v a -&gt; a
+</span><span class="hs-identifier hs-var">V.minimum</span></span><span>
+</span><span id="line-65"></span><span>    </span><span id="local-6989586621679104098"><span class="annot"><span class="annottext">replicate :: Int -&gt; a -&gt; v a
+</span><a href="Data.ListLike.Base.html#replicate"><span class="hs-identifier hs-var hs-var hs-var hs-var">replicate</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; Int -&gt; a -&gt; v a
+</span><span class="hs-identifier hs-var">V.replicate</span></span><span>
+</span><span id="line-66"></span><span>    </span><span id="local-6989586621679104094"><span class="annot"><span class="annottext">take :: Int -&gt; v a -&gt; v a
+</span><a href="Data.ListLike.Base.html#take"><span class="hs-identifier hs-var hs-var hs-var hs-var">take</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; Int -&gt; v a -&gt; v a
+</span><span class="hs-identifier hs-var">V.take</span></span><span>
+</span><span id="line-67"></span><span>    </span><span id="local-6989586621679104090"><span class="annot"><span class="annottext">drop :: Int -&gt; v a -&gt; v a
+</span><a href="Data.ListLike.Base.html#drop"><span class="hs-identifier hs-var hs-var hs-var hs-var">drop</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; Int -&gt; v a -&gt; v a
+</span><span class="hs-identifier hs-var">V.drop</span></span><span>
+</span><span id="line-68"></span><span>    </span><span class="hs-comment">--splitAt =</span><span>
+</span><span id="line-69"></span><span>    </span><span id="local-6989586621679104086"><span class="annot"><span class="annottext">takeWhile :: (a -&gt; Bool) -&gt; v a -&gt; v a
+</span><a href="Data.ListLike.Base.html#takeWhile"><span class="hs-identifier hs-var hs-var hs-var hs-var">takeWhile</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; (a -&gt; Bool) -&gt; v a -&gt; v a
+</span><span class="hs-identifier hs-var">V.takeWhile</span></span><span>
+</span><span id="line-70"></span><span>    </span><span id="local-6989586621679104082"><span class="annot"><span class="annottext">dropWhile :: (a -&gt; Bool) -&gt; v a -&gt; v a
+</span><a href="Data.ListLike.Base.html#dropWhile"><span class="hs-identifier hs-var hs-var hs-var hs-var">dropWhile</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; (a -&gt; Bool) -&gt; v a -&gt; v a
+</span><span class="hs-identifier hs-var">V.dropWhile</span></span><span>
+</span><span id="line-71"></span><span>    </span><span id="local-6989586621679104078"><span class="annot"><span class="annottext">span :: (a -&gt; Bool) -&gt; v a -&gt; (v a, v a)
+</span><a href="Data.ListLike.Base.html#span"><span class="hs-identifier hs-var hs-var hs-var hs-var">span</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a.
+Vector v a =&gt;
+(a -&gt; Bool) -&gt; v a -&gt; (v a, v a)
+</span><span class="hs-identifier hs-var">V.span</span></span><span>
+</span><span id="line-72"></span><span>    </span><span id="local-6989586621679104074"><span class="annot"><span class="annottext">break :: (a -&gt; Bool) -&gt; v a -&gt; (v a, v a)
+</span><a href="Data.ListLike.Base.html#break"><span class="hs-identifier hs-var hs-var hs-var hs-var">break</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a.
+Vector v a =&gt;
+(a -&gt; Bool) -&gt; v a -&gt; (v a, v a)
+</span><span class="hs-identifier hs-var">V.break</span></span><span>
+</span><span id="line-73"></span><span>    </span><span class="hs-comment">--group =</span><span>
+</span><span id="line-74"></span><span>    </span><span class="hs-comment">--inits =</span><span>
+</span><span id="line-75"></span><span>    </span><span class="hs-comment">--tails =</span><span>
+</span><span id="line-76"></span><span>    </span><span id="local-6989586621679104068"><span class="annot"><span class="annottext">isPrefixOf :: Eq a =&gt; v a -&gt; v a -&gt; Bool
+</span><a href="Data.ListLike.Base.html#isPrefixOf"><span class="hs-identifier hs-var hs-var hs-var hs-var">isPrefixOf</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a.
+(Vector v a, Eq (v a)) =&gt;
+v a -&gt; v a -&gt; Bool
+</span><a href="Data.ListLike.Vector.Generic.html#isPrefixOf%27"><span class="hs-identifier hs-var">isPrefixOf'</span></a></span><span>
+</span><span id="line-77"></span><span>    </span><span id="local-6989586621679104062"><span class="annot"><span class="annottext">isSuffixOf :: Eq a =&gt; v a -&gt; v a -&gt; Bool
+</span><a href="Data.ListLike.Base.html#isSuffixOf"><span class="hs-identifier hs-var hs-var hs-var hs-var">isSuffixOf</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a.
+(Vector v a, Eq (v a)) =&gt;
+v a -&gt; v a -&gt; Bool
+</span><a href="Data.ListLike.Vector.Generic.html#isSuffixOf%27"><span class="hs-identifier hs-var">isSuffixOf'</span></a></span><span>
+</span><span id="line-78"></span><span>    </span><span id="local-6989586621679104056"><span class="annot"><span class="annottext">elem :: Eq a =&gt; a -&gt; v a -&gt; Bool
+</span><a href="Data.ListLike.Base.html#elem"><span class="hs-identifier hs-var hs-var hs-var hs-var">elem</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. (Vector v a, Eq a) =&gt; a -&gt; v a -&gt; Bool
+</span><span class="hs-identifier hs-var">V.elem</span></span><span>
+</span><span id="line-79"></span><span>    </span><span id="local-6989586621679104052"><span class="annot"><span class="annottext">find :: (a -&gt; Bool) -&gt; v a -&gt; Maybe a
+</span><a href="Data.ListLike.Base.html#find"><span class="hs-identifier hs-var hs-var hs-var hs-var">find</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; (a -&gt; Bool) -&gt; v a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">V.find</span></span><span>
+</span><span id="line-80"></span><span>    </span><span id="local-6989586621679104048"><span class="annot"><span class="annottext">filter :: (a -&gt; Bool) -&gt; v a -&gt; v a
+</span><a href="Data.ListLike.Base.html#filter"><span class="hs-identifier hs-var hs-var hs-var hs-var">filter</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; (a -&gt; Bool) -&gt; v a -&gt; v a
+</span><span class="hs-identifier hs-var">V.filter</span></span><span>
+</span><span id="line-81"></span><span>    </span><span id="local-6989586621679104044"><span class="annot"><span class="annottext">index :: v a -&gt; Int -&gt; a
+</span><a href="Data.ListLike.Base.html#index"><span class="hs-identifier hs-var hs-var hs-var hs-var">index</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; v a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">(!)</span></span><span>
+</span><span id="line-82"></span><span>    </span><span id="local-6989586621679104041"><span class="annot"><span class="annottext">findIndex :: (a -&gt; Bool) -&gt; v a -&gt; Maybe Int
+</span><a href="Data.ListLike.Base.html#findIndex"><span class="hs-identifier hs-var hs-var hs-var hs-var">findIndex</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a.
+Vector v a =&gt;
+(a -&gt; Bool) -&gt; v a -&gt; Maybe Int
+</span><span class="hs-identifier hs-var">V.findIndex</span></span><span>
+</span><span id="line-83"></span><span>    </span><span class="hs-comment">--toList = V.toList</span><span>
+</span><span id="line-84"></span><span>    </span><span class="hs-comment">--fromList = V.fromList</span><span>
+</span><span id="line-85"></span><span>    </span><span class="hs-comment">--fromListLike = fromList . toList</span><span>
+</span><span id="line-86"></span><span>    </span><span class="hs-comment">--groupBy f =</span><span>
+</span><span id="line-87"></span><span>    </span><span id="local-6989586621679104031"><span class="annot"><span class="annottext">genericLength :: forall a. Num a =&gt; v a -&gt; a
+</span><a href="Data.ListLike.Base.html#genericLength"><span class="hs-identifier hs-var hs-var hs-var hs-var">genericLength</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; Integer -&gt; a
+</span><span class="hs-identifier hs-var">fromInteger</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; v a -&gt; Int
+</span><span class="hs-identifier hs-var">V.length</span></span><span>
+</span><span id="line-88"></span><span>    </span><span id="local-6989586621679104024"><span class="annot"><span class="annottext">genericTake :: forall a. Integral a =&gt; a -&gt; v a -&gt; v a
+</span><a href="Data.ListLike.Base.html#genericTake"><span class="hs-identifier hs-var hs-var hs-var hs-var">genericTake</span></a></span></span><span> </span><span id="local-6989586621679104022"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679104022"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; Int -&gt; v a -&gt; v a
+</span><span class="hs-identifier hs-var">V.take</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679104022"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-89"></span><span>    </span><span id="local-6989586621679104017"><span class="annot"><span class="annottext">genericDrop :: forall a. Integral a =&gt; a -&gt; v a -&gt; v a
+</span><a href="Data.ListLike.Base.html#genericDrop"><span class="hs-identifier hs-var hs-var hs-var hs-var">genericDrop</span></a></span></span><span> </span><span id="local-6989586621679104015"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679104015"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; Int -&gt; v a -&gt; v a
+</span><span class="hs-identifier hs-var">V.drop</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679104015"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-90"></span><span>    </span><span class="hs-comment">--genericSplitAt i =</span><span>
+</span><span id="line-91"></span><span>    </span><span id="local-6989586621679104010"><span class="annot"><span class="annottext">genericReplicate :: forall a. Integral a =&gt; a -&gt; a -&gt; v a
+</span><a href="Data.ListLike.Base.html#genericReplicate"><span class="hs-identifier hs-var hs-var hs-var hs-var">genericReplicate</span></a></span></span><span> </span><span id="local-6989586621679104008"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679104008"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; Int -&gt; a -&gt; v a
+</span><span class="hs-identifier hs-var">V.replicate</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679104008"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-92"></span><span>
+</span><span id="line-93"></span><span>    </span><span id="local-6989586621679103993"><span class="annot"><span class="annottext">sequence :: forall (m :: * -&gt; *) fullinp.
+(Applicative m, ListLike fullinp (m a)) =&gt;
+fullinp -&gt; m (v a)
+</span><a href="Data.ListLike.Base.html#sequence"><span class="hs-identifier hs-var hs-var hs-var hs-var">sequence</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">forall l. IsList l =&gt; [Item l] -&gt; l
+</span><span class="hs-identifier hs-var">fromList</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) (f :: * -&gt; *) a.
+(Traversable t, Applicative f) =&gt;
+t (f a) -&gt; f (t a)
+</span><span class="hs-identifier hs-var">P.sequenceA</span></span><span>  </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall l. IsList l =&gt; l -&gt; [Item l]
+</span><span class="hs-identifier hs-var">toList</span></span><span>
+</span><span id="line-94"></span><span>    </span><span id="local-6989586621679103978"><span class="annot"><span class="annottext">mapM :: forall (m :: * -&gt; *) full' item'.
+(Applicative m, ListLike full' item') =&gt;
+(a -&gt; m item') -&gt; v a -&gt; m full'
+</span><a href="Data.ListLike.Base.html#mapM"><span class="hs-identifier hs-var hs-var hs-var hs-var">mapM</span></a></span></span><span> </span><span id="local-6989586621679103976"><span class="annot"><span class="annottext">a -&gt; m item'
+</span><a href="#local-6989586621679103976"><span class="hs-identifier hs-var">func</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">forall l. IsList l =&gt; [Item l] -&gt; l
+</span><span class="hs-identifier hs-var">fromList</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) (f :: * -&gt; *) a b.
+(Traversable t, Applicative f) =&gt;
+(a -&gt; f b) -&gt; t a -&gt; f (t b)
+</span><span class="hs-identifier hs-var">P.traverse</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; m item'
+</span><a href="#local-6989586621679103976"><span class="hs-identifier hs-var">func</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall l. IsList l =&gt; l -&gt; [Item l]
+</span><span class="hs-identifier hs-var">toList</span></span><span>
+</span><span id="line-95"></span><span>
+</span><span id="line-96"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679104526"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679104526"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Char</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">V.Vector</span></span><span> </span><span class="annot"><a href="#local-6989586621679104526"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Char</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IsString</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679104526"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Char</span></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-97"></span><span>    </span><span id="local-6989586621679103968"><span class="annot"><span class="annottext">fromString :: String -&gt; v Char
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">fromString</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; [a] -&gt; v a
+</span><span class="hs-identifier hs-var">V.fromList</span></span><span>
+</span><span id="line-98"></span><span>
+</span><span id="line-99"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679103950"><span id="local-6989586621679103952"><span id="local-6989586621679103954"><span id="local-6989586621679103956"><span id="local-6989586621679103960"><span id="local-6989586621679103962"><span id="local-6989586621679104516"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679104516"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Char</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">V.Vector</span></span><span> </span><span class="annot"><a href="#local-6989586621679104516"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Char</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.ListLike.String.html#StringLike"><span class="hs-identifier hs-type">StringLike</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679104516"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Char</span></span><span class="hs-special">)</span></span></span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-100"></span><span>    </span><span id="local-6989586621679103947"><span class="annot"><span class="annottext">toString :: v Char -&gt; String
+</span><a href="Data.ListLike.String.html#toString"><span class="hs-identifier hs-var hs-var hs-var hs-var">toString</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; v a -&gt; [a]
+</span><span class="hs-identifier hs-var">V.toList</span></span><span>
+</span><span id="line-101"></span><span>    </span><span class="hs-comment">--words =</span><span>
+</span><span id="line-102"></span><span>    </span><span class="hs-comment">--lines =</span><span>
+</span><span id="line-103"></span><span>    </span><span id="local-6989586621679103935"><span class="annot"><span class="annottext">unwords :: forall full. ListLike full (v Char) =&gt; full -&gt; v Char
+</span><a href="Data.ListLike.String.html#unwords"><span class="hs-identifier hs-var hs-var hs-var hs-var">unwords</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679103932"><span class="annot"><span class="annottext">sp :: v Char
+</span><a href="#local-6989586621679103932"><span class="hs-identifier hs-var hs-var">sp</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; a -&gt; v a
+</span><span class="hs-identifier hs-var">V.singleton</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">' '</span></span><span> </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; [v a] -&gt; v a
+</span><span class="hs-identifier hs-var">V.concat</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall full item. ListLike full item =&gt; item -&gt; full -&gt; full
+</span><a href="Data.ListLike.Base.html#intersperse"><span class="hs-identifier hs-var">intersperse</span></a></span><span> </span><span class="annot"><span class="annottext">v Char
+</span><a href="#local-6989586621679103932"><span class="hs-identifier hs-var">sp</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall l. IsList l =&gt; l -&gt; [Item l]
+</span><span class="hs-identifier hs-var">toList</span></span><span>
+</span><span id="line-104"></span><span>    </span><span id="local-6989586621679103922"><span class="annot"><span class="annottext">unlines :: forall full. ListLike full (v Char) =&gt; full -&gt; v Char
+</span><a href="Data.ListLike.String.html#unlines"><span class="hs-identifier hs-var hs-var hs-var hs-var">unlines</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679103919"><span class="annot"><span class="annottext">eol :: v Char
+</span><a href="#local-6989586621679103919"><span class="hs-identifier hs-var hs-var">eol</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; a -&gt; v a
+</span><span class="hs-identifier hs-var">V.singleton</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'\n'</span></span><span> </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; [v a] -&gt; v a
+</span><span class="hs-identifier hs-var">V.concat</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall full item. ListLike full item =&gt; item -&gt; full -&gt; full
+</span><a href="Data.ListLike.Base.html#intersperse"><span class="hs-identifier hs-var">intersperse</span></a></span><span> </span><span class="annot"><span class="annottext">v Char
+</span><a href="#local-6989586621679103919"><span class="hs-identifier hs-var">eol</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall l. IsList l =&gt; l -&gt; [Item l]
+</span><span class="hs-identifier hs-var">toList</span></span><span>
+</span><span id="line-105"></span><span>
+</span><span id="line-106"></span><span id="local-6989586621679104559"><span id="local-6989586621679104560"><span class="annot"><a href="Data.ListLike.Vector.Generic.html#isPrefixOf%27"><span class="hs-identifier hs-type">isPrefixOf'</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">V.Vector</span></span><span> </span><span class="annot"><a href="#local-6989586621679104560"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679104559"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679104560"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679104559"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679104560"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679104559"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679104560"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679104559"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span></span><span>
+</span><span id="line-107"></span><span id="isPrefixOf%27"><span class="annot"><span class="annottext">isPrefixOf' :: forall (v :: * -&gt; *) a.
+(Vector v a, Eq (v a)) =&gt;
+v a -&gt; v a -&gt; Bool
+</span><a href="Data.ListLike.Vector.Generic.html#isPrefixOf%27"><span class="hs-identifier hs-var hs-var">isPrefixOf'</span></a></span></span><span> </span><span id="local-6989586621679103903"><span class="annot"><span class="annottext">v a
+</span><a href="#local-6989586621679103903"><span class="hs-identifier hs-var">needle</span></a></span></span><span> </span><span id="local-6989586621679103902"><span class="annot"><span class="annottext">v a
+</span><a href="#local-6989586621679103902"><span class="hs-identifier hs-var">haystack</span></a></span></span><span>
+</span><span id="line-108"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; v a -&gt; Bool
+</span><span class="hs-identifier hs-var">V.null</span></span><span> </span><span class="annot"><span class="annottext">v a
+</span><a href="#local-6989586621679103903"><span class="hs-identifier hs-var">needle</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-109"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; v a -&gt; Int
+</span><span class="hs-identifier hs-var">V.length</span></span><span> </span><span class="annot"><span class="annottext">v a
+</span><a href="#local-6989586621679103903"><span class="hs-identifier hs-var">needle</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; v a -&gt; Int
+</span><span class="hs-identifier hs-var">V.length</span></span><span> </span><span class="annot"><span class="annottext">v a
+</span><a href="#local-6989586621679103902"><span class="hs-identifier hs-var">haystack</span></a></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-110"></span><span>            </span><span class="annot"><span class="annottext">v a
+</span><a href="#local-6989586621679103903"><span class="hs-identifier hs-var">needle</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; Int -&gt; Int -&gt; v a -&gt; v a
+</span><span class="hs-identifier hs-var">V.slice</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; v a -&gt; Int
+</span><span class="hs-identifier hs-var">V.length</span></span><span> </span><span class="annot"><span class="annottext">v a
+</span><a href="#local-6989586621679103903"><span class="hs-identifier hs-var">needle</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">v a
+</span><a href="#local-6989586621679103902"><span class="hs-identifier hs-var">haystack</span></a></span><span>
+</span><span id="line-111"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; v a -&gt; Int
+</span><span class="hs-identifier hs-var">V.length</span></span><span> </span><span class="annot"><span class="annottext">v a
+</span><a href="#local-6989586621679103903"><span class="hs-identifier hs-var">needle</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; v a -&gt; Int
+</span><span class="hs-identifier hs-var">V.length</span></span><span> </span><span class="annot"><span class="annottext">v a
+</span><a href="#local-6989586621679103902"><span class="hs-identifier hs-var">haystack</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">v a
+</span><a href="#local-6989586621679103903"><span class="hs-identifier hs-var">needle</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">v a
+</span><a href="#local-6989586621679103902"><span class="hs-identifier hs-var">haystack</span></a></span><span>
+</span><span id="line-112"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-113"></span><span id="local-6989586621679103898"><span id="local-6989586621679103899"><span class="annot"><a href="Data.ListLike.Vector.Generic.html#isSuffixOf%27"><span class="hs-identifier hs-type">isSuffixOf'</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">V.Vector</span></span><span> </span><span class="annot"><a href="#local-6989586621679103899"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679103898"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679103899"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679103898"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679103899"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679103898"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679103899"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679103898"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span></span><span>
+</span><span id="line-114"></span><span id="isSuffixOf%27"><span class="annot"><span class="annottext">isSuffixOf' :: forall (v :: * -&gt; *) a.
+(Vector v a, Eq (v a)) =&gt;
+v a -&gt; v a -&gt; Bool
+</span><a href="Data.ListLike.Vector.Generic.html#isSuffixOf%27"><span class="hs-identifier hs-var hs-var">isSuffixOf'</span></a></span></span><span> </span><span id="local-6989586621679103881"><span class="annot"><span class="annottext">v a
+</span><a href="#local-6989586621679103881"><span class="hs-identifier hs-var">needle</span></a></span></span><span> </span><span id="local-6989586621679103880"><span class="annot"><span class="annottext">v a
+</span><a href="#local-6989586621679103880"><span class="hs-identifier hs-var">haystack</span></a></span></span><span>
+</span><span id="line-115"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; v a -&gt; Bool
+</span><span class="hs-identifier hs-var">V.null</span></span><span> </span><span class="annot"><span class="annottext">v a
+</span><a href="#local-6989586621679103881"><span class="hs-identifier hs-var">needle</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-116"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; v a -&gt; Int
+</span><span class="hs-identifier hs-var">V.length</span></span><span> </span><span class="annot"><span class="annottext">v a
+</span><a href="#local-6989586621679103881"><span class="hs-identifier hs-var">needle</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; v a -&gt; Int
+</span><span class="hs-identifier hs-var">V.length</span></span><span> </span><span class="annot"><span class="annottext">v a
+</span><a href="#local-6989586621679103880"><span class="hs-identifier hs-var">haystack</span></a></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-117"></span><span>        </span><span class="annot"><span class="annottext">v a
+</span><a href="#local-6989586621679103881"><span class="hs-identifier hs-var">needle</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; Int -&gt; Int -&gt; v a -&gt; v a
+</span><span class="hs-identifier hs-var">V.slice</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; v a -&gt; Int
+</span><span class="hs-identifier hs-var">V.length</span></span><span> </span><span class="annot"><span class="annottext">v a
+</span><a href="#local-6989586621679103880"><span class="hs-identifier hs-var">haystack</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; v a -&gt; Int
+</span><span class="hs-identifier hs-var">V.length</span></span><span> </span><span class="annot"><span class="annottext">v a
+</span><a href="#local-6989586621679103881"><span class="hs-identifier hs-var">needle</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-118"></span><span>                          </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; v a -&gt; Int
+</span><span class="hs-identifier hs-var">V.length</span></span><span> </span><span class="annot"><span class="annottext">v a
+</span><a href="#local-6989586621679103881"><span class="hs-identifier hs-var">needle</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-119"></span><span>                          </span><span class="annot"><span class="annottext">v a
+</span><a href="#local-6989586621679103880"><span class="hs-identifier hs-var">haystack</span></a></span><span>
+</span><span id="line-120"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; v a -&gt; Int
+</span><span class="hs-identifier hs-var">V.length</span></span><span> </span><span class="annot"><span class="annottext">v a
+</span><a href="#local-6989586621679103881"><span class="hs-identifier hs-var">needle</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">forall (v :: * -&gt; *) a. Vector v a =&gt; v a -&gt; Int
+</span><span class="hs-identifier hs-var">V.length</span></span><span> </span><span class="annot"><span class="annottext">v a
+</span><a href="#local-6989586621679103880"><span class="hs-identifier hs-var">haystack</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">v a
+</span><a href="#local-6989586621679103881"><span class="hs-identifier hs-var">needle</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">v a
+</span><a href="#local-6989586621679103880"><span class="hs-identifier hs-var">haystack</span></a></span><span>
+</span><span id="line-121"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-122"></span></pre></body></html>

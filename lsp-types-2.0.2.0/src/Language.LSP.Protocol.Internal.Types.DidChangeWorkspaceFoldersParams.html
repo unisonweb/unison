@@ -1,0 +1,164 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- THIS IS A GENERATED FILE, DO NOT EDIT</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-imports #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-matches #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-deprecations #-}</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.DidChangeWorkspaceFoldersParams</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Hashable</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html"><span class="hs-identifier">Language.LSP.Protocol.Utils.Misc</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prettyprinter</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Aeson.html"><span class="hs-identifier">Data.Row.Aeson</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Hashable.html"><span class="hs-identifier">Data.Row.Hashable</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Hashable</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.WorkspaceFoldersChangeEvent.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.WorkspaceFoldersChangeEvent</span></a></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html"><span class="hs-identifier">Language.LSP.Protocol.Types.Common</span></a></span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-comment">{-|
+The parameters of a `workspace/didChangeWorkspaceFolders` notification.
+-}</span><span>
+</span><span id="line-22"></span><span id="local-6989586621682204182"><span id="local-6989586621682204183"></span></span><span class="hs-keyword">data</span><span> </span><span id="DidChangeWorkspaceFoldersParams"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.DidChangeWorkspaceFoldersParams.html#DidChangeWorkspaceFoldersParams"><span class="hs-identifier hs-var">DidChangeWorkspaceFoldersParams</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="DidChangeWorkspaceFoldersParams"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.DidChangeWorkspaceFoldersParams.html#DidChangeWorkspaceFoldersParams"><span class="hs-identifier hs-var">DidChangeWorkspaceFoldersParams</span></a></span></span><span> </span><span>
+</span><span id="line-23"></span><span>  </span><span class="hs-special">{</span><span> </span><span class="hs-comment">{-|
+  The actual workspace folder change event.
+  -}</span><span>
+</span><span id="line-26"></span><span>  </span><span id="%24sel%3A_event%3ADidChangeWorkspaceFoldersParams"><span class="annot"><span class="annottext">DidChangeWorkspaceFoldersParams -&gt; WorkspaceFoldersChangeEvent
+</span><a href="Language.LSP.Protocol.Internal.Types.DidChangeWorkspaceFoldersParams.html#%24sel%3A_event%3ADidChangeWorkspaceFoldersParams"><span class="hs-identifier hs-var hs-var">_event</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.WorkspaceFoldersChangeEvent.html#WorkspaceFoldersChangeEvent"><span class="hs-identifier hs-type">Language.LSP.Protocol.Internal.Types.WorkspaceFoldersChangeEvent.WorkspaceFoldersChangeEvent</span></a></span><span>
+</span><span id="line-27"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682204170"><span id="local-6989586621682204172"><span id="local-6989586621682204178"><span class="annot"><span class="annottext">Int -&gt; DidChangeWorkspaceFoldersParams -&gt; ShowS
+[DidChangeWorkspaceFoldersParams] -&gt; ShowS
+DidChangeWorkspaceFoldersParams -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [DidChangeWorkspaceFoldersParams] -&gt; ShowS
+$cshowList :: [DidChangeWorkspaceFoldersParams] -&gt; ShowS
+show :: DidChangeWorkspaceFoldersParams -&gt; String
+$cshow :: DidChangeWorkspaceFoldersParams -&gt; String
+showsPrec :: Int -&gt; DidChangeWorkspaceFoldersParams -&gt; ShowS
+$cshowsPrec :: Int -&gt; DidChangeWorkspaceFoldersParams -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682204163"><span id="local-6989586621682204167"><span class="annot"><span class="annottext">DidChangeWorkspaceFoldersParams
+-&gt; DidChangeWorkspaceFoldersParams -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: DidChangeWorkspaceFoldersParams
+-&gt; DidChangeWorkspaceFoldersParams -&gt; Bool
+$c/= :: DidChangeWorkspaceFoldersParams
+-&gt; DidChangeWorkspaceFoldersParams -&gt; Bool
+== :: DidChangeWorkspaceFoldersParams
+-&gt; DidChangeWorkspaceFoldersParams -&gt; Bool
+$c== :: DidChangeWorkspaceFoldersParams
+-&gt; DidChangeWorkspaceFoldersParams -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682204140"><span id="local-6989586621682204142"><span id="local-6989586621682204145"><span id="local-6989586621682204148"><span id="local-6989586621682204151"><span id="local-6989586621682204154"><span id="local-6989586621682204158"><span class="annot"><span class="annottext">Eq DidChangeWorkspaceFoldersParams
+DidChangeWorkspaceFoldersParams
+-&gt; DidChangeWorkspaceFoldersParams -&gt; Bool
+DidChangeWorkspaceFoldersParams
+-&gt; DidChangeWorkspaceFoldersParams -&gt; Ordering
+DidChangeWorkspaceFoldersParams
+-&gt; DidChangeWorkspaceFoldersParams
+-&gt; DidChangeWorkspaceFoldersParams
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: DidChangeWorkspaceFoldersParams
+-&gt; DidChangeWorkspaceFoldersParams
+-&gt; DidChangeWorkspaceFoldersParams
+$cmin :: DidChangeWorkspaceFoldersParams
+-&gt; DidChangeWorkspaceFoldersParams
+-&gt; DidChangeWorkspaceFoldersParams
+max :: DidChangeWorkspaceFoldersParams
+-&gt; DidChangeWorkspaceFoldersParams
+-&gt; DidChangeWorkspaceFoldersParams
+$cmax :: DidChangeWorkspaceFoldersParams
+-&gt; DidChangeWorkspaceFoldersParams
+-&gt; DidChangeWorkspaceFoldersParams
+&gt;= :: DidChangeWorkspaceFoldersParams
+-&gt; DidChangeWorkspaceFoldersParams -&gt; Bool
+$c&gt;= :: DidChangeWorkspaceFoldersParams
+-&gt; DidChangeWorkspaceFoldersParams -&gt; Bool
+&gt; :: DidChangeWorkspaceFoldersParams
+-&gt; DidChangeWorkspaceFoldersParams -&gt; Bool
+$c&gt; :: DidChangeWorkspaceFoldersParams
+-&gt; DidChangeWorkspaceFoldersParams -&gt; Bool
+&lt;= :: DidChangeWorkspaceFoldersParams
+-&gt; DidChangeWorkspaceFoldersParams -&gt; Bool
+$c&lt;= :: DidChangeWorkspaceFoldersParams
+-&gt; DidChangeWorkspaceFoldersParams -&gt; Bool
+&lt; :: DidChangeWorkspaceFoldersParams
+-&gt; DidChangeWorkspaceFoldersParams -&gt; Bool
+$c&lt; :: DidChangeWorkspaceFoldersParams
+-&gt; DidChangeWorkspaceFoldersParams -&gt; Bool
+compare :: DidChangeWorkspaceFoldersParams
+-&gt; DidChangeWorkspaceFoldersParams -&gt; Ordering
+$ccompare :: DidChangeWorkspaceFoldersParams
+-&gt; DidChangeWorkspaceFoldersParams -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall x.
+Rep DidChangeWorkspaceFoldersParams x
+-&gt; DidChangeWorkspaceFoldersParams
+forall x.
+DidChangeWorkspaceFoldersParams
+-&gt; Rep DidChangeWorkspaceFoldersParams x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cto :: forall x.
+Rep DidChangeWorkspaceFoldersParams x
+-&gt; DidChangeWorkspaceFoldersParams
+$cfrom :: forall x.
+DidChangeWorkspaceFoldersParams
+-&gt; Rep DidChangeWorkspaceFoldersParams x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">anyclass</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682204134"><span class="annot"><span class="annottext">DidChangeWorkspaceFoldersParams -&gt; ()
+forall a. (a -&gt; ()) -&gt; NFData a
+rnf :: DidChangeWorkspaceFoldersParams -&gt; ()
+$crnf :: DidChangeWorkspaceFoldersParams -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682204127"><span id="local-6989586621682204129"><span class="annot"><span class="annottext">Eq DidChangeWorkspaceFoldersParams
+Int -&gt; DidChangeWorkspaceFoldersParams -&gt; Int
+DidChangeWorkspaceFoldersParams -&gt; Int
+forall a. Eq a -&gt; (Int -&gt; a -&gt; Int) -&gt; (a -&gt; Int) -&gt; Hashable a
+hash :: DidChangeWorkspaceFoldersParams -&gt; Int
+$chash :: DidChangeWorkspaceFoldersParams -&gt; Int
+hashWithSalt :: Int -&gt; DidChangeWorkspaceFoldersParams -&gt; Int
+$chashWithSalt :: Int -&gt; DidChangeWorkspaceFoldersParams -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Hashable</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621682204118"><span id="local-6989586621682204124"><span class="annot"><span class="annottext">forall ann. [DidChangeWorkspaceFoldersParams] -&gt; Doc ann
+forall ann. DidChangeWorkspaceFoldersParams -&gt; Doc ann
+forall a.
+(forall ann. a -&gt; Doc ann)
+-&gt; (forall ann. [a] -&gt; Doc ann) -&gt; Pretty a
+prettyList :: forall ann. [DidChangeWorkspaceFoldersParams] -&gt; Doc ann
+$cprettyList :: forall ann. [DidChangeWorkspaceFoldersParams] -&gt; Doc ann
+pretty :: forall ann. DidChangeWorkspaceFoldersParams -&gt; Doc ann
+$cpretty :: forall ann. DidChangeWorkspaceFoldersParams -&gt; Doc ann
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Pretty</span></span></span></span><span> </span><span class="hs-keyword">via</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html#ViaJSON"><span class="hs-identifier hs-type">ViaJSON</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.DidChangeWorkspaceFoldersParams.html#DidChangeWorkspaceFoldersParams"><span class="hs-identifier hs-type">DidChangeWorkspaceFoldersParams</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682204106"><span id="local-6989586621682204108"><span id="local-6989586621682204110"><span class="annot"><span class="hs-identifier hs-type">Aeson.ToJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.DidChangeWorkspaceFoldersParams.html#DidChangeWorkspaceFoldersParams"><span class="hs-identifier hs-type">DidChangeWorkspaceFoldersParams</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-33"></span><span>  </span><span id="local-6989586621682204096"><span class="annot"><span class="annottext">toJSON :: DidChangeWorkspaceFoldersParams -&gt; Value
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">toJSON</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.DidChangeWorkspaceFoldersParams.html#DidChangeWorkspaceFoldersParams"><span class="hs-identifier hs-type">DidChangeWorkspaceFoldersParams</span></a></span><span> </span><span id="local-6989586621682204094"><span class="annot"><span class="annottext">WorkspaceFoldersChangeEvent
+</span><a href="#local-6989586621682204094"><span class="hs-identifier hs-var">arg0</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">Aeson.object</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">concat</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>  </span><span class="hs-special">[</span><span class="hs-special">[</span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;event&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">Aeson..=</span></span><span> </span><span class="annot"><span class="annottext">WorkspaceFoldersChangeEvent
+</span><a href="#local-6989586621682204094"><span class="hs-identifier hs-var">arg0</span></a></span><span class="hs-special">]</span><span class="hs-special">]</span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682204088"><span class="annot"><span class="hs-identifier hs-type">Aeson.FromJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.DidChangeWorkspaceFoldersParams.html#DidChangeWorkspaceFoldersParams"><span class="hs-identifier hs-type">DidChangeWorkspaceFoldersParams</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-36"></span><span>  </span><span id="local-6989586621682204081"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser DidChangeWorkspaceFoldersParams
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">Aeson.withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;DidChangeWorkspaceFoldersParams&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621682204078"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682204078"><span class="hs-identifier hs-var">arg</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">WorkspaceFoldersChangeEvent -&gt; DidChangeWorkspaceFoldersParams
+</span><a href="Language.LSP.Protocol.Internal.Types.DidChangeWorkspaceFoldersParams.html#DidChangeWorkspaceFoldersParams"><span class="hs-identifier hs-var">DidChangeWorkspaceFoldersParams</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682204078"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">Aeson..:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;event&quot;</span></span><span>
+</span><span id="line-37"></span></pre></body></html>

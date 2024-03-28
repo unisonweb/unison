@@ -1,0 +1,185 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE GeneralizedNewtypeDeriving #-}</span><span>
+</span><span id="line-2"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Test.Hspec.Core.Clock</span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-3"></span><span>  </span><span class="annot"><a href="Test.Hspec.Core.Clock.html#Seconds"><span class="hs-identifier">Seconds</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-4"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Clock.html#toMilliseconds"><span class="hs-identifier">toMilliseconds</span></a></span><span>
+</span><span id="line-5"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Clock.html#toMicroseconds"><span class="hs-identifier">toMicroseconds</span></a></span><span>
+</span><span id="line-6"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Clock.html#getMonotonicTime"><span class="hs-identifier">getMonotonicTime</span></a></span><span>
+</span><span id="line-7"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Clock.html#measure"><span class="hs-identifier">measure</span></a></span><span>
+</span><span id="line-8"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Clock.html#sleep"><span class="hs-identifier">sleep</span></a></span><span>
+</span><span id="line-9"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Clock.html#timeout"><span class="hs-identifier">timeout</span></a></span><span>
+</span><span id="line-10"></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-11"></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Test.Hspec.Core.Compat.html"><span class="hs-identifier">Test.Hspec.Core.Compat</span></a></span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Text.Printf</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">System.Clock</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Concurrent</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">System.Timeout</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">System</span></span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">newtype</span><span> </span><span id="Seconds"><span class="annot"><a href="Test.Hspec.Core.Clock.html#Seconds"><span class="hs-identifier hs-var">Seconds</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Seconds"><span class="annot"><a href="Test.Hspec.Core.Clock.html#Seconds"><span class="hs-identifier hs-var">Seconds</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span>
+</span><span id="line-21"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679155677"><span id="local-6989586621679155682"><span class="annot"><span class="annottext">Seconds -&gt; Seconds -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: Seconds -&gt; Seconds -&gt; Bool
+$c/= :: Seconds -&gt; Seconds -&gt; Bool
+== :: Seconds -&gt; Seconds -&gt; Bool
+$c== :: Seconds -&gt; Seconds -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679155663"><span id="local-6989586621679155665"><span id="local-6989586621679155671"><span class="annot"><span class="annottext">Int -&gt; Seconds -&gt; ShowS
+[Seconds] -&gt; ShowS
+Seconds -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [Seconds] -&gt; ShowS
+$cshowList :: [Seconds] -&gt; ShowS
+show :: Seconds -&gt; String
+$cshow :: Seconds -&gt; String
+showsPrec :: Int -&gt; Seconds -&gt; ShowS
+$cshowsPrec :: Int -&gt; Seconds -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679155633"><span id="local-6989586621679155637"><span id="local-6989586621679155641"><span id="local-6989586621679155645"><span id="local-6989586621679155649"><span id="local-6989586621679155653"><span id="local-6989586621679155658"><span class="annot"><span class="annottext">Eq Seconds
+Seconds -&gt; Seconds -&gt; Bool
+Seconds -&gt; Seconds -&gt; Ordering
+Seconds -&gt; Seconds -&gt; Seconds
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: Seconds -&gt; Seconds -&gt; Seconds
+$cmin :: Seconds -&gt; Seconds -&gt; Seconds
+max :: Seconds -&gt; Seconds -&gt; Seconds
+$cmax :: Seconds -&gt; Seconds -&gt; Seconds
+&gt;= :: Seconds -&gt; Seconds -&gt; Bool
+$c&gt;= :: Seconds -&gt; Seconds -&gt; Bool
+&gt; :: Seconds -&gt; Seconds -&gt; Bool
+$c&gt; :: Seconds -&gt; Seconds -&gt; Bool
+&lt;= :: Seconds -&gt; Seconds -&gt; Bool
+$c&lt;= :: Seconds -&gt; Seconds -&gt; Bool
+&lt; :: Seconds -&gt; Seconds -&gt; Bool
+$c&lt; :: Seconds -&gt; Seconds -&gt; Bool
+compare :: Seconds -&gt; Seconds -&gt; Ordering
+$ccompare :: Seconds -&gt; Seconds -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679155603"><span id="local-6989586621679155607"><span id="local-6989586621679155611"><span id="local-6989586621679155615"><span id="local-6989586621679155619"><span id="local-6989586621679155623"><span id="local-6989586621679155627"><span class="annot"><span class="annottext">Integer -&gt; Seconds
+Seconds -&gt; Seconds
+Seconds -&gt; Seconds -&gt; Seconds
+forall a.
+(a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (Integer -&gt; a)
+-&gt; Num a
+fromInteger :: Integer -&gt; Seconds
+$cfromInteger :: Integer -&gt; Seconds
+signum :: Seconds -&gt; Seconds
+$csignum :: Seconds -&gt; Seconds
+abs :: Seconds -&gt; Seconds
+$cabs :: Seconds -&gt; Seconds
+negate :: Seconds -&gt; Seconds
+$cnegate :: Seconds -&gt; Seconds
+* :: Seconds -&gt; Seconds -&gt; Seconds
+$c* :: Seconds -&gt; Seconds -&gt; Seconds
+- :: Seconds -&gt; Seconds -&gt; Seconds
+$c- :: Seconds -&gt; Seconds -&gt; Seconds
++ :: Seconds -&gt; Seconds -&gt; Seconds
+$c+ :: Seconds -&gt; Seconds -&gt; Seconds
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Num</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679155587"><span id="local-6989586621679155591"><span id="local-6989586621679155595"><span class="annot"><span class="annottext">Num Seconds
+Rational -&gt; Seconds
+Seconds -&gt; Seconds
+Seconds -&gt; Seconds -&gt; Seconds
+forall a.
+Num a
+-&gt; (a -&gt; a -&gt; a) -&gt; (a -&gt; a) -&gt; (Rational -&gt; a) -&gt; Fractional a
+fromRational :: Rational -&gt; Seconds
+$cfromRational :: Rational -&gt; Seconds
+recip :: Seconds -&gt; Seconds
+$crecip :: Seconds -&gt; Seconds
+/ :: Seconds -&gt; Seconds -&gt; Seconds
+$c/ :: Seconds -&gt; Seconds -&gt; Seconds
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Fractional</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679155576"><span id="local-6989586621679155581"><span class="annot"><span class="annottext">Seconds -&gt; ModifierParser
+Seconds -&gt; FieldFormatter
+forall a.
+(a -&gt; FieldFormatter) -&gt; (a -&gt; ModifierParser) -&gt; PrintfArg a
+parseFormat :: Seconds -&gt; ModifierParser
+$cparseFormat :: Seconds -&gt; ModifierParser
+formatArg :: Seconds -&gt; FieldFormatter
+$cformatArg :: Seconds -&gt; FieldFormatter
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">PrintfArg</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="annot"><a href="Test.Hspec.Core.Clock.html#toMilliseconds"><span class="hs-identifier hs-type">toMilliseconds</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Clock.html#Seconds"><span class="hs-identifier hs-type">Seconds</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-24"></span><span id="toMilliseconds"><span class="annot"><span class="annottext">toMilliseconds :: Seconds -&gt; Int
+</span><a href="Test.Hspec.Core.Clock.html#toMilliseconds"><span class="hs-identifier hs-var hs-var">toMilliseconds</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.Hspec.Core.Clock.html#Seconds"><span class="hs-identifier hs-type">Seconds</span></a></span><span> </span><span id="local-6989586621679155571"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679155571"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (RealFrac a, Integral b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">floor</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679155571"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">1000</span></span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span class="annot"><a href="Test.Hspec.Core.Clock.html#toMicroseconds"><span class="hs-identifier hs-type">toMicroseconds</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Clock.html#Seconds"><span class="hs-identifier hs-type">Seconds</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-27"></span><span id="toMicroseconds"><span class="annot"><span class="annottext">toMicroseconds :: Seconds -&gt; Int
+</span><a href="Test.Hspec.Core.Clock.html#toMicroseconds"><span class="hs-identifier hs-var hs-var">toMicroseconds</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.Hspec.Core.Clock.html#Seconds"><span class="hs-identifier hs-type">Seconds</span></a></span><span> </span><span id="local-6989586621679155568"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679155568"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (RealFrac a, Integral b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">floor</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679155568"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">1000000</span></span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span class="annot"><a href="Test.Hspec.Core.Clock.html#getMonotonicTime"><span class="hs-identifier hs-type">getMonotonicTime</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Clock.html#Seconds"><span class="hs-identifier hs-type">Seconds</span></a></span><span>
+</span><span id="line-30"></span><span id="getMonotonicTime"><span class="annot"><span class="annottext">getMonotonicTime :: IO Seconds
+</span><a href="Test.Hspec.Core.Clock.html#getMonotonicTime"><span class="hs-identifier hs-var hs-var">getMonotonicTime</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-31"></span><span>  </span><span id="local-6989586621679155567"><span class="annot"><span class="annottext">TimeSpec
+</span><a href="#local-6989586621679155567"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Clock -&gt; IO TimeSpec
+</span><span class="hs-identifier hs-var">getTime</span></span><span> </span><span class="annot"><span class="annottext">Clock
+</span><span class="hs-identifier hs-var">Monotonic</span></span><span>
+</span><span id="line-32"></span><span>  </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Double -&gt; Seconds
+</span><a href="Test.Hspec.Core.Clock.html#Seconds"><span class="hs-identifier hs-var">Seconds</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">TimeSpec -&gt; Integer
+</span><span class="hs-identifier hs-var">toNanoSecs</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">TimeSpec
+</span><a href="#local-6989586621679155567"><span class="hs-identifier hs-var">t</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Fractional a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">/</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">1000000000</span></span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span id="local-6989586621679155718"><span class="annot"><a href="Test.Hspec.Core.Clock.html#measure"><span class="hs-identifier hs-type">measure</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679155718"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.Hspec.Core.Clock.html#Seconds"><span class="hs-identifier hs-type">Seconds</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679155718"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-35"></span><span id="measure"><span class="annot"><span class="annottext">measure :: forall a. IO a -&gt; IO (Seconds, a)
+</span><a href="Test.Hspec.Core.Clock.html#measure"><span class="hs-identifier hs-var hs-var">measure</span></a></span></span><span> </span><span id="local-6989586621679155556"><span class="annot"><span class="annottext">IO a
+</span><a href="#local-6989586621679155556"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-36"></span><span>  </span><span id="local-6989586621679155555"><span class="annot"><span class="annottext">Seconds
+</span><a href="#local-6989586621679155555"><span class="hs-identifier hs-var">t0</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO Seconds
+</span><a href="Test.Hspec.Core.Clock.html#getMonotonicTime"><span class="hs-identifier hs-var">getMonotonicTime</span></a></span><span>
+</span><span id="line-37"></span><span>  </span><span id="local-6989586621679155554"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679155554"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO a
+</span><a href="#local-6989586621679155556"><span class="hs-identifier hs-var">action</span></a></span><span>
+</span><span id="line-38"></span><span>  </span><span id="local-6989586621679155553"><span class="annot"><span class="annottext">Seconds
+</span><a href="#local-6989586621679155553"><span class="hs-identifier hs-var">t1</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO Seconds
+</span><a href="Test.Hspec.Core.Clock.html#getMonotonicTime"><span class="hs-identifier hs-var">getMonotonicTime</span></a></span><span>
+</span><span id="line-39"></span><span>  </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Seconds
+</span><a href="#local-6989586621679155553"><span class="hs-identifier hs-var">t1</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Seconds
+</span><a href="#local-6989586621679155555"><span class="hs-identifier hs-var">t0</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679155554"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span class="annot"><a href="Test.Hspec.Core.Clock.html#sleep"><span class="hs-identifier hs-type">sleep</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Clock.html#Seconds"><span class="hs-identifier hs-type">Seconds</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span id="sleep"><span class="annot"><span class="annottext">sleep :: Seconds -&gt; IO ()
+</span><a href="Test.Hspec.Core.Clock.html#sleep"><span class="hs-identifier hs-var hs-var">sleep</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; IO ()
+</span><span class="hs-identifier hs-var">threadDelay</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Seconds -&gt; Int
+</span><a href="Test.Hspec.Core.Clock.html#toMicroseconds"><span class="hs-identifier hs-var">toMicroseconds</span></a></span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span id="local-6989586621679155716"><span class="annot"><a href="Test.Hspec.Core.Clock.html#timeout"><span class="hs-identifier hs-type">timeout</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Clock.html#Seconds"><span class="hs-identifier hs-type">Seconds</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679155716"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679155716"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-45"></span><span id="timeout"><span class="annot"><span class="annottext">timeout :: forall a. Seconds -&gt; IO a -&gt; IO (Maybe a)
+</span><a href="Test.Hspec.Core.Clock.html#timeout"><span class="hs-identifier hs-var hs-var">timeout</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Int -&gt; IO a -&gt; IO (Maybe a)
+</span><span class="hs-identifier hs-var">System.timeout</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Seconds -&gt; Int
+</span><a href="Test.Hspec.Core.Clock.html#toMicroseconds"><span class="hs-identifier hs-var">toMicroseconds</span></a></span><span>
+</span><span id="line-46"></span></pre></body></html>

@@ -1,0 +1,593 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE RecordWildCards #-}</span><span>
+</span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">System.Process.Common</span><span>
+</span><span id="line-4"></span><span>    </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="System.Process.Common.html#CreateProcess"><span class="hs-identifier">CreateProcess</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-5"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Process.Common.html#CmdSpec"><span class="hs-identifier">CmdSpec</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-6"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Process.Common.html#StdStream"><span class="hs-identifier">StdStream</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Process.Common.html#ProcessHandle"><span class="hs-identifier">ProcessHandle</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-8"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Process.Common.html#ProcessHandle__"><span class="hs-identifier">ProcessHandle__</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-9"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Process.Common.html#ProcRetHandles"><span class="hs-identifier">ProcRetHandles</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Process.Common.html#withFilePathException"><span class="hs-identifier">withFilePathException</span></a></span><span>
+</span><span id="line-11"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Process.Common.html#PHANDLE"><span class="hs-identifier">PHANDLE</span></a></span><span>
+</span><span id="line-12"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/System-Posix-Types.html#GroupID"><span class="hs-identifier">GroupID</span></a></span><span>
+</span><span id="line-13"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/System-Posix-Types.html#UserID"><span class="hs-identifier">UserID</span></a></span><span>
+</span><span id="line-14"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Process.Common.html#modifyProcessHandle"><span class="hs-identifier">modifyProcessHandle</span></a></span><span>
+</span><span id="line-15"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Process.Common.html#withProcessHandle"><span class="hs-identifier">withProcessHandle</span></a></span><span>
+</span><span id="line-16"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Process.Common.html#fd_stdin"><span class="hs-identifier">fd_stdin</span></a></span><span>
+</span><span id="line-17"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Process.Common.html#fd_stdout"><span class="hs-identifier">fd_stdout</span></a></span><span>
+</span><span id="line-18"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Process.Common.html#fd_stderr"><span class="hs-identifier">fd_stderr</span></a></span><span>
+</span><span id="line-19"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Process.Common.html#mbFd"><span class="hs-identifier">mbFd</span></a></span><span>
+</span><span id="line-20"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Process.Common.html#mbPipe"><span class="hs-identifier">mbPipe</span></a></span><span>
+</span><span id="line-21"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Process.Common.html#pfdToHandle"><span class="hs-identifier">pfdToHandle</span></a></span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- Avoid a warning on Windows</span><span class="hs-cpp">
+#ifdef WINDOWS
+</span><span>    </span><span class="hs-special">,</span><span> </span><span class="hs-identifier">CGid</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-cpp">
+#else
+</span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/System-Posix-Types.html#CGid"><span class="hs-identifier">CGid</span></a></span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- WINIO is only available on GHC 8.12 and up.</span><span class="hs-cpp">
+#if defined(__IO_MANAGER_WINIO__)
+</span><span>    </span><span class="hs-special">,</span><span> </span><span class="hs-identifier">HANDLE</span><span>
+</span><span id="line-33"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="hs-identifier">mbHANDLE</span><span>
+</span><span id="line-34"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="hs-identifier">mbPipeHANDLE</span><span class="hs-cpp">
+#endif
+</span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Control-Concurrent.html#"><span class="hs-identifier">Control.Concurrent</span></a></span><span>
+</span><span id="line-39"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Control-Exception.html#"><span class="hs-identifier">Control.Exception</span></a></span><span>
+</span><span id="line-40"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Data-String.html#"><span class="hs-identifier">Data.String</span></a></span><span>
+</span><span id="line-41"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Foreign-Ptr.html#"><span class="hs-identifier">Foreign.Ptr</span></a></span><span>
+</span><span id="line-42"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Foreign-Storable.html#"><span class="hs-identifier">Foreign.Storable</span></a></span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/System-Posix-Internals.html#"><span class="hs-identifier">System.Posix.Internals</span></a></span><span>
+</span><span id="line-45"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-IO-Exception.html#"><span class="hs-identifier">GHC.IO.Exception</span></a></span><span>
+</span><span id="line-46"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-IO-Encoding.html#"><span class="hs-identifier">GHC.IO.Encoding</span></a></span><span>
+</span><span id="line-47"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-IO-FD.html#"><span class="hs-identifier">GHC.IO.FD</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">FD</span></span><span>
+</span><span id="line-48"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-IO-Device.html#"><span class="hs-identifier">GHC.IO.Device</span></a></span><span class="hs-cpp">
+#if defined(__IO_MANAGER_WINIO__)
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">GHC.IO.Handle.Windows</span><span>
+</span><span id="line-51"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">GHC.IO.Windows.Handle</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">fromHANDLE</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">Io</span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">NativeHandle</span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-IO-Handle-FD.html#"><span class="hs-identifier">GHC.IO.Handle.FD</span></a></span><span>
+</span><span id="line-54"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-IO-Handle-Internals.html#"><span class="hs-identifier">GHC.IO.Handle.Internals</span></a></span><span>
+</span><span id="line-55"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-IO-Handle-Types.html#"><span class="hs-identifier">GHC.IO.Handle.Types</span></a></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-IO-Handle-Types.html#ClosedHandle"><span class="hs-identifier">ClosedHandle</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-56"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/System-IO-Error.html#"><span class="hs-identifier">System.IO.Error</span></a></span><span>
+</span><span id="line-57"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Data-Typeable.html#"><span class="hs-identifier">Data.Typeable</span></a></span><span>
+</span><span id="line-58"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/System-IO.html#"><span class="hs-identifier">System.IO</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-IO-IOMode.html#IOMode"><span class="hs-identifier">IOMode</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span class="hs-comment">-- We do a minimal amount of CPP here to provide uniform data types across</span><span>
+</span><span id="line-61"></span><span class="hs-comment">-- Windows and POSIX.</span><span class="hs-cpp">
+#ifdef WINDOWS
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Word</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Word32</span><span class="hs-special">)</span><span>
+</span><span id="line-64"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">System.Win32.DebugApi</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">PHANDLE</span><span class="hs-special">)</span><span class="hs-cpp">
+#if defined(__IO_MANAGER_WINIO__)
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">System.Win32.Types</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">HANDLE</span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">#else
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/System-Posix-Types.html#"><span class="hs-identifier">System.Posix.Types</span></a></span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#ifdef WINDOWS
+</span><span class="hs-comment">-- Define some missing types for Windows compatibility. Note that these values</span><span>
+</span><span id="line-74"></span><span class="hs-comment">-- will never actually be used, as the setuid/setgid system calls are not</span><span>
+</span><span id="line-75"></span><span class="hs-comment">-- applicable on Windows. No value of this type will ever exist.</span><span>
+</span><span id="line-76"></span><span class="hs-keyword">newtype</span><span> </span><span class="hs-identifier">CGid</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">CGid</span><span> </span><span class="hs-identifier">Word32</span><span>
+</span><span id="line-77"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Show</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">Eq</span><span class="hs-special">)</span><span>
+</span><span id="line-78"></span><span class="hs-keyword">type</span><span> </span><span class="hs-identifier">GroupID</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">CGid</span><span>
+</span><span id="line-79"></span><span class="hs-keyword">type</span><span> </span><span class="hs-identifier">UserID</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">CGid</span><span class="hs-cpp">
+#else
+</span><span class="hs-keyword">type</span><span> </span><span id="PHANDLE"><span class="annot"><a href="System.Process.Common.html#PHANDLE"><span class="hs-identifier hs-var">PHANDLE</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/System-Posix-Types.html#CPid"><span class="hs-identifier hs-type">CPid</span></a></span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-84"></span><span class="hs-keyword">data</span><span> </span><span id="CreateProcess"><span class="annot"><a href="System.Process.Common.html#CreateProcess"><span class="hs-identifier hs-var">CreateProcess</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="CreateProcess"><span class="annot"><a href="System.Process.Common.html#CreateProcess"><span class="hs-identifier hs-var">CreateProcess</span></a></span></span><span class="hs-special">{</span><span>
+</span><span id="line-85"></span><span>  </span><span id="cmdspec"><span class="annot"><span class="annottext">CreateProcess -&gt; CmdSpec
+</span><a href="System.Process.Common.html#cmdspec"><span class="hs-identifier hs-var hs-var">cmdspec</span></a></span></span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.Process.Common.html#CmdSpec"><span class="hs-identifier hs-type">CmdSpec</span></a></span><span class="hs-special">,</span><span>                 </span><span class="hs-comment">-- ^ Executable &amp; arguments, or shell command.  If 'cwd' is 'Nothing', relative paths are resolved with respect to the current working directory.  If 'cwd' is provided, it is implementation-dependent whether relative paths are resolved with respect to 'cwd' or the current working directory, so absolute paths should be used to ensure portability.</span><span>
+</span><span id="line-86"></span><span>  </span><span id="cwd"><span class="annot"><span class="annottext">CreateProcess -&gt; Maybe FilePath
+</span><a href="System.Process.Common.html#cwd"><span class="hs-identifier hs-var hs-var">cwd</span></a></span></span><span>          </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Maybe"><span class="hs-identifier hs-type">Maybe</span></a></span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-IO.html#FilePath"><span class="hs-identifier hs-type">FilePath</span></a></span><span class="hs-special">,</span><span>          </span><span class="hs-comment">-- ^ Optional path to the working directory for the new process</span><span>
+</span><span id="line-87"></span><span>  </span><span id="env"><span class="annot"><span class="annottext">CreateProcess -&gt; Maybe [(FilePath, FilePath)]
+</span><a href="System.Process.Common.html#env"><span class="hs-identifier hs-var hs-var">env</span></a></span></span><span>          </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Maybe"><span class="hs-identifier hs-type">Maybe</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Base.html#String"><span class="hs-identifier hs-type">String</span></a></span><span class="hs-special">,</span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Base.html#String"><span class="hs-identifier hs-type">String</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span class="hs-special">,</span><span> </span><span class="hs-comment">-- ^ Optional environment (otherwise inherit from the current process)</span><span>
+</span><span id="line-88"></span><span>  </span><span id="std_in"><span class="annot"><span class="annottext">CreateProcess -&gt; StdStream
+</span><a href="System.Process.Common.html#std_in"><span class="hs-identifier hs-var hs-var">std_in</span></a></span></span><span>       </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.Process.Common.html#StdStream"><span class="hs-identifier hs-type">StdStream</span></a></span><span class="hs-special">,</span><span>               </span><span class="hs-comment">-- ^ How to determine stdin</span><span>
+</span><span id="line-89"></span><span>  </span><span id="std_out"><span class="annot"><span class="annottext">CreateProcess -&gt; StdStream
+</span><a href="System.Process.Common.html#std_out"><span class="hs-identifier hs-var hs-var">std_out</span></a></span></span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.Process.Common.html#StdStream"><span class="hs-identifier hs-type">StdStream</span></a></span><span class="hs-special">,</span><span>               </span><span class="hs-comment">-- ^ How to determine stdout</span><span>
+</span><span id="line-90"></span><span>  </span><span id="std_err"><span class="annot"><span class="annottext">CreateProcess -&gt; StdStream
+</span><a href="System.Process.Common.html#std_err"><span class="hs-identifier hs-var hs-var">std_err</span></a></span></span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.Process.Common.html#StdStream"><span class="hs-identifier hs-type">StdStream</span></a></span><span class="hs-special">,</span><span>               </span><span class="hs-comment">-- ^ How to determine stderr</span><span>
+</span><span id="line-91"></span><span>  </span><span id="close_fds"><span class="annot"><span class="annottext">CreateProcess -&gt; Bool
+</span><a href="System.Process.Common.html#close_fds"><span class="hs-identifier hs-var hs-var">close_fds</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">,</span><span>                    </span><span class="hs-comment">-- ^ Close all file descriptors except stdin, stdout and stderr in the new process (on Windows, only works if std_in, std_out, and std_err are all Inherit). This implementation will call close an every fd from 3 to the maximum of open files, which can be slow for high maximum of open files.</span><span>
+</span><span id="line-92"></span><span>  </span><span id="create_group"><span class="annot"><span class="annottext">CreateProcess -&gt; Bool
+</span><a href="System.Process.Common.html#create_group"><span class="hs-identifier hs-var hs-var">create_group</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">,</span><span>                    </span><span class="hs-comment">-- ^ Create a new process group</span><span>
+</span><span id="line-93"></span><span>  </span><span id="delegate_ctlc"><span class="annot"><span class="annottext">CreateProcess -&gt; Bool
+</span><a href="System.Process.Common.html#delegate_ctlc"><span class="hs-identifier hs-var hs-var">delegate_ctlc</span></a></span></span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">,</span><span>                    </span><span class="hs-comment">-- ^ Delegate control-C handling. Use this for interactive console processes to let them handle control-C themselves (see below for details).</span><span>
+</span><span id="line-94"></span><span>                                           </span><span class="hs-comment">--</span><span>
+</span><span id="line-95"></span><span>                                           </span><span class="hs-comment">--   On Windows this has no effect.</span><span>
+</span><span id="line-96"></span><span>                                           </span><span class="hs-comment">--</span><span>
+</span><span id="line-97"></span><span>                                           </span><span class="hs-comment">--   @since 1.2.0.0</span><span>
+</span><span id="line-98"></span><span>  </span><span id="detach_console"><span class="annot"><span class="annottext">CreateProcess -&gt; Bool
+</span><a href="System.Process.Common.html#detach_console"><span class="hs-identifier hs-var hs-var">detach_console</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">,</span><span>                  </span><span class="hs-comment">-- ^ Use the windows DETACHED_PROCESS flag when creating the process; does nothing on other platforms.</span><span>
+</span><span id="line-99"></span><span>                                           </span><span class="hs-comment">--</span><span>
+</span><span id="line-100"></span><span>                                           </span><span class="hs-comment">--   @since 1.3.0.0</span><span>
+</span><span id="line-101"></span><span>  </span><span id="create_new_console"><span class="annot"><span class="annottext">CreateProcess -&gt; Bool
+</span><a href="System.Process.Common.html#create_new_console"><span class="hs-identifier hs-var hs-var">create_new_console</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">,</span><span>              </span><span class="hs-comment">-- ^ Use the windows CREATE_NEW_CONSOLE flag when creating the process; does nothing on other platforms.</span><span>
+</span><span id="line-102"></span><span>                                           </span><span class="hs-comment">--</span><span>
+</span><span id="line-103"></span><span>                                           </span><span class="hs-comment">--   Default: @False@</span><span>
+</span><span id="line-104"></span><span>                                           </span><span class="hs-comment">--</span><span>
+</span><span id="line-105"></span><span>                                           </span><span class="hs-comment">--   @since 1.3.0.0</span><span>
+</span><span id="line-106"></span><span>  </span><span id="new_session"><span class="annot"><span class="annottext">CreateProcess -&gt; Bool
+</span><a href="System.Process.Common.html#new_session"><span class="hs-identifier hs-var hs-var">new_session</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">,</span><span>                     </span><span class="hs-comment">-- ^ Use posix setsid to start the new process in a new session; does nothing on other platforms.</span><span>
+</span><span id="line-107"></span><span>                                           </span><span class="hs-comment">--</span><span>
+</span><span id="line-108"></span><span>                                           </span><span class="hs-comment">--   @since 1.3.0.0</span><span>
+</span><span id="line-109"></span><span>  </span><span id="child_group"><span class="annot"><span class="annottext">CreateProcess -&gt; Maybe GroupID
+</span><a href="System.Process.Common.html#child_group"><span class="hs-identifier hs-var hs-var">child_group</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Maybe"><span class="hs-identifier hs-type">Maybe</span></a></span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/System-Posix-Types.html#GroupID"><span class="hs-identifier hs-type">GroupID</span></a></span><span class="hs-special">,</span><span>            </span><span class="hs-comment">-- ^ Use posix setgid to set child process's group id; does nothing on other platforms.</span><span>
+</span><span id="line-110"></span><span>                                           </span><span class="hs-comment">--</span><span>
+</span><span id="line-111"></span><span>                                           </span><span class="hs-comment">--   Default: @Nothing@</span><span>
+</span><span id="line-112"></span><span>                                           </span><span class="hs-comment">--</span><span>
+</span><span id="line-113"></span><span>                                           </span><span class="hs-comment">--   @since 1.4.0.0</span><span>
+</span><span id="line-114"></span><span>  </span><span id="child_user"><span class="annot"><span class="annottext">CreateProcess -&gt; Maybe UserID
+</span><a href="System.Process.Common.html#child_user"><span class="hs-identifier hs-var hs-var">child_user</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Maybe"><span class="hs-identifier hs-type">Maybe</span></a></span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/System-Posix-Types.html#UserID"><span class="hs-identifier hs-type">UserID</span></a></span><span class="hs-special">,</span><span>              </span><span class="hs-comment">-- ^ Use posix setuid to set child process's user id; does nothing on other platforms.</span><span>
+</span><span id="line-115"></span><span>                                           </span><span class="hs-comment">--</span><span>
+</span><span id="line-116"></span><span>                                           </span><span class="hs-comment">--   Default: @Nothing@</span><span>
+</span><span id="line-117"></span><span>                                           </span><span class="hs-comment">--</span><span>
+</span><span id="line-118"></span><span>                                           </span><span class="hs-comment">--   @since 1.4.0.0</span><span>
+</span><span id="line-119"></span><span>  </span><span id="use_process_jobs"><span class="annot"><span class="annottext">CreateProcess -&gt; Bool
+</span><a href="System.Process.Common.html#use_process_jobs"><span class="hs-identifier hs-var hs-var">use_process_jobs</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>                 </span><span class="hs-comment">-- ^ On Windows systems this flag indicates that we should wait for the entire process tree</span><span>
+</span><span id="line-120"></span><span>                                           </span><span class="hs-comment">--   to finish before unblocking. On POSIX systems this flag is ignored. See $exec-on-windows for details.</span><span>
+</span><span id="line-121"></span><span>                                           </span><span class="hs-comment">--</span><span>
+</span><span id="line-122"></span><span>                                           </span><span class="hs-comment">--   Default: @False@</span><span>
+</span><span id="line-123"></span><span>                                           </span><span class="hs-comment">--</span><span>
+</span><span id="line-124"></span><span>                                           </span><span class="hs-comment">--   @since 1.5.0.0</span><span>
+</span><span id="line-125"></span><span> </span><span class="hs-special">}</span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679038473"><span id="local-6989586621679038475"><span id="local-6989586621679038500"><span class="annot"><span class="annottext">Int -&gt; CreateProcess -&gt; ShowS
+[CreateProcess] -&gt; ShowS
+CreateProcess -&gt; FilePath
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; FilePath) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [CreateProcess] -&gt; ShowS
+$cshowList :: [CreateProcess] -&gt; ShowS
+show :: CreateProcess -&gt; FilePath
+$cshow :: CreateProcess -&gt; FilePath
+showsPrec :: Int -&gt; CreateProcess -&gt; ShowS
+$cshowsPrec :: Int -&gt; CreateProcess -&gt; ShowS
+</span><a href="../../base-4.16.4.0/src/GHC-Show.html#Show"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></a></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679038440"><span id="local-6989586621679038463"><span class="annot"><span class="annottext">CreateProcess -&gt; CreateProcess -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: CreateProcess -&gt; CreateProcess -&gt; Bool
+$c/= :: CreateProcess -&gt; CreateProcess -&gt; Bool
+== :: CreateProcess -&gt; CreateProcess -&gt; Bool
+$c== :: CreateProcess -&gt; CreateProcess -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-126"></span><span>
+</span><span id="line-127"></span><span class="hs-comment">-- | contains the handles returned by a call to createProcess_Internal</span><span>
+</span><span id="line-128"></span><span class="hs-keyword">data</span><span> </span><span id="ProcRetHandles"><span class="annot"><a href="System.Process.Common.html#ProcRetHandles"><span class="hs-identifier hs-var">ProcRetHandles</span></a></span></span><span>
+</span><span id="line-129"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="ProcRetHandles"><span class="annot"><a href="System.Process.Common.html#ProcRetHandles"><span class="hs-identifier hs-var">ProcRetHandles</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="hStdInput"><span class="annot"><span class="annottext">ProcRetHandles -&gt; Maybe Handle
+</span><a href="System.Process.Common.html#hStdInput"><span class="hs-identifier hs-var hs-var">hStdInput</span></a></span></span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Maybe"><span class="hs-identifier hs-type">Maybe</span></a></span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-IO-Handle-Types.html#Handle"><span class="hs-identifier hs-type">Handle</span></a></span><span>
+</span><span id="line-130"></span><span>                   </span><span class="hs-special">,</span><span> </span><span id="hStdOutput"><span class="annot"><span class="annottext">ProcRetHandles -&gt; Maybe Handle
+</span><a href="System.Process.Common.html#hStdOutput"><span class="hs-identifier hs-var hs-var">hStdOutput</span></a></span></span><span>     </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Maybe"><span class="hs-identifier hs-type">Maybe</span></a></span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-IO-Handle-Types.html#Handle"><span class="hs-identifier hs-type">Handle</span></a></span><span>
+</span><span id="line-131"></span><span>                   </span><span class="hs-special">,</span><span> </span><span id="hStdError"><span class="annot"><span class="annottext">ProcRetHandles -&gt; Maybe Handle
+</span><a href="System.Process.Common.html#hStdError"><span class="hs-identifier hs-var hs-var">hStdError</span></a></span></span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Maybe"><span class="hs-identifier hs-type">Maybe</span></a></span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-IO-Handle-Types.html#Handle"><span class="hs-identifier hs-type">Handle</span></a></span><span>
+</span><span id="line-132"></span><span>                   </span><span class="hs-special">,</span><span> </span><span id="procHandle"><span class="annot"><span class="annottext">ProcRetHandles -&gt; ProcessHandle
+</span><a href="System.Process.Common.html#procHandle"><span class="hs-identifier hs-var hs-var">procHandle</span></a></span></span><span>     </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.Process.Common.html#ProcessHandle"><span class="hs-identifier hs-type">ProcessHandle</span></a></span><span>
+</span><span id="line-133"></span><span>                   </span><span class="hs-special">}</span><span>
+</span><span id="line-134"></span><span>
+</span><span id="line-135"></span><span class="hs-keyword">data</span><span> </span><span id="CmdSpec"><span class="annot"><a href="System.Process.Common.html#CmdSpec"><span class="hs-identifier hs-var">CmdSpec</span></a></span></span><span>
+</span><span id="line-136"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="ShellCommand"><span class="annot"><a href="System.Process.Common.html#ShellCommand"><span class="hs-identifier hs-var">ShellCommand</span></a></span></span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Base.html#String"><span class="hs-identifier hs-type">String</span></a></span><span>
+</span><span id="line-137"></span><span>      </span><span class="hs-comment">-- ^ A command line to execute using the shell</span><span>
+</span><span id="line-138"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="RawCommand"><span class="annot"><a href="System.Process.Common.html#RawCommand"><span class="hs-identifier hs-var">RawCommand</span></a></span></span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-IO.html#FilePath"><span class="hs-identifier hs-type">FilePath</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Base.html#String"><span class="hs-identifier hs-type">String</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-139"></span><span>      </span><span class="hs-comment">-- ^ The name of an executable with a list of arguments</span><span>
+</span><span id="line-140"></span><span>      </span><span class="hs-comment">--</span><span>
+</span><span id="line-141"></span><span>      </span><span class="hs-comment">-- The 'FilePath' argument names the executable, and is interpreted</span><span>
+</span><span id="line-142"></span><span>      </span><span class="hs-comment">-- according to the platform's standard policy for searching for</span><span>
+</span><span id="line-143"></span><span>      </span><span class="hs-comment">-- executables. Specifically:</span><span>
+</span><span id="line-144"></span><span>      </span><span class="hs-comment">--</span><span>
+</span><span id="line-145"></span><span>      </span><span class="hs-comment">-- * on Unix systems the</span><span>
+</span><span id="line-146"></span><span>      </span><span class="hs-comment">--   &lt;http://pubs.opengroup.org/onlinepubs/9699919799/functions/execvp.html execvp(3)&gt;</span><span>
+</span><span id="line-147"></span><span>      </span><span class="hs-comment">--   semantics is used, where if the executable filename does not</span><span>
+</span><span id="line-148"></span><span>      </span><span class="hs-comment">--   contain a slash (@/@) then the @PATH@ environment variable is</span><span>
+</span><span id="line-149"></span><span>      </span><span class="hs-comment">--   searched for the executable.</span><span>
+</span><span id="line-150"></span><span>      </span><span class="hs-comment">--</span><span>
+</span><span id="line-151"></span><span>      </span><span class="hs-comment">-- * on Windows systems the Win32 @CreateProcess@ semantics is used.</span><span>
+</span><span id="line-152"></span><span>      </span><span class="hs-comment">--   Briefly: if the filename does not contain a path, then the</span><span>
+</span><span id="line-153"></span><span>      </span><span class="hs-comment">--   directory containing the parent executable is searched, followed</span><span>
+</span><span id="line-154"></span><span>      </span><span class="hs-comment">--   by the current directory, then some standard locations, and</span><span>
+</span><span id="line-155"></span><span>      </span><span class="hs-comment">--   finally the current @PATH@.  An @.exe@ extension is added if the</span><span>
+</span><span id="line-156"></span><span>      </span><span class="hs-comment">--   filename does not already have an extension.  For full details</span><span>
+</span><span id="line-157"></span><span>      </span><span class="hs-comment">--   see the</span><span>
+</span><span id="line-158"></span><span>      </span><span class="hs-comment">--   &lt;http://msdn.microsoft.com/en-us/library/windows/desktop/aa365527%28v=vs.85%29.aspx documentation&gt;</span><span>
+</span><span id="line-159"></span><span>      </span><span class="hs-comment">--   for the Windows @SearchPath@ API.</span><span>
+</span><span id="line-160"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679038413"><span id="local-6989586621679038415"><span id="local-6989586621679038423"><span class="annot"><span class="annottext">Int -&gt; CmdSpec -&gt; ShowS
+[CmdSpec] -&gt; ShowS
+CmdSpec -&gt; FilePath
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; FilePath) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [CmdSpec] -&gt; ShowS
+$cshowList :: [CmdSpec] -&gt; ShowS
+show :: CmdSpec -&gt; FilePath
+$cshow :: CmdSpec -&gt; FilePath
+showsPrec :: Int -&gt; CmdSpec -&gt; ShowS
+$cshowsPrec :: Int -&gt; CmdSpec -&gt; ShowS
+</span><a href="../../base-4.16.4.0/src/GHC-Show.html#Show"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></a></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679038405"><span id="local-6989586621679038411"><span class="annot"><span class="annottext">CmdSpec -&gt; CmdSpec -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: CmdSpec -&gt; CmdSpec -&gt; Bool
+$c/= :: CmdSpec -&gt; CmdSpec -&gt; Bool
+== :: CmdSpec -&gt; CmdSpec -&gt; Bool
+$c== :: CmdSpec -&gt; CmdSpec -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-161"></span><span>
+</span><span id="line-162"></span><span>
+</span><span id="line-163"></span><span class="hs-comment">-- | construct a `ShellCommand` from a string literal</span><span>
+</span><span id="line-164"></span><span class="hs-comment">--</span><span>
+</span><span id="line-165"></span><span class="hs-comment">-- @since 1.2.1.0</span><span>
+</span><span id="line-166"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Data-String.html#IsString"><span class="hs-identifier hs-type">IsString</span></a></span><span> </span><span class="annot"><a href="System.Process.Common.html#CmdSpec"><span class="hs-identifier hs-type">CmdSpec</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-167"></span><span>  </span><span id="local-6989586621679038401"><span class="annot"><span class="annottext">fromString :: FilePath -&gt; CmdSpec
+</span><a href="../../base-4.16.4.0/src/Data-String.html#fromString"><span class="hs-identifier hs-var hs-var hs-var hs-var">fromString</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; CmdSpec
+</span><a href="System.Process.Common.html#ShellCommand"><span class="hs-identifier hs-var">ShellCommand</span></a></span><span>
+</span><span id="line-168"></span><span>
+</span><span id="line-169"></span><span class="hs-keyword">data</span><span> </span><span id="StdStream"><span class="annot"><a href="System.Process.Common.html#StdStream"><span class="hs-identifier hs-var">StdStream</span></a></span></span><span>
+</span><span id="line-170"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="Inherit"><span class="annot"><a href="System.Process.Common.html#Inherit"><span class="hs-identifier hs-var">Inherit</span></a></span></span><span>                  </span><span class="hs-comment">-- ^ Inherit Handle from parent</span><span>
+</span><span id="line-171"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="UseHandle"><span class="annot"><a href="System.Process.Common.html#UseHandle"><span class="hs-identifier hs-var">UseHandle</span></a></span></span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-IO-Handle-Types.html#Handle"><span class="hs-identifier hs-type">Handle</span></a></span><span>         </span><span class="hs-comment">-- ^ Use the supplied Handle</span><span>
+</span><span id="line-172"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="CreatePipe"><span class="annot"><a href="System.Process.Common.html#CreatePipe"><span class="hs-identifier hs-var">CreatePipe</span></a></span></span><span>               </span><span class="hs-comment">-- ^ Create a new pipe.  The returned</span><span>
+</span><span id="line-173"></span><span>                             </span><span class="hs-comment">-- @Handle@ will use the default encoding</span><span>
+</span><span id="line-174"></span><span>                             </span><span class="hs-comment">-- and newline translation mode (just</span><span>
+</span><span id="line-175"></span><span>                             </span><span class="hs-comment">-- like @Handle@s created by @openFile@).</span><span>
+</span><span id="line-176"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="NoStream"><span class="annot"><a href="System.Process.Common.html#NoStream"><span class="hs-identifier hs-var">NoStream</span></a></span></span><span>                 </span><span class="hs-comment">-- ^ Close the stream's file descriptor without</span><span>
+</span><span id="line-177"></span><span>                             </span><span class="hs-comment">-- passing a Handle. On POSIX systems this may</span><span>
+</span><span id="line-178"></span><span>                             </span><span class="hs-comment">-- lead to strange behavior in the child process</span><span>
+</span><span id="line-179"></span><span>                             </span><span class="hs-comment">-- because attempting to read or write after the</span><span>
+</span><span id="line-180"></span><span>                             </span><span class="hs-comment">-- file has been closed throws an error. This</span><span>
+</span><span id="line-181"></span><span>                             </span><span class="hs-comment">-- should only be used with child processes that</span><span>
+</span><span id="line-182"></span><span>                             </span><span class="hs-comment">-- don't use the file descriptor at all. If you</span><span>
+</span><span id="line-183"></span><span>                             </span><span class="hs-comment">-- wish to ignore the child process's output you</span><span>
+</span><span id="line-184"></span><span>                             </span><span class="hs-comment">-- should either create a pipe and drain it</span><span>
+</span><span id="line-185"></span><span>                             </span><span class="hs-comment">-- manually or pass a @Handle@ that writes to</span><span>
+</span><span id="line-186"></span><span>                             </span><span class="hs-comment">-- @\/dev\/null@.</span><span>
+</span><span id="line-187"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679038391"><span id="local-6989586621679038395"><span class="annot"><span class="annottext">StdStream -&gt; StdStream -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: StdStream -&gt; StdStream -&gt; Bool
+$c/= :: StdStream -&gt; StdStream -&gt; Bool
+== :: StdStream -&gt; StdStream -&gt; Bool
+$c== :: StdStream -&gt; StdStream -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679038382"><span id="local-6989586621679038384"><span id="local-6989586621679038389"><span class="annot"><span class="annottext">Int -&gt; StdStream -&gt; ShowS
+[StdStream] -&gt; ShowS
+StdStream -&gt; FilePath
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; FilePath) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [StdStream] -&gt; ShowS
+$cshowList :: [StdStream] -&gt; ShowS
+show :: StdStream -&gt; FilePath
+$cshow :: StdStream -&gt; FilePath
+showsPrec :: Int -&gt; StdStream -&gt; ShowS
+$cshowsPrec :: Int -&gt; StdStream -&gt; ShowS
+</span><a href="../../base-4.16.4.0/src/GHC-Show.html#Show"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></a></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-188"></span><span>
+</span><span id="line-189"></span><span class="hs-comment">-- ----------------------------------------------------------------------------</span><span>
+</span><span id="line-190"></span><span class="hs-comment">-- ProcessHandle type</span><span>
+</span><span id="line-191"></span><span>
+</span><span id="line-192"></span><span class="hs-keyword">data</span><span> </span><span id="ProcessHandle__"><span class="annot"><a href="System.Process.Common.html#ProcessHandle__"><span class="hs-identifier hs-var">ProcessHandle__</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="OpenHandle"><span class="annot"><a href="System.Process.Common.html#OpenHandle"><span class="hs-identifier hs-var">OpenHandle</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="phdlProcessHandle"><span class="annot"><span class="annottext">ProcessHandle__ -&gt; PHANDLE
+</span><a href="System.Process.Common.html#phdlProcessHandle"><span class="hs-identifier hs-var hs-var">phdlProcessHandle</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.Process.Common.html#PHANDLE"><span class="hs-identifier hs-type">PHANDLE</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-193"></span><span>                     </span><span class="hs-glyph">|</span><span> </span><span id="OpenExtHandle"><span class="annot"><a href="System.Process.Common.html#OpenExtHandle"><span class="hs-identifier hs-var">OpenExtHandle</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="phdlProcessHandle"><span class="annot"><a href="System.Process.Common.html#phdlProcessHandle"><span class="hs-identifier hs-var">phdlProcessHandle</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.Process.Common.html#PHANDLE"><span class="hs-identifier hs-type">PHANDLE</span></a></span><span>
+</span><span id="line-194"></span><span>                                     </span><span class="hs-comment">-- ^ the process</span><span>
+</span><span id="line-195"></span><span>                                     </span><span class="hs-special">,</span><span> </span><span id="phdlJobHandle"><span class="annot"><span class="annottext">ProcessHandle__ -&gt; PHANDLE
+</span><a href="System.Process.Common.html#phdlJobHandle"><span class="hs-identifier hs-var hs-var">phdlJobHandle</span></a></span></span><span>     </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.Process.Common.html#PHANDLE"><span class="hs-identifier hs-type">PHANDLE</span></a></span><span>
+</span><span id="line-196"></span><span>                                     </span><span class="hs-comment">-- ^ the job containing the process and</span><span>
+</span><span id="line-197"></span><span>                                     </span><span class="hs-comment">-- its subprocesses</span><span>
+</span><span id="line-198"></span><span>                                     </span><span class="hs-special">}</span><span>
+</span><span id="line-199"></span><span>                     </span><span class="hs-glyph">|</span><span> </span><span id="ClosedHandle"><span class="annot"><a href="System.Process.Common.html#ClosedHandle"><span class="hs-identifier hs-var">ClosedHandle</span></a></span></span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-IO-Exception.html#ExitCode"><span class="hs-identifier hs-type">ExitCode</span></a></span><span>
+</span><span id="line-200"></span><span>
+</span><span id="line-201"></span><span class="hs-comment">{- | A handle to a process, which can be used to wait for termination
+     of the process using 'System.Process.waitForProcess'.
+
+     None of the process-creation functions in this library wait for
+     termination: they all return a 'ProcessHandle' which may be used
+     to wait for the process later.
+
+     On Windows a second wait method can be used to block for event
+     completion. This requires two handles. A process job handle and
+     a events handle to monitor.
+-}</span><span>
+</span><span id="line-212"></span><span class="hs-keyword">data</span><span> </span><span id="ProcessHandle"><span class="annot"><a href="System.Process.Common.html#ProcessHandle"><span class="hs-identifier hs-var">ProcessHandle</span></a></span></span><span>
+</span><span id="line-213"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="ProcessHandle"><span class="annot"><a href="System.Process.Common.html#ProcessHandle"><span class="hs-identifier hs-var">ProcessHandle</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="phandle"><span class="annot"><span class="annottext">ProcessHandle -&gt; MVar ProcessHandle__
+</span><a href="System.Process.Common.html#phandle"><span class="hs-identifier hs-var hs-var">phandle</span></a></span></span><span>          </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-MVar.html#MVar"><span class="hs-identifier hs-type">MVar</span></a></span><span> </span><span class="annot"><a href="System.Process.Common.html#ProcessHandle__"><span class="hs-identifier hs-type">ProcessHandle__</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-214"></span><span>                  </span><span class="hs-special">,</span><span> </span><span id="mb_delegate_ctlc"><span class="annot"><span class="annottext">ProcessHandle -&gt; Bool
+</span><a href="System.Process.Common.html#mb_delegate_ctlc"><span class="hs-identifier hs-var hs-var">mb_delegate_ctlc</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-215"></span><span>                  </span><span class="hs-special">,</span><span> </span><span id="waitpidLock"><span class="annot"><span class="annottext">ProcessHandle -&gt; MVar ()
+</span><a href="System.Process.Common.html#waitpidLock"><span class="hs-identifier hs-var hs-var">waitpidLock</span></a></span></span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-MVar.html#MVar"><span class="hs-identifier hs-type">MVar</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-216"></span><span>                  </span><span class="hs-special">}</span><span>
+</span><span id="line-217"></span><span>
+</span><span id="line-218"></span><span id="local-6989586621679038622"><span class="annot"><a href="System.Process.Common.html#withFilePathException"><span class="hs-identifier hs-type">withFilePathException</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-IO.html#FilePath"><span class="hs-identifier hs-type">FilePath</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679038622"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679038622"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-219"></span><span id="withFilePathException"><span class="annot"><span class="annottext">withFilePathException :: forall a. FilePath -&gt; IO a -&gt; IO a
+</span><a href="System.Process.Common.html#withFilePathException"><span class="hs-identifier hs-var hs-var">withFilePathException</span></a></span></span><span> </span><span id="local-6989586621679038369"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679038369"><span class="hs-identifier hs-var">fpath</span></a></span></span><span> </span><span id="local-6989586621679038368"><span class="annot"><span class="annottext">IO a
+</span><a href="#local-6989586621679038368"><span class="hs-identifier hs-var">act</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall e a. Exception e =&gt; (e -&gt; IO a) -&gt; IO a -&gt; IO a
+</span><a href="../../base-4.16.4.0/src/Control-Exception-Base.html#handle"><span class="hs-identifier hs-var">handle</span></a></span><span> </span><span class="annot"><span class="annottext">forall {a}. IOError -&gt; IO a
+</span><a href="#local-6989586621679038366"><span class="hs-identifier hs-var">mapEx</span></a></span><span> </span><span class="annot"><span class="annottext">IO a
+</span><a href="#local-6989586621679038368"><span class="hs-identifier hs-var">act</span></a></span><span>
+</span><span id="line-220"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-221"></span><span>    </span><span id="local-6989586621679038366"><span class="annot"><span class="annottext">mapEx :: IOError -&gt; IO a
+</span><a href="#local-6989586621679038366"><span class="hs-identifier hs-var hs-var">mapEx</span></a></span></span><span> </span><span id="local-6989586621679038365"><span class="annot"><span class="annottext">IOError
+</span><a href="#local-6989586621679038365"><span class="hs-identifier hs-var">ex</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {a}. IOError -&gt; IO a
+</span><a href="../../base-4.16.4.0/src/GHC-IO-Exception.html#ioError"><span class="hs-identifier hs-var">ioError</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IOError -&gt; FilePath -&gt; IOError
+</span><a href="../../base-4.16.4.0/src/System-IO-Error.html#ioeSetFileName"><span class="hs-identifier hs-var">ioeSetFileName</span></a></span><span> </span><span class="annot"><span class="annottext">IOError
+</span><a href="#local-6989586621679038365"><span class="hs-identifier hs-var">ex</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679038369"><span class="hs-identifier hs-var">fpath</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-222"></span><span>
+</span><span id="line-223"></span><span id="local-6989586621679038615"><span class="annot"><a href="System.Process.Common.html#modifyProcessHandle"><span class="hs-identifier hs-type">modifyProcessHandle</span></a></span><span>
+</span><span id="line-224"></span><span>        </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.Process.Common.html#ProcessHandle"><span class="hs-identifier hs-type">ProcessHandle</span></a></span><span>
+</span><span id="line-225"></span><span>        </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.Process.Common.html#ProcessHandle__"><span class="hs-identifier hs-type">ProcessHandle__</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.Process.Common.html#ProcessHandle__"><span class="hs-identifier hs-type">ProcessHandle__</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679038615"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-226"></span><span>        </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679038615"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-227"></span><span id="modifyProcessHandle"><span class="annot"><span class="annottext">modifyProcessHandle :: forall a.
+ProcessHandle
+-&gt; (ProcessHandle__ -&gt; IO (ProcessHandle__, a)) -&gt; IO a
+</span><a href="System.Process.Common.html#modifyProcessHandle"><span class="hs-identifier hs-var hs-var">modifyProcessHandle</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.Process.Common.html#ProcessHandle"><span class="hs-identifier hs-type">ProcessHandle</span></a></span><span> </span><span id="local-6989586621679038362"><span class="annot"><span class="annottext">MVar ProcessHandle__
+</span><a href="#local-6989586621679038362"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">MVar ()
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679038361"><span class="annot"><span class="annottext">ProcessHandle__ -&gt; IO (ProcessHandle__, a)
+</span><a href="#local-6989586621679038361"><span class="hs-identifier hs-var">io</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. MVar a -&gt; (a -&gt; IO (a, b)) -&gt; IO b
+</span><a href="../../base-4.16.4.0/src/Control-Concurrent-MVar.html#modifyMVar"><span class="hs-identifier hs-var">modifyMVar</span></a></span><span> </span><span class="annot"><span class="annottext">MVar ProcessHandle__
+</span><a href="#local-6989586621679038362"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">ProcessHandle__ -&gt; IO (ProcessHandle__, a)
+</span><a href="#local-6989586621679038361"><span class="hs-identifier hs-var">io</span></a></span><span>
+</span><span id="line-228"></span><span>
+</span><span id="line-229"></span><span id="local-6989586621679038611"><span class="annot"><a href="System.Process.Common.html#withProcessHandle"><span class="hs-identifier hs-type">withProcessHandle</span></a></span><span>
+</span><span id="line-230"></span><span>        </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.Process.Common.html#ProcessHandle"><span class="hs-identifier hs-type">ProcessHandle</span></a></span><span>
+</span><span id="line-231"></span><span>        </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.Process.Common.html#ProcessHandle__"><span class="hs-identifier hs-type">ProcessHandle__</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679038611"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-232"></span><span>        </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679038611"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-233"></span><span id="withProcessHandle"><span class="annot"><span class="annottext">withProcessHandle :: forall a. ProcessHandle -&gt; (ProcessHandle__ -&gt; IO a) -&gt; IO a
+</span><a href="System.Process.Common.html#withProcessHandle"><span class="hs-identifier hs-var hs-var">withProcessHandle</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.Process.Common.html#ProcessHandle"><span class="hs-identifier hs-type">ProcessHandle</span></a></span><span> </span><span id="local-6989586621679038359"><span class="annot"><span class="annottext">MVar ProcessHandle__
+</span><a href="#local-6989586621679038359"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">MVar ()
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679038358"><span class="annot"><span class="annottext">ProcessHandle__ -&gt; IO a
+</span><a href="#local-6989586621679038358"><span class="hs-identifier hs-var">io</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. MVar a -&gt; (a -&gt; IO b) -&gt; IO b
+</span><a href="../../base-4.16.4.0/src/Control-Concurrent-MVar.html#withMVar"><span class="hs-identifier hs-var">withMVar</span></a></span><span> </span><span class="annot"><span class="annottext">MVar ProcessHandle__
+</span><a href="#local-6989586621679038359"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">ProcessHandle__ -&gt; IO a
+</span><a href="#local-6989586621679038358"><span class="hs-identifier hs-var">io</span></a></span><span>
+</span><span id="line-234"></span><span>
+</span><span id="line-235"></span><span class="annot"><a href="System.Process.Common.html#fd_stdin"><span class="hs-identifier hs-type">fd_stdin</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Process.Common.html#fd_stdout"><span class="hs-identifier hs-type">fd_stdout</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Process.Common.html#fd_stderr"><span class="hs-identifier hs-type">fd_stderr</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/System-Posix-Internals.html#FD"><span class="hs-identifier hs-type">FD</span></a></span><span>
+</span><span id="line-236"></span><span id="fd_stdin"><span class="annot"><span class="annottext">fd_stdin :: FD
+</span><a href="System.Process.Common.html#fd_stdin"><span class="hs-identifier hs-var hs-var">fd_stdin</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FD
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-237"></span><span id="fd_stdout"><span class="annot"><span class="annottext">fd_stdout :: FD
+</span><a href="System.Process.Common.html#fd_stdout"><span class="hs-identifier hs-var hs-var">fd_stdout</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FD
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-238"></span><span id="fd_stderr"><span class="annot"><span class="annottext">fd_stderr :: FD
+</span><a href="System.Process.Common.html#fd_stderr"><span class="hs-identifier hs-var hs-var">fd_stderr</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FD
+</span><span class="hs-number">2</span></span><span>
+</span><span id="line-239"></span><span>
+</span><span id="line-240"></span><span class="annot"><a href="System.Process.Common.html#mbFd"><span class="hs-identifier hs-type">mbFd</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Base.html#String"><span class="hs-identifier hs-type">String</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/System-Posix-Internals.html#FD"><span class="hs-identifier hs-type">FD</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="System.Process.Common.html#StdStream"><span class="hs-identifier hs-type">StdStream</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/System-Posix-Internals.html#FD"><span class="hs-identifier hs-type">FD</span></a></span><span>
+</span><span id="line-241"></span><span id="mbFd"><span class="annot"><span class="annottext">mbFd :: FilePath -&gt; FD -&gt; StdStream -&gt; IO FD
+</span><a href="System.Process.Common.html#mbFd"><span class="hs-identifier hs-var hs-var">mbFd</span></a></span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-identifier">_</span></span><span>   </span><span id="local-6989586621679038356"><span class="annot"><span class="annottext">FD
+</span><a href="#local-6989586621679038356"><span class="hs-identifier hs-var">_std</span></a></span></span><span> </span><span class="annot"><span class="annottext">StdStream
+</span><a href="System.Process.Common.html#CreatePipe"><span class="hs-identifier hs-var">CreatePipe</span></a></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#return"><span class="hs-identifier hs-var">return</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">-</span><span class="annot"><span class="annottext">FD
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span>
+</span><span id="line-242"></span><span class="annot"><a href="System.Process.Common.html#mbFd"><span class="hs-identifier hs-var">mbFd</span></a></span><span> </span><span id="local-6989586621679038355"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679038355"><span class="hs-identifier hs-var">_fun</span></a></span></span><span> </span><span id="local-6989586621679038354"><span class="annot"><span class="annottext">FD
+</span><a href="#local-6989586621679038354"><span class="hs-identifier hs-var">std</span></a></span></span><span> </span><span class="annot"><span class="annottext">StdStream
+</span><a href="System.Process.Common.html#Inherit"><span class="hs-identifier hs-var">Inherit</span></a></span><span>         </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#return"><span class="hs-identifier hs-var">return</span></a></span><span> </span><span class="annot"><span class="annottext">FD
+</span><a href="#local-6989586621679038354"><span class="hs-identifier hs-var">std</span></a></span><span>
+</span><span id="line-243"></span><span class="annot"><a href="System.Process.Common.html#mbFd"><span class="hs-identifier hs-var">mbFd</span></a></span><span> </span><span id="local-6989586621679038353"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679038353"><span class="hs-identifier hs-var">_fn</span></a></span></span><span> </span><span id="local-6989586621679038352"><span class="annot"><span class="annottext">FD
+</span><a href="#local-6989586621679038352"><span class="hs-identifier hs-var">_std</span></a></span></span><span> </span><span class="annot"><span class="annottext">StdStream
+</span><a href="System.Process.Common.html#NoStream"><span class="hs-identifier hs-var">NoStream</span></a></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#return"><span class="hs-identifier hs-var">return</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">-</span><span class="annot"><span class="annottext">FD
+</span><span class="hs-number">2</span></span><span class="hs-special">)</span><span>
+</span><span id="line-244"></span><span class="annot"><a href="System.Process.Common.html#mbFd"><span class="hs-identifier hs-var">mbFd</span></a></span><span> </span><span id="local-6989586621679038351"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679038351"><span class="hs-identifier hs-var">fun</span></a></span></span><span> </span><span id="local-6989586621679038350"><span class="annot"><span class="annottext">FD
+</span><a href="#local-6989586621679038350"><span class="hs-identifier hs-var">_std</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.Process.Common.html#UseHandle"><span class="hs-identifier hs-type">UseHandle</span></a></span><span> </span><span id="local-6989586621679038349"><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621679038349"><span class="hs-identifier hs-var">hdl</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-245"></span><span>  </span><span class="annot"><span class="annottext">forall a.
+FilePath -&gt; Handle -&gt; (Handle__ -&gt; IO (Handle__, a)) -&gt; IO a
+</span><a href="../../base-4.16.4.0/src/GHC-IO-Handle-Internals.html#withHandle"><span class="hs-identifier hs-var">withHandle</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679038351"><span class="hs-identifier hs-var">fun</span></a></span><span> </span><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621679038349"><span class="hs-identifier hs-var">hdl</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="hs-glyph">\</span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-IO-Handle-Types.html#Handle__"><span class="hs-identifier hs-type">Handle__</span></a></span><span class="hs-special">{</span><span class="annot"><span class="annottext">haDevice :: ()
+</span><a href="../../base-4.16.4.0/src/GHC-IO-Handle-Types.html#haDevice"><span class="hs-identifier hs-var">haDevice</span></a></span><span class="hs-glyph">=</span><span id="local-6989586621679038330"><span class="annot"><span class="annottext">dev
+</span><a href="#local-6989586621679038330"><span class="hs-identifier hs-var">dev</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679038318"><span id="local-6989586621679038319"><span id="local-6989586621679038320"><span id="local-6989586621679038321"><span id="local-6989586621679038322"><span id="local-6989586621679038323"><span id="local-6989586621679038324"><span id="local-6989586621679038325"><span id="local-6989586621679038326"><span id="local-6989586621679038327"><span id="local-6989586621679038328"><span id="local-6989586621679038329"><span class="annot"><span class="annottext">Maybe TextEncoding
+Maybe (TextEncoder enc_state)
+Maybe (TextDecoder dec_state)
+Maybe (MVar Handle__)
+Newline
+HandleType
+BufferMode
+IORef (dec_state, Buffer Word8)
+IORef (BufferList Char)
+IORef (Buffer Char)
+IORef (Buffer Word8)
+haBufferMode :: Handle__ -&gt; BufferMode
+haBuffers :: Handle__ -&gt; IORef (BufferList Char)
+haByteBuffer :: Handle__ -&gt; IORef (Buffer Word8)
+haCharBuffer :: Handle__ -&gt; IORef (Buffer Char)
+haCodec :: Handle__ -&gt; Maybe TextEncoding
+haDecoder :: ()
+haEncoder :: ()
+haInputNL :: Handle__ -&gt; Newline
+haLastDecode :: ()
+haOtherSide :: Handle__ -&gt; Maybe (MVar Handle__)
+haOutputNL :: Handle__ -&gt; Newline
+haType :: Handle__ -&gt; HandleType
+haOtherSide :: Maybe (MVar Handle__)
+haOutputNL :: Newline
+haInputNL :: Newline
+haCodec :: Maybe TextEncoding
+haDecoder :: Maybe (TextDecoder dec_state)
+haEncoder :: Maybe (TextEncoder enc_state)
+haBuffers :: IORef (BufferList Char)
+haCharBuffer :: IORef (Buffer Char)
+haLastDecode :: IORef (dec_state, Buffer Word8)
+haBufferMode :: BufferMode
+haByteBuffer :: IORef (Buffer Word8)
+haType :: HandleType
+</span><a href="../../base-4.16.4.0/src/GHC-IO-Handle-Types.html#haBufferMode"><span class="hs-glyph hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">..</span></a></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-246"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">forall a b. (Typeable a, Typeable b) =&gt; a -&gt; Maybe b
+</span><a href="../../base-4.16.4.0/src/Data-Typeable.html#cast"><span class="hs-identifier hs-var">cast</span></a></span><span> </span><span class="annot"><span class="annottext">dev
+</span><a href="#local-6989586621679038330"><span class="hs-identifier hs-var">dev</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-247"></span><span>      </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Just"><span class="hs-identifier hs-type">Just</span></a></span><span> </span><span id="local-6989586621679038304"><span class="annot"><span class="annottext">FD
+</span><a href="#local-6989586621679038304"><span class="hs-identifier hs-var">fd</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-248"></span><span>         </span><span class="hs-comment">-- clear the O_NONBLOCK flag on this FD, if it is set, since</span><span>
+</span><span id="line-249"></span><span>         </span><span class="hs-comment">-- we're exposing it externally (see #3316)</span><span>
+</span><span id="line-250"></span><span>         </span><span id="local-6989586621679038303"><span class="annot"><span class="annottext">FD
+</span><a href="#local-6989586621679038303"><span class="hs-identifier hs-var">fd'</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">FD -&gt; Bool -&gt; IO FD
+</span><a href="../../base-4.16.4.0/src/GHC-IO-FD.html#setNonBlockingMode"><span class="hs-identifier hs-var">FD.setNonBlockingMode</span></a></span><span> </span><span class="annot"><span class="annottext">FD
+</span><a href="#local-6989586621679038304"><span class="hs-identifier hs-var">fd</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-251"></span><span>         </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#return"><span class="hs-identifier hs-var">return</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-IO-Handle-Types.html#Handle__"><span class="hs-identifier hs-type">Handle__</span></a></span><span class="hs-special">{</span><span class="annot"><span class="annottext">haDevice :: FD
+</span><a href="../../base-4.16.4.0/src/GHC-IO-Handle-Types.html#haDevice"><span class="hs-identifier hs-var">haDevice</span></a></span><span class="hs-glyph">=</span><span class="annot"><span class="annottext">FD
+</span><a href="#local-6989586621679038303"><span class="hs-identifier hs-var">fd'</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Maybe TextEncoding
+Maybe (TextEncoder enc_state)
+Maybe (TextDecoder dec_state)
+Maybe (MVar Handle__)
+Newline
+HandleType
+BufferMode
+IORef (dec_state, Buffer Word8)
+IORef (BufferList Char)
+IORef (Buffer Char)
+IORef (Buffer Word8)
+haBufferMode :: BufferMode
+haBuffers :: IORef (BufferList Char)
+haByteBuffer :: IORef (Buffer Word8)
+haCharBuffer :: IORef (Buffer Char)
+haCodec :: Maybe TextEncoding
+haDecoder :: Maybe (TextDecoder dec_state)
+haEncoder :: Maybe (TextEncoder enc_state)
+haInputNL :: Newline
+haLastDecode :: IORef (dec_state, Buffer Word8)
+haOtherSide :: Maybe (MVar Handle__)
+haOutputNL :: Newline
+haType :: HandleType
+haOtherSide :: Maybe (MVar Handle__)
+haOutputNL :: Newline
+haInputNL :: Newline
+haCodec :: Maybe TextEncoding
+haDecoder :: Maybe (TextDecoder dec_state)
+haEncoder :: Maybe (TextEncoder enc_state)
+haBuffers :: IORef (BufferList Char)
+haCharBuffer :: IORef (Buffer Char)
+haLastDecode :: IORef (dec_state, Buffer Word8)
+haBufferMode :: BufferMode
+haByteBuffer :: IORef (Buffer Word8)
+haType :: HandleType
+</span><a href="../../base-4.16.4.0/src/GHC-IO-Handle-Types.html#haBufferMode"><span class="hs-glyph hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">..</span></a></span><span class="hs-special">}</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">FD -&gt; FD
+</span><a href="../../base-4.16.4.0/src/GHC-IO-FD.html#fdFD"><span class="hs-identifier hs-var">FD.fdFD</span></a></span><span> </span><span class="annot"><span class="annottext">FD
+</span><a href="#local-6989586621679038303"><span class="hs-identifier hs-var">fd'</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-252"></span><span>      </span><span class="annot"><span class="annottext">Maybe FD
+</span><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Nothing"><span class="hs-identifier hs-var">Nothing</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-253"></span><span>          </span><span class="annot"><span class="annottext">forall {a}. IOError -&gt; IO a
+</span><a href="../../base-4.16.4.0/src/GHC-IO-Exception.html#ioError"><span class="hs-identifier hs-var">ioError</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IOErrorType
+-&gt; FilePath -&gt; Maybe Handle -&gt; Maybe FilePath -&gt; IOError
+</span><a href="../../base-4.16.4.0/src/System-IO-Error.html#mkIOError"><span class="hs-identifier hs-var">mkIOError</span></a></span><span> </span><span class="annot"><span class="annottext">IOErrorType
+</span><a href="../../base-4.16.4.0/src/System-IO-Error.html#illegalOperationErrorType"><span class="hs-identifier hs-var">illegalOperationErrorType</span></a></span><span>
+</span><span id="line-254"></span><span>                      </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;createProcess&quot;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Just"><span class="hs-identifier hs-var">Just</span></a></span><span> </span><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621679038349"><span class="hs-identifier hs-var">hdl</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Nothing"><span class="hs-identifier hs-var">Nothing</span></a></span><span>
+</span><span id="line-255"></span><span>                   </span><span class="annot"><span class="annottext">IOError -&gt; FilePath -&gt; IOError
+</span><a href="../../base-4.16.4.0/src/System-IO-Error.html#ioeSetErrorString"><span class="hs-operator hs-var">`ioeSetErrorString`</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;handle is not a file descriptor&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-256"></span><span>
+</span><span id="line-257"></span><span class="annot"><a href="System.Process.Common.html#mbPipe"><span class="hs-identifier hs-type">mbPipe</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.Process.Common.html#StdStream"><span class="hs-identifier hs-type">StdStream</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Ptr.html#Ptr"><span class="hs-identifier hs-type">Ptr</span></a></span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/System-Posix-Internals.html#FD"><span class="hs-identifier hs-type">FD</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-IO-IOMode.html#IOMode"><span class="hs-identifier hs-type">IOMode</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Maybe"><span class="hs-identifier hs-type">Maybe</span></a></span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-IO-Handle-Types.html#Handle"><span class="hs-identifier hs-type">Handle</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-258"></span><span id="mbPipe"><span class="annot"><span class="annottext">mbPipe :: StdStream -&gt; Ptr FD -&gt; IOMode -&gt; IO (Maybe Handle)
+</span><a href="System.Process.Common.html#mbPipe"><span class="hs-identifier hs-var hs-var">mbPipe</span></a></span></span><span> </span><span class="annot"><span class="annottext">StdStream
+</span><a href="System.Process.Common.html#CreatePipe"><span class="hs-identifier hs-var">CreatePipe</span></a></span><span> </span><span id="local-6989586621679038297"><span class="annot"><span class="annottext">Ptr FD
+</span><a href="#local-6989586621679038297"><span class="hs-identifier hs-var">pfd</span></a></span></span><span>  </span><span id="local-6989586621679038296"><span class="annot"><span class="annottext">IOMode
+</span><a href="#local-6989586621679038296"><span class="hs-identifier hs-var">mode</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#fmap"><span class="hs-identifier hs-var">fmap</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Just"><span class="hs-identifier hs-var">Just</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr FD -&gt; IOMode -&gt; IO Handle
+</span><a href="System.Process.Common.html#pfdToHandle"><span class="hs-identifier hs-var">pfdToHandle</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr FD
+</span><a href="#local-6989586621679038297"><span class="hs-identifier hs-var">pfd</span></a></span><span> </span><span class="annot"><span class="annottext">IOMode
+</span><a href="#local-6989586621679038296"><span class="hs-identifier hs-var">mode</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-259"></span><span class="annot"><a href="System.Process.Common.html#mbPipe"><span class="hs-identifier hs-var">mbPipe</span></a></span><span> </span><span id="local-6989586621679038295"><span class="annot"><span class="annottext">StdStream
+</span><a href="#local-6989586621679038295"><span class="hs-identifier hs-var">_std</span></a></span></span><span>      </span><span id="local-6989586621679038294"><span class="annot"><span class="annottext">Ptr FD
+</span><a href="#local-6989586621679038294"><span class="hs-identifier hs-var">_pfd</span></a></span></span><span> </span><span id="local-6989586621679038293"><span class="annot"><span class="annottext">IOMode
+</span><a href="#local-6989586621679038293"><span class="hs-identifier hs-var">_mode</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#return"><span class="hs-identifier hs-var">return</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Nothing"><span class="hs-identifier hs-var">Nothing</span></a></span><span>
+</span><span id="line-260"></span><span>
+</span><span id="line-261"></span><span class="annot"><a href="System.Process.Common.html#pfdToHandle"><span class="hs-identifier hs-type">pfdToHandle</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Ptr.html#Ptr"><span class="hs-identifier hs-type">Ptr</span></a></span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/System-Posix-Internals.html#FD"><span class="hs-identifier hs-type">FD</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-IO-IOMode.html#IOMode"><span class="hs-identifier hs-type">IOMode</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-IO-Handle-Types.html#Handle"><span class="hs-identifier hs-type">Handle</span></a></span><span>
+</span><span id="line-262"></span><span id="pfdToHandle"><span class="annot"><span class="annottext">pfdToHandle :: Ptr FD -&gt; IOMode -&gt; IO Handle
+</span><a href="System.Process.Common.html#pfdToHandle"><span class="hs-identifier hs-var hs-var">pfdToHandle</span></a></span></span><span> </span><span id="local-6989586621679038292"><span class="annot"><span class="annottext">Ptr FD
+</span><a href="#local-6989586621679038292"><span class="hs-identifier hs-var">pfd</span></a></span></span><span> </span><span id="local-6989586621679038291"><span class="annot"><span class="annottext">IOMode
+</span><a href="#local-6989586621679038291"><span class="hs-identifier hs-var">mode</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-263"></span><span>  </span><span id="local-6989586621679038290"><span class="annot"><span class="annottext">FD
+</span><a href="#local-6989586621679038290"><span class="hs-identifier hs-var">fd</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a. Storable a =&gt; Ptr a -&gt; IO a
+</span><a href="../../base-4.16.4.0/src/Foreign-Storable.html#peek"><span class="hs-identifier hs-var">peek</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr FD
+</span><a href="#local-6989586621679038292"><span class="hs-identifier hs-var">pfd</span></a></span><span>
+</span><span id="line-264"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679038286"><span class="annot"><span class="annottext">filepath :: FilePath
+</span><a href="#local-6989586621679038286"><span class="hs-identifier hs-var hs-var">filepath</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;fd:&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%2B%2B"><span class="hs-operator hs-var">++</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Show a =&gt; a -&gt; FilePath
+</span><a href="../../base-4.16.4.0/src/GHC-Show.html#show"><span class="hs-identifier hs-var">show</span></a></span><span> </span><span class="annot"><span class="annottext">FD
+</span><a href="#local-6989586621679038290"><span class="hs-identifier hs-var">fd</span></a></span><span>
+</span><span id="line-265"></span><span>  </span><span class="hs-special">(</span><span id="local-6989586621679038284"><span class="annot"><span class="annottext">FD
+</span><a href="#local-6989586621679038284"><span class="hs-identifier hs-var">fD</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679038283"><span class="annot"><span class="annottext">IODeviceType
+</span><a href="#local-6989586621679038283"><span class="hs-identifier hs-var">fd_type</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">FD
+-&gt; IOMode
+-&gt; Maybe (IODeviceType, CDev, CIno)
+-&gt; Bool
+-&gt; Bool
+-&gt; IO (FD, IODeviceType)
+</span><a href="../../base-4.16.4.0/src/GHC-IO-FD.html#mkFD"><span class="hs-identifier hs-var">FD.mkFD</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Real.html#fromIntegral"><span class="hs-identifier hs-var">fromIntegral</span></a></span><span> </span><span class="annot"><span class="annottext">FD
+</span><a href="#local-6989586621679038290"><span class="hs-identifier hs-var">fd</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">IOMode
+</span><a href="#local-6989586621679038291"><span class="hs-identifier hs-var">mode</span></a></span><span>
+</span><span id="line-266"></span><span>                       </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Just"><span class="hs-identifier hs-var">Just</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IODeviceType
+</span><a href="../../base-4.16.4.0/src/GHC-IO-Device.html#Stream"><span class="hs-identifier hs-var">Stream</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">CDev
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">CIno
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-comment">-- avoid calling fstat()</span><span>
+</span><span id="line-267"></span><span>                       </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="hs-comment">{-is_socket-}</span><span>
+</span><span id="line-268"></span><span>                       </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="hs-comment">{-non-blocking-}</span><span>
+</span><span id="line-269"></span><span>  </span><span id="local-6989586621679038280"><span class="annot"><span class="annottext">FD
+</span><a href="#local-6989586621679038280"><span class="hs-identifier hs-var">fD'</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">FD -&gt; Bool -&gt; IO FD
+</span><a href="../../base-4.16.4.0/src/GHC-IO-FD.html#setNonBlockingMode"><span class="hs-identifier hs-var">FD.setNonBlockingMode</span></a></span><span> </span><span class="annot"><span class="annottext">FD
+</span><a href="#local-6989586621679038284"><span class="hs-identifier hs-var">fD</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span> </span><span class="hs-comment">-- see #3316</span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ &gt;= 704
+</span><span>  </span><span id="local-6989586621679038279"><span class="annot"><span class="annottext">TextEncoding
+</span><a href="#local-6989586621679038279"><span class="hs-identifier hs-var">enc</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO TextEncoding
+</span><a href="../../base-4.16.4.0/src/GHC-IO-Encoding.html#getLocaleEncoding"><span class="hs-identifier hs-var">getLocaleEncoding</span></a></span><span class="hs-cpp">
+#else
+</span><span>  </span><span class="hs-keyword">let</span><span> </span><span class="hs-identifier">enc</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">localeEncoding</span><span class="hs-cpp">
+#endif
+</span><span>  </span><span class="annot"><span class="annottext">FD
+-&gt; IODeviceType
+-&gt; FilePath
+-&gt; IOMode
+-&gt; Bool
+-&gt; Maybe TextEncoding
+-&gt; IO Handle
+</span><a href="../../base-4.16.4.0/src/GHC-IO-Handle-FD.html#mkHandleFromFD"><span class="hs-identifier hs-var">mkHandleFromFD</span></a></span><span> </span><span class="annot"><span class="annottext">FD
+</span><a href="#local-6989586621679038280"><span class="hs-identifier hs-var">fD'</span></a></span><span> </span><span class="annot"><span class="annottext">IODeviceType
+</span><a href="#local-6989586621679038283"><span class="hs-identifier hs-var">fd_type</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679038286"><span class="hs-identifier hs-var">filepath</span></a></span><span> </span><span class="annot"><span class="annottext">IOMode
+</span><a href="#local-6989586621679038291"><span class="hs-identifier hs-var">mode</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="hs-comment">{-is_socket-}</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Just"><span class="hs-identifier hs-var">Just</span></a></span><span> </span><span class="annot"><span class="annottext">TextEncoding
+</span><a href="#local-6989586621679038279"><span class="hs-identifier hs-var">enc</span></a></span><span class="hs-special">)</span><span class="hs-cpp">
+
+#if defined(__IO_MANAGER_WINIO__)
+</span><span class="hs-comment">-- It is not completely safe to pass the values -1 and -2 as HANDLE as it's an</span><span>
+</span><span id="line-279"></span><span class="hs-comment">-- unsigned type. -1 additionally is also the value for INVALID_HANDLE.  However</span><span>
+</span><span id="line-280"></span><span class="hs-comment">-- it should be safe in this case since an invalid handle would be an error here</span><span>
+</span><span id="line-281"></span><span class="hs-comment">-- anyway and the chances of us getting a handle with a value of -2 is</span><span>
+</span><span id="line-282"></span><span class="hs-comment">-- astronomical. However, sometime in the future process should really use a</span><span>
+</span><span id="line-283"></span><span class="hs-comment">-- proper structure here.</span><span>
+</span><span id="line-284"></span><span class="hs-identifier">mbHANDLE</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">HANDLE</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">StdStream</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">HANDLE</span><span>
+</span><span id="line-285"></span><span class="hs-identifier">mbHANDLE</span><span> </span><span class="hs-identifier">_std</span><span> </span><span class="hs-identifier">CreatePipe</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">return</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-identifier">intPtrToPtr</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">-</span><span class="hs-number">1</span><span class="hs-special">)</span><span>
+</span><span id="line-286"></span><span class="hs-identifier">mbHANDLE</span><span>  </span><span class="hs-identifier">std</span><span> </span><span class="hs-identifier">Inherit</span><span>         </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">return</span><span> </span><span class="hs-identifier">std</span><span>
+</span><span id="line-287"></span><span class="hs-identifier">mbHANDLE</span><span> </span><span class="hs-identifier">_std</span><span> </span><span class="hs-identifier">NoStream</span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">return</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-identifier">intPtrToPtr</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">-</span><span class="hs-number">2</span><span class="hs-special">)</span><span>
+</span><span id="line-288"></span><span class="hs-identifier">mbHANDLE</span><span> </span><span class="hs-identifier">_std</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">UseHandle</span><span> </span><span class="hs-identifier">hdl</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">handleToHANDLE</span><span> </span><span class="hs-identifier">hdl</span><span>
+</span><span id="line-289"></span><span>
+</span><span id="line-290"></span><span class="hs-identifier">mbPipeHANDLE</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">StdStream</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">Ptr</span><span> </span><span class="hs-identifier">HANDLE</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IOMode</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Maybe</span><span> </span><span class="hs-identifier">Handle</span><span class="hs-special">)</span><span>
+</span><span id="line-291"></span><span class="hs-identifier">mbPipeHANDLE</span><span> </span><span class="hs-identifier">CreatePipe</span><span> </span><span class="hs-identifier">pfd</span><span>  </span><span class="hs-identifier">mode</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-292"></span><span>  </span><span class="hs-keyword">do</span><span> </span><span class="hs-identifier">raw_handle</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier">peek</span><span> </span><span class="hs-identifier">pfd</span><span>
+</span><span id="line-293"></span><span>     </span><span class="hs-keyword">let</span><span> </span><span class="hs-identifier">hwnd</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">fromHANDLE</span><span> </span><span class="hs-identifier">raw_handle</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Io</span><span> </span><span class="hs-identifier">NativeHandle</span><span>
+</span><span id="line-294"></span><span>         </span><span class="hs-identifier">ident</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;hwnd:&quot;</span><span> </span><span class="hs-operator">++</span><span> </span><span class="hs-identifier">show</span><span> </span><span class="hs-identifier">raw_handle</span><span>
+</span><span id="line-295"></span><span>     </span><span class="hs-identifier">enc</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier">fmap</span><span> </span><span class="hs-identifier">Just</span><span> </span><span class="hs-identifier">getLocaleEncoding</span><span>
+</span><span id="line-296"></span><span>     </span><span class="hs-identifier">Just</span><span> </span><span class="hs-operator">&lt;$&gt;</span><span> </span><span class="hs-identifier">mkHandleFromHANDLE</span><span> </span><span class="hs-identifier">hwnd</span><span> </span><span class="hs-identifier">Stream</span><span> </span><span class="hs-identifier">ident</span><span> </span><span class="hs-identifier">mode</span><span> </span><span class="hs-identifier">enc</span><span>
+</span><span id="line-297"></span><span class="hs-identifier">mbPipeHANDLE</span><span> </span><span class="hs-identifier">_std</span><span>      </span><span class="hs-identifier">_pfd</span><span> </span><span class="hs-identifier">_mode</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">return</span><span> </span><span class="hs-identifier">Nothing</span><span class="hs-cpp">
+#endif
+</span></pre></body></html>

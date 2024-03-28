@@ -1,0 +1,186 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- |</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- Module      : Basement.Exception</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- License     : BSD-style</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- Maintainer  : Vincent Hanquez &lt;vincent@snarc.org&gt;</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Stability   : experimental</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- Portability : portable</span><span>
+</span><span id="line-7"></span><span class="hs-comment">--</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- Common part for vectors</span><span>
+</span><span id="line-9"></span><span class="hs-comment">--</span><span>
+</span><span id="line-10"></span><span class="hs-pragma">{-# LANGUAGE DeriveDataTypeable #-}</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Basement.Exception</span><span>
+</span><span id="line-12"></span><span>    </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Basement.Exception.html#OutOfBound"><span class="hs-identifier">OutOfBound</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Basement.Exception.html#OutOfBoundOperation"><span class="hs-identifier">OutOfBoundOperation</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Basement.Exception.html#isOutOfBound"><span class="hs-identifier">isOutOfBound</span></a></span><span>
+</span><span id="line-15"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Basement.Exception.html#outOfBound"><span class="hs-identifier">outOfBound</span></a></span><span>
+</span><span id="line-16"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Basement.Exception.html#primOutOfBound"><span class="hs-identifier">primOutOfBound</span></a></span><span>
+</span><span id="line-17"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Basement.Exception.html#InvalidRecast"><span class="hs-identifier">InvalidRecast</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Basement.Exception.html#RecastSourceSize"><span class="hs-identifier">RecastSourceSize</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Basement.Exception.html#RecastDestinationSize"><span class="hs-identifier">RecastDestinationSize</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Basement.Exception.html#NonEmptyCollectionIsEmpty"><span class="hs-identifier">NonEmptyCollectionIsEmpty</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Basement.Compat.Base.html"><span class="hs-identifier">Basement.Compat.Base</span></a></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Basement.Types.OffsetSize.html"><span class="hs-identifier">Basement.Types.OffsetSize</span></a></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Basement.Monad.html"><span class="hs-identifier">Basement.Monad</span></a></span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="hs-comment">-- | The type of operation that triggers an OutOfBound exception.</span><span>
+</span><span id="line-28"></span><span class="hs-comment">--</span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- * OOB_Index: reading an immutable vector</span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- * OOB_Read: reading a mutable vector</span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- * OOB_Write: write a mutable vector</span><span>
+</span><span id="line-32"></span><span class="hs-comment">-- * OOB_MemCopy: copying a vector</span><span>
+</span><span id="line-33"></span><span class="hs-comment">-- * OOB_MemSet: initializing a mutable vector</span><span>
+</span><span id="line-34"></span><span class="hs-keyword">data</span><span> </span><span id="OutOfBoundOperation"><span class="annot"><a href="Basement.Exception.html#OutOfBoundOperation"><span class="hs-identifier hs-var">OutOfBoundOperation</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="OOB_Read"><span class="annot"><a href="Basement.Exception.html#OOB_Read"><span class="hs-identifier hs-var">OOB_Read</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="OOB_Write"><span class="annot"><a href="Basement.Exception.html#OOB_Write"><span class="hs-identifier hs-var">OOB_Write</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="OOB_MemSet"><span class="annot"><a href="Basement.Exception.html#OOB_MemSet"><span class="hs-identifier hs-var">OOB_MemSet</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="OOB_MemCopy"><span class="annot"><a href="Basement.Exception.html#OOB_MemCopy"><span class="hs-identifier hs-var">OOB_MemCopy</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="OOB_Index"><span class="annot"><a href="Basement.Exception.html#OOB_Index"><span class="hs-identifier hs-var">OOB_Index</span></a></span></span><span>
+</span><span id="line-35"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679155067"><span id="local-6989586621679155069"><span id="local-6989586621679155071"><span class="annot"><span class="annottext">Int -&gt; OutOfBoundOperation -&gt; ShowS
+[OutOfBoundOperation] -&gt; ShowS
+OutOfBoundOperation -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [OutOfBoundOperation] -&gt; ShowS
+$cshowList :: [OutOfBoundOperation] -&gt; ShowS
+show :: OutOfBoundOperation -&gt; String
+$cshow :: OutOfBoundOperation -&gt; String
+showsPrec :: Int -&gt; OutOfBoundOperation -&gt; ShowS
+$cshowsPrec :: Int -&gt; OutOfBoundOperation -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679155062"><span id="local-6989586621679155064"><span class="annot"><span class="annottext">OutOfBoundOperation -&gt; OutOfBoundOperation -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: OutOfBoundOperation -&gt; OutOfBoundOperation -&gt; Bool
+$c/= :: OutOfBoundOperation -&gt; OutOfBoundOperation -&gt; Bool
+== :: OutOfBoundOperation -&gt; OutOfBoundOperation -&gt; Bool
+$c== :: OutOfBoundOperation -&gt; OutOfBoundOperation -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier hs-type">Typeable</span></span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- | Exception during an operation accessing the vector out of bound</span><span>
+</span><span id="line-38"></span><span class="hs-comment">--</span><span>
+</span><span id="line-39"></span><span class="hs-comment">-- Represent the type of operation, the index accessed, and the total length of the vector.</span><span>
+</span><span id="line-40"></span><span class="hs-keyword">data</span><span> </span><span id="OutOfBound"><span class="annot"><a href="Basement.Exception.html#OutOfBound"><span class="hs-identifier hs-var">OutOfBound</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="OutOfBound"><span class="annot"><a href="Basement.Exception.html#OutOfBound"><span class="hs-identifier hs-var">OutOfBound</span></a></span></span><span> </span><span class="annot"><a href="Basement.Exception.html#OutOfBoundOperation"><span class="hs-identifier hs-type">OutOfBoundOperation</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-41"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679155048"><span id="local-6989586621679155050"><span id="local-6989586621679155058"><span class="annot"><span class="annottext">Int -&gt; OutOfBound -&gt; ShowS
+[OutOfBound] -&gt; ShowS
+OutOfBound -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [OutOfBound] -&gt; ShowS
+$cshowList :: [OutOfBound] -&gt; ShowS
+show :: OutOfBound -&gt; String
+$cshow :: OutOfBound -&gt; String
+showsPrec :: Int -&gt; OutOfBound -&gt; ShowS
+$cshowsPrec :: Int -&gt; OutOfBound -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier hs-type">Typeable</span></span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679155038"><span id="local-6989586621679155040"><span id="local-6989586621679155042"><span class="annot"><span class="hs-identifier hs-type">Exception</span></span><span> </span><span class="annot"><a href="Basement.Exception.html#OutOfBound"><span class="hs-identifier hs-type">OutOfBound</span></a></span></span></span></span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span id="local-6989586621679155130"><span id="local-6989586621679155133"><span class="annot"><a href="Basement.Exception.html#outOfBound"><span class="hs-identifier hs-type">outOfBound</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Basement.Exception.html#OutOfBoundOperation"><span class="hs-identifier hs-type">OutOfBoundOperation</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-type">Offset</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679155133"><span class="hs-identifier hs-type">ty</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679155133"><span class="hs-identifier hs-type">ty</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679155130"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-46"></span><span id="outOfBound"><span class="annot"><span class="annottext">outOfBound :: forall ty a. OutOfBoundOperation -&gt; Offset ty -&gt; CountOf ty -&gt; a
+</span><a href="Basement.Exception.html#outOfBound"><span class="hs-identifier hs-var hs-var">outOfBound</span></a></span></span><span> </span><span id="local-6989586621679155035"><span class="annot"><span class="annottext">OutOfBoundOperation
+</span><a href="#local-6989586621679155035"><span class="hs-identifier hs-var">oobop</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-type">Offset</span></a></span><span> </span><span id="local-6989586621679155033"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679155033"><span class="hs-identifier hs-var">ofs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span id="local-6989586621679155031"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679155031"><span class="hs-identifier hs-var">sz</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a e. Exception e =&gt; e -&gt; a
+</span><span class="hs-identifier hs-var">throw</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">OutOfBoundOperation -&gt; Int -&gt; Int -&gt; OutOfBound
+</span><a href="Basement.Exception.html#OutOfBound"><span class="hs-identifier hs-var">OutOfBound</span></a></span><span> </span><span class="annot"><span class="annottext">OutOfBoundOperation
+</span><a href="#local-6989586621679155035"><span class="hs-identifier hs-var">oobop</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679155033"><span class="hs-identifier hs-var">ofs</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679155031"><span class="hs-identifier hs-var">sz</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-47"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Basement.Exception.html#outOfBound"><span class="hs-pragma hs-type">outOfBound</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span id="local-6989586621679155122"><span id="local-6989586621679155123"><span id="local-6989586621679155125"><span class="annot"><a href="Basement.Exception.html#primOutOfBound"><span class="hs-identifier hs-type">primOutOfBound</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Basement.Monad.html#PrimMonad"><span class="hs-identifier hs-type">PrimMonad</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679155125"><span class="hs-keyword hs-type">prim</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Basement.Exception.html#OutOfBoundOperation"><span class="hs-identifier hs-type">OutOfBoundOperation</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-type">Offset</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679155123"><span class="hs-identifier hs-type">ty</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679155123"><span class="hs-identifier hs-type">ty</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679155125"><span class="hs-keyword hs-type">prim</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679155122"><span class="hs-identifier hs-type">a</span></a></span></span></span></span><span>
+</span><span id="line-50"></span><span id="primOutOfBound"><span class="annot"><span class="annottext">primOutOfBound :: forall (prim :: * -&gt; *) ty a.
+PrimMonad prim =&gt;
+OutOfBoundOperation -&gt; Offset ty -&gt; CountOf ty -&gt; prim a
+</span><a href="Basement.Exception.html#primOutOfBound"><span class="hs-identifier hs-var hs-var">primOutOfBound</span></a></span></span><span> </span><span id="local-6989586621679155026"><span class="annot"><span class="annottext">OutOfBoundOperation
+</span><a href="#local-6989586621679155026"><span class="hs-identifier hs-var">oobop</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-type">Offset</span></a></span><span> </span><span id="local-6989586621679155025"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679155025"><span class="hs-identifier hs-var">ofs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span id="local-6989586621679155024"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679155024"><span class="hs-identifier hs-var">sz</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) e a. (PrimMonad m, Exception e) =&gt; e -&gt; m a
+</span><a href="Basement.Monad.html#primThrow"><span class="hs-identifier hs-var">primThrow</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">OutOfBoundOperation -&gt; Int -&gt; Int -&gt; OutOfBound
+</span><a href="Basement.Exception.html#OutOfBound"><span class="hs-identifier hs-var">OutOfBound</span></a></span><span> </span><span class="annot"><span class="annottext">OutOfBoundOperation
+</span><a href="#local-6989586621679155026"><span class="hs-identifier hs-var">oobop</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679155025"><span class="hs-identifier hs-var">ofs</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679155024"><span class="hs-identifier hs-var">sz</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-51"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Basement.Exception.html#primOutOfBound"><span class="hs-pragma hs-type">primOutOfBound</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-52"></span><span>
+</span><span id="line-53"></span><span id="local-6989586621679155116"><span class="annot"><a href="Basement.Exception.html#isOutOfBound"><span class="hs-identifier hs-type">isOutOfBound</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-type">Offset</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679155116"><span class="hs-identifier hs-type">ty</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679155116"><span class="hs-identifier hs-type">ty</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span><span>
+</span><span id="line-54"></span><span id="isOutOfBound"><span class="annot"><span class="annottext">isOutOfBound :: forall ty. Offset ty -&gt; CountOf ty -&gt; Bool
+</span><a href="Basement.Exception.html#isOutOfBound"><span class="hs-identifier hs-var hs-var">isOutOfBound</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-type">Offset</span></a></span><span> </span><span id="local-6989586621679155018"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679155018"><span class="hs-identifier hs-var">ty</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span id="local-6989586621679155017"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679155017"><span class="hs-identifier hs-var">sz</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679155018"><span class="hs-identifier hs-var">ty</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679155018"><span class="hs-identifier hs-var">ty</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679155017"><span class="hs-identifier hs-var">sz</span></a></span><span>
+</span><span id="line-55"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Basement.Exception.html#isOutOfBound"><span class="hs-pragma hs-type">isOutOfBound</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span class="hs-keyword">newtype</span><span> </span><span id="RecastSourceSize"><span class="annot"><a href="Basement.Exception.html#RecastSourceSize"><span class="hs-identifier hs-var">RecastSourceSize</span></a></span></span><span>      </span><span class="hs-glyph">=</span><span> </span><span id="RecastSourceSize"><span class="annot"><a href="Basement.Exception.html#RecastSourceSize"><span class="hs-identifier hs-var">RecastSourceSize</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-58"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679155006"><span id="local-6989586621679155008"><span id="local-6989586621679155012"><span class="annot"><span class="annottext">Int -&gt; RecastSourceSize -&gt; ShowS
+[RecastSourceSize] -&gt; ShowS
+RecastSourceSize -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [RecastSourceSize] -&gt; ShowS
+$cshowList :: [RecastSourceSize] -&gt; ShowS
+show :: RecastSourceSize -&gt; String
+$cshow :: RecastSourceSize -&gt; String
+showsPrec :: Int -&gt; RecastSourceSize -&gt; ShowS
+$cshowsPrec :: Int -&gt; RecastSourceSize -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679154999"><span id="local-6989586621679155004"><span class="annot"><span class="annottext">RecastSourceSize -&gt; RecastSourceSize -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: RecastSourceSize -&gt; RecastSourceSize -&gt; Bool
+$c/= :: RecastSourceSize -&gt; RecastSourceSize -&gt; Bool
+== :: RecastSourceSize -&gt; RecastSourceSize -&gt; Bool
+$c== :: RecastSourceSize -&gt; RecastSourceSize -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier hs-type">Typeable</span></span><span class="hs-special">)</span><span>
+</span><span id="line-59"></span><span class="hs-keyword">newtype</span><span> </span><span id="RecastDestinationSize"><span class="annot"><a href="Basement.Exception.html#RecastDestinationSize"><span class="hs-identifier hs-var">RecastDestinationSize</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="RecastDestinationSize"><span class="annot"><a href="Basement.Exception.html#RecastDestinationSize"><span class="hs-identifier hs-var">RecastDestinationSize</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-60"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679154987"><span id="local-6989586621679154989"><span id="local-6989586621679154993"><span class="annot"><span class="annottext">Int -&gt; RecastDestinationSize -&gt; ShowS
+[RecastDestinationSize] -&gt; ShowS
+RecastDestinationSize -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [RecastDestinationSize] -&gt; ShowS
+$cshowList :: [RecastDestinationSize] -&gt; ShowS
+show :: RecastDestinationSize -&gt; String
+$cshow :: RecastDestinationSize -&gt; String
+showsPrec :: Int -&gt; RecastDestinationSize -&gt; ShowS
+$cshowsPrec :: Int -&gt; RecastDestinationSize -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679154981"><span id="local-6989586621679154985"><span class="annot"><span class="annottext">RecastDestinationSize -&gt; RecastDestinationSize -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: RecastDestinationSize -&gt; RecastDestinationSize -&gt; Bool
+$c/= :: RecastDestinationSize -&gt; RecastDestinationSize -&gt; Bool
+== :: RecastDestinationSize -&gt; RecastDestinationSize -&gt; Bool
+$c== :: RecastDestinationSize -&gt; RecastDestinationSize -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier hs-type">Typeable</span></span><span class="hs-special">)</span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span><span class="hs-keyword">data</span><span> </span><span id="InvalidRecast"><span class="annot"><a href="Basement.Exception.html#InvalidRecast"><span class="hs-identifier hs-var">InvalidRecast</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="InvalidRecast"><span class="annot"><a href="Basement.Exception.html#InvalidRecast"><span class="hs-identifier hs-var">InvalidRecast</span></a></span></span><span> </span><span class="annot"><a href="Basement.Exception.html#RecastSourceSize"><span class="hs-identifier hs-type">RecastSourceSize</span></a></span><span> </span><span class="annot"><a href="Basement.Exception.html#RecastDestinationSize"><span class="hs-identifier hs-type">RecastDestinationSize</span></a></span><span>
+</span><span id="line-63"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679154968"><span id="local-6989586621679154970"><span id="local-6989586621679154975"><span class="annot"><span class="annottext">Int -&gt; InvalidRecast -&gt; ShowS
+[InvalidRecast] -&gt; ShowS
+InvalidRecast -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [InvalidRecast] -&gt; ShowS
+$cshowList :: [InvalidRecast] -&gt; ShowS
+show :: InvalidRecast -&gt; String
+$cshow :: InvalidRecast -&gt; String
+showsPrec :: Int -&gt; InvalidRecast -&gt; ShowS
+$cshowsPrec :: Int -&gt; InvalidRecast -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier hs-type">Typeable</span></span><span class="hs-special">)</span><span>
+</span><span id="line-64"></span><span>
+</span><span id="line-65"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679154958"><span id="local-6989586621679154960"><span id="local-6989586621679154962"><span class="annot"><span class="hs-identifier hs-type">Exception</span></span><span> </span><span class="annot"><a href="Basement.Exception.html#InvalidRecast"><span class="hs-identifier hs-type">InvalidRecast</span></a></span></span></span></span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span class="hs-comment">-- | Exception for using NonEmpty assertion with an empty collection</span><span>
+</span><span id="line-68"></span><span class="hs-keyword">data</span><span> </span><span id="NonEmptyCollectionIsEmpty"><span class="annot"><a href="Basement.Exception.html#NonEmptyCollectionIsEmpty"><span class="hs-identifier hs-var">NonEmptyCollectionIsEmpty</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="NonEmptyCollectionIsEmpty"><span class="annot"><a href="Basement.Exception.html#NonEmptyCollectionIsEmpty"><span class="hs-identifier hs-var">NonEmptyCollectionIsEmpty</span></a></span></span><span>
+</span><span id="line-69"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679154951"><span id="local-6989586621679154953"><span id="local-6989586621679154955"><span class="annot"><span class="annottext">Int -&gt; NonEmptyCollectionIsEmpty -&gt; ShowS
+[NonEmptyCollectionIsEmpty] -&gt; ShowS
+NonEmptyCollectionIsEmpty -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [NonEmptyCollectionIsEmpty] -&gt; ShowS
+$cshowList :: [NonEmptyCollectionIsEmpty] -&gt; ShowS
+show :: NonEmptyCollectionIsEmpty -&gt; String
+$cshow :: NonEmptyCollectionIsEmpty -&gt; String
+showsPrec :: Int -&gt; NonEmptyCollectionIsEmpty -&gt; ShowS
+$cshowsPrec :: Int -&gt; NonEmptyCollectionIsEmpty -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier hs-type">Typeable</span></span><span class="hs-special">)</span><span>
+</span><span id="line-70"></span><span>
+</span><span id="line-71"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679154941"><span id="local-6989586621679154943"><span id="local-6989586621679154945"><span class="annot"><span class="hs-identifier hs-type">Exception</span></span><span> </span><span class="annot"><a href="Basement.Exception.html#NonEmptyCollectionIsEmpty"><span class="hs-identifier hs-type">NonEmptyCollectionIsEmpty</span></a></span></span></span></span><span>
+</span><span id="line-72"></span></pre></body></html>

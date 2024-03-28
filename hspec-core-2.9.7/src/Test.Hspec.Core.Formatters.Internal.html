@@ -1,0 +1,864 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE GeneralizedNewtypeDeriving #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE RecordWildCards #-}</span><span>
+</span><span id="line-4"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Test.Hspec.Core.Formatters.Internal</span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-5"></span><span>  </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#Formatter"><span class="hs-identifier">Formatter</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-6"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Format.html#Item"><span class="hs-identifier">Item</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Format.html#Result"><span class="hs-identifier">Result</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-8"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.html#FailureReason"><span class="hs-identifier">FailureReason</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-9"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatM"><span class="hs-identifier">FormatM</span></a></span><span>
+</span><span id="line-10"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#formatterToFormat"><span class="hs-identifier">formatterToFormat</span></a></span><span>
+</span><span id="line-11"></span><span>
+</span><span id="line-12"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#getSuccessCount"><span class="hs-identifier">getSuccessCount</span></a></span><span>
+</span><span id="line-13"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#getPendingCount"><span class="hs-identifier">getPendingCount</span></a></span><span>
+</span><span id="line-14"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#getFailCount"><span class="hs-identifier">getFailCount</span></a></span><span>
+</span><span id="line-15"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#getTotalCount"><span class="hs-identifier">getTotalCount</span></a></span><span>
+</span><span id="line-16"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#getExpectedTotalCount"><span class="hs-identifier">getExpectedTotalCount</span></a></span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.V1.Monad.html#FailureRecord"><span class="hs-identifier">FailureRecord</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#getFailMessages"><span class="hs-identifier">getFailMessages</span></a></span><span>
+</span><span id="line-20"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#usedSeed"><span class="hs-identifier">usedSeed</span></a></span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#printTimes"><span class="hs-identifier">printTimes</span></a></span><span>
+</span><span id="line-23"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#getCPUTime"><span class="hs-identifier">getCPUTime</span></a></span><span>
+</span><span id="line-24"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#getRealTime"><span class="hs-identifier">getRealTime</span></a></span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#write"><span class="hs-identifier">write</span></a></span><span>
+</span><span id="line-27"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#writeLine"><span class="hs-identifier">writeLine</span></a></span><span>
+</span><span id="line-28"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#writeTransient"><span class="hs-identifier">writeTransient</span></a></span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#withInfoColor"><span class="hs-identifier">withInfoColor</span></a></span><span>
+</span><span id="line-31"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#withSuccessColor"><span class="hs-identifier">withSuccessColor</span></a></span><span>
+</span><span id="line-32"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#withPendingColor"><span class="hs-identifier">withPendingColor</span></a></span><span>
+</span><span id="line-33"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#withFailColor"><span class="hs-identifier">withFailColor</span></a></span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#outputUnicode"><span class="hs-identifier">outputUnicode</span></a></span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#useDiff"><span class="hs-identifier">useDiff</span></a></span><span>
+</span><span id="line-38"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#prettyPrint"><span class="hs-identifier">prettyPrint</span></a></span><span>
+</span><span id="line-39"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#extraChunk"><span class="hs-identifier">extraChunk</span></a></span><span>
+</span><span id="line-40"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#missingChunk"><span class="hs-identifier">missingChunk</span></a></span><span class="hs-cpp">
+
+#ifdef TEST
+</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">runFormatM</span><span>
+</span><span id="line-44"></span><span class="hs-special">,</span><span> </span><span class="hs-identifier">splitLines</span><span class="hs-cpp">
+#endif
+</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-47"></span><span>
+</span><span id="line-48"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-49"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Test.Hspec.Core.Compat.html"><span class="hs-identifier">Test.Hspec.Core.Compat</span></a></span><span>
+</span><span id="line-50"></span><span>
+</span><span id="line-51"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">System.IO</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">IO</span></span><span>
+</span><span id="line-52"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">System.IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Handle</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">stdout</span></span><span class="hs-special">)</span><span>
+</span><span id="line-53"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Exception</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">bracket_</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">bracket</span></span><span class="hs-special">)</span><span>
+</span><span id="line-54"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">System.Console.ANSI</span></span><span>
+</span><span id="line-55"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad.Trans.State</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">state</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">gets</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">modify</span></span><span class="hs-special">)</span><span>
+</span><span id="line-56"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad.IO.Class</span></span><span>
+</span><span id="line-57"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Char</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">isSpace</span></span><span class="hs-special">)</span><span>
+</span><span id="line-58"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.List</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">groupBy</span></span><span class="hs-special">)</span><span>
+</span><span id="line-59"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">System.CPUTime</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">CPUTime</span></span><span>
+</span><span id="line-60"></span><span>
+</span><span id="line-61"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Test.Hspec.Core.Formatters.V1.Monad.html"><span class="hs-identifier">Test.Hspec.Core.Formatters.V1.Monad</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.Hspec.Core.Formatters.V1.Monad.html#FailureRecord"><span class="hs-identifier">FailureRecord</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-62"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Test.Hspec.Core.Format.html"><span class="hs-identifier">Test.Hspec.Core.Format</span></a></span><span>
+</span><span id="line-63"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Test.Hspec.Core.Clock.html"><span class="hs-identifier">Test.Hspec.Core.Clock</span></a></span><span>
+</span><span id="line-64"></span><span>
+</span><span id="line-65"></span><span class="hs-keyword">data</span><span> </span><span id="Formatter"><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#Formatter"><span class="hs-identifier hs-var">Formatter</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Formatter"><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#Formatter"><span class="hs-identifier hs-var">Formatter</span></a></span></span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-66"></span><span class="hs-comment">-- | evaluated before a test run</span><span>
+</span><span id="line-67"></span><span>  </span><span id="formatterStarted"><span class="annot"><span class="annottext">Formatter -&gt; FormatM ()
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#formatterStarted"><span class="hs-identifier hs-var hs-var">formatterStarted</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatM"><span class="hs-identifier hs-type">FormatM</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-68"></span><span>
+</span><span id="line-69"></span><span class="hs-comment">-- | evaluated before each spec group</span><span>
+</span><span id="line-70"></span><span class="hs-special">,</span><span> </span><span id="formatterGroupStarted"><span class="annot"><span class="annottext">Formatter -&gt; Path -&gt; FormatM ()
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#formatterGroupStarted"><span class="hs-identifier hs-var hs-var">formatterGroupStarted</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Util.html#Path"><span class="hs-identifier hs-type">Path</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatM"><span class="hs-identifier hs-type">FormatM</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-71"></span><span>
+</span><span id="line-72"></span><span class="hs-comment">-- | evaluated after each spec group</span><span>
+</span><span id="line-73"></span><span class="hs-special">,</span><span> </span><span id="formatterGroupDone"><span class="annot"><span class="annottext">Formatter -&gt; Path -&gt; FormatM ()
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#formatterGroupDone"><span class="hs-identifier hs-var hs-var">formatterGroupDone</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Util.html#Path"><span class="hs-identifier hs-type">Path</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatM"><span class="hs-identifier hs-type">FormatM</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-74"></span><span>
+</span><span id="line-75"></span><span class="hs-comment">-- | used to notify the progress of the currently evaluated example</span><span>
+</span><span id="line-76"></span><span class="hs-special">,</span><span> </span><span id="formatterProgress"><span class="annot"><span class="annottext">Formatter -&gt; Path -&gt; Progress -&gt; FormatM ()
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#formatterProgress"><span class="hs-identifier hs-var hs-var">formatterProgress</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Util.html#Path"><span class="hs-identifier hs-type">Path</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.html#Progress"><span class="hs-identifier hs-type">Progress</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatM"><span class="hs-identifier hs-type">FormatM</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-77"></span><span>
+</span><span id="line-78"></span><span class="hs-comment">-- | evaluated before each spec item</span><span>
+</span><span id="line-79"></span><span class="hs-special">,</span><span> </span><span id="formatterItemStarted"><span class="annot"><span class="annottext">Formatter -&gt; Path -&gt; FormatM ()
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#formatterItemStarted"><span class="hs-identifier hs-var hs-var">formatterItemStarted</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Util.html#Path"><span class="hs-identifier hs-type">Path</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatM"><span class="hs-identifier hs-type">FormatM</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-80"></span><span>
+</span><span id="line-81"></span><span class="hs-comment">-- | evaluated after each spec item</span><span>
+</span><span id="line-82"></span><span class="hs-special">,</span><span> </span><span id="formatterItemDone"><span class="annot"><span class="annottext">Formatter -&gt; Path -&gt; Item -&gt; FormatM ()
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#formatterItemDone"><span class="hs-identifier hs-var hs-var">formatterItemDone</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Util.html#Path"><span class="hs-identifier hs-type">Path</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Format.html#Item"><span class="hs-identifier hs-type">Item</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatM"><span class="hs-identifier hs-type">FormatM</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-83"></span><span>
+</span><span id="line-84"></span><span class="hs-comment">-- | evaluated after a test run</span><span>
+</span><span id="line-85"></span><span class="hs-special">,</span><span> </span><span id="formatterDone"><span class="annot"><span class="annottext">Formatter -&gt; FormatM ()
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#formatterDone"><span class="hs-identifier hs-var hs-var">formatterDone</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatM"><span class="hs-identifier hs-type">FormatM</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-86"></span><span class="hs-special">}</span><span>
+</span><span id="line-87"></span><span>
+</span><span id="line-88"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#formatterToFormat"><span class="hs-identifier hs-type">formatterToFormat</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#Formatter"><span class="hs-identifier hs-type">Formatter</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Format.html#FormatConfig"><span class="hs-identifier hs-type">FormatConfig</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Format.html#Format"><span class="hs-identifier hs-type">Format</span></a></span><span>
+</span><span id="line-89"></span><span id="formatterToFormat"><span class="annot"><span class="annottext">formatterToFormat :: Formatter -&gt; FormatConfig -&gt; IO Format
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#formatterToFormat"><span class="hs-identifier hs-var hs-var">formatterToFormat</span></a></span></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#Formatter"><span class="hs-identifier hs-type">Formatter</span></a></span><span class="hs-special">{</span><span id="local-6989586621679161471"><span id="local-6989586621679161472"><span id="local-6989586621679161473"><span id="local-6989586621679161474"><span id="local-6989586621679161475"><span id="local-6989586621679161476"><span id="local-6989586621679161477"><span class="annot"><span class="annottext">FormatM ()
+Path -&gt; FormatM ()
+Path -&gt; Progress -&gt; FormatM ()
+Path -&gt; Item -&gt; FormatM ()
+formatterDone :: FormatM ()
+formatterItemDone :: Path -&gt; Item -&gt; FormatM ()
+formatterItemStarted :: Path -&gt; FormatM ()
+formatterProgress :: Path -&gt; Progress -&gt; FormatM ()
+formatterGroupDone :: Path -&gt; FormatM ()
+formatterGroupStarted :: Path -&gt; FormatM ()
+formatterStarted :: FormatM ()
+formatterDone :: Formatter -&gt; FormatM ()
+formatterItemDone :: Formatter -&gt; Path -&gt; Item -&gt; FormatM ()
+formatterItemStarted :: Formatter -&gt; Path -&gt; FormatM ()
+formatterProgress :: Formatter -&gt; Path -&gt; Progress -&gt; FormatM ()
+formatterGroupDone :: Formatter -&gt; Path -&gt; FormatM ()
+formatterGroupStarted :: Formatter -&gt; Path -&gt; FormatM ()
+formatterStarted :: Formatter -&gt; FormatM ()
+</span><a href="#local-6989586621679161471"><span class="hs-glyph hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">..</span></a></span></span></span></span></span></span></span></span><span class="hs-special">}</span><span> </span><span id="local-6989586621679161470"><span class="annot"><span class="annottext">FormatConfig
+</span><a href="#local-6989586621679161470"><span class="hs-identifier hs-var">config</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *).
+MonadIO m =&gt;
+(m () -&gt; IO ()) -&gt; (Event -&gt; m ()) -&gt; IO Format
+</span><a href="Test.Hspec.Core.Format.html#monadic"><span class="hs-identifier hs-var">monadic</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. FormatConfig -&gt; FormatM a -&gt; IO a
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#runFormatM"><span class="hs-identifier hs-var">runFormatM</span></a></span><span> </span><span class="annot"><span class="annottext">FormatConfig
+</span><a href="#local-6989586621679161470"><span class="hs-identifier hs-var">config</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621679161467"><span class="annot"><span class="annottext">Event
+</span><a href="#local-6989586621679161467"><span class="hs-identifier hs-var">event</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Event
+</span><a href="#local-6989586621679161467"><span class="hs-identifier hs-var">event</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-90"></span><span>  </span><span class="annot"><span class="annottext">Event
+</span><a href="Test.Hspec.Core.Format.html#Started"><span class="hs-identifier hs-var">Started</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">FormatM ()
+</span><a href="#local-6989586621679161477"><span class="hs-identifier hs-var">formatterStarted</span></a></span><span>
+</span><span id="line-91"></span><span>  </span><span class="annot"><a href="Test.Hspec.Core.Format.html#GroupStarted"><span class="hs-identifier hs-type">GroupStarted</span></a></span><span> </span><span id="local-6989586621679161464"><span class="annot"><span class="annottext">Path
+</span><a href="#local-6989586621679161464"><span class="hs-identifier hs-var">path</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Path -&gt; FormatM ()
+</span><a href="#local-6989586621679161476"><span class="hs-identifier hs-var">formatterGroupStarted</span></a></span><span> </span><span class="annot"><span class="annottext">Path
+</span><a href="#local-6989586621679161464"><span class="hs-identifier hs-var">path</span></a></span><span>
+</span><span id="line-92"></span><span>  </span><span class="annot"><a href="Test.Hspec.Core.Format.html#GroupDone"><span class="hs-identifier hs-type">GroupDone</span></a></span><span> </span><span id="local-6989586621679161462"><span class="annot"><span class="annottext">Path
+</span><a href="#local-6989586621679161462"><span class="hs-identifier hs-var">path</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Path -&gt; FormatM ()
+</span><a href="#local-6989586621679161475"><span class="hs-identifier hs-var">formatterGroupDone</span></a></span><span> </span><span class="annot"><span class="annottext">Path
+</span><a href="#local-6989586621679161462"><span class="hs-identifier hs-var">path</span></a></span><span>
+</span><span id="line-93"></span><span>  </span><span class="annot"><a href="Test.Hspec.Core.Format.html#Progress"><span class="hs-identifier hs-type">Progress</span></a></span><span> </span><span id="local-6989586621679161460"><span class="annot"><span class="annottext">Path
+</span><a href="#local-6989586621679161460"><span class="hs-identifier hs-var">path</span></a></span></span><span> </span><span id="local-6989586621679161459"><span class="annot"><span class="annottext">Progress
+</span><a href="#local-6989586621679161459"><span class="hs-identifier hs-var">progress</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Path -&gt; Progress -&gt; FormatM ()
+</span><a href="#local-6989586621679161474"><span class="hs-identifier hs-var">formatterProgress</span></a></span><span> </span><span class="annot"><span class="annottext">Path
+</span><a href="#local-6989586621679161460"><span class="hs-identifier hs-var">path</span></a></span><span> </span><span class="annot"><span class="annottext">Progress
+</span><a href="#local-6989586621679161459"><span class="hs-identifier hs-var">progress</span></a></span><span>
+</span><span id="line-94"></span><span>  </span><span class="annot"><a href="Test.Hspec.Core.Format.html#ItemStarted"><span class="hs-identifier hs-type">ItemStarted</span></a></span><span> </span><span id="local-6989586621679161457"><span class="annot"><span class="annottext">Path
+</span><a href="#local-6989586621679161457"><span class="hs-identifier hs-var">path</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Path -&gt; FormatM ()
+</span><a href="#local-6989586621679161473"><span class="hs-identifier hs-var">formatterItemStarted</span></a></span><span> </span><span class="annot"><span class="annottext">Path
+</span><a href="#local-6989586621679161457"><span class="hs-identifier hs-var">path</span></a></span><span>
+</span><span id="line-95"></span><span>  </span><span class="annot"><a href="Test.Hspec.Core.Format.html#ItemDone"><span class="hs-identifier hs-type">ItemDone</span></a></span><span> </span><span id="local-6989586621679161455"><span class="annot"><span class="annottext">Path
+</span><a href="#local-6989586621679161455"><span class="hs-identifier hs-var">path</span></a></span></span><span> </span><span id="local-6989586621679161454"><span class="annot"><span class="annottext">Item
+</span><a href="#local-6989586621679161454"><span class="hs-identifier hs-var">item</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-96"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Item -&gt; Result
+</span><a href="Test.Hspec.Core.Format.html#itemResult"><span class="hs-identifier hs-var">itemResult</span></a></span><span> </span><span class="annot"><span class="annottext">Item
+</span><a href="#local-6989586621679161454"><span class="hs-identifier hs-var">item</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-97"></span><span>      </span><span class="annot"><a href="Test.Hspec.Core.Format.html#Success"><span class="hs-identifier hs-type">Success</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">FormatM ()
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#increaseSuccessCount"><span class="hs-identifier hs-var">increaseSuccessCount</span></a></span><span>
+</span><span id="line-98"></span><span>      </span><span class="annot"><a href="Test.Hspec.Core.Format.html#Pending"><span class="hs-identifier hs-type">Pending</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">FormatM ()
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#increasePendingCount"><span class="hs-identifier hs-var">increasePendingCount</span></a></span><span>
+</span><span id="line-99"></span><span>      </span><span class="annot"><a href="Test.Hspec.Core.Format.html#Failure"><span class="hs-identifier hs-type">Failure</span></a></span><span> </span><span id="local-6989586621679161447"><span class="annot"><span class="annottext">Maybe Location
+</span><a href="#local-6989586621679161447"><span class="hs-identifier hs-var">loc</span></a></span></span><span> </span><span id="local-6989586621679161446"><span class="annot"><span class="annottext">FailureReason
+</span><a href="#local-6989586621679161446"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Location -&gt; Path -&gt; FailureReason -&gt; FormatM ()
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#addFailMessage"><span class="hs-identifier hs-var">addFailMessage</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe Location
+</span><a href="#local-6989586621679161447"><span class="hs-identifier hs-var">loc</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Alternative f =&gt; f a -&gt; f a -&gt; f a
+</span><span class="hs-operator hs-var">&lt;|&gt;</span></span><span> </span><span class="annot"><span class="annottext">Item -&gt; Maybe Location
+</span><a href="Test.Hspec.Core.Format.html#itemLocation"><span class="hs-identifier hs-var">itemLocation</span></a></span><span> </span><span class="annot"><span class="annottext">Item
+</span><a href="#local-6989586621679161454"><span class="hs-identifier hs-var">item</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Path
+</span><a href="#local-6989586621679161455"><span class="hs-identifier hs-var">path</span></a></span><span> </span><span class="annot"><span class="annottext">FailureReason
+</span><a href="#local-6989586621679161446"><span class="hs-identifier hs-var">err</span></a></span><span>
+</span><span id="line-100"></span><span>    </span><span class="annot"><span class="annottext">Path -&gt; Item -&gt; FormatM ()
+</span><a href="#local-6989586621679161472"><span class="hs-identifier hs-var">formatterItemDone</span></a></span><span> </span><span class="annot"><span class="annottext">Path
+</span><a href="#local-6989586621679161455"><span class="hs-identifier hs-var">path</span></a></span><span> </span><span class="annot"><span class="annottext">Item
+</span><a href="#local-6989586621679161454"><span class="hs-identifier hs-var">item</span></a></span><span>
+</span><span id="line-101"></span><span>  </span><span class="annot"><a href="Test.Hspec.Core.Format.html#Done"><span class="hs-identifier hs-type">Done</span></a></span><span> </span><span class="annot"><span class="annottext">[(Path, Item)]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">FormatM ()
+</span><a href="#local-6989586621679161471"><span class="hs-identifier hs-var">formatterDone</span></a></span><span>
+</span><span id="line-102"></span><span>
+</span><span id="line-103"></span><span class="hs-comment">-- | Get the number of failed examples encountered so far.</span><span>
+</span><span id="line-104"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#getFailCount"><span class="hs-identifier hs-type">getFailCount</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatM"><span class="hs-identifier hs-type">FormatM</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-105"></span><span id="getFailCount"><span class="annot"><span class="annottext">getFailCount :: FormatM Int
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#getFailCount"><span class="hs-identifier hs-var hs-var">getFailCount</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">FormatM [FailureRecord]
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#getFailMessages"><span class="hs-identifier hs-var">getFailMessages</span></a></span><span>
+</span><span id="line-106"></span><span>
+</span><span id="line-107"></span><span class="hs-comment">-- | Return `True` if the user requested colorized diffs, `False` otherwise.</span><span>
+</span><span id="line-108"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#useDiff"><span class="hs-identifier hs-type">useDiff</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatM"><span class="hs-identifier hs-type">FormatM</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-109"></span><span id="useDiff"><span class="annot"><span class="annottext">useDiff :: FormatM Bool
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#useDiff"><span class="hs-identifier hs-var hs-var">useDiff</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. (FormatConfig -&gt; a) -&gt; FormatM a
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#getConfig"><span class="hs-identifier hs-var">getConfig</span></a></span><span> </span><span class="annot"><span class="annottext">FormatConfig -&gt; Bool
+</span><a href="Test.Hspec.Core.Format.html#formatConfigUseDiff"><span class="hs-identifier hs-var">formatConfigUseDiff</span></a></span><span>
+</span><span id="line-110"></span><span>
+</span><span id="line-111"></span><span class="hs-comment">-- | Return `True` if the user requested pretty diffs, `False` otherwise.</span><span>
+</span><span id="line-112"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#prettyPrint"><span class="hs-identifier hs-type">prettyPrint</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatM"><span class="hs-identifier hs-type">FormatM</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-113"></span><span id="prettyPrint"><span class="annot"><span class="annottext">prettyPrint :: FormatM Bool
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#prettyPrint"><span class="hs-identifier hs-var hs-var">prettyPrint</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. (FormatConfig -&gt; a) -&gt; FormatM a
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#getConfig"><span class="hs-identifier hs-var">getConfig</span></a></span><span> </span><span class="annot"><span class="annottext">FormatConfig -&gt; Bool
+</span><a href="Test.Hspec.Core.Format.html#formatConfigPrettyPrint"><span class="hs-identifier hs-var">formatConfigPrettyPrint</span></a></span><span>
+</span><span id="line-114"></span><span>
+</span><span id="line-115"></span><span class="hs-comment">-- | Return `True` if the user requested unicode output, `False` otherwise.</span><span>
+</span><span id="line-116"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#outputUnicode"><span class="hs-identifier hs-type">outputUnicode</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatM"><span class="hs-identifier hs-type">FormatM</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-117"></span><span id="outputUnicode"><span class="annot"><span class="annottext">outputUnicode :: FormatM Bool
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#outputUnicode"><span class="hs-identifier hs-var hs-var">outputUnicode</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. (FormatConfig -&gt; a) -&gt; FormatM a
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#getConfig"><span class="hs-identifier hs-var">getConfig</span></a></span><span> </span><span class="annot"><span class="annottext">FormatConfig -&gt; Bool
+</span><a href="Test.Hspec.Core.Format.html#formatConfigOutputUnicode"><span class="hs-identifier hs-var">formatConfigOutputUnicode</span></a></span><span>
+</span><span id="line-118"></span><span>
+</span><span id="line-119"></span><span class="hs-comment">-- | The same as `write`, but adds a newline character.</span><span>
+</span><span id="line-120"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#writeLine"><span class="hs-identifier hs-type">writeLine</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatM"><span class="hs-identifier hs-type">FormatM</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-121"></span><span id="writeLine"><span class="annot"><span class="annottext">writeLine :: String -&gt; FormatM ()
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#writeLine"><span class="hs-identifier hs-var hs-var">writeLine</span></a></span></span><span> </span><span id="local-6989586621679161435"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679161435"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; FormatM ()
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#write"><span class="hs-identifier hs-var">write</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679161435"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; FormatM ()
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#write"><span class="hs-identifier hs-var">write</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;\n&quot;</span></span><span>
+</span><span id="line-122"></span><span>
+</span><span id="line-123"></span><span class="hs-comment">-- | Return `True` if the user requested time reporting for individual spec</span><span>
+</span><span id="line-124"></span><span class="hs-comment">-- items, `False` otherwise.</span><span>
+</span><span id="line-125"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#printTimes"><span class="hs-identifier hs-type">printTimes</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatM"><span class="hs-identifier hs-type">FormatM</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-126"></span><span id="printTimes"><span class="annot"><span class="annottext">printTimes :: FormatM Bool
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#printTimes"><span class="hs-identifier hs-var hs-var">printTimes</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. (FormatterState -&gt; a) -&gt; FormatM a
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#gets"><span class="hs-identifier hs-var">gets</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FormatConfig -&gt; Bool
+</span><a href="Test.Hspec.Core.Format.html#formatConfigPrintTimes"><span class="hs-identifier hs-var">formatConfigPrintTimes</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">FormatterState -&gt; FormatConfig
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#stateConfig"><span class="hs-identifier hs-var">stateConfig</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-127"></span><span>
+</span><span id="line-128"></span><span class="hs-comment">-- | Get the total number of examples encountered so far.</span><span>
+</span><span id="line-129"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#getTotalCount"><span class="hs-identifier hs-type">getTotalCount</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatM"><span class="hs-identifier hs-type">FormatM</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-130"></span><span id="getTotalCount"><span class="annot"><span class="annottext">getTotalCount :: FormatM Int
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#getTotalCount"><span class="hs-identifier hs-var hs-var">getTotalCount</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. (Foldable t, Num a) =&gt; t a -&gt; a
+</span><span class="hs-identifier hs-var">sum</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) (m :: * -&gt; *) a.
+(Traversable t, Monad m) =&gt;
+t (m a) -&gt; m (t a)
+</span><span class="hs-identifier hs-var">sequence</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">FormatM Int
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#getSuccessCount"><span class="hs-identifier hs-var">getSuccessCount</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">FormatM Int
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#getFailCount"><span class="hs-identifier hs-var">getFailCount</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">FormatM Int
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#getPendingCount"><span class="hs-identifier hs-var">getPendingCount</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-131"></span><span>
+</span><span id="line-132"></span><span class="hs-comment">-- | A lifted version of `Control.Monad.Trans.State.gets`</span><span>
+</span><span id="line-133"></span><span id="local-6989586621679161695"><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#gets"><span class="hs-identifier hs-type">gets</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatterState"><span class="hs-identifier hs-type">FormatterState</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679161695"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatM"><span class="hs-identifier hs-type">FormatM</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679161695"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-134"></span><span id="gets"><span class="annot"><span class="annottext">gets :: forall a. (FormatterState -&gt; a) -&gt; FormatM a
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#gets"><span class="hs-identifier hs-var hs-var">gets</span></a></span></span><span> </span><span id="local-6989586621679161421"><span class="annot"><span class="annottext">FormatterState -&gt; a
+</span><a href="#local-6989586621679161421"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. StateT (IORef FormatterState) IO a -&gt; FormatM a
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#FormatM"><span class="hs-identifier hs-var">FormatM</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-135"></span><span>  </span><span class="annot"><span class="annottext">FormatterState -&gt; a
+</span><a href="#local-6989586621679161421"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) s. Monad m =&gt; StateT s m s
+</span><span class="hs-identifier hs-var">get</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><span class="hs-identifier hs-var">liftIO</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall a. IORef a -&gt; IO a
+</span><span class="hs-identifier hs-var">readIORef</span></span><span class="hs-special">)</span><span>
+</span><span id="line-136"></span><span>
+</span><span id="line-137"></span><span class="hs-comment">-- | A lifted version of `Control.Monad.Trans.State.modify`</span><span>
+</span><span id="line-138"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#modify"><span class="hs-identifier hs-type">modify</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatterState"><span class="hs-identifier hs-type">FormatterState</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatterState"><span class="hs-identifier hs-type">FormatterState</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatM"><span class="hs-identifier hs-type">FormatM</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-139"></span><span id="modify"><span class="annot"><span class="annottext">modify :: (FormatterState -&gt; FormatterState) -&gt; FormatM ()
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#modify"><span class="hs-identifier hs-var hs-var">modify</span></a></span></span><span> </span><span id="local-6989586621679161415"><span class="annot"><span class="annottext">FormatterState -&gt; FormatterState
+</span><a href="#local-6989586621679161415"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. StateT (IORef FormatterState) IO a -&gt; FormatM a
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#FormatM"><span class="hs-identifier hs-var">FormatM</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-140"></span><span>  </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) s. Monad m =&gt; StateT s m s
+</span><span class="hs-identifier hs-var">get</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><span class="hs-identifier hs-var">liftIO</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. IORef a -&gt; (a -&gt; a) -&gt; IO ()
+</span><span class="hs-operator hs-var">`modifyIORef'`</span></span><span> </span><span class="annot"><span class="annottext">FormatterState -&gt; FormatterState
+</span><a href="#local-6989586621679161415"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-141"></span><span>
+</span><span id="line-142"></span><span class="hs-keyword">data</span><span> </span><span id="FormatterState"><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatterState"><span class="hs-identifier hs-var">FormatterState</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="FormatterState"><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatterState"><span class="hs-identifier hs-var">FormatterState</span></a></span></span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-143"></span><span>  </span><span id="stateSuccessCount"><span class="annot"><span class="annottext">FormatterState -&gt; Int
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#stateSuccessCount"><span class="hs-identifier hs-var hs-var">stateSuccessCount</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-144"></span><span class="hs-special">,</span><span> </span><span id="statePendingCount"><span class="annot"><span class="annottext">FormatterState -&gt; Int
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#statePendingCount"><span class="hs-identifier hs-var hs-var">statePendingCount</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-145"></span><span class="hs-special">,</span><span> </span><span id="stateFailMessages"><span class="annot"><span class="annottext">FormatterState -&gt; [FailureRecord]
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#stateFailMessages"><span class="hs-identifier hs-var hs-var">stateFailMessages</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Test.Hspec.Core.Formatters.V1.Monad.html#FailureRecord"><span class="hs-identifier hs-type">FailureRecord</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-146"></span><span class="hs-special">,</span><span> </span><span id="stateCpuStartTime"><span class="annot"><span class="annottext">FormatterState -&gt; Maybe Integer
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#stateCpuStartTime"><span class="hs-identifier hs-var hs-var">stateCpuStartTime</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span>
+</span><span id="line-147"></span><span class="hs-special">,</span><span> </span><span id="stateStartTime"><span class="annot"><span class="annottext">FormatterState -&gt; Seconds
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#stateStartTime"><span class="hs-identifier hs-var hs-var">stateStartTime</span></a></span></span><span>       </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Clock.html#Seconds"><span class="hs-identifier hs-type">Seconds</span></a></span><span>
+</span><span id="line-148"></span><span class="hs-special">,</span><span> </span><span id="stateConfig"><span class="annot"><span class="annottext">FormatterState -&gt; FormatConfig
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#stateConfig"><span class="hs-identifier hs-var hs-var">stateConfig</span></a></span></span><span>          </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Format.html#FormatConfig"><span class="hs-identifier hs-type">FormatConfig</span></a></span><span>
+</span><span id="line-149"></span><span class="hs-special">,</span><span> </span><span id="stateColor"><span class="annot"><span class="annottext">FormatterState -&gt; Maybe SGR
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#stateColor"><span class="hs-identifier hs-var hs-var">stateColor</span></a></span></span><span>           </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">SGR</span></span><span>
+</span><span id="line-150"></span><span class="hs-special">}</span><span>
+</span><span id="line-151"></span><span>
+</span><span id="line-152"></span><span id="local-6989586621679161699"><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#getConfig"><span class="hs-identifier hs-type">getConfig</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.Hspec.Core.Format.html#FormatConfig"><span class="hs-identifier hs-type">FormatConfig</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679161699"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatM"><span class="hs-identifier hs-type">FormatM</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679161699"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-153"></span><span id="getConfig"><span class="annot"><span class="annottext">getConfig :: forall a. (FormatConfig -&gt; a) -&gt; FormatM a
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#getConfig"><span class="hs-identifier hs-var hs-var">getConfig</span></a></span></span><span> </span><span id="local-6989586621679161406"><span class="annot"><span class="annottext">FormatConfig -&gt; a
+</span><a href="#local-6989586621679161406"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. (FormatterState -&gt; a) -&gt; FormatM a
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#gets"><span class="hs-identifier hs-var">gets</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FormatConfig -&gt; a
+</span><a href="#local-6989586621679161406"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">FormatterState -&gt; FormatConfig
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#stateConfig"><span class="hs-identifier hs-var">stateConfig</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-154"></span><span>
+</span><span id="line-155"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#getHandle"><span class="hs-identifier hs-type">getHandle</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatM"><span class="hs-identifier hs-type">FormatM</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Handle</span></span><span>
+</span><span id="line-156"></span><span id="getHandle"><span class="annot"><span class="annottext">getHandle :: FormatM Handle
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#getHandle"><span class="hs-identifier hs-var hs-var">getHandle</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Handle
+</span><span class="hs-identifier hs-var">stdout</span></span><span>
+</span><span id="line-157"></span><span>
+</span><span id="line-158"></span><span class="hs-comment">-- | The random seed that is used for QuickCheck.</span><span>
+</span><span id="line-159"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#usedSeed"><span class="hs-identifier hs-type">usedSeed</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatM"><span class="hs-identifier hs-type">FormatM</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span>
+</span><span id="line-160"></span><span id="usedSeed"><span class="annot"><span class="annottext">usedSeed :: FormatM Integer
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#usedSeed"><span class="hs-identifier hs-var hs-var">usedSeed</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. (FormatConfig -&gt; a) -&gt; FormatM a
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#getConfig"><span class="hs-identifier hs-var">getConfig</span></a></span><span> </span><span class="annot"><span class="annottext">FormatConfig -&gt; Integer
+</span><a href="Test.Hspec.Core.Format.html#formatConfigUsedSeed"><span class="hs-identifier hs-var">formatConfigUsedSeed</span></a></span><span>
+</span><span id="line-161"></span><span>
+</span><span id="line-162"></span><span class="hs-comment">-- NOTE: We use an IORef here, so that the state persists when UserInterrupt is</span><span>
+</span><span id="line-163"></span><span class="hs-comment">-- thrown.</span><span>
+</span><span id="line-164"></span><span class="hs-keyword">newtype</span><span> </span><span id="FormatM"><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatM"><span class="hs-identifier hs-var">FormatM</span></a></span></span><span> </span><span id="local-6989586621679161684"><span class="annot"><a href="#local-6989586621679161684"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="FormatM"><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatM"><span class="hs-identifier hs-var">FormatM</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">StateT</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IORef</span></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatterState"><span class="hs-identifier hs-type">FormatterState</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679161684"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-165"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679161397"><span id="local-6989586621679161402"><span class="annot"><span class="annottext">forall a b. a -&gt; FormatM b -&gt; FormatM a
+forall a b. (a -&gt; b) -&gt; FormatM a -&gt; FormatM b
+forall (f :: * -&gt; *).
+(forall a b. (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b. a -&gt; f b -&gt; f a) -&gt; Functor f
+&lt;$ :: forall a b. a -&gt; FormatM b -&gt; FormatM a
+$c&lt;$ :: forall a b. a -&gt; FormatM b -&gt; FormatM a
+fmap :: forall a b. (a -&gt; b) -&gt; FormatM a -&gt; FormatM b
+$cfmap :: forall a b. (a -&gt; b) -&gt; FormatM a -&gt; FormatM b
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Functor</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679161368"><span id="local-6989586621679161373"><span id="local-6989586621679161378"><span id="local-6989586621679161383"><span id="local-6989586621679161389"><span class="annot"><span class="annottext">Functor FormatM
+forall a. a -&gt; FormatM a
+forall a b. FormatM a -&gt; FormatM b -&gt; FormatM a
+forall a b. FormatM a -&gt; FormatM b -&gt; FormatM b
+forall a b. FormatM (a -&gt; b) -&gt; FormatM a -&gt; FormatM b
+forall a b c. (a -&gt; b -&gt; c) -&gt; FormatM a -&gt; FormatM b -&gt; FormatM c
+forall (f :: * -&gt; *).
+Functor f
+-&gt; (forall a. a -&gt; f a)
+-&gt; (forall a b. f (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b c. (a -&gt; b -&gt; c) -&gt; f a -&gt; f b -&gt; f c)
+-&gt; (forall a b. f a -&gt; f b -&gt; f b)
+-&gt; (forall a b. f a -&gt; f b -&gt; f a)
+-&gt; Applicative f
+&lt;* :: forall a b. FormatM a -&gt; FormatM b -&gt; FormatM a
+$c&lt;* :: forall a b. FormatM a -&gt; FormatM b -&gt; FormatM a
+*&gt; :: forall a b. FormatM a -&gt; FormatM b -&gt; FormatM b
+$c*&gt; :: forall a b. FormatM a -&gt; FormatM b -&gt; FormatM b
+liftA2 :: forall a b c. (a -&gt; b -&gt; c) -&gt; FormatM a -&gt; FormatM b -&gt; FormatM c
+$cliftA2 :: forall a b c. (a -&gt; b -&gt; c) -&gt; FormatM a -&gt; FormatM b -&gt; FormatM c
+&lt;*&gt; :: forall a b. FormatM (a -&gt; b) -&gt; FormatM a -&gt; FormatM b
+$c&lt;*&gt; :: forall a b. FormatM (a -&gt; b) -&gt; FormatM a -&gt; FormatM b
+pure :: forall a. a -&gt; FormatM a
+$cpure :: forall a. a -&gt; FormatM a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Applicative</span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679161352"><span id="local-6989586621679161356"><span id="local-6989586621679161360"><span class="annot"><span class="annottext">Applicative FormatM
+forall a. a -&gt; FormatM a
+forall a b. FormatM a -&gt; FormatM b -&gt; FormatM b
+forall a b. FormatM a -&gt; (a -&gt; FormatM b) -&gt; FormatM b
+forall (m :: * -&gt; *).
+Applicative m
+-&gt; (forall a b. m a -&gt; (a -&gt; m b) -&gt; m b)
+-&gt; (forall a b. m a -&gt; m b -&gt; m b)
+-&gt; (forall a. a -&gt; m a)
+-&gt; Monad m
+return :: forall a. a -&gt; FormatM a
+$creturn :: forall a. a -&gt; FormatM a
+&gt;&gt; :: forall a b. FormatM a -&gt; FormatM b -&gt; FormatM b
+$c&gt;&gt; :: forall a b. FormatM a -&gt; FormatM b -&gt; FormatM b
+&gt;&gt;= :: forall a b. FormatM a -&gt; (a -&gt; FormatM b) -&gt; FormatM b
+$c&gt;&gt;= :: forall a b. FormatM a -&gt; (a -&gt; FormatM b) -&gt; FormatM b
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Monad</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679161345"><span class="annot"><span class="annottext">Monad FormatM
+forall a. IO a -&gt; FormatM a
+forall (m :: * -&gt; *).
+Monad m -&gt; (forall a. IO a -&gt; m a) -&gt; MonadIO m
+liftIO :: forall a. IO a -&gt; FormatM a
+$cliftIO :: forall a. IO a -&gt; FormatM a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var">MonadIO</span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-166"></span><span>
+</span><span id="line-167"></span><span id="local-6989586621679161714"><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#runFormatM"><span class="hs-identifier hs-type">runFormatM</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Format.html#FormatConfig"><span class="hs-identifier hs-type">FormatConfig</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatM"><span class="hs-identifier hs-type">FormatM</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679161714"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679161714"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-168"></span><span id="runFormatM"><span class="annot"><span class="annottext">runFormatM :: forall a. FormatConfig -&gt; FormatM a -&gt; IO a
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#runFormatM"><span class="hs-identifier hs-var hs-var">runFormatM</span></a></span></span><span> </span><span id="local-6989586621679161334"><span class="annot"><span class="annottext">FormatConfig
+</span><a href="#local-6989586621679161334"><span class="hs-identifier hs-var">config</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatM"><span class="hs-identifier hs-type">FormatM</span></a></span><span> </span><span id="local-6989586621679161333"><span class="annot"><span class="annottext">StateT (IORef FormatterState) IO a
+</span><a href="#local-6989586621679161333"><span class="hs-identifier hs-var">action</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. IO a -&gt; IO a
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#withLineBuffering"><span class="hs-identifier hs-var">withLineBuffering</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-169"></span><span>  </span><span id="local-6989586621679161331"><span class="annot"><span class="annottext">Seconds
+</span><a href="#local-6989586621679161331"><span class="hs-identifier hs-var">time</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO Seconds
+</span><a href="Test.Hspec.Core.Clock.html#getMonotonicTime"><span class="hs-identifier hs-var">getMonotonicTime</span></a></span><span>
+</span><span id="line-170"></span><span>  </span><span id="local-6989586621679161329"><span class="annot"><span class="annottext">Maybe Integer
+</span><a href="#local-6989586621679161329"><span class="hs-identifier hs-var">cpuTime</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FormatConfig -&gt; Bool
+</span><a href="Test.Hspec.Core.Format.html#formatConfigPrintCpuTime"><span class="hs-identifier hs-var">formatConfigPrintCpuTime</span></a></span><span> </span><span class="annot"><span class="annottext">FormatConfig
+</span><a href="#local-6989586621679161334"><span class="hs-identifier hs-var">config</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">IO Integer
+</span><span class="hs-identifier hs-var">CPUTime.getCPUTime</span></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-171"></span><span>  </span><span id="local-6989586621679161326"><span class="annot"><span class="annottext">IORef FormatterState
+</span><a href="#local-6989586621679161326"><span class="hs-identifier hs-var">st</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; IO (IORef a)
+</span><span class="hs-identifier hs-var">newIORef</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+-&gt; Int
+-&gt; [FailureRecord]
+-&gt; Maybe Integer
+-&gt; Seconds
+-&gt; FormatConfig
+-&gt; Maybe SGR
+-&gt; FormatterState
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#FormatterState"><span class="hs-identifier hs-var">FormatterState</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">Maybe Integer
+</span><a href="#local-6989586621679161329"><span class="hs-identifier hs-var">cpuTime</span></a></span><span> </span><span class="annot"><span class="annottext">Seconds
+</span><a href="#local-6989586621679161331"><span class="hs-identifier hs-var">time</span></a></span><span> </span><span class="annot"><span class="annottext">FormatConfig
+</span><a href="#local-6989586621679161334"><span class="hs-identifier hs-var">config</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">)</span><span>
+</span><span id="line-172"></span><span>  </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) s a. Monad m =&gt; StateT s m a -&gt; s -&gt; m a
+</span><span class="hs-identifier hs-var">evalStateT</span></span><span> </span><span class="annot"><span class="annottext">StateT (IORef FormatterState) IO a
+</span><a href="#local-6989586621679161333"><span class="hs-identifier hs-var">action</span></a></span><span> </span><span class="annot"><span class="annottext">IORef FormatterState
+</span><a href="#local-6989586621679161326"><span class="hs-identifier hs-var">st</span></a></span><span>
+</span><span id="line-173"></span><span>
+</span><span id="line-174"></span><span id="local-6989586621679161632"><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#withLineBuffering"><span class="hs-identifier hs-type">withLineBuffering</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679161632"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679161632"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-175"></span><span id="withLineBuffering"><span class="annot"><span class="annottext">withLineBuffering :: forall a. IO a -&gt; IO a
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#withLineBuffering"><span class="hs-identifier hs-var hs-var">withLineBuffering</span></a></span></span><span> </span><span id="local-6989586621679161322"><span class="annot"><span class="annottext">IO a
+</span><a href="#local-6989586621679161322"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b c. IO a -&gt; (a -&gt; IO b) -&gt; (a -&gt; IO c) -&gt; IO c
+</span><span class="hs-identifier hs-var">bracket</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Handle -&gt; IO BufferMode
+</span><span class="hs-identifier hs-var">IO.hGetBuffering</span></span><span> </span><span class="annot"><span class="annottext">Handle
+</span><span class="hs-identifier hs-var">stdout</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Handle -&gt; BufferMode -&gt; IO ()
+</span><span class="hs-identifier hs-var">IO.hSetBuffering</span></span><span> </span><span class="annot"><span class="annottext">Handle
+</span><span class="hs-identifier hs-var">stdout</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span> </span><span class="annot"><span class="annottext">BufferMode
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-176"></span><span>  </span><span class="annot"><span class="annottext">Handle -&gt; BufferMode -&gt; IO ()
+</span><span class="hs-identifier hs-var">IO.hSetBuffering</span></span><span> </span><span class="annot"><span class="annottext">Handle
+</span><span class="hs-identifier hs-var">stdout</span></span><span> </span><span class="annot"><span class="annottext">BufferMode
+</span><span class="hs-identifier hs-var">IO.LineBuffering</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">IO a
+</span><a href="#local-6989586621679161322"><span class="hs-identifier hs-var">action</span></a></span><span>
+</span><span id="line-177"></span><span>
+</span><span id="line-178"></span><span class="hs-comment">-- | Increase the counter for successful examples</span><span>
+</span><span id="line-179"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#increaseSuccessCount"><span class="hs-identifier hs-type">increaseSuccessCount</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatM"><span class="hs-identifier hs-type">FormatM</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-180"></span><span id="increaseSuccessCount"><span class="annot"><span class="annottext">increaseSuccessCount :: FormatM ()
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#increaseSuccessCount"><span class="hs-identifier hs-var hs-var">increaseSuccessCount</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(FormatterState -&gt; FormatterState) -&gt; FormatM ()
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#modify"><span class="hs-identifier hs-var">modify</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679161318"><span class="annot"><span class="annottext">FormatterState
+</span><a href="#local-6989586621679161318"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">FormatterState
+</span><a href="#local-6989586621679161318"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="hs-special">{</span><span class="annot"><span class="annottext">stateSuccessCount :: Int
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#stateSuccessCount"><span class="hs-identifier hs-var">stateSuccessCount</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Enum a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">succ</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">FormatterState -&gt; Int
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#stateSuccessCount"><span class="hs-identifier hs-var">stateSuccessCount</span></a></span><span> </span><span class="annot"><span class="annottext">FormatterState
+</span><a href="#local-6989586621679161318"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">}</span><span>
+</span><span id="line-181"></span><span>
+</span><span id="line-182"></span><span class="hs-comment">-- | Increase the counter for pending examples</span><span>
+</span><span id="line-183"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#increasePendingCount"><span class="hs-identifier hs-type">increasePendingCount</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatM"><span class="hs-identifier hs-type">FormatM</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-184"></span><span id="increasePendingCount"><span class="annot"><span class="annottext">increasePendingCount :: FormatM ()
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#increasePendingCount"><span class="hs-identifier hs-var hs-var">increasePendingCount</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(FormatterState -&gt; FormatterState) -&gt; FormatM ()
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#modify"><span class="hs-identifier hs-var">modify</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679161316"><span class="annot"><span class="annottext">FormatterState
+</span><a href="#local-6989586621679161316"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">FormatterState
+</span><a href="#local-6989586621679161316"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="hs-special">{</span><span class="annot"><span class="annottext">statePendingCount :: Int
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#statePendingCount"><span class="hs-identifier hs-var">statePendingCount</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Enum a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">succ</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">FormatterState -&gt; Int
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#statePendingCount"><span class="hs-identifier hs-var">statePendingCount</span></a></span><span> </span><span class="annot"><span class="annottext">FormatterState
+</span><a href="#local-6989586621679161316"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">}</span><span>
+</span><span id="line-185"></span><span>
+</span><span id="line-186"></span><span class="hs-comment">-- | Get the number of successful examples encountered so far.</span><span>
+</span><span id="line-187"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#getSuccessCount"><span class="hs-identifier hs-type">getSuccessCount</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatM"><span class="hs-identifier hs-type">FormatM</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-188"></span><span id="getSuccessCount"><span class="annot"><span class="annottext">getSuccessCount :: FormatM Int
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#getSuccessCount"><span class="hs-identifier hs-var hs-var">getSuccessCount</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. (FormatterState -&gt; a) -&gt; FormatM a
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#gets"><span class="hs-identifier hs-var">gets</span></a></span><span> </span><span class="annot"><span class="annottext">FormatterState -&gt; Int
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#stateSuccessCount"><span class="hs-identifier hs-var">stateSuccessCount</span></a></span><span>
+</span><span id="line-189"></span><span>
+</span><span id="line-190"></span><span class="hs-comment">-- | Get the number of pending examples encountered so far.</span><span>
+</span><span id="line-191"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#getPendingCount"><span class="hs-identifier hs-type">getPendingCount</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatM"><span class="hs-identifier hs-type">FormatM</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-192"></span><span id="getPendingCount"><span class="annot"><span class="annottext">getPendingCount :: FormatM Int
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#getPendingCount"><span class="hs-identifier hs-var hs-var">getPendingCount</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. (FormatterState -&gt; a) -&gt; FormatM a
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#gets"><span class="hs-identifier hs-var">gets</span></a></span><span> </span><span class="annot"><span class="annottext">FormatterState -&gt; Int
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#statePendingCount"><span class="hs-identifier hs-var">statePendingCount</span></a></span><span>
+</span><span id="line-193"></span><span>
+</span><span id="line-194"></span><span class="hs-comment">-- | Append to the list of accumulated failure messages.</span><span>
+</span><span id="line-195"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#addFailMessage"><span class="hs-identifier hs-type">addFailMessage</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.Location.html#Location"><span class="hs-identifier hs-type">Location</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Util.html#Path"><span class="hs-identifier hs-type">Path</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.html#FailureReason"><span class="hs-identifier hs-type">FailureReason</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatM"><span class="hs-identifier hs-type">FormatM</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-196"></span><span id="addFailMessage"><span class="annot"><span class="annottext">addFailMessage :: Maybe Location -&gt; Path -&gt; FailureReason -&gt; FormatM ()
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#addFailMessage"><span class="hs-identifier hs-var hs-var">addFailMessage</span></a></span></span><span> </span><span id="local-6989586621679161315"><span class="annot"><span class="annottext">Maybe Location
+</span><a href="#local-6989586621679161315"><span class="hs-identifier hs-var">loc</span></a></span></span><span> </span><span id="local-6989586621679161314"><span class="annot"><span class="annottext">Path
+</span><a href="#local-6989586621679161314"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span id="local-6989586621679161313"><span class="annot"><span class="annottext">FailureReason
+</span><a href="#local-6989586621679161313"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(FormatterState -&gt; FormatterState) -&gt; FormatM ()
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#modify"><span class="hs-identifier hs-var">modify</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679161312"><span class="annot"><span class="annottext">FormatterState
+</span><a href="#local-6989586621679161312"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">FormatterState
+</span><a href="#local-6989586621679161312"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="hs-special">{</span><span class="annot"><span class="annottext">stateFailMessages :: [FailureRecord]
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#stateFailMessages"><span class="hs-identifier hs-var">stateFailMessages</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe Location -&gt; Path -&gt; FailureReason -&gt; FailureRecord
+</span><a href="Test.Hspec.Core.Formatters.V1.Monad.html#FailureRecord"><span class="hs-identifier hs-var">FailureRecord</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Location
+</span><a href="#local-6989586621679161315"><span class="hs-identifier hs-var">loc</span></a></span><span> </span><span class="annot"><span class="annottext">Path
+</span><a href="#local-6989586621679161314"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">FailureReason
+</span><a href="#local-6989586621679161313"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">FormatterState -&gt; [FailureRecord]
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#stateFailMessages"><span class="hs-identifier hs-var">stateFailMessages</span></a></span><span> </span><span class="annot"><span class="annottext">FormatterState
+</span><a href="#local-6989586621679161312"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">}</span><span>
+</span><span id="line-197"></span><span>
+</span><span id="line-198"></span><span class="hs-comment">-- | Get the list of accumulated failure messages.</span><span>
+</span><span id="line-199"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#getFailMessages"><span class="hs-identifier hs-type">getFailMessages</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatM"><span class="hs-identifier hs-type">FormatM</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Test.Hspec.Core.Formatters.V1.Monad.html#FailureRecord"><span class="hs-identifier hs-type">FailureRecord</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-200"></span><span id="getFailMessages"><span class="annot"><span class="annottext">getFailMessages :: FormatM [FailureRecord]
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#getFailMessages"><span class="hs-identifier hs-var hs-var">getFailMessages</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">reverse</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">`fmap`</span></span><span> </span><span class="annot"><span class="annottext">forall a. (FormatterState -&gt; a) -&gt; FormatM a
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#gets"><span class="hs-identifier hs-var">gets</span></a></span><span> </span><span class="annot"><span class="annottext">FormatterState -&gt; [FailureRecord]
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#stateFailMessages"><span class="hs-identifier hs-var">stateFailMessages</span></a></span><span>
+</span><span id="line-201"></span><span>
+</span><span id="line-202"></span><span class="hs-comment">-- | Get the number of spec items that will have been encountered when this run</span><span>
+</span><span id="line-203"></span><span class="hs-comment">-- completes (if it is not terminated early).</span><span>
+</span><span id="line-204"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#getExpectedTotalCount"><span class="hs-identifier hs-type">getExpectedTotalCount</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatM"><span class="hs-identifier hs-type">FormatM</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-205"></span><span id="getExpectedTotalCount"><span class="annot"><span class="annottext">getExpectedTotalCount :: FormatM Int
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#getExpectedTotalCount"><span class="hs-identifier hs-var hs-var">getExpectedTotalCount</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. (FormatConfig -&gt; a) -&gt; FormatM a
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#getConfig"><span class="hs-identifier hs-var">getConfig</span></a></span><span> </span><span class="annot"><span class="annottext">FormatConfig -&gt; Int
+</span><a href="Test.Hspec.Core.Format.html#formatConfigExpectedTotalCount"><span class="hs-identifier hs-var">formatConfigExpectedTotalCount</span></a></span><span>
+</span><span id="line-206"></span><span>
+</span><span id="line-207"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#writeTransient"><span class="hs-identifier hs-type">writeTransient</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatM"><span class="hs-identifier hs-type">FormatM</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-208"></span><span id="writeTransient"><span class="annot"><span class="annottext">writeTransient :: String -&gt; FormatM ()
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#writeTransient"><span class="hs-identifier hs-var hs-var">writeTransient</span></a></span></span><span> </span><span id="local-6989586621679161308"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679161308"><span class="hs-identifier hs-var">new</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-209"></span><span>  </span><span id="local-6989586621679161307"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679161307"><span class="hs-identifier hs-var">reportProgress</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a. (FormatConfig -&gt; a) -&gt; FormatM a
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#getConfig"><span class="hs-identifier hs-var">getConfig</span></a></span><span> </span><span class="annot"><span class="annottext">FormatConfig -&gt; Bool
+</span><a href="Test.Hspec.Core.Format.html#formatConfigReportProgress"><span class="hs-identifier hs-var">formatConfigReportProgress</span></a></span><span>
+</span><span id="line-210"></span><span>  </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *). Applicative f =&gt; Bool -&gt; f () -&gt; f ()
+</span><span class="hs-identifier hs-var">when</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679161307"><span class="hs-identifier hs-var">reportProgress</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-211"></span><span>    </span><span id="local-6989586621679161304"><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621679161304"><span class="hs-identifier hs-var">h</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">FormatM Handle
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#getHandle"><span class="hs-identifier hs-var">getHandle</span></a></span><span>
+</span><span id="line-212"></span><span>    </span><span class="annot"><span class="annottext">String -&gt; FormatM ()
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#write"><span class="hs-identifier hs-var">write</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679161308"><span class="hs-identifier hs-var">new</span></a></span><span>
+</span><span id="line-213"></span><span>    </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><span class="hs-identifier hs-var">liftIO</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Handle -&gt; IO ()
+</span><span class="hs-identifier hs-var">IO.hFlush</span></span><span> </span><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621679161304"><span class="hs-identifier hs-var">h</span></a></span><span>
+</span><span id="line-214"></span><span>    </span><span class="annot"><span class="annottext">String -&gt; FormatM ()
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#write"><span class="hs-identifier hs-var">write</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;\r&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">forall a. Int -&gt; a -&gt; [a]
+</span><span class="hs-identifier hs-var">replicate</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679161308"><span class="hs-identifier hs-var">new</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">' '</span></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;\r&quot;</span></span><span>
+</span><span id="line-215"></span><span>
+</span><span id="line-216"></span><span class="hs-comment">-- | Append some output to the report.</span><span>
+</span><span id="line-217"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#write"><span class="hs-identifier hs-type">write</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatM"><span class="hs-identifier hs-type">FormatM</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-218"></span><span id="write"><span class="annot"><span class="annottext">write :: String -&gt; FormatM ()
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#write"><span class="hs-identifier hs-var hs-var">write</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Foldable t, Monad m) =&gt;
+(a -&gt; m b) -&gt; t a -&gt; m ()
+</span><span class="hs-identifier hs-var">mapM_</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; FormatM ()
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#writeChunk"><span class="hs-identifier hs-var">writeChunk</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; [String]
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#splitLines"><span class="hs-identifier hs-var">splitLines</span></a></span><span>
+</span><span id="line-219"></span><span>
+</span><span id="line-220"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#splitLines"><span class="hs-identifier hs-type">splitLines</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">]</span><span>
+</span><span id="line-221"></span><span id="splitLines"><span class="annot"><span class="annottext">splitLines :: String -&gt; [String]
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#splitLines"><span class="hs-identifier hs-var hs-var">splitLines</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. (a -&gt; a -&gt; Bool) -&gt; [a] -&gt; [[a]]
+</span><span class="hs-identifier hs-var">groupBy</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621679161298"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679161298"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679161297"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679161297"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><a href="#local-6989586621679161296"><span class="hs-identifier hs-var">isNewline</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679161298"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><a href="#local-6989586621679161296"><span class="hs-identifier hs-var">isNewline</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679161297"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-222"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-223"></span><span>    </span><span id="local-6989586621679161296"><span class="annot"><span class="annottext">isNewline :: Char -&gt; Bool
+</span><a href="#local-6989586621679161296"><span class="hs-identifier hs-var hs-var">isNewline</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'\n'</span></span><span class="hs-special">)</span><span>
+</span><span id="line-224"></span><span>
+</span><span id="line-225"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#writeChunk"><span class="hs-identifier hs-type">writeChunk</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatM"><span class="hs-identifier hs-type">FormatM</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-226"></span><span id="writeChunk"><span class="annot"><span class="annottext">writeChunk :: String -&gt; FormatM ()
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#writeChunk"><span class="hs-identifier hs-var hs-var">writeChunk</span></a></span></span><span> </span><span id="local-6989586621679161293"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679161293"><span class="hs-identifier hs-var">str</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-227"></span><span>  </span><span id="local-6989586621679161292"><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621679161292"><span class="hs-identifier hs-var">h</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">FormatM Handle
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#getHandle"><span class="hs-identifier hs-var">getHandle</span></a></span><span>
+</span><span id="line-228"></span><span>  </span><span id="local-6989586621679161291"><span class="annot"><span class="annottext">Maybe SGR
+</span><a href="#local-6989586621679161291"><span class="hs-identifier hs-var">mColor</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a. (FormatterState -&gt; a) -&gt; FormatM a
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#gets"><span class="hs-identifier hs-var">gets</span></a></span><span> </span><span class="annot"><span class="annottext">FormatterState -&gt; Maybe SGR
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#stateColor"><span class="hs-identifier hs-var">stateColor</span></a></span><span>
+</span><span id="line-229"></span><span>  </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><span class="hs-identifier hs-var">liftIO</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Maybe SGR
+</span><a href="#local-6989586621679161291"><span class="hs-identifier hs-var">mColor</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-230"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679161290"><span class="annot"><span class="annottext">SGR
+</span><a href="#local-6989586621679161290"><span class="hs-identifier hs-var">color</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; (a -&gt; Bool) -&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">all</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isSpace</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679161293"><span class="hs-identifier hs-var">str</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a b c. IO a -&gt; IO b -&gt; IO c -&gt; IO c
+</span><span class="hs-identifier hs-var">bracket_</span></span><span>
+</span><span id="line-231"></span><span>      </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Handle -&gt; [SGR] -&gt; IO ()
+</span><span class="hs-identifier hs-var">hSetSGR</span></span><span> </span><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621679161292"><span class="hs-identifier hs-var">h</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">SGR
+</span><a href="#local-6989586621679161290"><span class="hs-identifier hs-var">color</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-232"></span><span>      </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Handle -&gt; [SGR] -&gt; IO ()
+</span><span class="hs-identifier hs-var">hSetSGR</span></span><span> </span><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621679161292"><span class="hs-identifier hs-var">h</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">SGR
+</span><span class="hs-identifier hs-var">Reset</span></span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-233"></span><span>      </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Handle -&gt; String -&gt; IO ()
+</span><span class="hs-identifier hs-var">IO.hPutStr</span></span><span> </span><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621679161292"><span class="hs-identifier hs-var">h</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679161293"><span class="hs-identifier hs-var">str</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-234"></span><span>    </span><span class="annot"><span class="annottext">Maybe SGR
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Handle -&gt; String -&gt; IO ()
+</span><span class="hs-identifier hs-var">IO.hPutStr</span></span><span> </span><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621679161292"><span class="hs-identifier hs-var">h</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679161293"><span class="hs-identifier hs-var">str</span></a></span><span>
+</span><span id="line-235"></span><span>
+</span><span id="line-236"></span><span class="hs-comment">-- | Set output color to red, run given action, and finally restore the default</span><span>
+</span><span id="line-237"></span><span class="hs-comment">-- color.</span><span>
+</span><span id="line-238"></span><span id="local-6989586621679161605"><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#withFailColor"><span class="hs-identifier hs-type">withFailColor</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatM"><span class="hs-identifier hs-type">FormatM</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679161605"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatM"><span class="hs-identifier hs-type">FormatM</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679161605"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-239"></span><span id="withFailColor"><span class="annot"><span class="annottext">withFailColor :: forall a. FormatM a -&gt; FormatM a
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#withFailColor"><span class="hs-identifier hs-var hs-var">withFailColor</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. SGR -&gt; String -&gt; FormatM a -&gt; FormatM a
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#withColor"><span class="hs-identifier hs-var">withColor</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ConsoleLayer -&gt; ColorIntensity -&gt; Color -&gt; SGR
+</span><span class="hs-identifier hs-var">SetColor</span></span><span> </span><span class="annot"><span class="annottext">ConsoleLayer
+</span><span class="hs-identifier hs-var">Foreground</span></span><span> </span><span class="annot"><span class="annottext">ColorIntensity
+</span><span class="hs-identifier hs-var">Dull</span></span><span> </span><span class="annot"><span class="annottext">Color
+</span><span class="hs-identifier hs-var">Red</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;hspec-failure&quot;</span></span><span>
+</span><span id="line-240"></span><span>
+</span><span id="line-241"></span><span class="hs-comment">-- | Set output color to green, run given action, and finally restore the</span><span>
+</span><span id="line-242"></span><span class="hs-comment">-- default color.</span><span>
+</span><span id="line-243"></span><span id="local-6989586621679161279"><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#withSuccessColor"><span class="hs-identifier hs-type">withSuccessColor</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatM"><span class="hs-identifier hs-type">FormatM</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679161279"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatM"><span class="hs-identifier hs-type">FormatM</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679161279"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-244"></span><span id="withSuccessColor"><span class="annot"><span class="annottext">withSuccessColor :: forall a. FormatM a -&gt; FormatM a
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#withSuccessColor"><span class="hs-identifier hs-var hs-var">withSuccessColor</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. SGR -&gt; String -&gt; FormatM a -&gt; FormatM a
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#withColor"><span class="hs-identifier hs-var">withColor</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ConsoleLayer -&gt; ColorIntensity -&gt; Color -&gt; SGR
+</span><span class="hs-identifier hs-var">SetColor</span></span><span> </span><span class="annot"><span class="annottext">ConsoleLayer
+</span><span class="hs-identifier hs-var">Foreground</span></span><span> </span><span class="annot"><span class="annottext">ColorIntensity
+</span><span class="hs-identifier hs-var">Dull</span></span><span> </span><span class="annot"><span class="annottext">Color
+</span><span class="hs-identifier hs-var">Green</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;hspec-success&quot;</span></span><span>
+</span><span id="line-245"></span><span>
+</span><span id="line-246"></span><span class="hs-comment">-- | Set output color to yellow, run given action, and finally restore the</span><span>
+</span><span id="line-247"></span><span class="hs-comment">-- default color.</span><span>
+</span><span id="line-248"></span><span id="local-6989586621679161277"><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#withPendingColor"><span class="hs-identifier hs-type">withPendingColor</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatM"><span class="hs-identifier hs-type">FormatM</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679161277"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatM"><span class="hs-identifier hs-type">FormatM</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679161277"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-249"></span><span id="withPendingColor"><span class="annot"><span class="annottext">withPendingColor :: forall a. FormatM a -&gt; FormatM a
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#withPendingColor"><span class="hs-identifier hs-var hs-var">withPendingColor</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. SGR -&gt; String -&gt; FormatM a -&gt; FormatM a
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#withColor"><span class="hs-identifier hs-var">withColor</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ConsoleLayer -&gt; ColorIntensity -&gt; Color -&gt; SGR
+</span><span class="hs-identifier hs-var">SetColor</span></span><span> </span><span class="annot"><span class="annottext">ConsoleLayer
+</span><span class="hs-identifier hs-var">Foreground</span></span><span> </span><span class="annot"><span class="annottext">ColorIntensity
+</span><span class="hs-identifier hs-var">Dull</span></span><span> </span><span class="annot"><span class="annottext">Color
+</span><span class="hs-identifier hs-var">Yellow</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;hspec-pending&quot;</span></span><span>
+</span><span id="line-250"></span><span>
+</span><span id="line-251"></span><span class="hs-comment">-- | Set output color to cyan, run given action, and finally restore the</span><span>
+</span><span id="line-252"></span><span class="hs-comment">-- default color.</span><span>
+</span><span id="line-253"></span><span id="local-6989586621679161275"><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#withInfoColor"><span class="hs-identifier hs-type">withInfoColor</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatM"><span class="hs-identifier hs-type">FormatM</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679161275"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatM"><span class="hs-identifier hs-type">FormatM</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679161275"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-254"></span><span id="withInfoColor"><span class="annot"><span class="annottext">withInfoColor :: forall a. FormatM a -&gt; FormatM a
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#withInfoColor"><span class="hs-identifier hs-var hs-var">withInfoColor</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. SGR -&gt; String -&gt; FormatM a -&gt; FormatM a
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#withColor"><span class="hs-identifier hs-var">withColor</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ConsoleLayer -&gt; ColorIntensity -&gt; Color -&gt; SGR
+</span><span class="hs-identifier hs-var">SetColor</span></span><span> </span><span class="annot"><span class="annottext">ConsoleLayer
+</span><span class="hs-identifier hs-var">Foreground</span></span><span> </span><span class="annot"><span class="annottext">ColorIntensity
+</span><span class="hs-identifier hs-var">Dull</span></span><span> </span><span class="annot"><span class="annottext">Color
+</span><span class="hs-identifier hs-var">Cyan</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;hspec-info&quot;</span></span><span>
+</span><span id="line-255"></span><span>
+</span><span id="line-256"></span><span class="hs-comment">-- | Set a color, run an action, and finally reset colors.</span><span>
+</span><span id="line-257"></span><span id="local-6989586621679161604"><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#withColor"><span class="hs-identifier hs-type">withColor</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">SGR</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatM"><span class="hs-identifier hs-type">FormatM</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679161604"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatM"><span class="hs-identifier hs-type">FormatM</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679161604"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-258"></span><span id="withColor"><span class="annot"><span class="annottext">withColor :: forall a. SGR -&gt; String -&gt; FormatM a -&gt; FormatM a
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#withColor"><span class="hs-identifier hs-var hs-var">withColor</span></a></span></span><span> </span><span id="local-6989586621679161272"><span class="annot"><span class="annottext">SGR
+</span><a href="#local-6989586621679161272"><span class="hs-identifier hs-var">color</span></a></span></span><span> </span><span id="local-6989586621679161271"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679161271"><span class="hs-identifier hs-var">cls</span></a></span></span><span> </span><span id="local-6989586621679161270"><span class="annot"><span class="annottext">FormatM a
+</span><a href="#local-6989586621679161270"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-259"></span><span>  </span><span id="local-6989586621679161269"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679161269"><span class="hs-identifier hs-var">produceHTML</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a. (FormatConfig -&gt; a) -&gt; FormatM a
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#getConfig"><span class="hs-identifier hs-var">getConfig</span></a></span><span> </span><span class="annot"><span class="annottext">FormatConfig -&gt; Bool
+</span><a href="Test.Hspec.Core.Format.html#formatConfigHtmlOutput"><span class="hs-identifier hs-var">formatConfigHtmlOutput</span></a></span><span>
+</span><span id="line-260"></span><span>  </span><span class="hs-special">(</span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679161269"><span class="hs-identifier hs-var">produceHTML</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">forall a. String -&gt; FormatM a -&gt; FormatM a
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#htmlSpan"><span class="hs-identifier hs-var">htmlSpan</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679161271"><span class="hs-identifier hs-var">cls</span></a></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">forall a. SGR -&gt; FormatM a -&gt; FormatM a
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#withColor_"><span class="hs-identifier hs-var">withColor_</span></a></span><span> </span><span class="annot"><span class="annottext">SGR
+</span><a href="#local-6989586621679161272"><span class="hs-identifier hs-var">color</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">FormatM a
+</span><a href="#local-6989586621679161270"><span class="hs-identifier hs-var">action</span></a></span><span>
+</span><span id="line-261"></span><span>
+</span><span id="line-262"></span><span id="local-6989586621679161599"><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#htmlSpan"><span class="hs-identifier hs-type">htmlSpan</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatM"><span class="hs-identifier hs-type">FormatM</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679161599"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatM"><span class="hs-identifier hs-type">FormatM</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679161599"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-263"></span><span id="htmlSpan"><span class="annot"><span class="annottext">htmlSpan :: forall a. String -&gt; FormatM a -&gt; FormatM a
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#htmlSpan"><span class="hs-identifier hs-var hs-var">htmlSpan</span></a></span></span><span> </span><span id="local-6989586621679161263"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679161263"><span class="hs-identifier hs-var">cls</span></a></span></span><span> </span><span id="local-6989586621679161262"><span class="annot"><span class="annottext">FormatM a
+</span><a href="#local-6989586621679161262"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; FormatM ()
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#write"><span class="hs-identifier hs-var">write</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;&lt;span class=\&quot;&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679161263"><span class="hs-identifier hs-var">cls</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;\&quot;&gt;&quot;</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f a -&gt; f b -&gt; f b
+</span><span class="hs-operator hs-var">*&gt;</span></span><span> </span><span class="annot"><span class="annottext">FormatM a
+</span><a href="#local-6989586621679161262"><span class="hs-identifier hs-var">action</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f a -&gt; f b -&gt; f a
+</span><span class="hs-operator hs-var">&lt;*</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; FormatM ()
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#write"><span class="hs-identifier hs-var">write</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;&lt;/span&gt;&quot;</span></span><span>
+</span><span id="line-264"></span><span>
+</span><span id="line-265"></span><span id="local-6989586621679161598"><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#withColor_"><span class="hs-identifier hs-type">withColor_</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">SGR</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatM"><span class="hs-identifier hs-type">FormatM</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679161598"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatM"><span class="hs-identifier hs-type">FormatM</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679161598"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-266"></span><span id="withColor_"><span class="annot"><span class="annottext">withColor_ :: forall a. SGR -&gt; FormatM a -&gt; FormatM a
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#withColor_"><span class="hs-identifier hs-var hs-var">withColor_</span></a></span></span><span> </span><span id="local-6989586621679161257"><span class="annot"><span class="annottext">SGR
+</span><a href="#local-6989586621679161257"><span class="hs-identifier hs-var">color</span></a></span></span><span> </span><span id="local-6989586621679161256"><span class="annot"><span class="annottext">FormatM a
+</span><a href="#local-6989586621679161256"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-267"></span><span>  </span><span id="local-6989586621679161255"><span class="annot"><span class="annottext">Maybe SGR
+</span><a href="#local-6989586621679161255"><span class="hs-identifier hs-var">oldColor</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a. (FormatterState -&gt; a) -&gt; FormatM a
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#gets"><span class="hs-identifier hs-var">gets</span></a></span><span> </span><span class="annot"><span class="annottext">FormatterState -&gt; Maybe SGR
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#stateColor"><span class="hs-identifier hs-var">stateColor</span></a></span><span>
+</span><span id="line-268"></span><span>  </span><span class="annot"><span class="annottext">Maybe SGR -&gt; FormatM ()
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#setColor"><span class="hs-identifier hs-var">setColor</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">SGR
+</span><a href="#local-6989586621679161257"><span class="hs-identifier hs-var">color</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f a -&gt; f b -&gt; f b
+</span><span class="hs-operator hs-var">*&gt;</span></span><span> </span><span class="annot"><span class="annottext">FormatM a
+</span><a href="#local-6989586621679161256"><span class="hs-identifier hs-var">action</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f a -&gt; f b -&gt; f a
+</span><span class="hs-operator hs-var">&lt;*</span></span><span> </span><span class="annot"><span class="annottext">Maybe SGR -&gt; FormatM ()
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#setColor"><span class="hs-identifier hs-var">setColor</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe SGR
+</span><a href="#local-6989586621679161255"><span class="hs-identifier hs-var">oldColor</span></a></span><span>
+</span><span id="line-269"></span><span>
+</span><span id="line-270"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#setColor"><span class="hs-identifier hs-type">setColor</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">SGR</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatM"><span class="hs-identifier hs-type">FormatM</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-271"></span><span id="setColor"><span class="annot"><span class="annottext">setColor :: Maybe SGR -&gt; FormatM ()
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#setColor"><span class="hs-identifier hs-var hs-var">setColor</span></a></span></span><span> </span><span id="local-6989586621679161253"><span class="annot"><span class="annottext">Maybe SGR
+</span><a href="#local-6989586621679161253"><span class="hs-identifier hs-var">color</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-272"></span><span>  </span><span id="local-6989586621679161252"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679161252"><span class="hs-identifier hs-var">useColor</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a. (FormatConfig -&gt; a) -&gt; FormatM a
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#getConfig"><span class="hs-identifier hs-var">getConfig</span></a></span><span> </span><span class="annot"><span class="annottext">FormatConfig -&gt; Bool
+</span><a href="Test.Hspec.Core.Format.html#formatConfigUseColor"><span class="hs-identifier hs-var">formatConfigUseColor</span></a></span><span>
+</span><span id="line-273"></span><span>  </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *). Applicative f =&gt; Bool -&gt; f () -&gt; f ()
+</span><span class="hs-identifier hs-var">when</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679161252"><span class="hs-identifier hs-var">useColor</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-274"></span><span>    </span><span class="annot"><span class="annottext">(FormatterState -&gt; FormatterState) -&gt; FormatM ()
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#modify"><span class="hs-identifier hs-var">modify</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621679161250"><span class="annot"><span class="annottext">FormatterState
+</span><a href="#local-6989586621679161250"><span class="hs-identifier hs-var">state</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">FormatterState
+</span><a href="#local-6989586621679161250"><span class="hs-identifier hs-var">state</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">stateColor :: Maybe SGR
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#stateColor"><span class="hs-identifier hs-var">stateColor</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe SGR
+</span><a href="#local-6989586621679161253"><span class="hs-identifier hs-var">color</span></a></span><span> </span><span class="hs-special">}</span><span class="hs-special">)</span><span>
+</span><span id="line-275"></span><span>
+</span><span id="line-276"></span><span class="hs-comment">-- | Output given chunk in red.</span><span>
+</span><span id="line-277"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#extraChunk"><span class="hs-identifier hs-type">extraChunk</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatM"><span class="hs-identifier hs-type">FormatM</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-278"></span><span id="extraChunk"><span class="annot"><span class="annottext">extraChunk :: String -&gt; FormatM ()
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#extraChunk"><span class="hs-identifier hs-var hs-var">extraChunk</span></a></span></span><span> </span><span id="local-6989586621679161249"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679161249"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-279"></span><span>  </span><span id="local-6989586621679161248"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679161248"><span class="hs-identifier hs-var">diff</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a. (FormatConfig -&gt; a) -&gt; FormatM a
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#getConfig"><span class="hs-identifier hs-var">getConfig</span></a></span><span> </span><span class="annot"><span class="annottext">FormatConfig -&gt; Bool
+</span><a href="Test.Hspec.Core.Format.html#formatConfigUseDiff"><span class="hs-identifier hs-var">formatConfigUseDiff</span></a></span><span>
+</span><span id="line-280"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679161248"><span class="hs-identifier hs-var">diff</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-281"></span><span>    </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; FormatM ()
+</span><a href="#local-6989586621679161247"><span class="hs-identifier hs-var">extra</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679161249"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-282"></span><span>    </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; FormatM ()
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#write"><span class="hs-identifier hs-var">write</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679161249"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-283"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-284"></span><span>    </span><span class="annot"><a href="#local-6989586621679161247"><span class="hs-identifier hs-type">extra</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatM"><span class="hs-identifier hs-type">FormatM</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-285"></span><span>    </span><span id="local-6989586621679161247"><span class="annot"><span class="annottext">extra :: String -&gt; FormatM ()
+</span><a href="#local-6989586621679161247"><span class="hs-identifier hs-var hs-var">extra</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Color -&gt; String -&gt; String -&gt; FormatM ()
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#diffColorize"><span class="hs-identifier hs-var">diffColorize</span></a></span><span> </span><span class="annot"><span class="annottext">Color
+</span><span class="hs-identifier hs-var">Red</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;hspec-failure&quot;</span></span><span>
+</span><span id="line-286"></span><span>
+</span><span id="line-287"></span><span class="hs-comment">-- | Output given chunk in green.</span><span>
+</span><span id="line-288"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#missingChunk"><span class="hs-identifier hs-type">missingChunk</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatM"><span class="hs-identifier hs-type">FormatM</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-289"></span><span id="missingChunk"><span class="annot"><span class="annottext">missingChunk :: String -&gt; FormatM ()
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#missingChunk"><span class="hs-identifier hs-var hs-var">missingChunk</span></a></span></span><span> </span><span id="local-6989586621679161245"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679161245"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-290"></span><span>  </span><span id="local-6989586621679161244"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679161244"><span class="hs-identifier hs-var">diff</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a. (FormatConfig -&gt; a) -&gt; FormatM a
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#getConfig"><span class="hs-identifier hs-var">getConfig</span></a></span><span> </span><span class="annot"><span class="annottext">FormatConfig -&gt; Bool
+</span><a href="Test.Hspec.Core.Format.html#formatConfigUseDiff"><span class="hs-identifier hs-var">formatConfigUseDiff</span></a></span><span>
+</span><span id="line-291"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679161244"><span class="hs-identifier hs-var">diff</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-292"></span><span>    </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; FormatM ()
+</span><a href="#local-6989586621679161243"><span class="hs-identifier hs-var">missing</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679161245"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-293"></span><span>    </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; FormatM ()
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#write"><span class="hs-identifier hs-var">write</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679161245"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-294"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-295"></span><span>    </span><span class="annot"><a href="#local-6989586621679161243"><span class="hs-identifier hs-type">missing</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatM"><span class="hs-identifier hs-type">FormatM</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-296"></span><span>    </span><span id="local-6989586621679161243"><span class="annot"><span class="annottext">missing :: String -&gt; FormatM ()
+</span><a href="#local-6989586621679161243"><span class="hs-identifier hs-var hs-var">missing</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Color -&gt; String -&gt; String -&gt; FormatM ()
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#diffColorize"><span class="hs-identifier hs-var">diffColorize</span></a></span><span> </span><span class="annot"><span class="annottext">Color
+</span><span class="hs-identifier hs-var">Green</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;hspec-success&quot;</span></span><span>
+</span><span id="line-297"></span><span>
+</span><span id="line-298"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#diffColorize"><span class="hs-identifier hs-type">diffColorize</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Color</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatM"><span class="hs-identifier hs-type">FormatM</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-299"></span><span id="diffColorize"><span class="annot"><span class="annottext">diffColorize :: Color -&gt; String -&gt; String -&gt; FormatM ()
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#diffColorize"><span class="hs-identifier hs-var hs-var">diffColorize</span></a></span></span><span> </span><span id="local-6989586621679161242"><span class="annot"><span class="annottext">Color
+</span><a href="#local-6989586621679161242"><span class="hs-identifier hs-var">color</span></a></span></span><span> </span><span id="local-6989586621679161241"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679161241"><span class="hs-identifier hs-var">cls</span></a></span></span><span> </span><span id="local-6989586621679161240"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679161240"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. SGR -&gt; String -&gt; FormatM a -&gt; FormatM a
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#withColor"><span class="hs-identifier hs-var">withColor</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ConsoleLayer -&gt; ColorIntensity -&gt; Color -&gt; SGR
+</span><span class="hs-identifier hs-var">SetColor</span></span><span> </span><span class="annot"><span class="annottext">ConsoleLayer
+</span><a href="#local-6989586621679161239"><span class="hs-identifier hs-var">layer</span></a></span><span> </span><span class="annot"><span class="annottext">ColorIntensity
+</span><span class="hs-identifier hs-var">Dull</span></span><span> </span><span class="annot"><span class="annottext">Color
+</span><a href="#local-6989586621679161242"><span class="hs-identifier hs-var">color</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679161241"><span class="hs-identifier hs-var">cls</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-300"></span><span>  </span><span class="annot"><span class="annottext">String -&gt; FormatM ()
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#write"><span class="hs-identifier hs-var">write</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679161240"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-301"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-302"></span><span>    </span><span id="local-6989586621679161239"><span class="annot"><span class="annottext">layer :: ConsoleLayer
+</span><a href="#local-6989586621679161239"><span class="hs-identifier hs-var hs-var">layer</span></a></span></span><span>
+</span><span id="line-303"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; (a -&gt; Bool) -&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">all</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isSpace</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679161240"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ConsoleLayer
+</span><span class="hs-identifier hs-var">Background</span></span><span>
+</span><span id="line-304"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ConsoleLayer
+</span><span class="hs-identifier hs-var">Foreground</span></span><span>
+</span><span id="line-305"></span><span>
+</span><span id="line-306"></span><span class="hs-comment">-- | Get the used CPU time since the test run has been started.</span><span>
+</span><span id="line-307"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#getCPUTime"><span class="hs-identifier hs-type">getCPUTime</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatM"><span class="hs-identifier hs-type">FormatM</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Clock.html#Seconds"><span class="hs-identifier hs-type">Seconds</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-308"></span><span id="getCPUTime"><span class="annot"><span class="annottext">getCPUTime :: FormatM (Maybe Seconds)
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#getCPUTime"><span class="hs-identifier hs-var hs-var">getCPUTime</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-309"></span><span>  </span><span id="local-6989586621679161236"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679161236"><span class="hs-identifier hs-var">t1</span></a></span></span><span>  </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><span class="hs-identifier hs-var">liftIO</span></span><span> </span><span class="annot"><span class="annottext">IO Integer
+</span><span class="hs-identifier hs-var">CPUTime.getCPUTime</span></span><span>
+</span><span id="line-310"></span><span>  </span><span id="local-6989586621679161235"><span class="annot"><span class="annottext">Maybe Integer
+</span><a href="#local-6989586621679161235"><span class="hs-identifier hs-var">mt0</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a. (FormatterState -&gt; a) -&gt; FormatM a
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#gets"><span class="hs-identifier hs-var">gets</span></a></span><span> </span><span class="annot"><span class="annottext">FormatterState -&gt; Maybe Integer
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#stateCpuStartTime"><span class="hs-identifier hs-var">stateCpuStartTime</span></a></span><span>
+</span><span id="line-311"></span><span>  </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall {a}. Integral a =&gt; a -&gt; Seconds
+</span><a href="#local-6989586621679161234"><span class="hs-identifier hs-var">toSeconds</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-glyph">-</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679161236"><span class="hs-identifier hs-var">t1</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Maybe Integer
+</span><a href="#local-6989586621679161235"><span class="hs-identifier hs-var">mt0</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-312"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-313"></span><span>    </span><span id="local-6989586621679161234"><span class="annot"><span class="annottext">toSeconds :: a -&gt; Seconds
+</span><a href="#local-6989586621679161234"><span class="hs-identifier hs-var hs-var">toSeconds</span></a></span></span><span> </span><span id="local-6989586621679161224"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679161224"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double -&gt; Seconds
+</span><a href="Test.Hspec.Core.Clock.html#Seconds"><span class="hs-identifier hs-var">Seconds</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679161224"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Fractional a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">/</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">10.0</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (Num a, Integral b) =&gt; a -&gt; b -&gt; a
+</span><span class="hs-operator hs-var">^</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">12</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-314"></span><span>
+</span><span id="line-315"></span><span class="hs-comment">-- | Get the passed real time since the test run has been started.</span><span>
+</span><span id="line-316"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#getRealTime"><span class="hs-identifier hs-type">getRealTime</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Internal.html#FormatM"><span class="hs-identifier hs-type">FormatM</span></a></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Clock.html#Seconds"><span class="hs-identifier hs-type">Seconds</span></a></span><span>
+</span><span id="line-317"></span><span id="getRealTime"><span class="annot"><span class="annottext">getRealTime :: FormatM Seconds
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#getRealTime"><span class="hs-identifier hs-var hs-var">getRealTime</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-318"></span><span>  </span><span id="local-6989586621679161220"><span class="annot"><span class="annottext">Seconds
+</span><a href="#local-6989586621679161220"><span class="hs-identifier hs-var">t1</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><span class="hs-identifier hs-var">liftIO</span></span><span> </span><span class="annot"><span class="annottext">IO Seconds
+</span><a href="Test.Hspec.Core.Clock.html#getMonotonicTime"><span class="hs-identifier hs-var">getMonotonicTime</span></a></span><span>
+</span><span id="line-319"></span><span>  </span><span id="local-6989586621679161219"><span class="annot"><span class="annottext">Seconds
+</span><a href="#local-6989586621679161219"><span class="hs-identifier hs-var">t0</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a. (FormatterState -&gt; a) -&gt; FormatM a
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#gets"><span class="hs-identifier hs-var">gets</span></a></span><span> </span><span class="annot"><span class="annottext">FormatterState -&gt; Seconds
+</span><a href="Test.Hspec.Core.Formatters.Internal.html#stateStartTime"><span class="hs-identifier hs-var">stateStartTime</span></a></span><span>
+</span><span id="line-320"></span><span>  </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Seconds
+</span><a href="#local-6989586621679161220"><span class="hs-identifier hs-var">t1</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Seconds
+</span><a href="#local-6989586621679161219"><span class="hs-identifier hs-var">t0</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-321"></span></pre></body></html>

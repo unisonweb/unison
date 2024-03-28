@@ -1,0 +1,1004 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE BangPatterns #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Unison.Util.Text.Pattern</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Char</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">isAlphaNum</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">isControl</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">isLetter</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">isLower</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">isMark</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">isNumber</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">isPrint</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">isPunctuation</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">isSeparator</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">isSpace</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">isSymbol</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">isUpper</span></span><span class="hs-special">)</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">DT</span></span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Util.Text.html"><span class="hs-identifier">Unison.Util.Text</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Text.html#Text"><span class="hs-identifier">Text</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Util.Text.html"><span class="hs-identifier">Unison.Util.Text</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Text</span></span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">data</span><span> </span><span id="Pattern"><span class="annot"><a href="Unison.Util.Text.Pattern.html#Pattern"><span class="hs-identifier hs-var">Pattern</span></a></span></span><span>
+</span><span id="line-11"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="Join"><span class="annot"><a href="Unison.Util.Text.Pattern.html#Join"><span class="hs-identifier hs-var">Join</span></a></span></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Unison.Util.Text.Pattern.html#Pattern"><span class="hs-identifier hs-type">Pattern</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-comment">-- sequencing of patterns</span><span>
+</span><span id="line-12"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Or"><span class="annot"><a href="Unison.Util.Text.Pattern.html#Or"><span class="hs-identifier hs-var">Or</span></a></span></span><span> </span><span class="annot"><a href="Unison.Util.Text.Pattern.html#Pattern"><span class="hs-identifier hs-type">Pattern</span></a></span><span> </span><span class="annot"><a href="Unison.Util.Text.Pattern.html#Pattern"><span class="hs-identifier hs-type">Pattern</span></a></span><span> </span><span class="hs-comment">-- left-biased choice: tries second pattern only if first fails</span><span>
+</span><span id="line-13"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Capture"><span class="annot"><a href="Unison.Util.Text.Pattern.html#Capture"><span class="hs-identifier hs-var">Capture</span></a></span></span><span> </span><span class="annot"><a href="Unison.Util.Text.Pattern.html#Pattern"><span class="hs-identifier hs-type">Pattern</span></a></span><span> </span><span class="hs-comment">-- capture all the text consumed by the inner pattern, discarding its subcaptures</span><span>
+</span><span id="line-14"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="CaptureAs"><span class="annot"><a href="Unison.Util.Text.Pattern.html#CaptureAs"><span class="hs-identifier hs-var">CaptureAs</span></a></span></span><span> </span><span class="annot"><a href="Unison.Util.Text.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span> </span><span class="annot"><a href="Unison.Util.Text.Pattern.html#Pattern"><span class="hs-identifier hs-type">Pattern</span></a></span><span> </span><span class="hs-comment">-- capture the given text, discarding its subcaptures, and name the capture</span><span>
+</span><span id="line-15"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Many"><span class="annot"><a href="Unison.Util.Text.Pattern.html#Many"><span class="hs-identifier hs-var">Many</span></a></span></span><span> </span><span class="annot"><a href="Unison.Util.Text.Pattern.html#Pattern"><span class="hs-identifier hs-type">Pattern</span></a></span><span> </span><span class="hs-comment">-- zero or more repetitions (at least 1 can be written: Join [p, Many p])</span><span>
+</span><span id="line-16"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Replicate"><span class="annot"><a href="Unison.Util.Text.Pattern.html#Replicate"><span class="hs-identifier hs-var">Replicate</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="annot"><a href="Unison.Util.Text.Pattern.html#Pattern"><span class="hs-identifier hs-type">Pattern</span></a></span><span> </span><span class="hs-comment">-- m to n occurrences of a pattern, optional = 0-1</span><span>
+</span><span id="line-17"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Eof"><span class="annot"><a href="Unison.Util.Text.Pattern.html#Eof"><span class="hs-identifier hs-var">Eof</span></a></span></span><span> </span><span class="hs-comment">-- succeed if given the empty text, fail otherwise</span><span>
+</span><span id="line-18"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Literal"><span class="annot"><a href="Unison.Util.Text.Pattern.html#Literal"><span class="hs-identifier hs-var">Literal</span></a></span></span><span> </span><span class="annot"><a href="Unison.Util.Text.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span> </span><span class="hs-comment">-- succeed if input starts with the given text, advance by that text</span><span>
+</span><span id="line-19"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Char"><span class="annot"><a href="Unison.Util.Text.Pattern.html#Char"><span class="hs-identifier hs-var">Char</span></a></span></span><span> </span><span class="annot"><a href="Unison.Util.Text.Pattern.html#CharPattern"><span class="hs-identifier hs-type">CharPattern</span></a></span><span> </span><span class="hs-comment">-- succeed if input starts with a char matching the given pattern, advance by 1 char</span><span>
+</span><span id="line-20"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681071492"><span id="local-6989586621681071494"><span id="local-6989586621681071521"><span class="annot"><span class="annottext">Int -&gt; Pattern -&gt; ShowS
+[Pattern] -&gt; ShowS
+Pattern -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [Pattern] -&gt; ShowS
+$cshowList :: [Pattern] -&gt; ShowS
+show :: Pattern -&gt; String
+$cshow :: Pattern -&gt; String
+showsPrec :: Int -&gt; Pattern -&gt; ShowS
+$cshowsPrec :: Int -&gt; Pattern -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681071471"><span id="local-6989586621681071489"><span class="annot"><span class="annottext">Pattern -&gt; Pattern -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: Pattern -&gt; Pattern -&gt; Bool
+$c/= :: Pattern -&gt; Pattern -&gt; Bool
+== :: Pattern -&gt; Pattern -&gt; Bool
+$c== :: Pattern -&gt; Pattern -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681071439"><span id="local-6989586621681071441"><span id="local-6989586621681071443"><span id="local-6989586621681071445"><span id="local-6989586621681071447"><span id="local-6989586621681071449"><span id="local-6989586621681071466"><span class="annot"><span class="annottext">Eq Pattern
+Pattern -&gt; Pattern -&gt; Bool
+Pattern -&gt; Pattern -&gt; Ordering
+Pattern -&gt; Pattern -&gt; Pattern
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: Pattern -&gt; Pattern -&gt; Pattern
+$cmin :: Pattern -&gt; Pattern -&gt; Pattern
+max :: Pattern -&gt; Pattern -&gt; Pattern
+$cmax :: Pattern -&gt; Pattern -&gt; Pattern
+&gt;= :: Pattern -&gt; Pattern -&gt; Bool
+$c&gt;= :: Pattern -&gt; Pattern -&gt; Bool
+&gt; :: Pattern -&gt; Pattern -&gt; Bool
+$c&gt; :: Pattern -&gt; Pattern -&gt; Bool
+&lt;= :: Pattern -&gt; Pattern -&gt; Bool
+$c&lt;= :: Pattern -&gt; Pattern -&gt; Bool
+&lt; :: Pattern -&gt; Pattern -&gt; Bool
+$c&lt; :: Pattern -&gt; Pattern -&gt; Bool
+compare :: Pattern -&gt; Pattern -&gt; Ordering
+$ccompare :: Pattern -&gt; Pattern -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">data</span><span> </span><span id="CharPattern"><span class="annot"><a href="Unison.Util.Text.Pattern.html#CharPattern"><span class="hs-identifier hs-var">CharPattern</span></a></span></span><span>
+</span><span id="line-23"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="Any"><span class="annot"><a href="Unison.Util.Text.Pattern.html#Any"><span class="hs-identifier hs-var">Any</span></a></span></span><span> </span><span class="hs-comment">-- any char</span><span>
+</span><span id="line-24"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Not"><span class="annot"><a href="Unison.Util.Text.Pattern.html#Not"><span class="hs-identifier hs-var">Not</span></a></span></span><span> </span><span class="annot"><a href="Unison.Util.Text.Pattern.html#CharPattern"><span class="hs-identifier hs-type">CharPattern</span></a></span><span> </span><span class="hs-comment">-- negation of the given pattern</span><span>
+</span><span id="line-25"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Union"><span class="annot"><a href="Unison.Util.Text.Pattern.html#Union"><span class="hs-identifier hs-var">Union</span></a></span></span><span> </span><span class="annot"><a href="Unison.Util.Text.Pattern.html#CharPattern"><span class="hs-identifier hs-type">CharPattern</span></a></span><span> </span><span class="annot"><a href="Unison.Util.Text.Pattern.html#CharPattern"><span class="hs-identifier hs-type">CharPattern</span></a></span><span> </span><span class="hs-comment">-- match if either pattern matches</span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Intersect"><span class="annot"><a href="Unison.Util.Text.Pattern.html#Intersect"><span class="hs-identifier hs-var">Intersect</span></a></span></span><span> </span><span class="annot"><a href="Unison.Util.Text.Pattern.html#CharPattern"><span class="hs-identifier hs-type">CharPattern</span></a></span><span> </span><span class="annot"><a href="Unison.Util.Text.Pattern.html#CharPattern"><span class="hs-identifier hs-type">CharPattern</span></a></span><span> </span><span class="hs-comment">-- match if both patterns match</span><span>
+</span><span id="line-27"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="CharRange"><span class="annot"><a href="Unison.Util.Text.Pattern.html#CharRange"><span class="hs-identifier hs-var">CharRange</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Char</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Char</span></span><span> </span><span class="hs-comment">-- match if char is in the given range</span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="CharSet"><span class="annot"><a href="Unison.Util.Text.Pattern.html#CharSet"><span class="hs-identifier hs-var">CharSet</span></a></span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Char</span></span><span class="hs-special">]</span><span> </span><span class="hs-comment">-- match if char is in the given set</span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="CharClass"><span class="annot"><a href="Unison.Util.Text.Pattern.html#CharClass"><span class="hs-identifier hs-var">CharClass</span></a></span></span><span> </span><span class="annot"><a href="Unison.Util.Text.Pattern.html#CharClass"><span class="hs-identifier hs-type">CharClass</span></a></span><span> </span><span class="hs-comment">-- match if char is in the given class</span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681071409"><span id="local-6989586621681071411"><span id="local-6989586621681071429"><span class="annot"><span class="annottext">Int -&gt; CharPattern -&gt; ShowS
+[CharPattern] -&gt; ShowS
+CharPattern -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [CharPattern] -&gt; ShowS
+$cshowList :: [CharPattern] -&gt; ShowS
+show :: CharPattern -&gt; String
+$cshow :: CharPattern -&gt; String
+showsPrec :: Int -&gt; CharPattern -&gt; ShowS
+$cshowsPrec :: Int -&gt; CharPattern -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681071396"><span id="local-6989586621681071407"><span class="annot"><span class="annottext">CharPattern -&gt; CharPattern -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: CharPattern -&gt; CharPattern -&gt; Bool
+$c/= :: CharPattern -&gt; CharPattern -&gt; Bool
+== :: CharPattern -&gt; CharPattern -&gt; Bool
+$c== :: CharPattern -&gt; CharPattern -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681071371"><span id="local-6989586621681071373"><span id="local-6989586621681071375"><span id="local-6989586621681071377"><span id="local-6989586621681071379"><span id="local-6989586621681071381"><span id="local-6989586621681071392"><span class="annot"><span class="annottext">Eq CharPattern
+CharPattern -&gt; CharPattern -&gt; Bool
+CharPattern -&gt; CharPattern -&gt; Ordering
+CharPattern -&gt; CharPattern -&gt; CharPattern
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: CharPattern -&gt; CharPattern -&gt; CharPattern
+$cmin :: CharPattern -&gt; CharPattern -&gt; CharPattern
+max :: CharPattern -&gt; CharPattern -&gt; CharPattern
+$cmax :: CharPattern -&gt; CharPattern -&gt; CharPattern
+&gt;= :: CharPattern -&gt; CharPattern -&gt; Bool
+$c&gt;= :: CharPattern -&gt; CharPattern -&gt; Bool
+&gt; :: CharPattern -&gt; CharPattern -&gt; Bool
+$c&gt; :: CharPattern -&gt; CharPattern -&gt; Bool
+&lt;= :: CharPattern -&gt; CharPattern -&gt; Bool
+$c&lt;= :: CharPattern -&gt; CharPattern -&gt; Bool
+&lt; :: CharPattern -&gt; CharPattern -&gt; Bool
+$c&lt; :: CharPattern -&gt; CharPattern -&gt; Bool
+compare :: CharPattern -&gt; CharPattern -&gt; Ordering
+$ccompare :: CharPattern -&gt; CharPattern -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">data</span><span> </span><span id="CharClass"><span class="annot"><a href="Unison.Util.Text.Pattern.html#CharClass"><span class="hs-identifier hs-var">CharClass</span></a></span></span><span>
+</span><span id="line-33"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="AlphaNum"><span class="annot"><a href="Unison.Util.Text.Pattern.html#AlphaNum"><span class="hs-identifier hs-var">AlphaNum</span></a></span></span><span> </span><span class="hs-comment">-- alphabetic or numeric characters</span><span>
+</span><span id="line-34"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Upper"><span class="annot"><a href="Unison.Util.Text.Pattern.html#Upper"><span class="hs-identifier hs-var">Upper</span></a></span></span><span> </span><span class="hs-comment">-- uppercase alphabetic characters</span><span>
+</span><span id="line-35"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Lower"><span class="annot"><a href="Unison.Util.Text.Pattern.html#Lower"><span class="hs-identifier hs-var">Lower</span></a></span></span><span> </span><span class="hs-comment">-- lowercase alphabetic characters</span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Whitespace"><span class="annot"><a href="Unison.Util.Text.Pattern.html#Whitespace"><span class="hs-identifier hs-var">Whitespace</span></a></span></span><span> </span><span class="hs-comment">-- whitespace characters (space, tab, newline, etc.)</span><span>
+</span><span id="line-37"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Control"><span class="annot"><a href="Unison.Util.Text.Pattern.html#Control"><span class="hs-identifier hs-var">Control</span></a></span></span><span> </span><span class="hs-comment">-- non-printing control characters</span><span>
+</span><span id="line-38"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Printable"><span class="annot"><a href="Unison.Util.Text.Pattern.html#Printable"><span class="hs-identifier hs-var">Printable</span></a></span></span><span> </span><span class="hs-comment">-- letters, numbers, punctuation, symbols, spaces</span><span>
+</span><span id="line-39"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="MarkChar"><span class="annot"><a href="Unison.Util.Text.Pattern.html#MarkChar"><span class="hs-identifier hs-var">MarkChar</span></a></span></span><span> </span><span class="hs-comment">-- accents, diacritics, etc.</span><span>
+</span><span id="line-40"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Number"><span class="annot"><a href="Unison.Util.Text.Pattern.html#Number"><span class="hs-identifier hs-var">Number</span></a></span></span><span> </span><span class="hs-comment">-- numeric characters in any script</span><span>
+</span><span id="line-41"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Punctuation"><span class="annot"><a href="Unison.Util.Text.Pattern.html#Punctuation"><span class="hs-identifier hs-var">Punctuation</span></a></span></span><span> </span><span class="hs-comment">-- connectors, brackets, quotes</span><span>
+</span><span id="line-42"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Symbol"><span class="annot"><a href="Unison.Util.Text.Pattern.html#Symbol"><span class="hs-identifier hs-var">Symbol</span></a></span></span><span> </span><span class="hs-comment">-- symbols (math, currency, etc.)</span><span>
+</span><span id="line-43"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Separator"><span class="annot"><a href="Unison.Util.Text.Pattern.html#Separator"><span class="hs-identifier hs-var">Separator</span></a></span></span><span> </span><span class="hs-comment">-- spaces, line separators, paragraph separators</span><span>
+</span><span id="line-44"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Letter"><span class="annot"><a href="Unison.Util.Text.Pattern.html#Letter"><span class="hs-identifier hs-var">Letter</span></a></span></span><span> </span><span class="hs-comment">-- letters in any script</span><span>
+</span><span id="line-45"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681071353"><span id="local-6989586621681071355"><span id="local-6989586621681071357"><span class="annot"><span class="annottext">Int -&gt; CharClass -&gt; ShowS
+[CharClass] -&gt; ShowS
+CharClass -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [CharClass] -&gt; ShowS
+$cshowList :: [CharClass] -&gt; ShowS
+show :: CharClass -&gt; String
+$cshow :: CharClass -&gt; String
+showsPrec :: Int -&gt; CharClass -&gt; ShowS
+$cshowsPrec :: Int -&gt; CharClass -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681071349"><span id="local-6989586621681071351"><span class="annot"><span class="annottext">CharClass -&gt; CharClass -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: CharClass -&gt; CharClass -&gt; Bool
+$c/= :: CharClass -&gt; CharClass -&gt; Bool
+== :: CharClass -&gt; CharClass -&gt; Bool
+$c== :: CharClass -&gt; CharClass -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681071330"><span id="local-6989586621681071332"><span id="local-6989586621681071335"><span id="local-6989586621681071338"><span id="local-6989586621681071341"><span id="local-6989586621681071343"><span id="local-6989586621681071345"><span class="annot"><span class="annottext">Eq CharClass
+CharClass -&gt; CharClass -&gt; Bool
+CharClass -&gt; CharClass -&gt; Ordering
+CharClass -&gt; CharClass -&gt; CharClass
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: CharClass -&gt; CharClass -&gt; CharClass
+$cmin :: CharClass -&gt; CharClass -&gt; CharClass
+max :: CharClass -&gt; CharClass -&gt; CharClass
+$cmax :: CharClass -&gt; CharClass -&gt; CharClass
+&gt;= :: CharClass -&gt; CharClass -&gt; Bool
+$c&gt;= :: CharClass -&gt; CharClass -&gt; Bool
+&gt; :: CharClass -&gt; CharClass -&gt; Bool
+$c&gt; :: CharClass -&gt; CharClass -&gt; Bool
+&lt;= :: CharClass -&gt; CharClass -&gt; Bool
+$c&lt;= :: CharClass -&gt; CharClass -&gt; Bool
+&lt; :: CharClass -&gt; CharClass -&gt; Bool
+$c&lt; :: CharClass -&gt; CharClass -&gt; Bool
+compare :: CharClass -&gt; CharClass -&gt; Ordering
+$ccompare :: CharClass -&gt; CharClass -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span class="hs-comment">-- Wrapper type. Holds a pattern together with its compilation. This is used as</span><span>
+</span><span id="line-48"></span><span class="hs-comment">-- the semantic value of a unison `Pattern a`. Laziness avoids building the</span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- matcher until it actually needs to be used, and also avoids recalculating the</span><span>
+</span><span id="line-50"></span><span class="hs-comment">-- match function if a `CPattern` is 'run' multiple times, while allowing the</span><span>
+</span><span id="line-51"></span><span class="hs-comment">-- builtin runner to just take two arguments, and not try to build a partial</span><span>
+</span><span id="line-52"></span><span class="hs-comment">-- application by hand.</span><span>
+</span><span id="line-53"></span><span class="hs-comment">--</span><span>
+</span><span id="line-54"></span><span class="hs-comment">-- In the future, this can existentially quantify over the type being matched.</span><span>
+</span><span id="line-55"></span><span class="hs-keyword">data</span><span> </span><span id="CPattern"><span class="annot"><a href="Unison.Util.Text.Pattern.html#CPattern"><span class="hs-identifier hs-var">CPattern</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="CP"><span class="annot"><a href="Unison.Util.Text.Pattern.html#CP"><span class="hs-identifier hs-var">CP</span></a></span></span><span> </span><span class="annot"><a href="Unison.Util.Text.Pattern.html#Pattern"><span class="hs-identifier hs-type">Pattern</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Text.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">[</span><span class="annot"><a href="Unison.Util.Text.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span class="hs-special">]</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Util.Text.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621681071326"><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="Unison.Util.Text.Pattern.html#CPattern"><span class="hs-identifier hs-type">CPattern</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-58"></span><span>  </span><span class="annot"><a href="Unison.Util.Text.Pattern.html#CP"><span class="hs-identifier hs-type">CP</span></a></span><span> </span><span id="local-6989586621681071324"><span class="annot"><span class="annottext">Pattern
+</span><a href="#local-6989586621681071324"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Maybe ([Text], Text)
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681071323"><span class="annot"><span class="annottext">== :: CPattern -&gt; CPattern -&gt; Bool
+</span><span class="hs-operator hs-var hs-var hs-var hs-var">==</span></span></span><span> </span><span class="annot"><a href="Unison.Util.Text.Pattern.html#CP"><span class="hs-identifier hs-type">CP</span></a></span><span> </span><span id="local-6989586621681071322"><span class="annot"><span class="annottext">Pattern
+</span><a href="#local-6989586621681071322"><span class="hs-identifier hs-var">q</span></a></span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Maybe ([Text], Text)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Pattern
+</span><a href="#local-6989586621681071324"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Pattern
+</span><a href="#local-6989586621681071322"><span class="hs-identifier hs-var">q</span></a></span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621681071307"><span id="local-6989586621681071309"><span id="local-6989586621681071311"><span id="local-6989586621681071313"><span id="local-6989586621681071315"><span id="local-6989586621681071317"><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="Unison.Util.Text.Pattern.html#CPattern"><span class="hs-identifier hs-type">CPattern</span></a></span></span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-61"></span><span>  </span><span class="annot"><a href="Unison.Util.Text.Pattern.html#CP"><span class="hs-identifier hs-type">CP</span></a></span><span> </span><span id="local-6989586621681071305"><span class="annot"><span class="annottext">Pattern
+</span><a href="#local-6989586621681071305"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Maybe ([Text], Text)
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681071304"><span class="annot"><span class="annottext">compare :: CPattern -&gt; CPattern -&gt; Ordering
+</span><span class="hs-operator hs-var hs-var hs-var hs-var">`compare`</span></span></span><span> </span><span class="annot"><a href="Unison.Util.Text.Pattern.html#CP"><span class="hs-identifier hs-type">CP</span></a></span><span> </span><span id="local-6989586621681071302"><span class="annot"><span class="annottext">Pattern
+</span><a href="#local-6989586621681071302"><span class="hs-identifier hs-var">q</span></a></span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Maybe ([Text], Text)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Ordering
+</span><span class="hs-identifier hs-var">compare</span></span><span> </span><span class="annot"><span class="annottext">Pattern
+</span><a href="#local-6989586621681071305"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">Pattern
+</span><a href="#local-6989586621681071302"><span class="hs-identifier hs-var">q</span></a></span><span>
+</span><span id="line-62"></span><span>
+</span><span id="line-63"></span><span class="annot"><a href="Unison.Util.Text.Pattern.html#cpattern"><span class="hs-identifier hs-type">cpattern</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Util.Text.Pattern.html#Pattern"><span class="hs-identifier hs-type">Pattern</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Util.Text.Pattern.html#CPattern"><span class="hs-identifier hs-type">CPattern</span></a></span><span>
+</span><span id="line-64"></span><span id="cpattern"><span class="annot"><span class="annottext">cpattern :: Pattern -&gt; CPattern
+</span><a href="Unison.Util.Text.Pattern.html#cpattern"><span class="hs-identifier hs-var hs-var">cpattern</span></a></span></span><span> </span><span id="local-6989586621681071300"><span class="annot"><span class="annottext">Pattern
+</span><a href="#local-6989586621681071300"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Pattern -&gt; (Text -&gt; Maybe ([Text], Text)) -&gt; CPattern
+</span><a href="Unison.Util.Text.Pattern.html#CP"><span class="hs-identifier hs-var">CP</span></a></span><span> </span><span class="annot"><span class="annottext">Pattern
+</span><a href="#local-6989586621681071300"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Pattern -&gt; Text -&gt; Maybe ([Text], Text)
+</span><a href="Unison.Util.Text.Pattern.html#run"><span class="hs-identifier hs-var">run</span></a></span><span> </span><span class="annot"><span class="annottext">Pattern
+</span><a href="#local-6989586621681071300"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-65"></span><span>
+</span><span id="line-66"></span><span class="annot"><a href="Unison.Util.Text.Pattern.html#run"><span class="hs-identifier hs-type">run</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Util.Text.Pattern.html#Pattern"><span class="hs-identifier hs-type">Pattern</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Util.Text.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">[</span><span class="annot"><a href="Unison.Util.Text.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span class="hs-special">]</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Util.Text.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-67"></span><span id="run"><span class="annot"><span class="annottext">run :: Pattern -&gt; Text -&gt; Maybe ([Text], Text)
+</span><a href="Unison.Util.Text.Pattern.html#run"><span class="hs-identifier hs-var hs-var">run</span></a></span></span><span> </span><span id="local-6989586621681071298"><span class="annot"><span class="annottext">Pattern
+</span><a href="#local-6989586621681071298"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-68"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681071297"><span class="annot"><span class="annottext">cp :: Stack -&gt; Text -&gt; Maybe ([Text], Text)
+</span><a href="#local-6989586621681071297"><span class="hs-identifier hs-var hs-var">cp</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall r. Pattern -&gt; Compiled r
+</span><a href="Unison.Util.Text.Pattern.html#compile"><span class="hs-identifier hs-var">compile</span></a></span><span> </span><span class="annot"><span class="annottext">Pattern
+</span><a href="#local-6989586621681071298"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="annot"><span class="annottext">Stack
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621681071295"><span class="annot"><span class="annottext">Stack
+</span><a href="#local-6989586621681071295"><span class="hs-identifier hs-var">acc</span></a></span></span><span> </span><span id="local-6989586621681071294"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071294"><span class="hs-identifier hs-var">rem</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Stack -&gt; [Text]
+</span><a href="#local-6989586621681071293"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">Stack
+</span><a href="#local-6989586621681071295"><span class="hs-identifier hs-var">acc</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071294"><span class="hs-identifier hs-var">rem</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-69"></span><span>      </span><span id="local-6989586621681071293"><span class="annot"><span class="annottext">s :: Stack -&gt; [Text]
+</span><a href="#local-6989586621681071293"><span class="hs-identifier hs-var hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">reverse</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Captures -&gt; [Text]
+</span><a href="Unison.Util.Text.Pattern.html#capturesToList"><span class="hs-identifier hs-var">capturesToList</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Captures
+</span><a href="Unison.Util.Text.Pattern.html#stackCaptures"><span class="hs-identifier hs-var">stackCaptures</span></a></span><span>
+</span><span id="line-70"></span><span>   </span><span class="hs-keyword">in</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621681071288"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071288"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; Maybe ([Text], Text)
+</span><a href="#local-6989586621681071297"><span class="hs-identifier hs-var">cp</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Captures -&gt; Stack
+</span><a href="Unison.Util.Text.Pattern.html#Empty"><span class="hs-identifier hs-var">Empty</span></a></span><span> </span><span class="annot"><span class="annottext">Captures
+</span><a href="Unison.Util.Text.Pattern.html#emptyCaptures"><span class="hs-identifier hs-var">emptyCaptures</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071288"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-71"></span><span>
+</span><span id="line-72"></span><span class="hs-comment">-- Stack used to track captures and to support backtracking.</span><span>
+</span><span id="line-73"></span><span class="hs-comment">-- A `try` will push a `Mark` that allows the old state</span><span>
+</span><span id="line-74"></span><span class="hs-comment">-- (both the list of captures and the current remainder)</span><span>
+</span><span id="line-75"></span><span class="hs-comment">-- to be restored on failure.</span><span>
+</span><span id="line-76"></span><span class="hs-keyword">data</span><span> </span><span id="Stack"><span class="annot"><a href="Unison.Util.Text.Pattern.html#Stack"><span class="hs-identifier hs-var">Stack</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Empty"><span class="annot"><a href="Unison.Util.Text.Pattern.html#Empty"><span class="hs-identifier hs-var">Empty</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="Unison.Util.Text.Pattern.html#Captures"><span class="hs-identifier hs-type">Captures</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="Mark"><span class="annot"><a href="Unison.Util.Text.Pattern.html#Mark"><span class="hs-identifier hs-var">Mark</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="Unison.Util.Text.Pattern.html#Captures"><span class="hs-identifier hs-type">Captures</span></a></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="Unison.Util.Text.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="Unison.Util.Text.Pattern.html#Stack"><span class="hs-identifier hs-type">Stack</span></a></span><span>
+</span><span id="line-77"></span><span>
+</span><span id="line-78"></span><span class="hs-comment">-- A difference list for representing the captures of a pattern.</span><span>
+</span><span id="line-79"></span><span class="hs-comment">-- So that capture lists can be appended in O(1).</span><span>
+</span><span id="line-80"></span><span class="hs-keyword">type</span><span> </span><span id="Captures"><span class="annot"><a href="Unison.Util.Text.Pattern.html#Captures"><span class="hs-identifier hs-var">Captures</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Unison.Util.Text.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Unison.Util.Text.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-81"></span><span>
+</span><span id="line-82"></span><span class="annot"><a href="Unison.Util.Text.Pattern.html#stackCaptures"><span class="hs-identifier hs-type">stackCaptures</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Util.Text.Pattern.html#Stack"><span class="hs-identifier hs-type">Stack</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Util.Text.Pattern.html#Captures"><span class="hs-identifier hs-type">Captures</span></a></span><span>
+</span><span id="line-83"></span><span id="stackCaptures"><span class="annot"><span class="annottext">stackCaptures :: Stack -&gt; Captures
+</span><a href="Unison.Util.Text.Pattern.html#stackCaptures"><span class="hs-identifier hs-var hs-var">stackCaptures</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Text.Pattern.html#Mark"><span class="hs-identifier hs-type">Mark</span></a></span><span> </span><span id="local-6989586621681071284"><span class="annot"><span class="annottext">Captures
+</span><a href="#local-6989586621681071284"><span class="hs-identifier hs-var">cs</span></a></span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Stack
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Captures
+</span><a href="#local-6989586621681071284"><span class="hs-identifier hs-var">cs</span></a></span><span>
+</span><span id="line-84"></span><span class="annot"><a href="Unison.Util.Text.Pattern.html#stackCaptures"><span class="hs-identifier hs-var">stackCaptures</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Text.Pattern.html#Empty"><span class="hs-identifier hs-type">Empty</span></a></span><span> </span><span id="local-6989586621681071283"><span class="annot"><span class="annottext">Captures
+</span><a href="#local-6989586621681071283"><span class="hs-identifier hs-var">cs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Captures
+</span><a href="#local-6989586621681071283"><span class="hs-identifier hs-var">cs</span></a></span><span>
+</span><span id="line-85"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Unison.Util.Text.Pattern.html#stackCaptures"><span class="hs-pragma hs-type">stackCaptures</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-86"></span><span>
+</span><span id="line-87"></span><span class="annot"><a href="Unison.Util.Text.Pattern.html#pushCaptures"><span class="hs-identifier hs-type">pushCaptures</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Util.Text.Pattern.html#Captures"><span class="hs-identifier hs-type">Captures</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Util.Text.Pattern.html#Stack"><span class="hs-identifier hs-type">Stack</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Util.Text.Pattern.html#Stack"><span class="hs-identifier hs-type">Stack</span></a></span><span>
+</span><span id="line-88"></span><span id="pushCaptures"><span class="annot"><span class="annottext">pushCaptures :: Captures -&gt; Stack -&gt; Stack
+</span><a href="Unison.Util.Text.Pattern.html#pushCaptures"><span class="hs-identifier hs-var hs-var">pushCaptures</span></a></span></span><span> </span><span id="local-6989586621681071281"><span class="annot"><span class="annottext">Captures
+</span><a href="#local-6989586621681071281"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Text.Pattern.html#Empty"><span class="hs-identifier hs-type">Empty</span></a></span><span> </span><span id="local-6989586621681071280"><span class="annot"><span class="annottext">Captures
+</span><a href="#local-6989586621681071280"><span class="hs-identifier hs-var">cs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Captures -&gt; Stack
+</span><a href="Unison.Util.Text.Pattern.html#Empty"><span class="hs-identifier hs-var">Empty</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Captures -&gt; Captures -&gt; Captures
+</span><a href="Unison.Util.Text.Pattern.html#appendCaptures"><span class="hs-identifier hs-var">appendCaptures</span></a></span><span> </span><span class="annot"><span class="annottext">Captures
+</span><a href="#local-6989586621681071281"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Captures
+</span><a href="#local-6989586621681071280"><span class="hs-identifier hs-var">cs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-89"></span><span class="annot"><a href="Unison.Util.Text.Pattern.html#pushCaptures"><span class="hs-identifier hs-var">pushCaptures</span></a></span><span> </span><span id="local-6989586621681071278"><span class="annot"><span class="annottext">Captures
+</span><a href="#local-6989586621681071278"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Text.Pattern.html#Mark"><span class="hs-identifier hs-type">Mark</span></a></span><span> </span><span id="local-6989586621681071277"><span class="annot"><span class="annottext">Captures
+</span><a href="#local-6989586621681071277"><span class="hs-identifier hs-var">cs</span></a></span></span><span> </span><span id="local-6989586621681071276"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071276"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span id="local-6989586621681071275"><span class="annot"><span class="annottext">Stack
+</span><a href="#local-6989586621681071275"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Captures -&gt; Text -&gt; Stack -&gt; Stack
+</span><a href="Unison.Util.Text.Pattern.html#Mark"><span class="hs-identifier hs-var">Mark</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Captures -&gt; Captures -&gt; Captures
+</span><a href="Unison.Util.Text.Pattern.html#appendCaptures"><span class="hs-identifier hs-var">appendCaptures</span></a></span><span> </span><span class="annot"><span class="annottext">Captures
+</span><a href="#local-6989586621681071278"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Captures
+</span><a href="#local-6989586621681071277"><span class="hs-identifier hs-var">cs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071276"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="annot"><span class="annottext">Stack
+</span><a href="#local-6989586621681071275"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-90"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Unison.Util.Text.Pattern.html#pushCaptures"><span class="hs-pragma hs-type">pushCaptures</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-91"></span><span>
+</span><span id="line-92"></span><span class="annot"><a href="Unison.Util.Text.Pattern.html#pushCapture"><span class="hs-identifier hs-type">pushCapture</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Util.Text.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Util.Text.Pattern.html#Stack"><span class="hs-identifier hs-type">Stack</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Util.Text.Pattern.html#Stack"><span class="hs-identifier hs-type">Stack</span></a></span><span>
+</span><span id="line-93"></span><span id="pushCapture"><span class="annot"><span class="annottext">pushCapture :: Text -&gt; Stack -&gt; Stack
+</span><a href="Unison.Util.Text.Pattern.html#pushCapture"><span class="hs-identifier hs-var hs-var">pushCapture</span></a></span></span><span> </span><span id="local-6989586621681071273"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071273"><span class="hs-identifier hs-var">txt</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Captures -&gt; Stack -&gt; Stack
+</span><a href="Unison.Util.Text.Pattern.html#pushCaptures"><span class="hs-identifier hs-var">pushCaptures</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071273"><span class="hs-identifier hs-var">txt</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span class="hs-special">)</span><span>
+</span><span id="line-94"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Unison.Util.Text.Pattern.html#pushCapture"><span class="hs-pragma hs-type">pushCapture</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-95"></span><span>
+</span><span id="line-96"></span><span class="annot"><a href="Unison.Util.Text.Pattern.html#appendCaptures"><span class="hs-identifier hs-type">appendCaptures</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Util.Text.Pattern.html#Captures"><span class="hs-identifier hs-type">Captures</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Util.Text.Pattern.html#Captures"><span class="hs-identifier hs-type">Captures</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Util.Text.Pattern.html#Captures"><span class="hs-identifier hs-type">Captures</span></a></span><span>
+</span><span id="line-97"></span><span id="appendCaptures"><span class="annot"><span class="annottext">appendCaptures :: Captures -&gt; Captures -&gt; Captures
+</span><a href="Unison.Util.Text.Pattern.html#appendCaptures"><span class="hs-identifier hs-var hs-var">appendCaptures</span></a></span></span><span> </span><span id="local-6989586621681071272"><span class="annot"><span class="annottext">Captures
+</span><a href="#local-6989586621681071272"><span class="hs-identifier hs-var">c1</span></a></span></span><span> </span><span id="local-6989586621681071271"><span class="annot"><span class="annottext">Captures
+</span><a href="#local-6989586621681071271"><span class="hs-identifier hs-var">c2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Captures
+</span><a href="#local-6989586621681071272"><span class="hs-identifier hs-var">c1</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Captures
+</span><a href="#local-6989586621681071271"><span class="hs-identifier hs-var">c2</span></a></span><span>
+</span><span id="line-98"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Unison.Util.Text.Pattern.html#appendCaptures"><span class="hs-pragma hs-type">appendCaptures</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-99"></span><span>
+</span><span id="line-100"></span><span class="annot"><a href="Unison.Util.Text.Pattern.html#emptyCaptures"><span class="hs-identifier hs-type">emptyCaptures</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Util.Text.Pattern.html#Captures"><span class="hs-identifier hs-type">Captures</span></a></span><span>
+</span><span id="line-101"></span><span id="emptyCaptures"><span class="annot"><span class="annottext">emptyCaptures :: Captures
+</span><a href="Unison.Util.Text.Pattern.html#emptyCaptures"><span class="hs-identifier hs-var hs-var">emptyCaptures</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span>
+</span><span id="line-102"></span><span>
+</span><span id="line-103"></span><span class="annot"><a href="Unison.Util.Text.Pattern.html#capturesToList"><span class="hs-identifier hs-type">capturesToList</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Util.Text.Pattern.html#Captures"><span class="hs-identifier hs-type">Captures</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Unison.Util.Text.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-104"></span><span id="capturesToList"><span class="annot"><span class="annottext">capturesToList :: Captures -&gt; [Text]
+</span><a href="Unison.Util.Text.Pattern.html#capturesToList"><span class="hs-identifier hs-var hs-var">capturesToList</span></a></span></span><span> </span><span id="local-6989586621681071269"><span class="annot"><span class="annottext">Captures
+</span><a href="#local-6989586621681071269"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Captures
+</span><a href="#local-6989586621681071269"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-105"></span><span>
+</span><span id="line-106"></span><span class="hs-keyword">type</span><span> </span><span id="Compiled"><span class="annot"><a href="Unison.Util.Text.Pattern.html#Compiled"><span class="hs-identifier hs-var">Compiled</span></a></span></span><span> </span><span id="local-6989586621681071268"><span class="annot"><a href="#local-6989586621681071268"><span class="hs-identifier hs-type">r</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Text.Pattern.html#Stack"><span class="hs-identifier hs-type">Stack</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Util.Text.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681071268"><span class="hs-identifier hs-type">r</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Text.Pattern.html#Stack"><span class="hs-identifier hs-type">Stack</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Util.Text.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681071268"><span class="hs-identifier hs-type">r</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Util.Text.Pattern.html#Stack"><span class="hs-identifier hs-type">Stack</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Util.Text.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681071268"><span class="hs-identifier hs-type">r</span></a></span><span>
+</span><span id="line-107"></span><span>
+</span><span id="line-108"></span><span id="local-6989586621681071616"><span class="annot"><a href="Unison.Util.Text.Pattern.html#compile"><span class="hs-identifier hs-type">compile</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Util.Text.Pattern.html#Pattern"><span class="hs-identifier hs-type">Pattern</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Util.Text.Pattern.html#Compiled"><span class="hs-identifier hs-type">Compiled</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681071616"><span class="hs-identifier hs-type">r</span></a></span></span><span>
+</span><span id="line-109"></span><span id="compile"><span class="annot"><span class="annottext">compile :: forall r. Pattern -&gt; Compiled r
+</span><a href="Unison.Util.Text.Pattern.html#compile"><span class="hs-identifier hs-var hs-var">compile</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="annottext">Pattern
+</span><a href="Unison.Util.Text.Pattern.html#Eof"><span class="hs-identifier hs-var">Eof</span></a></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621681071248"><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071248"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621681071247"><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071247"><span class="hs-identifier hs-var">success</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071246"><span class="hs-identifier hs-var">go</span></a></span><span>
+</span><span id="line-110"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-111"></span><span>    </span><span id="local-6989586621681071246"><span class="annot"><span class="annottext">go :: Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071246"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span id="local-6989586621681071245"><span class="annot"><span class="annottext">Stack
+</span><a href="#local-6989586621681071245"><span class="hs-identifier hs-var">acc</span></a></span></span><span> </span><span id="local-6989586621681071244"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071244"><span class="hs-identifier hs-var">t</span></a></span></span><span>
+</span><span id="line-112"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Int
+</span><a href="Unison.Util.Text.html#size"><span class="hs-identifier hs-var">Text.size</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071244"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071247"><span class="hs-identifier hs-var">success</span></a></span><span> </span><span class="annot"><span class="annottext">Stack
+</span><a href="#local-6989586621681071245"><span class="hs-identifier hs-var">acc</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071244"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-113"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071248"><span class="hs-identifier hs-var">err</span></a></span><span> </span><span class="annot"><span class="annottext">Stack
+</span><a href="#local-6989586621681071245"><span class="hs-identifier hs-var">acc</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071244"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-114"></span><span class="annot"><a href="Unison.Util.Text.Pattern.html#compile"><span class="hs-identifier hs-var">compile</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Text.Pattern.html#Literal"><span class="hs-identifier hs-type">Literal</span></a></span><span> </span><span id="local-6989586621681071242"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071242"><span class="hs-identifier hs-var">txt</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621681071241"><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071241"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621681071240"><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071240"><span class="hs-identifier hs-var">success</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071239"><span class="hs-identifier hs-var">go</span></a></span><span>
+</span><span id="line-115"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-116"></span><span>    </span><span id="local-6989586621681071239"><span class="annot"><span class="annottext">go :: Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071239"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span id="local-6989586621681071238"><span class="annot"><span class="annottext">Stack
+</span><a href="#local-6989586621681071238"><span class="hs-identifier hs-var">acc</span></a></span></span><span> </span><span id="local-6989586621681071237"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071237"><span class="hs-identifier hs-var">t</span></a></span></span><span>
+</span><span id="line-117"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Text -&gt; Text
+</span><a href="Unison.Util.Text.html#take"><span class="hs-identifier hs-var">Text.take</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Int
+</span><a href="Unison.Util.Text.html#size"><span class="hs-identifier hs-var">Text.size</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071242"><span class="hs-identifier hs-var">txt</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071237"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071242"><span class="hs-identifier hs-var">txt</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071240"><span class="hs-identifier hs-var">success</span></a></span><span> </span><span class="annot"><span class="annottext">Stack
+</span><a href="#local-6989586621681071238"><span class="hs-identifier hs-var">acc</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Text -&gt; Text
+</span><a href="Unison.Util.Text.html#drop"><span class="hs-identifier hs-var">Text.drop</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Int
+</span><a href="Unison.Util.Text.html#size"><span class="hs-identifier hs-var">Text.size</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071242"><span class="hs-identifier hs-var">txt</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071237"><span class="hs-identifier hs-var">t</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-118"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071241"><span class="hs-identifier hs-var">err</span></a></span><span> </span><span class="annot"><span class="annottext">Stack
+</span><a href="#local-6989586621681071238"><span class="hs-identifier hs-var">acc</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071237"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-119"></span><span class="annot"><a href="Unison.Util.Text.Pattern.html#compile"><span class="hs-identifier hs-var">compile</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Text.Pattern.html#Char"><span class="hs-identifier hs-type">Char</span></a></span><span> </span><span class="annot"><span class="annottext">CharPattern
+</span><a href="Unison.Util.Text.Pattern.html#Any"><span class="hs-identifier hs-var">Any</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621681071234"><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071234"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621681071233"><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071233"><span class="hs-identifier hs-var">success</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071232"><span class="hs-identifier hs-var">go</span></a></span><span>
+</span><span id="line-120"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-121"></span><span>    </span><span id="local-6989586621681071232"><span class="annot"><span class="annottext">go :: Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071232"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span id="local-6989586621681071231"><span class="annot"><span class="annottext">Stack
+</span><a href="#local-6989586621681071231"><span class="hs-identifier hs-var">acc</span></a></span></span><span> </span><span id="local-6989586621681071230"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071230"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Text -&gt; Text
+</span><a href="Unison.Util.Text.html#drop"><span class="hs-identifier hs-var">Text.drop</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071230"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-122"></span><span>      </span><span id="local-6989586621681071229"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071229"><span class="hs-identifier hs-var">rem</span></a></span></span><span>
+</span><span id="line-123"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Int
+</span><a href="Unison.Util.Text.html#size"><span class="hs-identifier hs-var">Text.size</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071230"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Int
+</span><a href="Unison.Util.Text.html#size"><span class="hs-identifier hs-var">Text.size</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071229"><span class="hs-identifier hs-var">rem</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071233"><span class="hs-identifier hs-var">success</span></a></span><span> </span><span class="annot"><span class="annottext">Stack
+</span><a href="#local-6989586621681071231"><span class="hs-identifier hs-var">acc</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071229"><span class="hs-identifier hs-var">rem</span></a></span><span>
+</span><span id="line-124"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071234"><span class="hs-identifier hs-var">err</span></a></span><span> </span><span class="annot"><span class="annottext">Stack
+</span><a href="#local-6989586621681071231"><span class="hs-identifier hs-var">acc</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071229"><span class="hs-identifier hs-var">rem</span></a></span><span>
+</span><span id="line-125"></span><span class="annot"><a href="Unison.Util.Text.Pattern.html#compile"><span class="hs-identifier hs-var">compile</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Text.Pattern.html#CaptureAs"><span class="hs-identifier hs-type">CaptureAs</span></a></span><span> </span><span id="local-6989586621681071227"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071227"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span id="local-6989586621681071226"><span class="annot"><span class="annottext">Pattern
+</span><a href="#local-6989586621681071226"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621681071225"><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071225"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621681071224"><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071224"><span class="hs-identifier hs-var">success</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071223"><span class="hs-identifier hs-var">go</span></a></span><span>
+</span><span id="line-126"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-127"></span><span>    </span><span id="local-6989586621681071222"><span class="annot"><span class="annottext">err' :: Stack -&gt; Text -&gt; Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071222"><span class="hs-identifier hs-var hs-var">err'</span></a></span></span><span> </span><span class="annot"><span class="annottext">Stack
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681071221"><span class="annot"><span class="annottext">Stack
+</span><a href="#local-6989586621681071221"><span class="hs-identifier hs-var">acc0</span></a></span></span><span> </span><span id="local-6989586621681071220"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071220"><span class="hs-identifier hs-var">t0</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071225"><span class="hs-identifier hs-var">err</span></a></span><span> </span><span class="annot"><span class="annottext">Stack
+</span><a href="#local-6989586621681071221"><span class="hs-identifier hs-var">acc0</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071220"><span class="hs-identifier hs-var">t0</span></a></span><span>
+</span><span id="line-128"></span><span>    </span><span id="local-6989586621681071219"><span class="annot"><span class="annottext">success' :: Stack -&gt; Text -&gt; Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071219"><span class="hs-identifier hs-var hs-var">success'</span></a></span></span><span> </span><span class="annot"><span class="annottext">Stack
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681071218"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071218"><span class="hs-identifier hs-var">rem</span></a></span></span><span> </span><span id="local-6989586621681071217"><span class="annot"><span class="annottext">Stack
+</span><a href="#local-6989586621681071217"><span class="hs-identifier hs-var">acc0</span></a></span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071224"><span class="hs-identifier hs-var">success</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Stack -&gt; Stack
+</span><a href="Unison.Util.Text.Pattern.html#pushCapture"><span class="hs-identifier hs-var">pushCapture</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071227"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="annot"><span class="annottext">Stack
+</span><a href="#local-6989586621681071217"><span class="hs-identifier hs-var">acc0</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071218"><span class="hs-identifier hs-var">rem</span></a></span><span>
+</span><span id="line-129"></span><span>    </span><span id="local-6989586621681071216"><span class="annot"><span class="annottext">compiled :: Stack -&gt; Text -&gt; Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071216"><span class="hs-identifier hs-var hs-var">compiled</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall r. Pattern -&gt; Compiled r
+</span><a href="Unison.Util.Text.Pattern.html#compile"><span class="hs-identifier hs-var">compile</span></a></span><span> </span><span class="annot"><span class="annottext">Pattern
+</span><a href="#local-6989586621681071226"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071222"><span class="hs-identifier hs-var">err'</span></a></span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071219"><span class="hs-identifier hs-var">success'</span></a></span><span>
+</span><span id="line-130"></span><span>    </span><span id="local-6989586621681071223"><span class="annot"><span class="annottext">go :: Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071223"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span id="local-6989586621681071215"><span class="annot"><span class="annottext">Stack
+</span><a href="#local-6989586621681071215"><span class="hs-identifier hs-var">acc</span></a></span></span><span> </span><span id="local-6989586621681071214"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071214"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071216"><span class="hs-identifier hs-var">compiled</span></a></span><span> </span><span class="annot"><span class="annottext">Stack
+</span><a href="#local-6989586621681071215"><span class="hs-identifier hs-var">acc</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071214"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="annot"><span class="annottext">Stack
+</span><a href="#local-6989586621681071215"><span class="hs-identifier hs-var">acc</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071214"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-131"></span><span class="annot"><a href="Unison.Util.Text.Pattern.html#compile"><span class="hs-identifier hs-var">compile</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Text.Pattern.html#Capture"><span class="hs-identifier hs-type">Capture</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Text.Pattern.html#Many"><span class="hs-identifier hs-type">Many</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Text.Pattern.html#Char"><span class="hs-identifier hs-type">Char</span></a></span><span> </span><span class="annot"><span class="annottext">CharPattern
+</span><a href="Unison.Util.Text.Pattern.html#Any"><span class="hs-identifier hs-var">Any</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621681071213"><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071213"><span class="hs-identifier hs-var">success</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621681071212"><span class="annot"><span class="annottext">Stack
+</span><a href="#local-6989586621681071212"><span class="hs-identifier hs-var">acc</span></a></span></span><span> </span><span id="local-6989586621681071211"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071211"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071213"><span class="hs-identifier hs-var">success</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Stack -&gt; Stack
+</span><a href="Unison.Util.Text.Pattern.html#pushCapture"><span class="hs-identifier hs-var">pushCapture</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071211"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="annot"><span class="annottext">Stack
+</span><a href="#local-6989586621681071212"><span class="hs-identifier hs-var">acc</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="Unison.Util.Text.html#empty"><span class="hs-identifier hs-var">Text.empty</span></a></span><span>
+</span><span id="line-132"></span><span class="annot"><a href="Unison.Util.Text.Pattern.html#compile"><span class="hs-identifier hs-var">compile</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Text.Pattern.html#Capture"><span class="hs-identifier hs-type">Capture</span></a></span><span> </span><span id="local-6989586621681071209"><span class="annot"><span class="annottext">Pattern
+</span><a href="#local-6989586621681071209"><span class="hs-identifier hs-var">c</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621681071208"><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071208"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621681071207"><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071207"><span class="hs-identifier hs-var">success</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071206"><span class="hs-identifier hs-var">go</span></a></span><span>
+</span><span id="line-133"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-134"></span><span>    </span><span id="local-6989586621681071205"><span class="annot"><span class="annottext">err' :: Stack -&gt; Text -&gt; Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071205"><span class="hs-identifier hs-var hs-var">err'</span></a></span></span><span> </span><span class="annot"><span class="annottext">Stack
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681071204"><span class="annot"><span class="annottext">Stack
+</span><a href="#local-6989586621681071204"><span class="hs-identifier hs-var">acc0</span></a></span></span><span> </span><span id="local-6989586621681071203"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071203"><span class="hs-identifier hs-var">t0</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071208"><span class="hs-identifier hs-var">err</span></a></span><span> </span><span class="annot"><span class="annottext">Stack
+</span><a href="#local-6989586621681071204"><span class="hs-identifier hs-var">acc0</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071203"><span class="hs-identifier hs-var">t0</span></a></span><span>
+</span><span id="line-135"></span><span>    </span><span id="local-6989586621681071202"><span class="annot"><span class="annottext">success' :: Stack -&gt; Text -&gt; Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071202"><span class="hs-identifier hs-var hs-var">success'</span></a></span></span><span> </span><span class="annot"><span class="annottext">Stack
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681071201"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071201"><span class="hs-identifier hs-var">rem</span></a></span></span><span> </span><span id="local-6989586621681071200"><span class="annot"><span class="annottext">Stack
+</span><a href="#local-6989586621681071200"><span class="hs-identifier hs-var">acc0</span></a></span></span><span> </span><span id="local-6989586621681071199"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071199"><span class="hs-identifier hs-var">t0</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071207"><span class="hs-identifier hs-var">success</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Stack -&gt; Stack
+</span><a href="Unison.Util.Text.Pattern.html#pushCapture"><span class="hs-identifier hs-var">pushCapture</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Text -&gt; Text
+</span><a href="Unison.Util.Text.html#take"><span class="hs-identifier hs-var">Text.take</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Int
+</span><a href="Unison.Util.Text.html#size"><span class="hs-identifier hs-var">Text.size</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071199"><span class="hs-identifier hs-var">t0</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Int
+</span><a href="Unison.Util.Text.html#size"><span class="hs-identifier hs-var">Text.size</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071201"><span class="hs-identifier hs-var">rem</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071199"><span class="hs-identifier hs-var">t0</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Stack
+</span><a href="#local-6989586621681071200"><span class="hs-identifier hs-var">acc0</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071201"><span class="hs-identifier hs-var">rem</span></a></span><span>
+</span><span id="line-136"></span><span>    </span><span id="local-6989586621681071198"><span class="annot"><span class="annottext">compiled :: Stack -&gt; Text -&gt; Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071198"><span class="hs-identifier hs-var hs-var">compiled</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall r. Pattern -&gt; Compiled r
+</span><a href="Unison.Util.Text.Pattern.html#compile"><span class="hs-identifier hs-var">compile</span></a></span><span> </span><span class="annot"><span class="annottext">Pattern
+</span><a href="#local-6989586621681071209"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071205"><span class="hs-identifier hs-var">err'</span></a></span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071202"><span class="hs-identifier hs-var">success'</span></a></span><span>
+</span><span id="line-137"></span><span>    </span><span id="local-6989586621681071206"><span class="annot"><span class="annottext">go :: Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071206"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span id="local-6989586621681071197"><span class="annot"><span class="annottext">Stack
+</span><a href="#local-6989586621681071197"><span class="hs-identifier hs-var">acc</span></a></span></span><span> </span><span id="local-6989586621681071196"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071196"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071198"><span class="hs-identifier hs-var">compiled</span></a></span><span> </span><span class="annot"><span class="annottext">Stack
+</span><a href="#local-6989586621681071197"><span class="hs-identifier hs-var">acc</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071196"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="annot"><span class="annottext">Stack
+</span><a href="#local-6989586621681071197"><span class="hs-identifier hs-var">acc</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071196"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-138"></span><span class="annot"><a href="Unison.Util.Text.Pattern.html#compile"><span class="hs-identifier hs-var">compile</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Text.Pattern.html#Or"><span class="hs-identifier hs-type">Or</span></a></span><span> </span><span id="local-6989586621681071195"><span class="annot"><span class="annottext">Pattern
+</span><a href="#local-6989586621681071195"><span class="hs-identifier hs-var">p1</span></a></span></span><span> </span><span id="local-6989586621681071194"><span class="annot"><span class="annottext">Pattern
+</span><a href="#local-6989586621681071194"><span class="hs-identifier hs-var">p2</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621681071193"><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071193"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span id="local-6989586621681071192"><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071192"><span class="hs-identifier hs-var">success</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071191"><span class="hs-identifier hs-var">cp1</span></a></span><span>
+</span><span id="line-139"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-140"></span><span>    </span><span id="local-6989586621681071190"><span class="annot"><span class="annottext">cp2 :: Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071190"><span class="hs-identifier hs-var hs-var">cp2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall r. Pattern -&gt; Compiled r
+</span><a href="Unison.Util.Text.Pattern.html#compile"><span class="hs-identifier hs-var">compile</span></a></span><span> </span><span class="annot"><span class="annottext">Pattern
+</span><a href="#local-6989586621681071194"><span class="hs-identifier hs-var">p2</span></a></span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071193"><span class="hs-identifier hs-var">err</span></a></span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071192"><span class="hs-identifier hs-var">success</span></a></span><span>
+</span><span id="line-141"></span><span>    </span><span id="local-6989586621681071191"><span class="annot"><span class="annottext">cp1 :: Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071191"><span class="hs-identifier hs-var hs-var">cp1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall r. String -&gt; Compiled r -&gt; Compiled r
+</span><a href="Unison.Util.Text.Pattern.html#try"><span class="hs-identifier hs-var">try</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Or&quot;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall r. Pattern -&gt; Compiled r
+</span><a href="Unison.Util.Text.Pattern.html#compile"><span class="hs-identifier hs-var">compile</span></a></span><span> </span><span class="annot"><span class="annottext">Pattern
+</span><a href="#local-6989586621681071195"><span class="hs-identifier hs-var">p1</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071190"><span class="hs-identifier hs-var">cp2</span></a></span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071192"><span class="hs-identifier hs-var">success</span></a></span><span>
+</span><span id="line-142"></span><span class="annot"><a href="Unison.Util.Text.Pattern.html#compile"><span class="hs-identifier hs-var">compile</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Text.Pattern.html#Join"><span class="hs-identifier hs-type">Join</span></a></span><span> </span><span id="local-6989586621681071188"><span class="annot"><span class="annottext">[Pattern]
+</span><a href="#local-6989586621681071188"><span class="hs-identifier hs-var">ps</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621681071187"><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071187"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621681071186"><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071186"><span class="hs-identifier hs-var">success</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Pattern] -&gt; Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071185"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">[Pattern]
+</span><a href="#local-6989586621681071188"><span class="hs-identifier hs-var">ps</span></a></span><span>
+</span><span id="line-143"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-144"></span><span>    </span><span id="local-6989586621681071185"><span class="annot"><span class="annottext">go :: [Pattern] -&gt; Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071185"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071186"><span class="hs-identifier hs-var">success</span></a></span><span>
+</span><span id="line-145"></span><span>    </span><span class="annot"><a href="#local-6989586621681071185"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span id="local-6989586621681071184"><span class="annot"><span class="annottext">Pattern
+</span><a href="#local-6989586621681071184"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621681071183"><span class="annot"><span class="annottext">[Pattern]
+</span><a href="#local-6989586621681071183"><span class="hs-identifier hs-var">ps</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-146"></span><span>      </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681071182"><span class="annot"><span class="annottext">pc :: Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071182"><span class="hs-identifier hs-var hs-var">pc</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall r. Pattern -&gt; Compiled r
+</span><a href="Unison.Util.Text.Pattern.html#compile"><span class="hs-identifier hs-var">compile</span></a></span><span> </span><span class="annot"><span class="annottext">Pattern
+</span><a href="#local-6989586621681071184"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071187"><span class="hs-identifier hs-var">err</span></a></span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071181"><span class="hs-identifier hs-var">psc</span></a></span><span>
+</span><span id="line-147"></span><span>          </span><span id="local-6989586621681071181"><span class="annot"><span class="annottext">psc :: Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071181"><span class="hs-identifier hs-var hs-var">psc</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall r. Pattern -&gt; Compiled r
+</span><a href="Unison.Util.Text.Pattern.html#compile"><span class="hs-identifier hs-var">compile</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Pattern] -&gt; Pattern
+</span><a href="Unison.Util.Text.Pattern.html#Join"><span class="hs-identifier hs-var">Join</span></a></span><span> </span><span class="annot"><span class="annottext">[Pattern]
+</span><a href="#local-6989586621681071183"><span class="hs-identifier hs-var">ps</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071187"><span class="hs-identifier hs-var">err</span></a></span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071186"><span class="hs-identifier hs-var">success</span></a></span><span>
+</span><span id="line-148"></span><span>       </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071182"><span class="hs-identifier hs-var">pc</span></a></span><span>
+</span><span id="line-149"></span><span class="annot"><a href="Unison.Util.Text.Pattern.html#compile"><span class="hs-identifier hs-var">compile</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Text.Pattern.html#Char"><span class="hs-identifier hs-type">Char</span></a></span><span> </span><span id="local-6989586621681071180"><span class="annot"><span class="annottext">CharPattern
+</span><a href="#local-6989586621681071180"><span class="hs-identifier hs-var">cp</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621681071179"><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071179"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621681071178"><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071178"><span class="hs-identifier hs-var">success</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071177"><span class="hs-identifier hs-var">go</span></a></span><span>
+</span><span id="line-150"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-151"></span><span>    </span><span id="local-6989586621681071176"><span class="annot"><span class="annottext">ok :: Char -&gt; Bool
+</span><a href="#local-6989586621681071176"><span class="hs-identifier hs-var hs-var">ok</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CharPattern -&gt; Char -&gt; Bool
+</span><a href="Unison.Util.Text.Pattern.html#charPatternPred"><span class="hs-identifier hs-var">charPatternPred</span></a></span><span> </span><span class="annot"><span class="annottext">CharPattern
+</span><a href="#local-6989586621681071180"><span class="hs-identifier hs-var">cp</span></a></span><span>
+</span><span id="line-152"></span><span>    </span><span id="local-6989586621681071177"><span class="annot"><span class="annottext">go :: Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071177"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span id="local-6989586621681071174"><span class="annot"><span class="annottext">Stack
+</span><a href="#local-6989586621681071174"><span class="hs-identifier hs-var">acc</span></a></span></span><span> </span><span id="local-6989586621681071173"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071173"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Maybe (Char, Text)
+</span><a href="Unison.Util.Text.html#uncons"><span class="hs-identifier hs-var">Text.uncons</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071173"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-153"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621681071171"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621681071171"><span class="hs-identifier hs-var">ch</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681071170"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071170"><span class="hs-identifier hs-var">rem</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><a href="#local-6989586621681071176"><span class="hs-identifier hs-var">ok</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621681071171"><span class="hs-identifier hs-var">ch</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071178"><span class="hs-identifier hs-var">success</span></a></span><span> </span><span class="annot"><span class="annottext">Stack
+</span><a href="#local-6989586621681071174"><span class="hs-identifier hs-var">acc</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071170"><span class="hs-identifier hs-var">rem</span></a></span><span>
+</span><span id="line-154"></span><span>      </span><span class="annot"><span class="annottext">Maybe (Char, Text)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071179"><span class="hs-identifier hs-var">err</span></a></span><span> </span><span class="annot"><span class="annottext">Stack
+</span><a href="#local-6989586621681071174"><span class="hs-identifier hs-var">acc</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071173"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-155"></span><span class="annot"><a href="Unison.Util.Text.Pattern.html#compile"><span class="hs-identifier hs-var">compile</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Text.Pattern.html#Many"><span class="hs-identifier hs-type">Many</span></a></span><span> </span><span id="local-6989586621681071169"><span class="annot"><span class="annottext">Pattern
+</span><a href="#local-6989586621681071169"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621681071168"><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071168"><span class="hs-identifier hs-var">success</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Pattern
+</span><a href="#local-6989586621681071169"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-156"></span><span>  </span><span class="annot"><a href="Unison.Util.Text.Pattern.html#Char"><span class="hs-identifier hs-type">Char</span></a></span><span> </span><span class="annot"><span class="annottext">CharPattern
+</span><a href="Unison.Util.Text.Pattern.html#Any"><span class="hs-identifier hs-var">Any</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621681071167"><span class="annot"><span class="annottext">Stack
+</span><a href="#local-6989586621681071167"><span class="hs-identifier hs-var">acc</span></a></span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071168"><span class="hs-identifier hs-var">success</span></a></span><span> </span><span class="annot"><span class="annottext">Stack
+</span><a href="#local-6989586621681071167"><span class="hs-identifier hs-var">acc</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="Unison.Util.Text.html#empty"><span class="hs-identifier hs-var">Text.empty</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-157"></span><span>  </span><span class="annot"><a href="Unison.Util.Text.Pattern.html#Char"><span class="hs-identifier hs-type">Char</span></a></span><span> </span><span id="local-6989586621681071166"><span class="annot"><span class="annottext">CharPattern
+</span><a href="#local-6989586621681071166"><span class="hs-identifier hs-var">cp</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(Char -&gt; Bool) -&gt; Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071165"><span class="hs-identifier hs-var">walker</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CharPattern -&gt; Char -&gt; Bool
+</span><a href="Unison.Util.Text.Pattern.html#charPatternPred"><span class="hs-identifier hs-var">charPatternPred</span></a></span><span> </span><span class="annot"><span class="annottext">CharPattern
+</span><a href="#local-6989586621681071166"><span class="hs-identifier hs-var">cp</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-158"></span><span>  </span><span id="local-6989586621681071164"><span class="annot"><span class="annottext">Pattern
+</span><a href="#local-6989586621681071164"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071163"><span class="hs-identifier hs-var">go</span></a></span><span>
+</span><span id="line-159"></span><span>    </span><span class="hs-keyword">where</span><span>
+</span><span id="line-160"></span><span>      </span><span id="local-6989586621681071163"><span class="annot"><span class="annottext">go :: Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071163"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall r. String -&gt; Compiled r -&gt; Compiled r
+</span><a href="Unison.Util.Text.Pattern.html#try"><span class="hs-identifier hs-var">try</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Many&quot;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall r. Pattern -&gt; Compiled r
+</span><a href="Unison.Util.Text.Pattern.html#compile"><span class="hs-identifier hs-var">compile</span></a></span><span> </span><span class="annot"><span class="annottext">Pattern
+</span><a href="#local-6989586621681071164"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071168"><span class="hs-identifier hs-var">success</span></a></span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071162"><span class="hs-identifier hs-var">success'</span></a></span><span>
+</span><span id="line-161"></span><span>      </span><span id="local-6989586621681071162"><span class="annot"><span class="annottext">success' :: Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071162"><span class="hs-identifier hs-var hs-var">success'</span></a></span></span><span> </span><span id="local-6989586621681071161"><span class="annot"><span class="annottext">Stack
+</span><a href="#local-6989586621681071161"><span class="hs-identifier hs-var">acc</span></a></span></span><span> </span><span id="local-6989586621681071160"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071160"><span class="hs-identifier hs-var">rem</span></a></span></span><span>
+</span><span id="line-162"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Int
+</span><a href="Unison.Util.Text.html#size"><span class="hs-identifier hs-var">Text.size</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071160"><span class="hs-identifier hs-var">rem</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071168"><span class="hs-identifier hs-var">success</span></a></span><span> </span><span class="annot"><span class="annottext">Stack
+</span><a href="#local-6989586621681071161"><span class="hs-identifier hs-var">acc</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071160"><span class="hs-identifier hs-var">rem</span></a></span><span>
+</span><span id="line-163"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071163"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Stack
+</span><a href="#local-6989586621681071161"><span class="hs-identifier hs-var">acc</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071160"><span class="hs-identifier hs-var">rem</span></a></span><span>
+</span><span id="line-164"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-165"></span><span>    </span><span id="local-6989586621681071165"><span class="annot"><span class="annottext">walker :: (Char -&gt; Bool) -&gt; Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071165"><span class="hs-identifier hs-var hs-var">walker</span></a></span></span><span> </span><span id="local-6989586621681071159"><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><a href="#local-6989586621681071159"><span class="hs-identifier hs-var">ok</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071158"><span class="hs-identifier hs-var">go</span></a></span><span>
+</span><span id="line-166"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-167"></span><span>        </span><span id="local-6989586621681071158"><span class="annot"><span class="annottext">go :: Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071158"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span id="local-6989586621681071157"><span class="annot"><span class="annottext">Stack
+</span><a href="#local-6989586621681071157"><span class="hs-identifier hs-var">acc</span></a></span></span><span> </span><span id="local-6989586621681071156"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071156"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Maybe (Chunk, Text)
+</span><a href="Unison.Util.Text.html#unconsChunk"><span class="hs-identifier hs-var">Text.unconsChunk</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071156"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-168"></span><span>          </span><span class="annot"><span class="annottext">Maybe (Chunk, Text)
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071168"><span class="hs-identifier hs-var">success</span></a></span><span> </span><span class="annot"><span class="annottext">Stack
+</span><a href="#local-6989586621681071157"><span class="hs-identifier hs-var">acc</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071156"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-169"></span><span>          </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Chunk -&gt; Text
+</span><a href="Unison.Util.Text.html#chunkToText"><span class="hs-identifier hs-var">Text.chunkToText</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span id="local-6989586621681071153"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071153"><span class="hs-identifier hs-var">txt</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681071152"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071152"><span class="hs-identifier hs-var">t</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">(Char -&gt; Bool) -&gt; Text -&gt; Text
+</span><span class="hs-identifier hs-var">DT.dropWhile</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><a href="#local-6989586621681071159"><span class="hs-identifier hs-var">ok</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071153"><span class="hs-identifier hs-var">txt</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-170"></span><span>            </span><span id="local-6989586621681071150"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071150"><span class="hs-identifier hs-var">rem</span></a></span></span><span>
+</span><span id="line-171"></span><span>              </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Bool
+</span><span class="hs-identifier hs-var">DT.null</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071150"><span class="hs-identifier hs-var">rem</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071158"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Stack
+</span><a href="#local-6989586621681071157"><span class="hs-identifier hs-var">acc</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071152"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-172"></span><span>              </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-173"></span><span>                  </span><span class="hs-comment">-- moving the remainder to the root of the tree is much more efficient</span><span>
+</span><span id="line-174"></span><span>                  </span><span class="hs-comment">-- since the next uncons will be O(1) rather than O(log n)</span><span>
+</span><span id="line-175"></span><span>                  </span><span class="hs-comment">-- this can't unbalance the tree too badly since these promoted chunks</span><span>
+</span><span id="line-176"></span><span>                  </span><span class="hs-comment">-- are being consumed and will get removed by a subsequent uncons</span><span>
+</span><span id="line-177"></span><span>                  </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071168"><span class="hs-identifier hs-var">success</span></a></span><span> </span><span class="annot"><span class="annottext">Stack
+</span><a href="#local-6989586621681071157"><span class="hs-identifier hs-var">acc</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+</span><a href="Unison.Util.Text.html#appendUnbalanced"><span class="hs-identifier hs-var">Text.appendUnbalanced</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Text
+</span><a href="Unison.Util.Text.html#fromText"><span class="hs-identifier hs-var">Text.fromText</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071150"><span class="hs-identifier hs-var">rem</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071152"><span class="hs-identifier hs-var">t</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-178"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="#local-6989586621681071165"><span class="hs-pragma hs-type">walker</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-179"></span><span class="annot"><a href="Unison.Util.Text.Pattern.html#compile"><span class="hs-identifier hs-var">compile</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Text.Pattern.html#Replicate"><span class="hs-identifier hs-type">Replicate</span></a></span><span> </span><span id="local-6989586621681071146"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681071146"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span id="local-6989586621681071145"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681071145"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621681071144"><span class="annot"><span class="annottext">Pattern
+</span><a href="#local-6989586621681071144"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621681071143"><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071143"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621681071142"><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071142"><span class="hs-identifier hs-var">success</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Pattern
+</span><a href="#local-6989586621681071144"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-180"></span><span>  </span><span class="annot"><a href="Unison.Util.Text.Pattern.html#Char"><span class="hs-identifier hs-type">Char</span></a></span><span> </span><span class="annot"><span class="annottext">CharPattern
+</span><a href="Unison.Util.Text.Pattern.html#Any"><span class="hs-identifier hs-var">Any</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621681071141"><span class="annot"><span class="annottext">Stack
+</span><a href="#local-6989586621681071141"><span class="hs-identifier hs-var">acc</span></a></span></span><span> </span><span id="local-6989586621681071140"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071140"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-181"></span><span>    </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Int
+</span><a href="Unison.Util.Text.html#size"><span class="hs-identifier hs-var">Text.size</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071140"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681071146"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-182"></span><span>      </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071143"><span class="hs-identifier hs-var">err</span></a></span><span> </span><span class="annot"><span class="annottext">Stack
+</span><a href="#local-6989586621681071141"><span class="hs-identifier hs-var">acc</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071140"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-183"></span><span>      </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071142"><span class="hs-identifier hs-var">success</span></a></span><span> </span><span class="annot"><span class="annottext">Stack
+</span><a href="#local-6989586621681071141"><span class="hs-identifier hs-var">acc</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Text -&gt; Text
+</span><a href="Unison.Util.Text.html#drop"><span class="hs-identifier hs-var">Text.drop</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681071145"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071140"><span class="hs-identifier hs-var">t</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-184"></span><span>  </span><span class="annot"><a href="Unison.Util.Text.Pattern.html#Char"><span class="hs-identifier hs-type">Char</span></a></span><span> </span><span id="local-6989586621681071138"><span class="annot"><span class="annottext">CharPattern
+</span><a href="#local-6989586621681071138"><span class="hs-identifier hs-var">cp</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(Char -&gt; Bool) -&gt; Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071137"><span class="hs-identifier hs-var">dropper</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CharPattern -&gt; Char -&gt; Bool
+</span><a href="Unison.Util.Text.Pattern.html#charPatternPred"><span class="hs-identifier hs-var">charPatternPred</span></a></span><span> </span><span class="annot"><span class="annottext">CharPattern
+</span><a href="#local-6989586621681071138"><span class="hs-identifier hs-var">cp</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-185"></span><span>  </span><span class="annot"><span class="annottext">Pattern
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall r. String -&gt; Compiled r -&gt; Compiled r
+</span><a href="Unison.Util.Text.Pattern.html#try"><span class="hs-identifier hs-var">try</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Replicate&quot;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+-&gt; (Stack -&gt; Text -&gt; r)
+-&gt; (Stack -&gt; Text -&gt; r)
+-&gt; Stack
+-&gt; Text
+-&gt; r
+</span><a href="#local-6989586621681071136"><span class="hs-identifier hs-var">go1</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681071146"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071143"><span class="hs-identifier hs-var">err</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071135"><span class="hs-identifier hs-var">go2</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681071145"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681071146"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-186"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-187"></span><span>    </span><span id="local-6989586621681071136"><span class="annot"><span class="annottext">go1 :: Int
+-&gt; (Stack -&gt; Text -&gt; r)
+-&gt; (Stack -&gt; Text -&gt; r)
+-&gt; Stack
+-&gt; Text
+-&gt; r
+</span><a href="#local-6989586621681071136"><span class="hs-identifier hs-var hs-var">go1</span></a></span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621681071134"><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071134"><span class="hs-identifier hs-var">_err</span></a></span></span><span> </span><span id="local-6989586621681071133"><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071133"><span class="hs-identifier hs-var">success</span></a></span></span><span> </span><span id="local-6989586621681071132"><span class="annot"><span class="annottext">Stack
+</span><a href="#local-6989586621681071132"><span class="hs-identifier hs-var">stk</span></a></span></span><span> </span><span id="local-6989586621681071131"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071131"><span class="hs-identifier hs-var">rem</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071133"><span class="hs-identifier hs-var">success</span></a></span><span> </span><span class="annot"><span class="annottext">Stack
+</span><a href="#local-6989586621681071132"><span class="hs-identifier hs-var">stk</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071131"><span class="hs-identifier hs-var">rem</span></a></span><span>
+</span><span id="line-188"></span><span>    </span><span class="annot"><a href="#local-6989586621681071136"><span class="hs-identifier hs-var">go1</span></a></span><span> </span><span id="local-6989586621681071130"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681071130"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621681071129"><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071129"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span id="local-6989586621681071128"><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071128"><span class="hs-identifier hs-var">success</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall r. Pattern -&gt; Compiled r
+</span><a href="Unison.Util.Text.Pattern.html#compile"><span class="hs-identifier hs-var">compile</span></a></span><span> </span><span class="annot"><span class="annottext">Pattern
+</span><a href="#local-6989586621681071144"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071129"><span class="hs-identifier hs-var">err</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+-&gt; (Stack -&gt; Text -&gt; r)
+-&gt; (Stack -&gt; Text -&gt; r)
+-&gt; Stack
+-&gt; Text
+-&gt; r
+</span><a href="#local-6989586621681071136"><span class="hs-identifier hs-var">go1</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681071130"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071129"><span class="hs-identifier hs-var">err</span></a></span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071128"><span class="hs-identifier hs-var">success</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-189"></span><span>    </span><span id="local-6989586621681071135"><span class="annot"><span class="annottext">go2 :: Int -&gt; Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071135"><span class="hs-identifier hs-var hs-var">go2</span></a></span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071142"><span class="hs-identifier hs-var">success</span></a></span><span>
+</span><span id="line-190"></span><span>    </span><span class="annot"><a href="#local-6989586621681071135"><span class="hs-identifier hs-var">go2</span></a></span><span> </span><span id="local-6989586621681071127"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681071127"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall r. String -&gt; Compiled r -&gt; Compiled r
+</span><a href="Unison.Util.Text.Pattern.html#try"><span class="hs-identifier hs-var">try</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Replicate&quot;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall r. Pattern -&gt; Compiled r
+</span><a href="Unison.Util.Text.Pattern.html#compile"><span class="hs-identifier hs-var">compile</span></a></span><span> </span><span class="annot"><span class="annottext">Pattern
+</span><a href="#local-6989586621681071144"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071142"><span class="hs-identifier hs-var">success</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071135"><span class="hs-identifier hs-var">go2</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681071127"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-191"></span><span>
+</span><span id="line-192"></span><span>    </span><span id="local-6989586621681071137"><span class="annot"><span class="annottext">dropper :: (Char -&gt; Bool) -&gt; Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071137"><span class="hs-identifier hs-var hs-var">dropper</span></a></span></span><span> </span><span id="local-6989586621681071126"><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><a href="#local-6989586621681071126"><span class="hs-identifier hs-var">ok</span></a></span></span><span> </span><span id="local-6989586621681071125"><span class="annot"><span class="annottext">Stack
+</span><a href="#local-6989586621681071125"><span class="hs-identifier hs-var">acc</span></a></span></span><span> </span><span id="local-6989586621681071124"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071124"><span class="hs-identifier hs-var">t</span></a></span></span><span>
+</span><span id="line-193"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681071123"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681071123"><span class="hs-identifier hs-var">i</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681071122"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071122"><span class="hs-identifier hs-var">rest</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">(Char -&gt; Bool) -&gt; Int -&gt; Text -&gt; (Int, Text)
+</span><a href="Unison.Util.Text.html#dropWhileMax"><span class="hs-identifier hs-var">Text.dropWhileMax</span></a></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><a href="#local-6989586621681071126"><span class="hs-identifier hs-var">ok</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681071145"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071124"><span class="hs-identifier hs-var">t</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681071123"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681071146"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071142"><span class="hs-identifier hs-var">success</span></a></span><span> </span><span class="annot"><span class="annottext">Stack
+</span><a href="#local-6989586621681071125"><span class="hs-identifier hs-var">acc</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071122"><span class="hs-identifier hs-var">rest</span></a></span><span>
+</span><span id="line-194"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071143"><span class="hs-identifier hs-var">err</span></a></span><span> </span><span class="annot"><span class="annottext">Stack
+</span><a href="#local-6989586621681071125"><span class="hs-identifier hs-var">acc</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071124"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-195"></span><span>
+</span><span id="line-196"></span><span class="annot"><a href="Unison.Util.Text.Pattern.html#charInPred"><span class="hs-identifier hs-type">charInPred</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Util.Text.Pattern.html#charNotInPred"><span class="hs-identifier hs-type">charNotInPred</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Char</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Char</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-197"></span><span id="charInPred"><span class="annot"><span class="annottext">charInPred :: String -&gt; Char -&gt; Bool
+</span><a href="Unison.Util.Text.Pattern.html#charInPred"><span class="hs-identifier hs-var hs-var">charInPred</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-198"></span><span class="annot"><a href="Unison.Util.Text.Pattern.html#charInPred"><span class="hs-identifier hs-var">charInPred</span></a></span><span> </span><span class="hs-special">(</span><span id="local-6989586621681071117"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621681071117"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621681071116"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621681071116"><span class="hs-identifier hs-var">chs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681071115"><span class="annot"><span class="annottext">ok :: Char -&gt; Bool
+</span><a href="#local-6989586621681071115"><span class="hs-identifier hs-var hs-var">ok</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Char -&gt; Bool
+</span><a href="Unison.Util.Text.Pattern.html#charInPred"><span class="hs-identifier hs-var">charInPred</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621681071116"><span class="hs-identifier hs-var">chs</span></a></span><span> </span><span class="hs-keyword">in</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621681071114"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621681071114"><span class="hs-identifier hs-var">ci</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621681071114"><span class="hs-identifier hs-var">ci</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621681071117"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><a href="#local-6989586621681071115"><span class="hs-identifier hs-var">ok</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621681071114"><span class="hs-identifier hs-var">ci</span></a></span><span>
+</span><span id="line-199"></span><span id="charNotInPred"><span class="annot"><span class="annottext">charNotInPred :: String -&gt; Char -&gt; Bool
+</span><a href="Unison.Util.Text.Pattern.html#charNotInPred"><span class="hs-identifier hs-var hs-var">charNotInPred</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-200"></span><span class="annot"><a href="Unison.Util.Text.Pattern.html#charNotInPred"><span class="hs-identifier hs-var">charNotInPred</span></a></span><span> </span><span class="hs-special">(</span><span id="local-6989586621681071112"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621681071112"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621681071111"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621681071111"><span class="hs-identifier hs-var">chs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681071110"><span class="annot"><span class="annottext">ok :: Char -&gt; Bool
+</span><a href="#local-6989586621681071110"><span class="hs-identifier hs-var hs-var">ok</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Char -&gt; Bool
+</span><a href="Unison.Util.Text.Pattern.html#charNotInPred"><span class="hs-identifier hs-var">charNotInPred</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621681071111"><span class="hs-identifier hs-var">chs</span></a></span><span> </span><span class="hs-keyword">in</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621681071109"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621681071109"><span class="hs-identifier hs-var">ci</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621681071109"><span class="hs-identifier hs-var">ci</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621681071112"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><a href="#local-6989586621681071110"><span class="hs-identifier hs-var">ok</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621681071109"><span class="hs-identifier hs-var">ci</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-201"></span><span>
+</span><span id="line-202"></span><span class="annot"><a href="Unison.Util.Text.Pattern.html#charPatternPred"><span class="hs-identifier hs-type">charPatternPred</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Util.Text.Pattern.html#CharPattern"><span class="hs-identifier hs-type">CharPattern</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Char</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-203"></span><span id="charPatternPred"><span class="annot"><span class="annottext">charPatternPred :: CharPattern -&gt; Char -&gt; Bool
+</span><a href="Unison.Util.Text.Pattern.html#charPatternPred"><span class="hs-identifier hs-var hs-var">charPatternPred</span></a></span></span><span> </span><span class="annot"><span class="annottext">CharPattern
+</span><a href="Unison.Util.Text.Pattern.html#Any"><span class="hs-identifier hs-var">Any</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-204"></span><span class="annot"><a href="Unison.Util.Text.Pattern.html#charPatternPred"><span class="hs-identifier hs-var">charPatternPred</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Text.Pattern.html#Not"><span class="hs-identifier hs-type">Not</span></a></span><span> </span><span id="local-6989586621681071106"><span class="annot"><span class="annottext">CharPattern
+</span><a href="#local-6989586621681071106"><span class="hs-identifier hs-var">cp</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681071105"><span class="annot"><span class="annottext">notOk :: Char -&gt; Bool
+</span><a href="#local-6989586621681071105"><span class="hs-identifier hs-var hs-var">notOk</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CharPattern -&gt; Char -&gt; Bool
+</span><a href="Unison.Util.Text.Pattern.html#charPatternPred"><span class="hs-identifier hs-var">charPatternPred</span></a></span><span> </span><span class="annot"><span class="annottext">CharPattern
+</span><a href="#local-6989586621681071106"><span class="hs-identifier hs-var">cp</span></a></span><span> </span><span class="hs-keyword">in</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621681071104"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621681071104"><span class="hs-identifier hs-var">ci</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><a href="#local-6989586621681071105"><span class="hs-identifier hs-var">notOk</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621681071104"><span class="hs-identifier hs-var">ci</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-205"></span><span class="annot"><a href="Unison.Util.Text.Pattern.html#charPatternPred"><span class="hs-identifier hs-var">charPatternPred</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Text.Pattern.html#Union"><span class="hs-identifier hs-type">Union</span></a></span><span> </span><span id="local-6989586621681071102"><span class="annot"><span class="annottext">CharPattern
+</span><a href="#local-6989586621681071102"><span class="hs-identifier hs-var">cp1</span></a></span></span><span> </span><span id="local-6989586621681071101"><span class="annot"><span class="annottext">CharPattern
+</span><a href="#local-6989586621681071101"><span class="hs-identifier hs-var">cp2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681071100"><span class="annot"><span class="annottext">ok1 :: Char -&gt; Bool
+</span><a href="#local-6989586621681071100"><span class="hs-identifier hs-var hs-var">ok1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CharPattern -&gt; Char -&gt; Bool
+</span><a href="Unison.Util.Text.Pattern.html#charPatternPred"><span class="hs-identifier hs-var">charPatternPred</span></a></span><span> </span><span class="annot"><span class="annottext">CharPattern
+</span><a href="#local-6989586621681071102"><span class="hs-identifier hs-var">cp1</span></a></span><span class="hs-special">;</span><span> </span><span id="local-6989586621681071099"><span class="annot"><span class="annottext">ok2 :: Char -&gt; Bool
+</span><a href="#local-6989586621681071099"><span class="hs-identifier hs-var hs-var">ok2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CharPattern -&gt; Char -&gt; Bool
+</span><a href="Unison.Util.Text.Pattern.html#charPatternPred"><span class="hs-identifier hs-var">charPatternPred</span></a></span><span> </span><span class="annot"><span class="annottext">CharPattern
+</span><a href="#local-6989586621681071101"><span class="hs-identifier hs-var">cp2</span></a></span><span> </span><span class="hs-keyword">in</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621681071098"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621681071098"><span class="hs-identifier hs-var">ci</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><a href="#local-6989586621681071100"><span class="hs-identifier hs-var">ok1</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621681071098"><span class="hs-identifier hs-var">ci</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><a href="#local-6989586621681071099"><span class="hs-identifier hs-var">ok2</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621681071098"><span class="hs-identifier hs-var">ci</span></a></span><span>
+</span><span id="line-206"></span><span class="annot"><a href="Unison.Util.Text.Pattern.html#charPatternPred"><span class="hs-identifier hs-var">charPatternPred</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Text.Pattern.html#Intersect"><span class="hs-identifier hs-type">Intersect</span></a></span><span> </span><span id="local-6989586621681071097"><span class="annot"><span class="annottext">CharPattern
+</span><a href="#local-6989586621681071097"><span class="hs-identifier hs-var">cp1</span></a></span></span><span> </span><span id="local-6989586621681071096"><span class="annot"><span class="annottext">CharPattern
+</span><a href="#local-6989586621681071096"><span class="hs-identifier hs-var">cp2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681071095"><span class="annot"><span class="annottext">ok1 :: Char -&gt; Bool
+</span><a href="#local-6989586621681071095"><span class="hs-identifier hs-var hs-var">ok1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CharPattern -&gt; Char -&gt; Bool
+</span><a href="Unison.Util.Text.Pattern.html#charPatternPred"><span class="hs-identifier hs-var">charPatternPred</span></a></span><span> </span><span class="annot"><span class="annottext">CharPattern
+</span><a href="#local-6989586621681071097"><span class="hs-identifier hs-var">cp1</span></a></span><span class="hs-special">;</span><span> </span><span id="local-6989586621681071094"><span class="annot"><span class="annottext">ok2 :: Char -&gt; Bool
+</span><a href="#local-6989586621681071094"><span class="hs-identifier hs-var hs-var">ok2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CharPattern -&gt; Char -&gt; Bool
+</span><a href="Unison.Util.Text.Pattern.html#charPatternPred"><span class="hs-identifier hs-var">charPatternPred</span></a></span><span> </span><span class="annot"><span class="annottext">CharPattern
+</span><a href="#local-6989586621681071096"><span class="hs-identifier hs-var">cp2</span></a></span><span> </span><span class="hs-keyword">in</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621681071093"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621681071093"><span class="hs-identifier hs-var">ci</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><a href="#local-6989586621681071095"><span class="hs-identifier hs-var">ok1</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621681071093"><span class="hs-identifier hs-var">ci</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><a href="#local-6989586621681071094"><span class="hs-identifier hs-var">ok2</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621681071093"><span class="hs-identifier hs-var">ci</span></a></span><span>
+</span><span id="line-207"></span><span class="annot"><a href="Unison.Util.Text.Pattern.html#charPatternPred"><span class="hs-identifier hs-var">charPatternPred</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Text.Pattern.html#CharRange"><span class="hs-identifier hs-type">CharRange</span></a></span><span> </span><span id="local-6989586621681071092"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621681071092"><span class="hs-identifier hs-var">c1</span></a></span></span><span> </span><span id="local-6989586621681071091"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621681071091"><span class="hs-identifier hs-var">c2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621681071090"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621681071090"><span class="hs-identifier hs-var">ci</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621681071090"><span class="hs-identifier hs-var">ci</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621681071092"><span class="hs-identifier hs-var">c1</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621681071090"><span class="hs-identifier hs-var">ci</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621681071091"><span class="hs-identifier hs-var">c2</span></a></span><span>
+</span><span id="line-208"></span><span class="annot"><a href="Unison.Util.Text.Pattern.html#charPatternPred"><span class="hs-identifier hs-var">charPatternPred</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Text.Pattern.html#CharSet"><span class="hs-identifier hs-type">CharSet</span></a></span><span> </span><span id="local-6989586621681071088"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621681071088"><span class="hs-identifier hs-var">cs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Char -&gt; Bool
+</span><a href="Unison.Util.Text.Pattern.html#charInPred"><span class="hs-identifier hs-var">charInPred</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621681071088"><span class="hs-identifier hs-var">cs</span></a></span><span>
+</span><span id="line-209"></span><span class="annot"><a href="Unison.Util.Text.Pattern.html#charPatternPred"><span class="hs-identifier hs-var">charPatternPred</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Text.Pattern.html#CharClass"><span class="hs-identifier hs-type">CharClass</span></a></span><span> </span><span id="local-6989586621681071087"><span class="annot"><span class="annottext">CharClass
+</span><a href="#local-6989586621681071087"><span class="hs-identifier hs-var">cc</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CharClass -&gt; Char -&gt; Bool
+</span><a href="Unison.Util.Text.Pattern.html#charClassPred"><span class="hs-identifier hs-var">charClassPred</span></a></span><span> </span><span class="annot"><span class="annottext">CharClass
+</span><a href="#local-6989586621681071087"><span class="hs-identifier hs-var">cc</span></a></span><span>
+</span><span id="line-210"></span><span>
+</span><span id="line-211"></span><span class="annot"><a href="Unison.Util.Text.Pattern.html#charClassPred"><span class="hs-identifier hs-type">charClassPred</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Util.Text.Pattern.html#CharClass"><span class="hs-identifier hs-type">CharClass</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Char</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-212"></span><span id="charClassPred"><span class="annot"><span class="annottext">charClassPred :: CharClass -&gt; Char -&gt; Bool
+</span><a href="Unison.Util.Text.Pattern.html#charClassPred"><span class="hs-identifier hs-var hs-var">charClassPred</span></a></span></span><span> </span><span class="annot"><span class="annottext">CharClass
+</span><a href="Unison.Util.Text.Pattern.html#AlphaNum"><span class="hs-identifier hs-var">AlphaNum</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isAlphaNum</span></span><span>
+</span><span id="line-213"></span><span class="annot"><a href="Unison.Util.Text.Pattern.html#charClassPred"><span class="hs-identifier hs-var">charClassPred</span></a></span><span> </span><span class="annot"><span class="annottext">CharClass
+</span><a href="Unison.Util.Text.Pattern.html#Upper"><span class="hs-identifier hs-var">Upper</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isUpper</span></span><span>
+</span><span id="line-214"></span><span class="annot"><a href="Unison.Util.Text.Pattern.html#charClassPred"><span class="hs-identifier hs-var">charClassPred</span></a></span><span> </span><span class="annot"><span class="annottext">CharClass
+</span><a href="Unison.Util.Text.Pattern.html#Lower"><span class="hs-identifier hs-var">Lower</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isLower</span></span><span>
+</span><span id="line-215"></span><span class="annot"><a href="Unison.Util.Text.Pattern.html#charClassPred"><span class="hs-identifier hs-var">charClassPred</span></a></span><span> </span><span class="annot"><span class="annottext">CharClass
+</span><a href="Unison.Util.Text.Pattern.html#Whitespace"><span class="hs-identifier hs-var">Whitespace</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isSpace</span></span><span>
+</span><span id="line-216"></span><span class="annot"><a href="Unison.Util.Text.Pattern.html#charClassPred"><span class="hs-identifier hs-var">charClassPred</span></a></span><span> </span><span class="annot"><span class="annottext">CharClass
+</span><a href="Unison.Util.Text.Pattern.html#Control"><span class="hs-identifier hs-var">Control</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isControl</span></span><span>
+</span><span id="line-217"></span><span class="annot"><a href="Unison.Util.Text.Pattern.html#charClassPred"><span class="hs-identifier hs-var">charClassPred</span></a></span><span> </span><span class="annot"><span class="annottext">CharClass
+</span><a href="Unison.Util.Text.Pattern.html#Printable"><span class="hs-identifier hs-var">Printable</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isPrint</span></span><span>
+</span><span id="line-218"></span><span class="annot"><a href="Unison.Util.Text.Pattern.html#charClassPred"><span class="hs-identifier hs-var">charClassPred</span></a></span><span> </span><span class="annot"><span class="annottext">CharClass
+</span><a href="Unison.Util.Text.Pattern.html#MarkChar"><span class="hs-identifier hs-var">MarkChar</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isMark</span></span><span>
+</span><span id="line-219"></span><span class="annot"><a href="Unison.Util.Text.Pattern.html#charClassPred"><span class="hs-identifier hs-var">charClassPred</span></a></span><span> </span><span class="annot"><span class="annottext">CharClass
+</span><a href="Unison.Util.Text.Pattern.html#Number"><span class="hs-identifier hs-var">Number</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isNumber</span></span><span>
+</span><span id="line-220"></span><span class="annot"><a href="Unison.Util.Text.Pattern.html#charClassPred"><span class="hs-identifier hs-var">charClassPred</span></a></span><span> </span><span class="annot"><span class="annottext">CharClass
+</span><a href="Unison.Util.Text.Pattern.html#Punctuation"><span class="hs-identifier hs-var">Punctuation</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isPunctuation</span></span><span>
+</span><span id="line-221"></span><span class="annot"><a href="Unison.Util.Text.Pattern.html#charClassPred"><span class="hs-identifier hs-var">charClassPred</span></a></span><span> </span><span class="annot"><span class="annottext">CharClass
+</span><a href="Unison.Util.Text.Pattern.html#Symbol"><span class="hs-identifier hs-var">Symbol</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isSymbol</span></span><span>
+</span><span id="line-222"></span><span class="annot"><a href="Unison.Util.Text.Pattern.html#charClassPred"><span class="hs-identifier hs-var">charClassPred</span></a></span><span> </span><span class="annot"><span class="annottext">CharClass
+</span><a href="Unison.Util.Text.Pattern.html#Separator"><span class="hs-identifier hs-var">Separator</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isSeparator</span></span><span>
+</span><span id="line-223"></span><span class="annot"><a href="Unison.Util.Text.Pattern.html#charClassPred"><span class="hs-identifier hs-var">charClassPred</span></a></span><span> </span><span class="annot"><span class="annottext">CharClass
+</span><a href="Unison.Util.Text.Pattern.html#Letter"><span class="hs-identifier hs-var">Letter</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isLetter</span></span><span>
+</span><span id="line-224"></span><span>
+</span><span id="line-225"></span><span class="hs-comment">-- runs c and if it fails, restores state to what it was before</span><span>
+</span><span id="line-226"></span><span id="local-6989586621681071605"><span class="annot"><a href="Unison.Util.Text.Pattern.html#try"><span class="hs-identifier hs-type">try</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Util.Text.Pattern.html#Compiled"><span class="hs-identifier hs-type">Compiled</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681071605"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Util.Text.Pattern.html#Compiled"><span class="hs-identifier hs-type">Compiled</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681071605"><span class="hs-identifier hs-type">r</span></a></span></span><span>
+</span><span id="line-227"></span><span id="try"><span class="annot"><span class="annottext">try :: forall r. String -&gt; Compiled r -&gt; Compiled r
+</span><a href="Unison.Util.Text.Pattern.html#try"><span class="hs-identifier hs-var hs-var">try</span></a></span></span><span> </span><span id="local-6989586621681071074"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621681071074"><span class="hs-identifier hs-var">msg</span></a></span></span><span> </span><span id="local-6989586621681071073"><span class="annot"><span class="annottext">Compiled r
+</span><a href="#local-6989586621681071073"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span id="local-6989586621681071072"><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071072"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span id="local-6989586621681071071"><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071071"><span class="hs-identifier hs-var">success</span></a></span></span><span> </span><span id="local-6989586621681071070"><span class="annot"><span class="annottext">Stack
+</span><a href="#local-6989586621681071070"><span class="hs-identifier hs-var">stk</span></a></span></span><span> </span><span id="local-6989586621681071069"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071069"><span class="hs-identifier hs-var">rem</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-228"></span><span>  </span><span class="annot"><span class="annottext">Compiled r
+</span><a href="#local-6989586621681071073"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071068"><span class="hs-identifier hs-var">err'</span></a></span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071067"><span class="hs-identifier hs-var">success'</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Captures -&gt; Text -&gt; Stack -&gt; Stack
+</span><a href="Unison.Util.Text.Pattern.html#Mark"><span class="hs-identifier hs-var">Mark</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071069"><span class="hs-identifier hs-var">rem</span></a></span><span> </span><span class="annot"><span class="annottext">Stack
+</span><a href="#local-6989586621681071070"><span class="hs-identifier hs-var">stk</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071069"><span class="hs-identifier hs-var">rem</span></a></span><span>
+</span><span id="line-229"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-230"></span><span>    </span><span id="local-6989586621681071067"><span class="annot"><span class="annottext">success' :: Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071067"><span class="hs-identifier hs-var hs-var">success'</span></a></span></span><span> </span><span id="local-6989586621681071066"><span class="annot"><span class="annottext">Stack
+</span><a href="#local-6989586621681071066"><span class="hs-identifier hs-var">stk</span></a></span></span><span> </span><span id="local-6989586621681071065"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071065"><span class="hs-identifier hs-var">rem</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Stack
+</span><a href="#local-6989586621681071066"><span class="hs-identifier hs-var">stk</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-231"></span><span>      </span><span class="annot"><a href="Unison.Util.Text.Pattern.html#Mark"><span class="hs-identifier hs-type">Mark</span></a></span><span> </span><span id="local-6989586621681071064"><span class="annot"><span class="annottext">Captures
+</span><a href="#local-6989586621681071064"><span class="hs-identifier hs-var">caps</span></a></span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681071063"><span class="annot"><span class="annottext">Stack
+</span><a href="#local-6989586621681071063"><span class="hs-identifier hs-var">stk</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071071"><span class="hs-identifier hs-var">success</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Captures -&gt; Stack -&gt; Stack
+</span><a href="Unison.Util.Text.Pattern.html#pushCaptures"><span class="hs-identifier hs-var">pushCaptures</span></a></span><span> </span><span class="annot"><span class="annottext">Captures
+</span><a href="#local-6989586621681071064"><span class="hs-identifier hs-var">caps</span></a></span><span> </span><span class="annot"><span class="annottext">Stack
+</span><a href="#local-6989586621681071063"><span class="hs-identifier hs-var">stk</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071065"><span class="hs-identifier hs-var">rem</span></a></span><span>
+</span><span id="line-232"></span><span>      </span><span class="annot"><span class="annottext">Stack
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. HasCallStack =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Pattern compiler error in: &quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621681071074"><span class="hs-identifier hs-var">msg</span></a></span><span>
+</span><span id="line-233"></span><span>    </span><span id="local-6989586621681071068"><span class="annot"><span class="annottext">err' :: Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071068"><span class="hs-identifier hs-var hs-var">err'</span></a></span></span><span> </span><span id="local-6989586621681071061"><span class="annot"><span class="annottext">Stack
+</span><a href="#local-6989586621681071061"><span class="hs-identifier hs-var">stk</span></a></span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Stack
+</span><a href="#local-6989586621681071061"><span class="hs-identifier hs-var">stk</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-234"></span><span>      </span><span class="annot"><a href="Unison.Util.Text.Pattern.html#Mark"><span class="hs-identifier hs-type">Mark</span></a></span><span> </span><span class="annot"><span class="annottext">Captures
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681071060"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071060"><span class="hs-identifier hs-var">rem</span></a></span></span><span> </span><span id="local-6989586621681071059"><span class="annot"><span class="annottext">Stack
+</span><a href="#local-6989586621681071059"><span class="hs-identifier hs-var">stk</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Stack -&gt; Text -&gt; r
+</span><a href="#local-6989586621681071072"><span class="hs-identifier hs-var">err</span></a></span><span> </span><span class="annot"><span class="annottext">Stack
+</span><a href="#local-6989586621681071059"><span class="hs-identifier hs-var">stk</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681071060"><span class="hs-identifier hs-var">rem</span></a></span><span>
+</span><span id="line-235"></span><span>      </span><span class="annot"><span class="annottext">Stack
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. HasCallStack =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Pattern compiler error in: &quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621681071074"><span class="hs-identifier hs-var">msg</span></a></span><span>
+</span><span id="line-236"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Unison.Util.Text.Pattern.html#try"><span class="hs-pragma hs-type">try</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-237"></span></pre></body></html>

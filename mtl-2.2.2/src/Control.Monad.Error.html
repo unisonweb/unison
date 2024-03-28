@@ -1,0 +1,152 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-2"></span><span class="hs-comment">{- |
+Module      :  Control.Monad.Error
+Copyright   :  (c) Michael Weber &lt;michael.weber@post.rwth-aachen.de&gt; 2001,
+               (c) Jeff Newbern 2003-2006,
+               (c) Andriy Palamarchuk 2006
+License     :  BSD-style (see the file LICENSE)
+
+Maintainer  :  libraries@haskell.org
+Stability   :  experimental
+Portability :  non-portable (multi-parameter type classes)
+
+[Computation type:] Computations which may fail or throw exceptions.
+
+[Binding strategy:] Failure records information about the cause\/location
+of the failure. Failure values bypass the bound function,
+other values are used as inputs to the bound function.
+
+[Useful for:] Building computations from sequences of functions that may fail
+or using exception handling to structure error handling.
+
+[Zero and plus:] Zero is represented by an empty error and the plus operation
+executes its second argument if the first fails.
+
+[Example type:] @'Either' String a@
+
+The Error monad (also called the Exception monad).
+-}</span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="hs-comment">{-
+  Rendered by Michael Weber &lt;mailto:michael.weber@post.rwth-aachen.de&gt;,
+  inspired by the Haskell Monad Template Library from
+    Andy Gill (&lt;http://web.cecs.pdx.edu/~andy/&gt;)
+-}</span><span>
+</span><span id="line-35"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Control.Monad.Error</span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-pragma">{-# DEPRECATED</span><span> </span><span class="hs-pragma">&quot;Use \&quot;Control.Monad.Except\&quot; instead&quot;</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-37"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Monads with error handling</span></span><span>
+</span><span id="line-38"></span><span>    </span><span class="annot"><a href="Control.Monad.Error.Class.html#MonadError"><span class="hs-identifier">MonadError</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-39"></span><span>    </span><span class="annot"><a href="../../transformers-0.5.6.2/src/Control-Monad-Trans-Error.html#Error"><span class="hs-identifier">Error</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-40"></span><span>    </span><span class="annot"><span class="hs-comment">-- * The ErrorT monad transformer</span></span><span>
+</span><span id="line-41"></span><span>    </span><span class="annot"><a href="../../transformers-0.5.6.2/src/Control-Monad-Trans-Error.html#ErrorT"><span class="hs-identifier">ErrorT</span></a></span><span class="hs-special">(</span><span class="annot"><a href="../../transformers-0.5.6.2/src/Control-Monad-Trans-Error.html#ErrorT"><span class="hs-identifier">ErrorT</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-42"></span><span>    </span><span class="annot"><a href="../../transformers-0.5.6.2/src/Control-Monad-Trans-Error.html#runErrorT"><span class="hs-identifier">runErrorT</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-43"></span><span>    </span><span class="annot"><a href="../../transformers-0.5.6.2/src/Control-Monad-Trans-Error.html#mapErrorT"><span class="hs-identifier">mapErrorT</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-44"></span><span>    </span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Control-Monad.html#"><span class="hs-identifier">Control.Monad</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-45"></span><span>    </span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Control-Monad-Fix.html#"><span class="hs-identifier">Control.Monad.Fix</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-46"></span><span>    </span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Control.Monad.Trans.html"><span class="hs-identifier">Control.Monad.Trans</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-47"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Example 1: Custom Error Data Type</span></span><span>
+</span><span id="line-48"></span><span>    </span><span class="annot"><span class="hs-comment">-- $customErrorExample</span></span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Example 2: Using ErrorT Monad Transformer</span></span><span>
+</span><span id="line-51"></span><span>    </span><span class="annot"><span class="hs-comment">-- $ErrorTExample</span></span><span>
+</span><span id="line-52"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-53"></span><span>
+</span><span id="line-54"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Control.Monad.Error.Class.html"><span class="hs-identifier">Control.Monad.Error.Class</span></a></span><span>
+</span><span id="line-55"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Control.Monad.Trans.html"><span class="hs-identifier">Control.Monad.Trans</span></a></span><span>
+</span><span id="line-56"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../transformers-0.5.6.2/src/Control-Monad-Trans-Error.html#"><span class="hs-identifier">Control.Monad.Trans.Error</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../transformers-0.5.6.2/src/Control-Monad-Trans-Error.html#ErrorT"><span class="hs-identifier">ErrorT</span></a></span><span class="hs-special">(</span><span class="annot"><a href="../../transformers-0.5.6.2/src/Control-Monad-Trans-Error.html#ErrorT"><span class="hs-identifier">ErrorT</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../transformers-0.5.6.2/src/Control-Monad-Trans-Error.html#runErrorT"><span class="hs-identifier">runErrorT</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../transformers-0.5.6.2/src/Control-Monad-Trans-Error.html#mapErrorT"><span class="hs-identifier">mapErrorT</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Control-Monad.html#"><span class="hs-identifier">Control.Monad</span></a></span><span>
+</span><span id="line-59"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Control-Monad-Fix.html#"><span class="hs-identifier">Control.Monad.Fix</span></a></span><span class="hs-cpp">
+
+#if defined(__GLASGOW_HASKELL__) &amp;&amp; __GLASGOW_HASKELL__ &lt; 707
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Control.Monad.Instances</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-65"></span><span class="hs-comment">{- $customErrorExample
+Here is an example that demonstrates the use of a custom 'Error' data type with
+the 'throwError' and 'catchError' exception mechanism from 'MonadError'.
+The example throws an exception if the user enters an empty string
+or a string longer than 5 characters. Otherwise it prints length of the string.
+
+&gt;-- This is the type to represent length calculation error.
+&gt;data LengthError = EmptyString  -- Entered string was empty.
+&gt;          | StringTooLong Int   -- A string is longer than 5 characters.
+&gt;                                -- Records a length of the string.
+&gt;          | OtherError String   -- Other error, stores the problem description.
+&gt;
+&gt;-- We make LengthError an instance of the Error class
+&gt;-- to be able to throw it as an exception.
+&gt;instance Error LengthError where
+&gt;  noMsg    = OtherError &quot;A String Error!&quot;
+&gt;  strMsg s = OtherError s
+&gt;
+&gt;-- Converts LengthError to a readable message.
+&gt;instance Show LengthError where
+&gt;  show EmptyString = &quot;The string was empty!&quot;
+&gt;  show (StringTooLong len) =
+&gt;      &quot;The length of the string (&quot; ++ (show len) ++ &quot;) is bigger than 5!&quot;
+&gt;  show (OtherError msg) = msg
+&gt;
+&gt;-- For our monad type constructor, we use Either LengthError
+&gt;-- which represents failure using Left LengthError
+&gt;-- or a successful result of type a using Right a.
+&gt;type LengthMonad = Either LengthError
+&gt;
+&gt;main = do
+&gt;  putStrLn &quot;Please enter a string:&quot;
+&gt;  s &lt;- getLine
+&gt;  reportResult (calculateLength s)
+&gt;
+&gt;-- Wraps length calculation to catch the errors.
+&gt;-- Returns either length of the string or an error.
+&gt;calculateLength :: String -&gt; LengthMonad Int
+&gt;calculateLength s = (calculateLengthOrFail s) `catchError` Left
+&gt;
+&gt;-- Attempts to calculate length and throws an error if the provided string is
+&gt;-- empty or longer than 5 characters.
+&gt;-- The processing is done in Either monad.
+&gt;calculateLengthOrFail :: String -&gt; LengthMonad Int
+&gt;calculateLengthOrFail [] = throwError EmptyString
+&gt;calculateLengthOrFail s | len &gt; 5 = throwError (StringTooLong len)
+&gt;                        | otherwise = return len
+&gt;  where len = length s
+&gt;
+&gt;-- Prints result of the string length calculation.
+&gt;reportResult :: LengthMonad Int -&gt; IO ()
+&gt;reportResult (Right len) = putStrLn (&quot;The length of the string is &quot; ++ (show len))
+&gt;reportResult (Left e) = putStrLn (&quot;Length calculation failed with error: &quot; ++ (show e))
+-}</span><span>
+</span><span id="line-119"></span><span>
+</span><span id="line-120"></span><span class="hs-comment">{- $ErrorTExample
+@'ErrorT'@ monad transformer can be used to add error handling to another monad.
+Here is an example how to combine it with an @IO@ monad:
+
+&gt;import Control.Monad.Error
+&gt;
+&gt;-- An IO monad which can return String failure.
+&gt;-- It is convenient to define the monad type of the combined monad,
+&gt;-- especially if we combine more monad transformers.
+&gt;type LengthMonad = ErrorT String IO
+&gt;
+&gt;main = do
+&gt;  -- runErrorT removes the ErrorT wrapper
+&gt;  r &lt;- runErrorT calculateLength
+&gt;  reportResult r
+&gt;
+&gt;-- Asks user for a non-empty string and returns its length.
+&gt;-- Throws an error if user enters an empty string.
+&gt;calculateLength :: LengthMonad Int
+&gt;calculateLength = do
+&gt;  -- all the IO operations have to be lifted to the IO monad in the monad stack
+&gt;  liftIO $ putStrLn &quot;Please enter a non-empty string: &quot;
+&gt;  s &lt;- liftIO getLine
+&gt;  if null s
+&gt;    then throwError &quot;The string was empty!&quot;
+&gt;    else return $ length s
+&gt;
+&gt;-- Prints result of the string length calculation.
+&gt;reportResult :: Either String Int -&gt; IO ()
+&gt;reportResult (Right len) = putStrLn (&quot;The length of the string is &quot; ++ (show len))
+&gt;reportResult (Left e) = putStrLn (&quot;Length calculation failed with error: &quot; ++ (show e))
+-}</span><span>
+</span><span id="line-152"></span></pre></body></html>

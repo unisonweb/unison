@@ -1,0 +1,294 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE FlexibleContexts #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE UndecidableInstances #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE GeneralizedNewtypeDeriving #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE TypeFamilies #-}</span><span>
+</span><span id="line-5"></span><span class="hs-comment">--------------------------------------------------------------------</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- License   :  BSD3</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- Stability :  experimental</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- Portability: type-families, generalized newtype deriving</span><span>
+</span><span id="line-10"></span><span class="hs-comment">--</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- This module provides a 'VarInt' wrapper with a 'Serial' instance</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- that generates base-128 variable-width ints.  Values are encoded 7</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- bits at a time, with the most significant being a continuation bit.</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- Thus, the numbers from 0 to 127 require only a single byte to</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- encode, those from 128 to 16383 require two bytes, etc.</span><span>
+</span><span id="line-16"></span><span class="hs-comment">--</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- This format is taken from Google's /Protocol Buffers/, which</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- provides a bit more verbiage on the encoding:</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- &lt;https://developers.google.com/protocol-buffers/docs/encoding#varints&gt;.</span><span>
+</span><span id="line-20"></span><span class="hs-comment">--------------------------------------------------------------------</span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Data.Bytes.VarInt</span><span>
+</span><span id="line-23"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Data.Bytes.VarInt.html#VarInt"><span class="hs-identifier">VarInt</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-24"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Bits</span></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Bytes.Signed.html"><span class="hs-identifier">Data.Bytes.Signed</span></a></span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">newtype</span><span> </span><span id="VarInt"><span class="annot"><a href="Data.Bytes.VarInt.html#VarInt"><span class="hs-identifier hs-var">VarInt</span></a></span></span><span> </span><span id="local-6989586621679087157"><span class="annot"><a href="#local-6989586621679087157"><span class="hs-identifier hs-type">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="VarInt"><span class="annot"><a href="Data.Bytes.VarInt.html#VarInt"><span class="hs-identifier hs-var">VarInt</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="unVarInt"><span class="annot"><span class="annottext">forall n. VarInt n -&gt; n
+</span><a href="Data.Bytes.VarInt.html#unVarInt"><span class="hs-identifier hs-var hs-var">unVarInt</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679087157"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679087124"><span id="local-6989586621679087128"><span class="annot"><span class="annottext">VarInt n -&gt; VarInt n -&gt; Bool
+forall n. Eq n =&gt; VarInt n -&gt; VarInt n -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: VarInt n -&gt; VarInt n -&gt; Bool
+$c/= :: forall n. Eq n =&gt; VarInt n -&gt; VarInt n -&gt; Bool
+== :: VarInt n -&gt; VarInt n -&gt; Bool
+$c== :: forall n. Eq n =&gt; VarInt n -&gt; VarInt n -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679087090"><span id="local-6989586621679087094"><span id="local-6989586621679087098"><span id="local-6989586621679087102"><span id="local-6989586621679087106"><span id="local-6989586621679087110"><span id="local-6989586621679087114"><span class="annot"><span class="annottext">VarInt n -&gt; VarInt n -&gt; Bool
+VarInt n -&gt; VarInt n -&gt; Ordering
+VarInt n -&gt; VarInt n -&gt; VarInt n
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+forall {n}. Ord n =&gt; Eq (VarInt n)
+forall n. Ord n =&gt; VarInt n -&gt; VarInt n -&gt; Bool
+forall n. Ord n =&gt; VarInt n -&gt; VarInt n -&gt; Ordering
+forall n. Ord n =&gt; VarInt n -&gt; VarInt n -&gt; VarInt n
+min :: VarInt n -&gt; VarInt n -&gt; VarInt n
+$cmin :: forall n. Ord n =&gt; VarInt n -&gt; VarInt n -&gt; VarInt n
+max :: VarInt n -&gt; VarInt n -&gt; VarInt n
+$cmax :: forall n. Ord n =&gt; VarInt n -&gt; VarInt n -&gt; VarInt n
+&gt;= :: VarInt n -&gt; VarInt n -&gt; Bool
+$c&gt;= :: forall n. Ord n =&gt; VarInt n -&gt; VarInt n -&gt; Bool
+&gt; :: VarInt n -&gt; VarInt n -&gt; Bool
+$c&gt; :: forall n. Ord n =&gt; VarInt n -&gt; VarInt n -&gt; Bool
+&lt;= :: VarInt n -&gt; VarInt n -&gt; Bool
+$c&lt;= :: forall n. Ord n =&gt; VarInt n -&gt; VarInt n -&gt; Bool
+&lt; :: VarInt n -&gt; VarInt n -&gt; Bool
+$c&lt; :: forall n. Ord n =&gt; VarInt n -&gt; VarInt n -&gt; Bool
+compare :: VarInt n -&gt; VarInt n -&gt; Ordering
+$ccompare :: forall n. Ord n =&gt; VarInt n -&gt; VarInt n -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679087076"><span id="local-6989586621679087078"><span id="local-6989586621679087083"><span class="annot"><span class="annottext">Int -&gt; VarInt n -&gt; ShowS
+forall n. Show n =&gt; Int -&gt; VarInt n -&gt; ShowS
+forall n. Show n =&gt; [VarInt n] -&gt; ShowS
+forall n. Show n =&gt; VarInt n -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [VarInt n] -&gt; ShowS
+$cshowList :: forall n. Show n =&gt; [VarInt n] -&gt; ShowS
+show :: VarInt n -&gt; String
+$cshow :: forall n. Show n =&gt; VarInt n -&gt; String
+showsPrec :: Int -&gt; VarInt n -&gt; ShowS
+$cshowsPrec :: forall n. Show n =&gt; Int -&gt; VarInt n -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679087044"><span id="local-6989586621679087048"><span id="local-6989586621679087052"><span id="local-6989586621679087056"><span id="local-6989586621679087060"><span id="local-6989586621679087064"><span id="local-6989586621679087068"><span id="local-6989586621679087072"><span class="annot"><span class="annottext">Int -&gt; VarInt n
+VarInt n -&gt; Int
+VarInt n -&gt; [VarInt n]
+VarInt n -&gt; VarInt n
+VarInt n -&gt; VarInt n -&gt; [VarInt n]
+VarInt n -&gt; VarInt n -&gt; VarInt n -&gt; [VarInt n]
+forall n. Enum n =&gt; Int -&gt; VarInt n
+forall n. Enum n =&gt; VarInt n -&gt; Int
+forall n. Enum n =&gt; VarInt n -&gt; [VarInt n]
+forall n. Enum n =&gt; VarInt n -&gt; VarInt n
+forall n. Enum n =&gt; VarInt n -&gt; VarInt n -&gt; [VarInt n]
+forall n. Enum n =&gt; VarInt n -&gt; VarInt n -&gt; VarInt n -&gt; [VarInt n]
+forall a.
+(a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (Int -&gt; a)
+-&gt; (a -&gt; Int)
+-&gt; (a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; a -&gt; [a])
+-&gt; Enum a
+enumFromThenTo :: VarInt n -&gt; VarInt n -&gt; VarInt n -&gt; [VarInt n]
+$cenumFromThenTo :: forall n. Enum n =&gt; VarInt n -&gt; VarInt n -&gt; VarInt n -&gt; [VarInt n]
+enumFromTo :: VarInt n -&gt; VarInt n -&gt; [VarInt n]
+$cenumFromTo :: forall n. Enum n =&gt; VarInt n -&gt; VarInt n -&gt; [VarInt n]
+enumFromThen :: VarInt n -&gt; VarInt n -&gt; [VarInt n]
+$cenumFromThen :: forall n. Enum n =&gt; VarInt n -&gt; VarInt n -&gt; [VarInt n]
+enumFrom :: VarInt n -&gt; [VarInt n]
+$cenumFrom :: forall n. Enum n =&gt; VarInt n -&gt; [VarInt n]
+fromEnum :: VarInt n -&gt; Int
+$cfromEnum :: forall n. Enum n =&gt; VarInt n -&gt; Int
+toEnum :: Int -&gt; VarInt n
+$ctoEnum :: forall n. Enum n =&gt; Int -&gt; VarInt n
+pred :: VarInt n -&gt; VarInt n
+$cpred :: forall n. Enum n =&gt; VarInt n -&gt; VarInt n
+succ :: VarInt n -&gt; VarInt n
+$csucc :: forall n. Enum n =&gt; VarInt n -&gt; VarInt n
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Enum</span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679087013"><span id="local-6989586621679087017"><span id="local-6989586621679087021"><span id="local-6989586621679087025"><span id="local-6989586621679087029"><span id="local-6989586621679087033"><span id="local-6989586621679087037"><span class="annot"><span class="annottext">Integer -&gt; VarInt n
+VarInt n -&gt; VarInt n
+VarInt n -&gt; VarInt n -&gt; VarInt n
+forall n. Num n =&gt; Integer -&gt; VarInt n
+forall n. Num n =&gt; VarInt n -&gt; VarInt n
+forall n. Num n =&gt; VarInt n -&gt; VarInt n -&gt; VarInt n
+forall a.
+(a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (Integer -&gt; a)
+-&gt; Num a
+fromInteger :: Integer -&gt; VarInt n
+$cfromInteger :: forall n. Num n =&gt; Integer -&gt; VarInt n
+signum :: VarInt n -&gt; VarInt n
+$csignum :: forall n. Num n =&gt; VarInt n -&gt; VarInt n
+abs :: VarInt n -&gt; VarInt n
+$cabs :: forall n. Num n =&gt; VarInt n -&gt; VarInt n
+negate :: VarInt n -&gt; VarInt n
+$cnegate :: forall n. Num n =&gt; VarInt n -&gt; VarInt n
+* :: VarInt n -&gt; VarInt n -&gt; VarInt n
+$c* :: forall n. Num n =&gt; VarInt n -&gt; VarInt n -&gt; VarInt n
+- :: VarInt n -&gt; VarInt n -&gt; VarInt n
+$c- :: forall n. Num n =&gt; VarInt n -&gt; VarInt n -&gt; VarInt n
++ :: VarInt n -&gt; VarInt n -&gt; VarInt n
+$c+ :: forall n. Num n =&gt; VarInt n -&gt; VarInt n -&gt; VarInt n
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Num</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679086975"><span id="local-6989586621679086979"><span id="local-6989586621679086983"><span id="local-6989586621679086987"><span id="local-6989586621679086991"><span id="local-6989586621679086995"><span id="local-6989586621679086999"><span class="annot"><span class="annottext">VarInt n -&gt; Integer
+VarInt n -&gt; VarInt n -&gt; (VarInt n, VarInt n)
+VarInt n -&gt; VarInt n -&gt; VarInt n
+forall {n}. Integral n =&gt; Enum (VarInt n)
+forall {n}. Integral n =&gt; Real (VarInt n)
+forall n. Integral n =&gt; VarInt n -&gt; Integer
+forall n.
+Integral n =&gt;
+VarInt n -&gt; VarInt n -&gt; (VarInt n, VarInt n)
+forall n. Integral n =&gt; VarInt n -&gt; VarInt n -&gt; VarInt n
+forall a.
+Real a
+-&gt; Enum a
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; (a, a))
+-&gt; (a -&gt; a -&gt; (a, a))
+-&gt; (a -&gt; Integer)
+-&gt; Integral a
+toInteger :: VarInt n -&gt; Integer
+$ctoInteger :: forall n. Integral n =&gt; VarInt n -&gt; Integer
+divMod :: VarInt n -&gt; VarInt n -&gt; (VarInt n, VarInt n)
+$cdivMod :: forall n.
+Integral n =&gt;
+VarInt n -&gt; VarInt n -&gt; (VarInt n, VarInt n)
+quotRem :: VarInt n -&gt; VarInt n -&gt; (VarInt n, VarInt n)
+$cquotRem :: forall n.
+Integral n =&gt;
+VarInt n -&gt; VarInt n -&gt; (VarInt n, VarInt n)
+mod :: VarInt n -&gt; VarInt n -&gt; VarInt n
+$cmod :: forall n. Integral n =&gt; VarInt n -&gt; VarInt n -&gt; VarInt n
+div :: VarInt n -&gt; VarInt n -&gt; VarInt n
+$cdiv :: forall n. Integral n =&gt; VarInt n -&gt; VarInt n -&gt; VarInt n
+rem :: VarInt n -&gt; VarInt n -&gt; VarInt n
+$crem :: forall n. Integral n =&gt; VarInt n -&gt; VarInt n -&gt; VarInt n
+quot :: VarInt n -&gt; VarInt n -&gt; VarInt n
+$cquot :: forall n. Integral n =&gt; VarInt n -&gt; VarInt n -&gt; VarInt n
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Integral</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679086962"><span id="local-6989586621679086966"><span class="annot"><span class="annottext">VarInt n
+forall a. a -&gt; a -&gt; Bounded a
+forall n. Bounded n =&gt; VarInt n
+maxBound :: VarInt n
+$cmaxBound :: forall n. Bounded n =&gt; VarInt n
+minBound :: VarInt n
+$cminBound :: forall n. Bounded n =&gt; VarInt n
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Bounded</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679086949"><span class="annot"><span class="annottext">VarInt n -&gt; Rational
+forall a. Num a -&gt; Ord a -&gt; (a -&gt; Rational) -&gt; Real a
+forall {n}. Real n =&gt; Num (VarInt n)
+forall {n}. Real n =&gt; Ord (VarInt n)
+forall n. Real n =&gt; VarInt n -&gt; Rational
+toRational :: VarInt n -&gt; Rational
+$ctoRational :: forall n. Real n =&gt; VarInt n -&gt; Rational
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Real</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679086854"><span id="local-6989586621679086858"><span id="local-6989586621679086862"><span id="local-6989586621679086866"><span id="local-6989586621679086870"><span id="local-6989586621679086874"><span id="local-6989586621679086878"><span id="local-6989586621679086882"><span id="local-6989586621679086886"><span id="local-6989586621679086890"><span id="local-6989586621679086894"><span id="local-6989586621679086898"><span id="local-6989586621679086902"><span id="local-6989586621679086906"><span id="local-6989586621679086910"><span id="local-6989586621679086914"><span id="local-6989586621679086918"><span id="local-6989586621679086922"><span id="local-6989586621679086926"><span id="local-6989586621679086930"><span id="local-6989586621679086934"><span id="local-6989586621679086938"><span class="annot"><span class="annottext">VarInt n
+Int -&gt; VarInt n
+VarInt n -&gt; Bool
+VarInt n -&gt; Int
+VarInt n -&gt; Maybe Int
+VarInt n -&gt; VarInt n
+VarInt n -&gt; Int -&gt; Bool
+VarInt n -&gt; Int -&gt; VarInt n
+VarInt n -&gt; VarInt n -&gt; VarInt n
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; a
+-&gt; (Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; Bool)
+-&gt; (a -&gt; Maybe Int)
+-&gt; (a -&gt; Int)
+-&gt; (a -&gt; Bool)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int)
+-&gt; Bits a
+forall {n}. Bits n =&gt; Eq (VarInt n)
+forall n. Bits n =&gt; VarInt n
+forall n. Bits n =&gt; Int -&gt; VarInt n
+forall n. Bits n =&gt; VarInt n -&gt; Bool
+forall n. Bits n =&gt; VarInt n -&gt; Int
+forall n. Bits n =&gt; VarInt n -&gt; Maybe Int
+forall n. Bits n =&gt; VarInt n -&gt; VarInt n
+forall n. Bits n =&gt; VarInt n -&gt; Int -&gt; Bool
+forall n. Bits n =&gt; VarInt n -&gt; Int -&gt; VarInt n
+forall n. Bits n =&gt; VarInt n -&gt; VarInt n -&gt; VarInt n
+popCount :: VarInt n -&gt; Int
+$cpopCount :: forall n. Bits n =&gt; VarInt n -&gt; Int
+rotateR :: VarInt n -&gt; Int -&gt; VarInt n
+$crotateR :: forall n. Bits n =&gt; VarInt n -&gt; Int -&gt; VarInt n
+rotateL :: VarInt n -&gt; Int -&gt; VarInt n
+$crotateL :: forall n. Bits n =&gt; VarInt n -&gt; Int -&gt; VarInt n
+unsafeShiftR :: VarInt n -&gt; Int -&gt; VarInt n
+$cunsafeShiftR :: forall n. Bits n =&gt; VarInt n -&gt; Int -&gt; VarInt n
+shiftR :: VarInt n -&gt; Int -&gt; VarInt n
+$cshiftR :: forall n. Bits n =&gt; VarInt n -&gt; Int -&gt; VarInt n
+unsafeShiftL :: VarInt n -&gt; Int -&gt; VarInt n
+$cunsafeShiftL :: forall n. Bits n =&gt; VarInt n -&gt; Int -&gt; VarInt n
+shiftL :: VarInt n -&gt; Int -&gt; VarInt n
+$cshiftL :: forall n. Bits n =&gt; VarInt n -&gt; Int -&gt; VarInt n
+isSigned :: VarInt n -&gt; Bool
+$cisSigned :: forall n. Bits n =&gt; VarInt n -&gt; Bool
+bitSize :: VarInt n -&gt; Int
+$cbitSize :: forall n. Bits n =&gt; VarInt n -&gt; Int
+bitSizeMaybe :: VarInt n -&gt; Maybe Int
+$cbitSizeMaybe :: forall n. Bits n =&gt; VarInt n -&gt; Maybe Int
+testBit :: VarInt n -&gt; Int -&gt; Bool
+$ctestBit :: forall n. Bits n =&gt; VarInt n -&gt; Int -&gt; Bool
+complementBit :: VarInt n -&gt; Int -&gt; VarInt n
+$ccomplementBit :: forall n. Bits n =&gt; VarInt n -&gt; Int -&gt; VarInt n
+clearBit :: VarInt n -&gt; Int -&gt; VarInt n
+$cclearBit :: forall n. Bits n =&gt; VarInt n -&gt; Int -&gt; VarInt n
+setBit :: VarInt n -&gt; Int -&gt; VarInt n
+$csetBit :: forall n. Bits n =&gt; VarInt n -&gt; Int -&gt; VarInt n
+bit :: Int -&gt; VarInt n
+$cbit :: forall n. Bits n =&gt; Int -&gt; VarInt n
+zeroBits :: VarInt n
+$czeroBits :: forall n. Bits n =&gt; VarInt n
+rotate :: VarInt n -&gt; Int -&gt; VarInt n
+$crotate :: forall n. Bits n =&gt; VarInt n -&gt; Int -&gt; VarInt n
+shift :: VarInt n -&gt; Int -&gt; VarInt n
+$cshift :: forall n. Bits n =&gt; VarInt n -&gt; Int -&gt; VarInt n
+complement :: VarInt n -&gt; VarInt n
+$ccomplement :: forall n. Bits n =&gt; VarInt n -&gt; VarInt n
+xor :: VarInt n -&gt; VarInt n -&gt; VarInt n
+$cxor :: forall n. Bits n =&gt; VarInt n -&gt; VarInt n -&gt; VarInt n
+.|. :: VarInt n -&gt; VarInt n -&gt; VarInt n
+$c.|. :: forall n. Bits n =&gt; VarInt n -&gt; VarInt n -&gt; VarInt n
+.&amp;. :: VarInt n -&gt; VarInt n -&gt; VarInt n
+$c.&amp;. :: forall n. Bits n =&gt; VarInt n -&gt; VarInt n -&gt; VarInt n
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Bits</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">type</span><span> </span><span class="hs-keyword">instance</span><span> </span><span id="Unsigned"><span class="annot"><a href="Data.Bytes.Signed.html#Unsigned"><span class="hs-identifier hs-var">Unsigned</span></a></span></span><span> </span><span id="local-6989586621679086847"><span class="hs-special">(</span><span class="annot"><a href="Data.Bytes.VarInt.html#VarInt"><span class="hs-identifier hs-type">VarInt</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679086847"><span class="hs-identifier hs-type">n</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Data.Bytes.VarInt.html#VarInt"><span class="hs-identifier hs-type">VarInt</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bytes.Signed.html#Unsigned"><span class="hs-identifier hs-type">Unsigned</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679086847"><span class="hs-identifier hs-type">n</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span class="hs-keyword">type</span><span> </span><span class="hs-keyword">instance</span><span> </span><span id="Signed"><span class="annot"><a href="Data.Bytes.Signed.html#Signed"><span class="hs-identifier hs-var">Signed</span></a></span></span><span> </span><span id="local-6989586621679086845"><span class="hs-special">(</span><span class="annot"><a href="Data.Bytes.VarInt.html#VarInt"><span class="hs-identifier hs-type">VarInt</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679086845"><span class="hs-identifier hs-type">n</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Data.Bytes.VarInt.html#VarInt"><span class="hs-identifier hs-type">VarInt</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bytes.Signed.html#Signed"><span class="hs-identifier hs-type">Signed</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679086845"><span class="hs-identifier hs-type">n</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span></pre></body></html>

@@ -1,0 +1,98 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE FlexibleInstances #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE GeneralizedNewtypeDeriving #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE NoImplicitPrelude #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE PolyKinds #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LANGUAGE StandaloneDeriving #-}</span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# LANGUAGE Trustworthy #-}</span><span>
+</span><span id="line-7"></span><span class="hs-pragma">{-# LANGUAGE TypeFamilies #-}</span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- Module      :  Data.String</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- Copyright   :  (c) The University of Glasgow 2007</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- License     :  BSD-style (see the file libraries/base/LICENSE)</span><span>
+</span><span id="line-14"></span><span class="hs-comment">--</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- Maintainer  :  libraries@haskell.org</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- Stability   :  experimental</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- Portability :  portable</span><span>
+</span><span id="line-18"></span><span class="hs-comment">--</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- The @String@ type and associated operations.</span><span>
+</span><span id="line-20"></span><span class="hs-comment">--</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Data.String</span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-24"></span><span>   </span><span class="annot"><a href="GHC.Base.html#String"><span class="hs-identifier">String</span></a></span><span>
+</span><span id="line-25"></span><span> </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.String.html#IsString"><span class="hs-identifier">IsString</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span> </span><span class="annot"><span class="hs-comment">-- * Functions on strings</span></span><span>
+</span><span id="line-28"></span><span> </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.OldList.html#lines"><span class="hs-identifier">lines</span></a></span><span>
+</span><span id="line-29"></span><span> </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.OldList.html#words"><span class="hs-identifier">words</span></a></span><span>
+</span><span id="line-30"></span><span> </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.OldList.html#unlines"><span class="hs-identifier">unlines</span></a></span><span>
+</span><span id="line-31"></span><span> </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.OldList.html#unwords"><span class="hs-identifier">unwords</span></a></span><span>
+</span><span id="line-32"></span><span> </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Base.html"><span class="hs-identifier">GHC.Base</span></a></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Functor.Const.html"><span class="hs-identifier">Data.Functor.Const</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Const.html#Const"><span class="hs-identifier">Const</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Const.html#Const"><span class="hs-identifier">Const</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Functor.Identity.html"><span class="hs-identifier">Data.Functor.Identity</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Identity.html#Identity"><span class="hs-identifier">Identity</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Identity.html#Identity"><span class="hs-identifier">Identity</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-37"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.List.html"><span class="hs-identifier">Data.List</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.OldList.html#lines"><span class="hs-identifier">lines</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.OldList.html#words"><span class="hs-identifier">words</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.OldList.html#unlines"><span class="hs-identifier">unlines</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.OldList.html#unwords"><span class="hs-identifier">unwords</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span class="hs-comment">-- | Class for string-like datastructures; used by the overloaded string</span><span>
+</span><span id="line-40"></span><span class="hs-comment">--   extension (-XOverloadedStrings in GHC).</span><span>
+</span><span id="line-41"></span><span class="hs-keyword">class</span><span> </span><span id="IsString"><span class="annot"><a href="Data.String.html#IsString"><span class="hs-identifier hs-var">IsString</span></a></span></span><span> </span><span id="local-6989586621679569734"><span class="annot"><a href="#local-6989586621679569734"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-42"></span><span>    </span><span id="fromString"><span class="annot"><a href="Data.String.html#fromString"><span class="hs-identifier hs-type">fromString</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Base.html#String"><span class="hs-identifier hs-type">String</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679569734"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span class="hs-comment">{- Note [IsString String]
+~~~~~~~~~~~~~~~~~~~~~~~~~
+Previously, the IsString instance that covered String was a flexible
+instance for [Char]. This is in some sense the most accurate choice,
+but there are cases where it can lead to an ambiguity, for instance:
+
+  show $ &quot;foo&quot; ++ &quot;bar&quot;
+
+The use of (++) ensures that &quot;foo&quot; and &quot;bar&quot; must have type [t] for
+some t, but a flexible instance for [Char] will _only_ match if
+something further determines t to be Char, and nothing in the above
+example actually does.
+
+So, the above example generates an error about the ambiguity of t,
+and what's worse, the above behavior can be generated by simply
+typing:
+
+   &quot;foo&quot; ++ &quot;bar&quot;
+
+into GHCi with the OverloadedStrings extension enabled.
+
+The new instance fixes this by defining an instance that matches all
+[a], and forces a to be Char. This instance, of course, overlaps
+with things that the [Char] flexible instance doesn't, but this was
+judged to be an acceptable cost, for the gain of providing a less
+confusing experience for people experimenting with overloaded strings.
+
+It may be possible to fix this via (extended) defaulting. Currently,
+the rules are not able to default t to Char in the above example. If
+a more flexible system that enabled this defaulting were put in place,
+then it would probably make sense to revert to the flexible [Char]
+instance, since extended defaulting is enabled in GHCi. However, it
+is not clear at the time of this note exactly what such a system
+would be, and it certainly hasn't been implemented.
+
+A test case (should_run/overloadedstringsrun01.hs) has been added to
+ensure the good behavior of the above example remains in the future.
+-}</span><span>
+</span><span id="line-82"></span><span>
+</span><span id="line-83"></span><span class="hs-comment">-- | @(a ~ Char)@ context was introduced in @4.9.0.0@</span><span>
+</span><span id="line-84"></span><span class="hs-comment">--</span><span>
+</span><span id="line-85"></span><span class="hs-comment">-- @since 2.01</span><span>
+</span><span id="line-86"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679569733"><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679569733"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#~"><span class="hs-operator hs-type">~</span></a></span><span> </span><span class="annot"><a href="../../ghc-prim-0.8.0/src/GHC-Types.html#Char"><span class="hs-identifier hs-type">Char</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.String.html#IsString"><span class="hs-identifier hs-type">IsString</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679569733"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-87"></span><span>         </span><span class="hs-comment">-- See Note [IsString String]</span><span>
+</span><span id="line-88"></span><span>    </span><span id="local-6989586621679569711"><span class="annot"><span class="annottext">fromString :: String -&gt; [a]
+</span><a href="Data.String.html#fromString"><span class="hs-identifier hs-var hs-var hs-var hs-var">fromString</span></a></span></span><span> </span><span id="local-6989586621679569710"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679569710"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679569710"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-89"></span><span>
+</span><span id="line-90"></span><span class="hs-comment">-- | @since 4.9.0.0</span><span>
+</span><span id="line-91"></span><span id="local-6989586621679569707"><span id="local-6989586621679569726"><span id="local-6989586621679569727"><span id="local-6989586621679569728"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.String.html#IsString"><span class="hs-identifier hs-type">IsString</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679569727"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.String.html#IsString"><span class="hs-identifier hs-type">IsString</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Const.html#Const"><span class="hs-identifier hs-type">Const</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679569727"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679569726"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679569728"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span></span></span></span></span><span>
+</span><span id="line-92"></span><span>
+</span><span id="line-93"></span><span class="hs-comment">-- | @since 4.9.0.0</span><span>
+</span><span id="line-94"></span><span id="local-6989586621679569701"><span id="local-6989586621679569723"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.String.html#IsString"><span class="hs-identifier hs-type">IsString</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679569723"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.String.html#IsString"><span class="hs-identifier hs-type">IsString</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Identity.html#Identity"><span class="hs-identifier hs-type">Identity</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679569723"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-95"></span></pre></body></html>

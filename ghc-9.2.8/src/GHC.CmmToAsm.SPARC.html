@@ -1,0 +1,179 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# OPTIONS_GHC -fno-warn-orphans #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- | Native code generator for SPARC architectures</span><span>
+</span><span id="line-4"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">GHC.CmmToAsm.SPARC</span><span>
+</span><span id="line-5"></span><span>   </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.CmmToAsm.SPARC.html#ncgSPARC"><span class="hs-identifier">ncgSPARC</span></a></span><span>
+</span><span id="line-6"></span><span>   </span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Prelude.html"><span class="hs-identifier">GHC.Prelude</span></a></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Panic.html"><span class="hs-identifier">GHC.Utils.Panic</span></a></span><span>
+</span><span id="line-11"></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.CmmToAsm.Monad.html"><span class="hs-identifier">GHC.CmmToAsm.Monad</span></a></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.CmmToAsm.Config.html"><span class="hs-identifier">GHC.CmmToAsm.Config</span></a></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.CmmToAsm.Types.html"><span class="hs-identifier">GHC.CmmToAsm.Types</span></a></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.CmmToAsm.Instr.html"><span class="hs-identifier">GHC.CmmToAsm.Instr</span></a></span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="GHC.CmmToAsm.SPARC.Instr.html"><span class="hs-identifier">GHC.CmmToAsm.SPARC.Instr</span></a></span><span>          </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">SPARC</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="GHC.CmmToAsm.SPARC.Ppr.html"><span class="hs-identifier">GHC.CmmToAsm.SPARC.Ppr</span></a></span><span>            </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">SPARC</span></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="GHC.CmmToAsm.SPARC.CodeGen.html"><span class="hs-identifier">GHC.CmmToAsm.SPARC.CodeGen</span></a></span><span>        </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">SPARC</span></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="GHC.CmmToAsm.SPARC.CodeGen.Expand.html"><span class="hs-identifier">GHC.CmmToAsm.SPARC.CodeGen.Expand</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">SPARC</span></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="GHC.CmmToAsm.SPARC.Regs.html"><span class="hs-identifier">GHC.CmmToAsm.SPARC.Regs</span></a></span><span>           </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">SPARC</span></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="GHC.CmmToAsm.SPARC.ShortcutJump.html"><span class="hs-identifier">GHC.CmmToAsm.SPARC.ShortcutJump</span></a></span><span>   </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">SPARC</span></span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span class="annot"><a href="GHC.CmmToAsm.SPARC.html#ncgSPARC"><span class="hs-identifier hs-type">ncgSPARC</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.CmmToAsm.Config.html#NCGConfig"><span class="hs-identifier hs-type">NCGConfig</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.CmmToAsm.Monad.html#NcgImpl"><span class="hs-identifier hs-type">NcgImpl</span></a></span><span> </span><span class="annot"><a href="GHC.Cmm.html#RawCmmStatics"><span class="hs-identifier hs-type">RawCmmStatics</span></a></span><span> </span><span class="annot"><a href="GHC.CmmToAsm.SPARC.Instr.html#Instr"><span class="hs-identifier hs-type">SPARC.Instr</span></a></span><span> </span><span class="annot"><a href="GHC.CmmToAsm.SPARC.ShortcutJump.html#JumpDest"><span class="hs-identifier hs-type">SPARC.JumpDest</span></a></span><span>
+</span><span id="line-26"></span><span id="ncgSPARC"><span class="annot"><span class="annottext">ncgSPARC :: NCGConfig -&gt; NcgImpl RawCmmStatics Instr JumpDest
+</span><a href="GHC.CmmToAsm.SPARC.html#ncgSPARC"><span class="hs-identifier hs-var hs-var">ncgSPARC</span></a></span></span><span> </span><span id="local-6989586621681252283"><span class="annot"><span class="annottext">NCGConfig
+</span><a href="#local-6989586621681252283"><span class="hs-identifier hs-var">config</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.CmmToAsm.Monad.html#NcgImpl"><span class="hs-identifier hs-type">NcgImpl</span></a></span><span>
+</span><span id="line-27"></span><span>   </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">ncgConfig :: NCGConfig
+</span><a href="GHC.CmmToAsm.Monad.html#ncgConfig"><span class="hs-identifier hs-var">ncgConfig</span></a></span><span>                 </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">NCGConfig
+</span><a href="#local-6989586621681252283"><span class="hs-identifier hs-var">config</span></a></span><span>
+</span><span id="line-28"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">cmmTopCodeGen :: RawCmmDecl -&gt; NatM [NatCmmDecl RawCmmStatics Instr]
+</span><a href="GHC.CmmToAsm.Monad.html#cmmTopCodeGen"><span class="hs-identifier hs-var">cmmTopCodeGen</span></a></span><span>             </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">RawCmmDecl -&gt; NatM [NatCmmDecl RawCmmStatics Instr]
+</span><a href="GHC.CmmToAsm.SPARC.CodeGen.html#cmmTopCodeGen"><span class="hs-identifier hs-var">SPARC.cmmTopCodeGen</span></a></span><span>
+</span><span id="line-29"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">generateJumpTableForInstr :: Instr -&gt; Maybe (NatCmmDecl RawCmmStatics Instr)
+</span><a href="GHC.CmmToAsm.Monad.html#generateJumpTableForInstr"><span class="hs-identifier hs-var">generateJumpTableForInstr</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Platform -&gt; Instr -&gt; Maybe (NatCmmDecl RawCmmStatics Instr)
+</span><a href="GHC.CmmToAsm.SPARC.CodeGen.html#generateJumpTableForInstr"><span class="hs-identifier hs-var">SPARC.generateJumpTableForInstr</span></a></span><span> </span><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621681252276"><span class="hs-identifier hs-var">platform</span></a></span><span>
+</span><span id="line-30"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">getJumpDestBlockId :: JumpDest -&gt; Maybe BlockId
+</span><a href="GHC.CmmToAsm.Monad.html#getJumpDestBlockId"><span class="hs-identifier hs-var">getJumpDestBlockId</span></a></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">JumpDest -&gt; Maybe BlockId
+</span><a href="GHC.CmmToAsm.SPARC.ShortcutJump.html#getJumpDestBlockId"><span class="hs-identifier hs-var">SPARC.getJumpDestBlockId</span></a></span><span>
+</span><span id="line-31"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">canShortcut :: Instr -&gt; Maybe JumpDest
+</span><a href="GHC.CmmToAsm.Monad.html#canShortcut"><span class="hs-identifier hs-var">canShortcut</span></a></span><span>               </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Instr -&gt; Maybe JumpDest
+</span><a href="GHC.CmmToAsm.SPARC.ShortcutJump.html#canShortcut"><span class="hs-identifier hs-var">SPARC.canShortcut</span></a></span><span>
+</span><span id="line-32"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">shortcutStatics :: (BlockId -&gt; Maybe JumpDest) -&gt; RawCmmStatics -&gt; RawCmmStatics
+</span><a href="GHC.CmmToAsm.Monad.html#shortcutStatics"><span class="hs-identifier hs-var">shortcutStatics</span></a></span><span>           </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(BlockId -&gt; Maybe JumpDest) -&gt; RawCmmStatics -&gt; RawCmmStatics
+</span><a href="GHC.CmmToAsm.SPARC.ShortcutJump.html#shortcutStatics"><span class="hs-identifier hs-var">SPARC.shortcutStatics</span></a></span><span>
+</span><span id="line-33"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">shortcutJump :: (BlockId -&gt; Maybe JumpDest) -&gt; Instr -&gt; Instr
+</span><a href="GHC.CmmToAsm.Monad.html#shortcutJump"><span class="hs-identifier hs-var">shortcutJump</span></a></span><span>              </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(BlockId -&gt; Maybe JumpDest) -&gt; Instr -&gt; Instr
+</span><a href="GHC.CmmToAsm.SPARC.ShortcutJump.html#shortcutJump"><span class="hs-identifier hs-var">SPARC.shortcutJump</span></a></span><span>
+</span><span id="line-34"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">pprNatCmmDecl :: NatCmmDecl RawCmmStatics Instr -&gt; SDoc
+</span><a href="GHC.CmmToAsm.Monad.html#pprNatCmmDecl"><span class="hs-identifier hs-var">pprNatCmmDecl</span></a></span><span>             </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">NCGConfig -&gt; NatCmmDecl RawCmmStatics Instr -&gt; SDoc
+</span><a href="GHC.CmmToAsm.SPARC.Ppr.html#pprNatCmmDecl"><span class="hs-identifier hs-var">SPARC.pprNatCmmDecl</span></a></span><span> </span><span class="annot"><span class="annottext">NCGConfig
+</span><a href="#local-6989586621681252283"><span class="hs-identifier hs-var">config</span></a></span><span>
+</span><span id="line-35"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">maxSpillSlots :: Int
+</span><a href="GHC.CmmToAsm.Monad.html#maxSpillSlots"><span class="hs-identifier hs-var">maxSpillSlots</span></a></span><span>             </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">NCGConfig -&gt; Int
+</span><a href="GHC.CmmToAsm.SPARC.Stack.html#maxSpillSlots"><span class="hs-identifier hs-var">SPARC.maxSpillSlots</span></a></span><span> </span><span class="annot"><span class="annottext">NCGConfig
+</span><a href="#local-6989586621681252283"><span class="hs-identifier hs-var">config</span></a></span><span>
+</span><span id="line-36"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">allocatableRegs :: [RealReg]
+</span><a href="GHC.CmmToAsm.Monad.html#allocatableRegs"><span class="hs-identifier hs-var">allocatableRegs</span></a></span><span>           </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[RealReg]
+</span><a href="GHC.CmmToAsm.SPARC.Regs.html#allocatableRegs"><span class="hs-identifier hs-var">SPARC.allocatableRegs</span></a></span><span>
+</span><span id="line-37"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ncgExpandTop :: [NatCmmDecl RawCmmStatics Instr]
+-&gt; [NatCmmDecl RawCmmStatics Instr]
+</span><a href="GHC.CmmToAsm.Monad.html#ncgExpandTop"><span class="hs-identifier hs-var">ncgExpandTop</span></a></span><span>              </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#map"><span class="hs-identifier hs-var">map</span></a></span><span> </span><span class="annot"><span class="annottext">NatCmmDecl RawCmmStatics Instr -&gt; NatCmmDecl RawCmmStatics Instr
+</span><a href="GHC.CmmToAsm.SPARC.CodeGen.Expand.html#expandTop"><span class="hs-identifier hs-var">SPARC.expandTop</span></a></span><span>
+</span><span id="line-38"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ncgMakeFarBranches :: LabelMap RawCmmStatics
+-&gt; [NatBasicBlock Instr] -&gt; [NatBasicBlock Instr]
+</span><a href="GHC.CmmToAsm.Monad.html#ncgMakeFarBranches"><span class="hs-identifier hs-var">ncgMakeFarBranches</span></a></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. a -&gt; b -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#const"><span class="hs-identifier hs-var">const</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#id"><span class="hs-identifier hs-var">id</span></a></span><span>
+</span><span id="line-39"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">extractUnwindPoints :: [Instr] -&gt; [UnwindPoint]
+</span><a href="GHC.CmmToAsm.Monad.html#extractUnwindPoints"><span class="hs-identifier hs-var">extractUnwindPoints</span></a></span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. a -&gt; b -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#const"><span class="hs-identifier hs-var">const</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-40"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">invertCondBranches :: Maybe CFG
+-&gt; LabelMap RawCmmStatics
+-&gt; [NatBasicBlock Instr]
+-&gt; [NatBasicBlock Instr]
+</span><a href="GHC.CmmToAsm.Monad.html#invertCondBranches"><span class="hs-identifier hs-var">invertCondBranches</span></a></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="annot"><span class="annottext">Maybe CFG
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">LabelMap RawCmmStatics
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#id"><span class="hs-identifier hs-var">id</span></a></span><span>
+</span><span id="line-41"></span><span>   </span><span class="hs-comment">-- Allocating more stack space for spilling isn't currently supported for the</span><span>
+</span><span id="line-42"></span><span>   </span><span class="hs-comment">-- linear register allocator on SPARC, hence the panic below.</span><span>
+</span><span id="line-43"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ncgAllocMoreStack :: Int
+-&gt; NatCmmDecl RawCmmStatics Instr
+-&gt; UniqSM (NatCmmDecl RawCmmStatics Instr, [(BlockId, BlockId)])
+</span><a href="GHC.CmmToAsm.Monad.html#ncgAllocMoreStack"><span class="hs-identifier hs-var">ncgAllocMoreStack</span></a></span><span>         </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {a} {p} {a}. Show a =&gt; a -&gt; p -&gt; a
+</span><a href="#local-6989586621681252253"><span class="hs-identifier hs-var">noAllocMoreStack</span></a></span><span>
+</span><span id="line-44"></span><span>   </span><span class="hs-special">}</span><span>
+</span><span id="line-45"></span><span>    </span><span class="hs-keyword">where</span><span>
+</span><span id="line-46"></span><span>      </span><span id="local-6989586621681252276"><span class="annot"><span class="annottext">platform :: Platform
+</span><a href="#local-6989586621681252276"><span class="hs-identifier hs-var hs-var">platform</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">NCGConfig -&gt; Platform
+</span><a href="GHC.CmmToAsm.Config.html#ncgPlatform"><span class="hs-identifier hs-var">ncgPlatform</span></a></span><span> </span><span class="annot"><span class="annottext">NCGConfig
+</span><a href="#local-6989586621681252283"><span class="hs-identifier hs-var">config</span></a></span><span>
+</span><span id="line-47"></span><span>
+</span><span id="line-48"></span><span>      </span><span id="local-6989586621681252253"><span class="annot"><span class="annottext">noAllocMoreStack :: a -&gt; p -&gt; a
+</span><a href="#local-6989586621681252253"><span class="hs-identifier hs-var hs-var">noAllocMoreStack</span></a></span></span><span> </span><span id="local-6989586621681252249"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681252249"><span class="hs-identifier hs-var">amount</span></a></span></span><span> </span><span class="annot"><span class="annottext">p
+</span><span class="hs-identifier">_</span></span><span>
+</span><span id="line-49"></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. String -&gt; a
+</span><a href="GHC.Utils.Panic.Plain.html#panic"><span class="hs-identifier hs-var">panic</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span>   </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Register allocator: out of stack slots (need &quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%2B%2B"><span class="hs-operator hs-var">++</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Show a =&gt; a -&gt; String
+</span><a href="../../base-4.16.4.0/src/GHC-Show.html#show"><span class="hs-identifier hs-var">show</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681252249"><span class="hs-identifier hs-var">amount</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%2B%2B"><span class="hs-operator hs-var">++</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;)\n&quot;</span></span><span>
+</span><span id="line-50"></span><span>              </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%2B%2B"><span class="hs-operator hs-var">++</span></a></span><span>  </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;   If you are trying to compile SHA1.hs from the crypto library then this\n&quot;</span></span><span>
+</span><span id="line-51"></span><span>              </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%2B%2B"><span class="hs-operator hs-var">++</span></a></span><span>  </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;   is a known limitation in the linear allocator.\n&quot;</span></span><span>
+</span><span id="line-52"></span><span>              </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%2B%2B"><span class="hs-operator hs-var">++</span></a></span><span>  </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;\n&quot;</span></span><span>
+</span><span id="line-53"></span><span>              </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%2B%2B"><span class="hs-operator hs-var">++</span></a></span><span>  </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;   Try enabling the graph colouring allocator with -fregs-graph instead.&quot;</span></span><span>
+</span><span id="line-54"></span><span>              </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%2B%2B"><span class="hs-operator hs-var">++</span></a></span><span>  </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;   You can still file a bug report if you like.\n&quot;</span></span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span class="hs-comment">-- | instance for sparc instruction set</span><span>
+</span><span id="line-58"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="GHC.CmmToAsm.Instr.html#Instruction"><span class="hs-identifier hs-type">Instruction</span></a></span><span> </span><span class="annot"><a href="GHC.CmmToAsm.SPARC.Instr.html#Instr"><span class="hs-identifier hs-type">SPARC.Instr</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-59"></span><span>   </span><span id="local-6989586621681252228"><span class="annot"><span class="annottext">regUsageOfInstr :: Platform -&gt; Instr -&gt; RegUsage
+</span><a href="GHC.CmmToAsm.Instr.html#regUsageOfInstr"><span class="hs-identifier hs-var hs-var hs-var hs-var">regUsageOfInstr</span></a></span></span><span>         </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Platform -&gt; Instr -&gt; RegUsage
+</span><a href="GHC.CmmToAsm.SPARC.Instr.html#regUsageOfInstr"><span class="hs-identifier hs-var">SPARC.regUsageOfInstr</span></a></span><span>
+</span><span id="line-60"></span><span>   </span><span id="local-6989586621681252225"><span class="annot"><span class="annottext">patchRegsOfInstr :: Instr -&gt; (Reg -&gt; Reg) -&gt; Instr
+</span><a href="GHC.CmmToAsm.Instr.html#patchRegsOfInstr"><span class="hs-identifier hs-var hs-var hs-var hs-var">patchRegsOfInstr</span></a></span></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Instr -&gt; (Reg -&gt; Reg) -&gt; Instr
+</span><a href="GHC.CmmToAsm.SPARC.Instr.html#patchRegsOfInstr"><span class="hs-identifier hs-var">SPARC.patchRegsOfInstr</span></a></span><span>
+</span><span id="line-61"></span><span>   </span><span id="local-6989586621681252222"><span class="annot"><span class="annottext">isJumpishInstr :: Instr -&gt; Bool
+</span><a href="GHC.CmmToAsm.Instr.html#isJumpishInstr"><span class="hs-identifier hs-var hs-var hs-var hs-var">isJumpishInstr</span></a></span></span><span>          </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Instr -&gt; Bool
+</span><a href="GHC.CmmToAsm.SPARC.Instr.html#isJumpishInstr"><span class="hs-identifier hs-var">SPARC.isJumpishInstr</span></a></span><span>
+</span><span id="line-62"></span><span>   </span><span id="local-6989586621681252219"><span class="annot"><span class="annottext">jumpDestsOfInstr :: Instr -&gt; [BlockId]
+</span><a href="GHC.CmmToAsm.Instr.html#jumpDestsOfInstr"><span class="hs-identifier hs-var hs-var hs-var hs-var">jumpDestsOfInstr</span></a></span></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Instr -&gt; [BlockId]
+</span><a href="GHC.CmmToAsm.SPARC.Instr.html#jumpDestsOfInstr"><span class="hs-identifier hs-var">SPARC.jumpDestsOfInstr</span></a></span><span>
+</span><span id="line-63"></span><span>   </span><span id="local-6989586621681252216"><span class="annot"><span class="annottext">patchJumpInstr :: Instr -&gt; (BlockId -&gt; BlockId) -&gt; Instr
+</span><a href="GHC.CmmToAsm.Instr.html#patchJumpInstr"><span class="hs-identifier hs-var hs-var hs-var hs-var">patchJumpInstr</span></a></span></span><span>          </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Instr -&gt; (BlockId -&gt; BlockId) -&gt; Instr
+</span><a href="GHC.CmmToAsm.SPARC.Instr.html#patchJumpInstr"><span class="hs-identifier hs-var">SPARC.patchJumpInstr</span></a></span><span>
+</span><span id="line-64"></span><span>   </span><span id="local-6989586621681252213"><span class="annot"><span class="annottext">mkSpillInstr :: NCGConfig -&gt; Reg -&gt; Int -&gt; Int -&gt; [Instr]
+</span><a href="GHC.CmmToAsm.Instr.html#mkSpillInstr"><span class="hs-identifier hs-var hs-var hs-var hs-var">mkSpillInstr</span></a></span></span><span>            </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">NCGConfig -&gt; Reg -&gt; Int -&gt; Int -&gt; [Instr]
+</span><a href="GHC.CmmToAsm.SPARC.Instr.html#mkSpillInstr"><span class="hs-identifier hs-var">SPARC.mkSpillInstr</span></a></span><span>
+</span><span id="line-65"></span><span>   </span><span id="local-6989586621681252210"><span class="annot"><span class="annottext">mkLoadInstr :: NCGConfig -&gt; Reg -&gt; Int -&gt; Int -&gt; [Instr]
+</span><a href="GHC.CmmToAsm.Instr.html#mkLoadInstr"><span class="hs-identifier hs-var hs-var hs-var hs-var">mkLoadInstr</span></a></span></span><span>             </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">NCGConfig -&gt; Reg -&gt; Int -&gt; Int -&gt; [Instr]
+</span><a href="GHC.CmmToAsm.SPARC.Instr.html#mkLoadInstr"><span class="hs-identifier hs-var">SPARC.mkLoadInstr</span></a></span><span>
+</span><span id="line-66"></span><span>   </span><span id="local-6989586621681252207"><span class="annot"><span class="annottext">takeDeltaInstr :: Instr -&gt; Maybe Int
+</span><a href="GHC.CmmToAsm.Instr.html#takeDeltaInstr"><span class="hs-identifier hs-var hs-var hs-var hs-var">takeDeltaInstr</span></a></span></span><span>          </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Instr -&gt; Maybe Int
+</span><a href="GHC.CmmToAsm.SPARC.Instr.html#takeDeltaInstr"><span class="hs-identifier hs-var">SPARC.takeDeltaInstr</span></a></span><span>
+</span><span id="line-67"></span><span>   </span><span id="local-6989586621681252204"><span class="annot"><span class="annottext">isMetaInstr :: Instr -&gt; Bool
+</span><a href="GHC.CmmToAsm.Instr.html#isMetaInstr"><span class="hs-identifier hs-var hs-var hs-var hs-var">isMetaInstr</span></a></span></span><span>             </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Instr -&gt; Bool
+</span><a href="GHC.CmmToAsm.SPARC.Instr.html#isMetaInstr"><span class="hs-identifier hs-var">SPARC.isMetaInstr</span></a></span><span>
+</span><span id="line-68"></span><span>   </span><span id="local-6989586621681252201"><span class="annot"><span class="annottext">mkRegRegMoveInstr :: Platform -&gt; Reg -&gt; Reg -&gt; Instr
+</span><a href="GHC.CmmToAsm.Instr.html#mkRegRegMoveInstr"><span class="hs-identifier hs-var hs-var hs-var hs-var">mkRegRegMoveInstr</span></a></span></span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Platform -&gt; Reg -&gt; Reg -&gt; Instr
+</span><a href="GHC.CmmToAsm.SPARC.Instr.html#mkRegRegMoveInstr"><span class="hs-identifier hs-var">SPARC.mkRegRegMoveInstr</span></a></span><span>
+</span><span id="line-69"></span><span>   </span><span id="local-6989586621681252198"><span class="annot"><span class="annottext">takeRegRegMoveInstr :: Instr -&gt; Maybe (Reg, Reg)
+</span><a href="GHC.CmmToAsm.Instr.html#takeRegRegMoveInstr"><span class="hs-identifier hs-var hs-var hs-var hs-var">takeRegRegMoveInstr</span></a></span></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Instr -&gt; Maybe (Reg, Reg)
+</span><a href="GHC.CmmToAsm.SPARC.Instr.html#takeRegRegMoveInstr"><span class="hs-identifier hs-var">SPARC.takeRegRegMoveInstr</span></a></span><span>
+</span><span id="line-70"></span><span>   </span><span id="local-6989586621681252195"><span class="annot"><span class="annottext">mkJumpInstr :: BlockId -&gt; [Instr]
+</span><a href="GHC.CmmToAsm.Instr.html#mkJumpInstr"><span class="hs-identifier hs-var hs-var hs-var hs-var">mkJumpInstr</span></a></span></span><span>             </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">BlockId -&gt; [Instr]
+</span><a href="GHC.CmmToAsm.SPARC.Instr.html#mkJumpInstr"><span class="hs-identifier hs-var">SPARC.mkJumpInstr</span></a></span><span>
+</span><span id="line-71"></span><span>   </span><span id="local-6989586621681252192"><span class="annot"><span class="annottext">pprInstr :: Platform -&gt; Instr -&gt; SDoc
+</span><a href="GHC.CmmToAsm.Instr.html#pprInstr"><span class="hs-identifier hs-var hs-var hs-var hs-var">pprInstr</span></a></span></span><span>                </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Platform -&gt; Instr -&gt; SDoc
+</span><a href="GHC.CmmToAsm.SPARC.Ppr.html#pprInstr"><span class="hs-identifier hs-var">SPARC.pprInstr</span></a></span><span>
+</span><span id="line-72"></span><span>   </span><span id="local-6989586621681252189"><span class="annot"><span class="annottext">mkComment :: SDoc -&gt; [Instr]
+</span><a href="GHC.CmmToAsm.Instr.html#mkComment"><span class="hs-identifier hs-var hs-var hs-var hs-var">mkComment</span></a></span></span><span>               </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. a -&gt; b -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#const"><span class="hs-identifier hs-var">const</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-73"></span><span>   </span><span id="local-6989586621681252187"><span class="annot"><span class="annottext">mkStackAllocInstr :: Platform -&gt; Int -&gt; [Instr]
+</span><a href="GHC.CmmToAsm.Instr.html#mkStackAllocInstr"><span class="hs-identifier hs-var hs-var hs-var hs-var">mkStackAllocInstr</span></a></span></span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. String -&gt; a
+</span><a href="GHC.Utils.Panic.Plain.html#panic"><span class="hs-identifier hs-var">panic</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;no sparc_mkStackAllocInstr&quot;</span></span><span>
+</span><span id="line-74"></span><span>   </span><span id="local-6989586621681252185"><span class="annot"><span class="annottext">mkStackDeallocInstr :: Platform -&gt; Int -&gt; [Instr]
+</span><a href="GHC.CmmToAsm.Instr.html#mkStackDeallocInstr"><span class="hs-identifier hs-var hs-var hs-var hs-var">mkStackDeallocInstr</span></a></span></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. String -&gt; a
+</span><a href="GHC.Utils.Panic.Plain.html#panic"><span class="hs-identifier hs-var">panic</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;no sparc_mkStackDeallocInstr&quot;</span></span><span>
+</span><span id="line-75"></span></pre></body></html>

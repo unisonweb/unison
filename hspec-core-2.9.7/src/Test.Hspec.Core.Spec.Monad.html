@@ -1,0 +1,184 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE GeneralizedNewtypeDeriving #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- NOTE: re-exported from Test.Hspec.Core.Spec</span><span>
+</span><span id="line-4"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Test.Hspec.Core.Spec.Monad</span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-5"></span><span>  </span><span class="annot"><a href="Test.Hspec.Core.Spec.Monad.html#Spec"><span class="hs-identifier">Spec</span></a></span><span>
+</span><span id="line-6"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Spec.Monad.html#SpecWith"><span class="hs-identifier">SpecWith</span></a></span><span>
+</span><span id="line-7"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Spec.Monad.html#SpecM"><span class="hs-identifier">SpecM</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-8"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Spec.Monad.html#runSpecM"><span class="hs-identifier">runSpecM</span></a></span><span>
+</span><span id="line-9"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Spec.Monad.html#fromSpecList"><span class="hs-identifier">fromSpecList</span></a></span><span>
+</span><span id="line-10"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Spec.Monad.html#runIO"><span class="hs-identifier">runIO</span></a></span><span>
+</span><span id="line-11"></span><span>
+</span><span id="line-12"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Spec.Monad.html#mapSpecForest"><span class="hs-identifier">mapSpecForest</span></a></span><span>
+</span><span id="line-13"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Spec.Monad.html#mapSpecItem"><span class="hs-identifier">mapSpecItem</span></a></span><span>
+</span><span id="line-14"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Spec.Monad.html#mapSpecItem_"><span class="hs-identifier">mapSpecItem_</span></a></span><span>
+</span><span id="line-15"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Spec.Monad.html#modifyParams"><span class="hs-identifier">modifyParams</span></a></span><span>
+</span><span id="line-16"></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Test.Hspec.Core.Compat.html"><span class="hs-identifier">Test.Hspec.Core.Compat</span></a></span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Arrow</span></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad.Trans.Writer</span></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad.IO.Class</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">liftIO</span></span><span class="hs-special">)</span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Test.Hspec.Core.Example.html"><span class="hs-identifier">Test.Hspec.Core.Example</span></a></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Test.Hspec.Core.Tree.html"><span class="hs-identifier">Test.Hspec.Core.Tree</span></a></span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">type</span><span> </span><span id="Spec"><span class="annot"><a href="Test.Hspec.Core.Spec.Monad.html#Spec"><span class="hs-identifier hs-var">Spec</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Spec.Monad.html#SpecWith"><span class="hs-identifier hs-type">SpecWith</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">type</span><span> </span><span id="SpecWith"><span class="annot"><a href="Test.Hspec.Core.Spec.Monad.html#SpecWith"><span class="hs-identifier hs-var">SpecWith</span></a></span></span><span> </span><span id="local-6989586621679158943"><span class="annot"><a href="#local-6989586621679158943"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Spec.Monad.html#SpecM"><span class="hs-identifier hs-type">SpecM</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158943"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="hs-comment">-- | A writer monad for `SpecTree` forests</span><span>
+</span><span id="line-33"></span><span class="hs-keyword">newtype</span><span> </span><span id="SpecM"><span class="annot"><a href="Test.Hspec.Core.Spec.Monad.html#SpecM"><span class="hs-identifier hs-var">SpecM</span></a></span></span><span> </span><span id="local-6989586621679159054"><span class="annot"><a href="#local-6989586621679159054"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span id="local-6989586621679159006"><span class="annot"><a href="#local-6989586621679159006"><span class="hs-identifier hs-type">r</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="SpecM"><span class="annot"><a href="Test.Hspec.Core.Spec.Monad.html#SpecM"><span class="hs-identifier hs-var">SpecM</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">WriterT</span></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Test.Hspec.Core.Tree.html#SpecTree"><span class="hs-identifier hs-type">SpecTree</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679159054"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679159006"><span class="hs-identifier hs-type">r</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-34"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679158934"><span id="local-6989586621679158940"><span class="annot"><span class="annottext">forall a b. a -&gt; SpecM a b -&gt; SpecM a a
+forall a b. (a -&gt; b) -&gt; SpecM a a -&gt; SpecM a b
+forall a a b. a -&gt; SpecM a b -&gt; SpecM a a
+forall a a b. (a -&gt; b) -&gt; SpecM a a -&gt; SpecM a b
+forall (f :: * -&gt; *).
+(forall a b. (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b. a -&gt; f b -&gt; f a) -&gt; Functor f
+&lt;$ :: forall a b. a -&gt; SpecM a b -&gt; SpecM a a
+$c&lt;$ :: forall a a b. a -&gt; SpecM a b -&gt; SpecM a a
+fmap :: forall a b. (a -&gt; b) -&gt; SpecM a a -&gt; SpecM a b
+$cfmap :: forall a a b. (a -&gt; b) -&gt; SpecM a a -&gt; SpecM a b
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Functor</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679158899"><span id="local-6989586621679158905"><span id="local-6989586621679158911"><span id="local-6989586621679158917"><span id="local-6989586621679158924"><span class="annot"><span class="annottext">forall a. Functor (SpecM a)
+forall a. a -&gt; SpecM a a
+forall a a. a -&gt; SpecM a a
+forall a b. SpecM a a -&gt; SpecM a b -&gt; SpecM a a
+forall a b. SpecM a a -&gt; SpecM a b -&gt; SpecM a b
+forall a b. SpecM a (a -&gt; b) -&gt; SpecM a a -&gt; SpecM a b
+forall a a b. SpecM a a -&gt; SpecM a b -&gt; SpecM a a
+forall a a b. SpecM a a -&gt; SpecM a b -&gt; SpecM a b
+forall a a b. SpecM a (a -&gt; b) -&gt; SpecM a a -&gt; SpecM a b
+forall a b c. (a -&gt; b -&gt; c) -&gt; SpecM a a -&gt; SpecM a b -&gt; SpecM a c
+forall a a b c.
+(a -&gt; b -&gt; c) -&gt; SpecM a a -&gt; SpecM a b -&gt; SpecM a c
+forall (f :: * -&gt; *).
+Functor f
+-&gt; (forall a. a -&gt; f a)
+-&gt; (forall a b. f (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b c. (a -&gt; b -&gt; c) -&gt; f a -&gt; f b -&gt; f c)
+-&gt; (forall a b. f a -&gt; f b -&gt; f b)
+-&gt; (forall a b. f a -&gt; f b -&gt; f a)
+-&gt; Applicative f
+&lt;* :: forall a b. SpecM a a -&gt; SpecM a b -&gt; SpecM a a
+$c&lt;* :: forall a a b. SpecM a a -&gt; SpecM a b -&gt; SpecM a a
+*&gt; :: forall a b. SpecM a a -&gt; SpecM a b -&gt; SpecM a b
+$c*&gt; :: forall a a b. SpecM a a -&gt; SpecM a b -&gt; SpecM a b
+liftA2 :: forall a b c. (a -&gt; b -&gt; c) -&gt; SpecM a a -&gt; SpecM a b -&gt; SpecM a c
+$cliftA2 :: forall a a b c.
+(a -&gt; b -&gt; c) -&gt; SpecM a a -&gt; SpecM a b -&gt; SpecM a c
+&lt;*&gt; :: forall a b. SpecM a (a -&gt; b) -&gt; SpecM a a -&gt; SpecM a b
+$c&lt;*&gt; :: forall a a b. SpecM a (a -&gt; b) -&gt; SpecM a a -&gt; SpecM a b
+pure :: forall a. a -&gt; SpecM a a
+$cpure :: forall a a. a -&gt; SpecM a a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Applicative</span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679158874"><span id="local-6989586621679158880"><span id="local-6989586621679158887"><span class="annot"><span class="annottext">forall a. Applicative (SpecM a)
+forall a. a -&gt; SpecM a a
+forall a a. a -&gt; SpecM a a
+forall a b. SpecM a a -&gt; SpecM a b -&gt; SpecM a b
+forall a b. SpecM a a -&gt; (a -&gt; SpecM a b) -&gt; SpecM a b
+forall a a b. SpecM a a -&gt; SpecM a b -&gt; SpecM a b
+forall a a b. SpecM a a -&gt; (a -&gt; SpecM a b) -&gt; SpecM a b
+forall (m :: * -&gt; *).
+Applicative m
+-&gt; (forall a b. m a -&gt; (a -&gt; m b) -&gt; m b)
+-&gt; (forall a b. m a -&gt; m b -&gt; m b)
+-&gt; (forall a. a -&gt; m a)
+-&gt; Monad m
+return :: forall a. a -&gt; SpecM a a
+$creturn :: forall a a. a -&gt; SpecM a a
+&gt;&gt; :: forall a b. SpecM a a -&gt; SpecM a b -&gt; SpecM a b
+$c&gt;&gt; :: forall a a b. SpecM a a -&gt; SpecM a b -&gt; SpecM a b
+&gt;&gt;= :: forall a b. SpecM a a -&gt; (a -&gt; SpecM a b) -&gt; SpecM a b
+$c&gt;&gt;= :: forall a a b. SpecM a a -&gt; (a -&gt; SpecM a b) -&gt; SpecM a b
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Monad</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- | Convert a `Spec` to a forest of `SpecTree`s.</span><span>
+</span><span id="line-37"></span><span id="local-6989586621679159014"><span class="annot"><a href="Test.Hspec.Core.Spec.Monad.html#runSpecM"><span class="hs-identifier hs-type">runSpecM</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Spec.Monad.html#SpecWith"><span class="hs-identifier hs-type">SpecWith</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679159014"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Test.Hspec.Core.Tree.html#SpecTree"><span class="hs-identifier hs-type">SpecTree</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679159014"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span></span><span>
+</span><span id="line-38"></span><span id="runSpecM"><span class="annot"><span class="annottext">runSpecM :: forall a. SpecWith a -&gt; IO [SpecTree a]
+</span><a href="Test.Hspec.Core.Spec.Monad.html#runSpecM"><span class="hs-identifier hs-var hs-var">runSpecM</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.Hspec.Core.Spec.Monad.html#SpecM"><span class="hs-identifier hs-type">SpecM</span></a></span><span> </span><span id="local-6989586621679158865"><span class="annot"><span class="annottext">WriterT [SpecTree a] IO ()
+</span><a href="#local-6989586621679158865"><span class="hs-identifier hs-var">specs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) w a. Monad m =&gt; WriterT w m a -&gt; m w
+</span><span class="hs-identifier hs-var">execWriterT</span></span><span> </span><span class="annot"><span class="annottext">WriterT [SpecTree a] IO ()
+</span><a href="#local-6989586621679158865"><span class="hs-identifier hs-var">specs</span></a></span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- | Create a `Spec` from a forest of `SpecTree`s.</span><span>
+</span><span id="line-41"></span><span id="local-6989586621679159008"><span class="annot"><a href="Test.Hspec.Core.Spec.Monad.html#fromSpecList"><span class="hs-identifier hs-type">fromSpecList</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Test.Hspec.Core.Tree.html#SpecTree"><span class="hs-identifier hs-type">SpecTree</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679159008"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Spec.Monad.html#SpecWith"><span class="hs-identifier hs-type">SpecWith</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679159008"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-42"></span><span id="fromSpecList"><span class="annot"><span class="annottext">fromSpecList :: forall a. [SpecTree a] -&gt; SpecWith a
+</span><a href="Test.Hspec.Core.Spec.Monad.html#fromSpecList"><span class="hs-identifier hs-var hs-var">fromSpecList</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a r. WriterT [SpecTree a] IO r -&gt; SpecM a r
+</span><a href="Test.Hspec.Core.Spec.Monad.html#SpecM"><span class="hs-identifier hs-var">SpecM</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) w. Monad m =&gt; w -&gt; WriterT w m ()
+</span><span class="hs-identifier hs-var">tell</span></span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span class="hs-comment">-- | Run an IO action while constructing the spec tree.</span><span>
+</span><span id="line-45"></span><span class="hs-comment">--</span><span>
+</span><span id="line-46"></span><span class="hs-comment">-- `SpecM` is a monad to construct a spec tree, without executing any spec</span><span>
+</span><span id="line-47"></span><span class="hs-comment">-- items.  @runIO@ allows you to run IO actions during this construction phase.</span><span>
+</span><span id="line-48"></span><span class="hs-comment">-- The IO action is always run when the spec tree is constructed (e.g. even</span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- when @--dry-run@ is specified).</span><span>
+</span><span id="line-50"></span><span class="hs-comment">-- If you do not need the result of the IO action to construct the spec tree,</span><span>
+</span><span id="line-51"></span><span class="hs-comment">-- `Test.Hspec.Core.Hooks.beforeAll` may be more suitable for your use case.</span><span>
+</span><span id="line-52"></span><span id="local-6989586621679158999"><span id="local-6989586621679159000"><span class="annot"><a href="Test.Hspec.Core.Spec.Monad.html#runIO"><span class="hs-identifier hs-type">runIO</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679159000"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Spec.Monad.html#SpecM"><span class="hs-identifier hs-type">SpecM</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158999"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679159000"><span class="hs-identifier hs-type">r</span></a></span></span></span><span>
+</span><span id="line-53"></span><span id="runIO"><span class="annot"><span class="annottext">runIO :: forall r a. IO r -&gt; SpecM a r
+</span><a href="Test.Hspec.Core.Spec.Monad.html#runIO"><span class="hs-identifier hs-var hs-var">runIO</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a r. WriterT [SpecTree a] IO r -&gt; SpecM a r
+</span><a href="Test.Hspec.Core.Spec.Monad.html#SpecM"><span class="hs-identifier hs-var">SpecM</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><span class="hs-identifier hs-var">liftIO</span></span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span id="local-6989586621679158989"><span id="local-6989586621679158990"><span id="local-6989586621679158991"><span class="annot"><a href="Test.Hspec.Core.Spec.Monad.html#mapSpecForest"><span class="hs-identifier hs-type">mapSpecForest</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">[</span><span class="annot"><a href="Test.Hspec.Core.Tree.html#SpecTree"><span class="hs-identifier hs-type">SpecTree</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158991"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Test.Hspec.Core.Tree.html#SpecTree"><span class="hs-identifier hs-type">SpecTree</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158990"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Spec.Monad.html#SpecM"><span class="hs-identifier hs-type">SpecM</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158991"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158989"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Spec.Monad.html#SpecM"><span class="hs-identifier hs-type">SpecM</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158990"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158989"><span class="hs-identifier hs-type">r</span></a></span></span></span></span><span>
+</span><span id="line-56"></span><span id="mapSpecForest"><span class="annot"><span class="annottext">mapSpecForest :: forall a b r.
+([SpecTree a] -&gt; [SpecTree b]) -&gt; SpecM a r -&gt; SpecM b r
+</span><a href="Test.Hspec.Core.Spec.Monad.html#mapSpecForest"><span class="hs-identifier hs-var hs-var">mapSpecForest</span></a></span></span><span> </span><span id="local-6989586621679158852"><span class="annot"><span class="annottext">[SpecTree a] -&gt; [SpecTree b]
+</span><a href="#local-6989586621679158852"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.Hspec.Core.Spec.Monad.html#SpecM"><span class="hs-identifier hs-type">SpecM</span></a></span><span> </span><span id="local-6989586621679158851"><span class="annot"><span class="annottext">WriterT [SpecTree a] IO r
+</span><a href="#local-6989586621679158851"><span class="hs-identifier hs-var">specs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a r. WriterT [SpecTree a] IO r -&gt; SpecM a r
+</span><a href="Test.Hspec.Core.Spec.Monad.html#SpecM"><span class="hs-identifier hs-var">SpecM</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a w (n :: * -&gt; *) b w'.
+(m (a, w) -&gt; n (b, w')) -&gt; WriterT w m a -&gt; WriterT w' n b
+</span><span class="hs-identifier hs-var">mapWriterT</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (a :: * -&gt; * -&gt; *) b c d.
+Arrow a =&gt;
+a b c -&gt; a (d, b) (d, c)
+</span><span class="hs-identifier hs-var">second</span></span><span> </span><span class="annot"><span class="annottext">[SpecTree a] -&gt; [SpecTree b]
+</span><a href="#local-6989586621679158852"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">WriterT [SpecTree a] IO r
+</span><a href="#local-6989586621679158851"><span class="hs-identifier hs-var">specs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span id="local-6989586621679158972"><span id="local-6989586621679158974"><span class="annot"><a href="Test.Hspec.Core.Spec.Monad.html#mapSpecItem"><span class="hs-identifier hs-type">mapSpecItem</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.Hspec.Core.Example.html#ActionWith"><span class="hs-identifier hs-type">ActionWith</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158974"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.html#ActionWith"><span class="hs-identifier hs-type">ActionWith</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158972"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.Hspec.Core.Tree.html#Item"><span class="hs-identifier hs-type">Item</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158974"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Tree.html#Item"><span class="hs-identifier hs-type">Item</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158972"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Spec.Monad.html#SpecWith"><span class="hs-identifier hs-type">SpecWith</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158974"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Spec.Monad.html#SpecWith"><span class="hs-identifier hs-type">SpecWith</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158972"><span class="hs-identifier hs-type">b</span></a></span></span></span><span>
+</span><span id="line-59"></span><span id="mapSpecItem"><span class="annot"><span class="annottext">mapSpecItem :: forall a b.
+(ActionWith a -&gt; ActionWith b)
+-&gt; (Item a -&gt; Item b) -&gt; SpecWith a -&gt; SpecWith b
+</span><a href="Test.Hspec.Core.Spec.Monad.html#mapSpecItem"><span class="hs-identifier hs-var hs-var">mapSpecItem</span></a></span></span><span> </span><span id="local-6989586621679158848"><span class="annot"><span class="annottext">ActionWith a -&gt; ActionWith b
+</span><a href="#local-6989586621679158848"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span id="local-6989586621679158847"><span class="annot"><span class="annottext">Item a -&gt; Item b
+</span><a href="#local-6989586621679158847"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b r.
+([SpecTree a] -&gt; [SpecTree b]) -&gt; SpecM a r -&gt; SpecM b r
+</span><a href="Test.Hspec.Core.Spec.Monad.html#mapSpecForest"><span class="hs-identifier hs-var">mapSpecForest</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b c d. (a -&gt; b) -&gt; (c -&gt; d) -&gt; [Tree a c] -&gt; [Tree b d]
+</span><a href="Test.Hspec.Core.Tree.html#bimapForest"><span class="hs-identifier hs-var">bimapForest</span></a></span><span> </span><span class="annot"><span class="annottext">ActionWith a -&gt; ActionWith b
+</span><a href="#local-6989586621679158848"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">Item a -&gt; Item b
+</span><a href="#local-6989586621679158847"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-60"></span><span>
+</span><span id="line-61"></span><span id="local-6989586621679158963"><span class="annot"><a href="Test.Hspec.Core.Spec.Monad.html#mapSpecItem_"><span class="hs-identifier hs-type">mapSpecItem_</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.Hspec.Core.Tree.html#Item"><span class="hs-identifier hs-type">Item</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158963"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Tree.html#Item"><span class="hs-identifier hs-type">Item</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158963"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Spec.Monad.html#SpecWith"><span class="hs-identifier hs-type">SpecWith</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158963"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Spec.Monad.html#SpecWith"><span class="hs-identifier hs-type">SpecWith</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158963"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-62"></span><span id="mapSpecItem_"><span class="annot"><span class="annottext">mapSpecItem_ :: forall a. (Item a -&gt; Item a) -&gt; SpecWith a -&gt; SpecWith a
+</span><a href="Test.Hspec.Core.Spec.Monad.html#mapSpecItem_"><span class="hs-identifier hs-var hs-var">mapSpecItem_</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b.
+(ActionWith a -&gt; ActionWith b)
+-&gt; (Item a -&gt; Item b) -&gt; SpecWith a -&gt; SpecWith b
+</span><a href="Test.Hspec.Core.Spec.Monad.html#mapSpecItem"><span class="hs-identifier hs-var">mapSpecItem</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span>
+</span><span id="line-63"></span><span>
+</span><span id="line-64"></span><span id="local-6989586621679158960"><span class="annot"><a href="Test.Hspec.Core.Spec.Monad.html#modifyParams"><span class="hs-identifier hs-type">modifyParams</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.Hspec.Core.Example.html#Params"><span class="hs-identifier hs-type">Params</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Example.html#Params"><span class="hs-identifier hs-type">Params</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Spec.Monad.html#SpecWith"><span class="hs-identifier hs-type">SpecWith</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158960"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Spec.Monad.html#SpecWith"><span class="hs-identifier hs-type">SpecWith</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679158960"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-65"></span><span id="modifyParams"><span class="annot"><span class="annottext">modifyParams :: forall a. (Params -&gt; Params) -&gt; SpecWith a -&gt; SpecWith a
+</span><a href="Test.Hspec.Core.Spec.Monad.html#modifyParams"><span class="hs-identifier hs-var hs-var">modifyParams</span></a></span></span><span> </span><span id="local-6989586621679158844"><span class="annot"><span class="annottext">Params -&gt; Params
+</span><a href="#local-6989586621679158844"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. (Item a -&gt; Item a) -&gt; SpecWith a -&gt; SpecWith a
+</span><a href="Test.Hspec.Core.Spec.Monad.html#mapSpecItem_"><span class="hs-identifier hs-var">mapSpecItem_</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679158843"><span class="annot"><span class="annottext">Item a
+</span><a href="#local-6989586621679158843"><span class="hs-identifier hs-var">item</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Item a
+</span><a href="#local-6989586621679158843"><span class="hs-identifier hs-var">item</span></a></span><span> </span><span class="hs-special">{</span><span class="annot"><span class="annottext">itemExample :: Params -&gt; (ActionWith a -&gt; IO ()) -&gt; ProgressCallback -&gt; IO Result
+</span><a href="Test.Hspec.Core.Tree.html#itemExample"><span class="hs-identifier hs-var">itemExample</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679158841"><span class="annot"><span class="annottext">Params
+</span><a href="#local-6989586621679158841"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a.
+Item a
+-&gt; Params
+-&gt; (ActionWith a -&gt; IO ())
+-&gt; ProgressCallback
+-&gt; IO Result
+</span><a href="Test.Hspec.Core.Tree.html#itemExample"><span class="hs-identifier hs-var">itemExample</span></a></span><span> </span><span class="annot"><span class="annottext">Item a
+</span><a href="#local-6989586621679158843"><span class="hs-identifier hs-var">item</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Params -&gt; Params
+</span><a href="#local-6989586621679158844"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">Params
+</span><a href="#local-6989586621679158841"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span class="hs-special">}</span><span>
+</span><span id="line-66"></span></pre></body></html>

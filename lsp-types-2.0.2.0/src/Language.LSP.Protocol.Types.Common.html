@@ -1,0 +1,695 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP                  #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE DataKinds                  #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE DeriveAnyClass             #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE DeriveGeneric              #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LANGUAGE DeriveTraversable          #-}</span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# LANGUAGE DerivingStrategies         #-}</span><span>
+</span><span id="line-7"></span><span class="hs-pragma">{-# LANGUAGE GeneralizedNewtypeDeriving #-}</span><span>
+</span><span id="line-8"></span><span class="hs-pragma">{-# LANGUAGE LambdaCase                 #-}</span><span>
+</span><span id="line-9"></span><span class="hs-pragma">{-# LANGUAGE TypeOperators              #-}</span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- | Common types that aren't in the specification</span><span>
+</span><span id="line-12"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Language.LSP.Protocol.Types.Common</span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-13"></span><span>    </span><span class="hs-keyword">type</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#%7C%3F"><span class="hs-operator">(|?)</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#toEither"><span class="hs-identifier">toEither</span></a></span><span>
+</span><span id="line-15"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#_L"><span class="hs-identifier">_L</span></a></span><span>
+</span><span id="line-16"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#_R"><span class="hs-identifier">_R</span></a></span><span>
+</span><span id="line-17"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Int32</span></span><span>
+</span><span id="line-18"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#UInt"><span class="hs-identifier">UInt</span></a></span><span>
+</span><span id="line-19"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#Null"><span class="hs-identifier">Null</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#absorbNull"><span class="hs-identifier">absorbNull</span></a></span><span>
+</span><span id="line-21"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#nullToMaybe"><span class="hs-identifier">nullToMaybe</span></a></span><span>
+</span><span id="line-22"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#maybeToNull"><span class="hs-identifier">maybeToNull</span></a></span><span>
+</span><span id="line-23"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator">(.=?)</span></a></span><span>
+</span><span id="line-24"></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Lens</span></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span>          </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Null</span></span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span>          </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">J</span></span><span class="hs-cpp">
+#if MIN_VERSION_aeson(2,0,0)
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson.KeyMap</span></span><span>   </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">KM</span></span><span class="hs-cpp">
+#else
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-identifier">Data.HashMap.Strict</span><span>   </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">KM</span><span class="hs-cpp">
+#endif
+</span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Hashable</span></span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Set</span></span><span>            </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Set</span></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.String</span></span><span>         </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">fromString</span></span><span class="hs-special">)</span><span>
+</span><span id="line-38"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Int</span></span><span>            </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Int32</span></span><span class="hs-special">)</span><span>
+</span><span id="line-39"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Mod.Word</span></span><span>
+</span><span id="line-40"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html"><span class="hs-identifier">Language.LSP.Protocol.Utils.Misc</span></a></span><span>
+</span><span id="line-41"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>        </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">UInt</span></span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">GHC.TypeNats</span></span><span>        </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Mod</span></span><span class="hs-special">)</span><span>
+</span><span id="line-43"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Text.Read</span></span><span>           </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Read</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">readPrec</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-44"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Prettyprinter</span></span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span class="hs-comment">-- | The &quot;uinteger&quot; type in the LSP spec.</span><span>
+</span><span id="line-47"></span><span class="hs-comment">--</span><span>
+</span><span id="line-48"></span><span class="hs-comment">-- Unusually, this is a **31**-bit unsigned integer, not a 32-bit one.</span><span>
+</span><span id="line-49"></span><span id="local-6989586621682127916"><span id="local-6989586621682127917"></span></span><span class="hs-keyword">newtype</span><span> </span><span id="UInt"><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#UInt"><span class="hs-identifier hs-var">UInt</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="UInt"><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#UInt"><span class="hs-identifier hs-var">UInt</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Mod</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-number">2</span></span><span class="annot"><span class="hs-operator hs-type">^</span></span><span class="annot"><span class="hs-number">31</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-50"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">newtype</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682127877"><span id="local-6989586621682127883"><span id="local-6989586621682127889"><span id="local-6989586621682127895"><span id="local-6989586621682127901"><span id="local-6989586621682127907"><span id="local-6989586621682127913"><span class="annot"><span class="annottext">Integer -&gt; UInt
+UInt -&gt; UInt
+UInt -&gt; UInt -&gt; UInt
+forall a.
+(a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (Integer -&gt; a)
+-&gt; Num a
+fromInteger :: Integer -&gt; UInt
+$cfromInteger :: Integer -&gt; UInt
+signum :: UInt -&gt; UInt
+$csignum :: UInt -&gt; UInt
+abs :: UInt -&gt; UInt
+$cabs :: UInt -&gt; UInt
+negate :: UInt -&gt; UInt
+$cnegate :: UInt -&gt; UInt
+* :: UInt -&gt; UInt -&gt; UInt
+$c* :: UInt -&gt; UInt -&gt; UInt
+- :: UInt -&gt; UInt -&gt; UInt
+$c- :: UInt -&gt; UInt -&gt; UInt
++ :: UInt -&gt; UInt -&gt; UInt
+$c+ :: UInt -&gt; UInt -&gt; UInt
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Num</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682127855"><span id="local-6989586621682127861"><span class="annot"><span class="annottext">UInt
+forall a. a -&gt; a -&gt; Bounded a
+maxBound :: UInt
+$cmaxBound :: UInt
+minBound :: UInt
+$cminBound :: UInt
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Bounded</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682127802"><span id="local-6989586621682127808"><span id="local-6989586621682127814"><span id="local-6989586621682127820"><span id="local-6989586621682127826"><span id="local-6989586621682127832"><span id="local-6989586621682127838"><span id="local-6989586621682127844"><span class="annot"><span class="annottext">Int -&gt; UInt
+UInt -&gt; Int
+UInt -&gt; [UInt]
+UInt -&gt; UInt
+UInt -&gt; UInt -&gt; [UInt]
+UInt -&gt; UInt -&gt; UInt -&gt; [UInt]
+forall a.
+(a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (Int -&gt; a)
+-&gt; (a -&gt; Int)
+-&gt; (a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; a -&gt; [a])
+-&gt; Enum a
+enumFromThenTo :: UInt -&gt; UInt -&gt; UInt -&gt; [UInt]
+$cenumFromThenTo :: UInt -&gt; UInt -&gt; UInt -&gt; [UInt]
+enumFromTo :: UInt -&gt; UInt -&gt; [UInt]
+$cenumFromTo :: UInt -&gt; UInt -&gt; [UInt]
+enumFromThen :: UInt -&gt; UInt -&gt; [UInt]
+$cenumFromThen :: UInt -&gt; UInt -&gt; [UInt]
+enumFrom :: UInt -&gt; [UInt]
+$cenumFrom :: UInt -&gt; [UInt]
+fromEnum :: UInt -&gt; Int
+$cfromEnum :: UInt -&gt; Int
+toEnum :: Int -&gt; UInt
+$ctoEnum :: Int -&gt; UInt
+pred :: UInt -&gt; UInt
+$cpred :: UInt -&gt; UInt
+succ :: UInt -&gt; UInt
+$csucc :: UInt -&gt; UInt
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Enum</span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682127779"><span id="local-6989586621682127785"><span class="annot"><span class="annottext">UInt -&gt; UInt -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: UInt -&gt; UInt -&gt; Bool
+$c/= :: UInt -&gt; UInt -&gt; Bool
+== :: UInt -&gt; UInt -&gt; Bool
+$c== :: UInt -&gt; UInt -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682127732"><span id="local-6989586621682127738"><span id="local-6989586621682127744"><span id="local-6989586621682127750"><span id="local-6989586621682127756"><span id="local-6989586621682127762"><span id="local-6989586621682127768"><span class="annot"><span class="annottext">Eq UInt
+UInt -&gt; UInt -&gt; Bool
+UInt -&gt; UInt -&gt; Ordering
+UInt -&gt; UInt -&gt; UInt
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: UInt -&gt; UInt -&gt; UInt
+$cmin :: UInt -&gt; UInt -&gt; UInt
+max :: UInt -&gt; UInt -&gt; UInt
+$cmax :: UInt -&gt; UInt -&gt; UInt
+&gt;= :: UInt -&gt; UInt -&gt; Bool
+$c&gt;= :: UInt -&gt; UInt -&gt; Bool
+&gt; :: UInt -&gt; UInt -&gt; Bool
+$c&gt; :: UInt -&gt; UInt -&gt; Bool
+&lt;= :: UInt -&gt; UInt -&gt; Bool
+$c&lt;= :: UInt -&gt; UInt -&gt; Bool
+&lt; :: UInt -&gt; UInt -&gt; Bool
+$c&lt; :: UInt -&gt; UInt -&gt; Bool
+compare :: UInt -&gt; UInt -&gt; Ordering
+$ccompare :: UInt -&gt; UInt -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-51"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall x. Rep UInt x -&gt; UInt
+forall x. UInt -&gt; Rep UInt x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cto :: forall x. Rep UInt x -&gt; UInt
+$cfrom :: forall x. UInt -&gt; Rep UInt x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-52"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">anyclass</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682127720"><span class="annot"><span class="annottext">UInt -&gt; ()
+forall a. (a -&gt; ()) -&gt; NFData a
+rnf :: UInt -&gt; ()
+$crnf :: UInt -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-53"></span><span>
+</span><span id="line-54"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682127714"><span class="annot"><span class="hs-identifier hs-type">Hashable</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#UInt"><span class="hs-identifier hs-type">UInt</span></a></span></span><span> </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621682127710"><span class="annot"><span class="annottext">hashWithSalt :: Int -&gt; UInt -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">hashWithSalt</span></span></span><span> </span><span id="local-6989586621682127708"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682127708"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#UInt"><span class="hs-identifier hs-type">UInt</span></a></span><span> </span><span id="local-6989586621682127707"><span class="annot"><span class="annottext">Mod (2 ^ 31)
+</span><a href="#local-6989586621682127707"><span class="hs-identifier hs-var">n</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Hashable a =&gt; Int -&gt; a -&gt; Int
+</span><span class="hs-identifier hs-var">hashWithSalt</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682127708"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (m :: Nat). Mod m -&gt; Word
+</span><span class="hs-identifier hs-var">unMod</span></span><span> </span><span class="annot"><span class="annottext">Mod (2 ^ 31)
+</span><a href="#local-6989586621682127707"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682127701"><span id="local-6989586621682127704"><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#UInt"><span class="hs-identifier hs-type">UInt</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-57"></span><span>  </span><span id="local-6989586621682127697"><span class="annot"><span class="annottext">show :: UInt -&gt; String
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">show</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#UInt"><span class="hs-identifier hs-type">UInt</span></a></span><span> </span><span id="local-6989586621682127695"><span class="annot"><span class="annottext">Mod (2 ^ 31)
+</span><a href="#local-6989586621682127695"><span class="hs-identifier hs-var">u</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: Nat). Mod m -&gt; Word
+</span><span class="hs-identifier hs-var">unMod</span></span><span> </span><span class="annot"><span class="annottext">Mod (2 ^ 31)
+</span><a href="#local-6989586621682127695"><span class="hs-identifier hs-var">u</span></a></span><span>
+</span><span id="line-58"></span><span>
+</span><span id="line-59"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682127688"><span id="local-6989586621682127691"><span id="local-6989586621682127693"><span class="annot"><span class="hs-identifier hs-type">Read</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#UInt"><span class="hs-identifier hs-type">UInt</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-60"></span><span>  </span><span id="local-6989586621682127681"><span class="annot"><span class="annottext">readPrec :: ReadPrec UInt
+</span><a href="#local-6989586621682127681"><span class="hs-identifier hs-var hs-var hs-var hs-var">readPrec</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; Integer -&gt; a
+</span><span class="hs-identifier hs-var">fromInteger</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall a. Read a =&gt; ReadPrec a
+</span><span class="hs-identifier hs-var">readPrec</span></span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682127677"><span class="annot"><span class="hs-identifier hs-type">Pretty</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#UInt"><span class="hs-identifier hs-type">UInt</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-63"></span><span>  </span><span id="local-6989586621682127674"><span class="annot"><span class="annottext">pretty :: forall ann. UInt -&gt; Doc ann
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">pretty</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a ann. Show a =&gt; a -&gt; Doc ann
+</span><span class="hs-identifier hs-var">viaShow</span></span><span>
+</span><span id="line-64"></span><span>
+</span><span id="line-65"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Real</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#UInt"><span class="hs-identifier hs-type">UInt</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-66"></span><span>  </span><span id="local-6989586621682127662"><span class="annot"><span class="annottext">toRational :: UInt -&gt; Rational
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">toRational</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#UInt"><span class="hs-identifier hs-type">UInt</span></a></span><span> </span><span id="local-6989586621682127661"><span class="annot"><span class="annottext">Mod (2 ^ 31)
+</span><a href="#local-6989586621682127661"><span class="hs-identifier hs-var">u</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Real a =&gt; a -&gt; Rational
+</span><span class="hs-identifier hs-var">toRational</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: Nat). Mod m -&gt; Word
+</span><span class="hs-identifier hs-var">unMod</span></span><span> </span><span class="annot"><span class="annottext">Mod (2 ^ 31)
+</span><a href="#local-6989586621682127661"><span class="hs-identifier hs-var">u</span></a></span><span>
+</span><span id="line-67"></span><span>
+</span><span id="line-68"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682127646"><span id="local-6989586621682127649"><span id="local-6989586621682127651"><span id="local-6989586621682127653"><span id="local-6989586621682127655"><span class="annot"><span class="hs-identifier hs-type">Integral</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#UInt"><span class="hs-identifier hs-type">UInt</span></a></span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-69"></span><span>  </span><span id="local-6989586621682127635"><span class="annot"><span class="annottext">quotRem :: UInt -&gt; UInt -&gt; (UInt, UInt)
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">quotRem</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#UInt"><span class="hs-identifier hs-type">UInt</span></a></span><span> </span><span id="local-6989586621682127633"><span class="annot"><span class="annottext">Mod (2 ^ 31)
+</span><a href="#local-6989586621682127633"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#UInt"><span class="hs-identifier hs-type">UInt</span></a></span><span> </span><span id="local-6989586621682127632"><span class="annot"><span class="annottext">Mod (2 ^ 31)
+</span><a href="#local-6989586621682127632"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (p :: * -&gt; * -&gt; *) a b c d.
+Bifunctor p =&gt;
+(a -&gt; b) -&gt; (c -&gt; d) -&gt; p a c -&gt; p b d
+</span><span class="hs-identifier hs-var">bimap</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall a. Integral a =&gt; a -&gt; a -&gt; (a, a)
+</span><span class="hs-identifier hs-var">quotRem</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (m :: Nat). Mod m -&gt; Word
+</span><span class="hs-identifier hs-var">unMod</span></span><span> </span><span class="annot"><span class="annottext">Mod (2 ^ 31)
+</span><a href="#local-6989586621682127633"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (m :: Nat). Mod m -&gt; Word
+</span><span class="hs-identifier hs-var">unMod</span></span><span> </span><span class="annot"><span class="annottext">Mod (2 ^ 31)
+</span><a href="#local-6989586621682127632"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-70"></span><span>  </span><span id="local-6989586621682127629"><span class="annot"><span class="annottext">toInteger :: UInt -&gt; Integer
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">toInteger</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#UInt"><span class="hs-identifier hs-type">UInt</span></a></span><span> </span><span id="local-6989586621682127628"><span class="annot"><span class="annottext">Mod (2 ^ 31)
+</span><a href="#local-6989586621682127628"><span class="hs-identifier hs-var">u</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Integral a =&gt; a -&gt; Integer
+</span><span class="hs-identifier hs-var">toInteger</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: Nat). Mod m -&gt; Word
+</span><span class="hs-identifier hs-var">unMod</span></span><span> </span><span class="annot"><span class="annottext">Mod (2 ^ 31)
+</span><a href="#local-6989586621682127628"><span class="hs-identifier hs-var">u</span></a></span><span>
+</span><span id="line-71"></span><span>
+</span><span id="line-72"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682127621"><span id="local-6989586621682127623"><span id="local-6989586621682127625"><span class="annot"><span class="hs-identifier hs-type">ToJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#UInt"><span class="hs-identifier hs-type">UInt</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-73"></span><span>  </span><span id="local-6989586621682127616"><span class="annot"><span class="annottext">toJSON :: UInt -&gt; Value
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">toJSON</span></span></span><span> </span><span id="local-6989586621682127614"><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621682127614"><span class="hs-identifier hs-var">u</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. ToJSON a =&gt; a -&gt; Value
+</span><span class="hs-identifier hs-var">toJSON</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Integral a =&gt; a -&gt; Integer
+</span><span class="hs-identifier hs-var">toInteger</span></span><span> </span><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621682127614"><span class="hs-identifier hs-var">u</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-74"></span><span>
+</span><span id="line-75"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682127611"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#UInt"><span class="hs-identifier hs-type">UInt</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-76"></span><span>  </span><span id="local-6989586621682127604"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser UInt
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span id="local-6989586621682127602"><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621682127602"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; Integer -&gt; a
+</span><span class="hs-identifier hs-var">fromInteger</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">parseJSON</span></span><span> </span><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621682127602"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-77"></span><span>
+</span><span id="line-78"></span><span class="hs-comment">-- | An alternative type (isomorphic to 'Either'), but which</span><span>
+</span><span id="line-79"></span><span class="hs-comment">-- is encoded into JSON without a tag for the alternative.</span><span>
+</span><span id="line-80"></span><span class="hs-comment">--</span><span>
+</span><span id="line-81"></span><span class="hs-comment">-- This corresponds to @a | b@ types in the LSP specification.</span><span>
+</span><span id="line-82"></span><span id="local-6989586621682127600"><span id="local-6989586621682127601"></span></span><span class="hs-keyword">data</span><span> </span><span id="local-6989586621682128146"><span class="annot"><a href="#local-6989586621682128146"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span id="%7C%3F"><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#%7C%3F"><span class="hs-operator hs-var">|?</span></a></span></span><span> </span><span id="local-6989586621682128145"><span class="annot"><a href="#local-6989586621682128145"><span class="hs-identifier hs-type">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="InL"><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#InL"><span class="hs-identifier hs-var">InL</span></a></span></span><span> </span><span class="annot"><a href="#local-6989586621682128146"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-83"></span><span>            </span><span class="hs-glyph">|</span><span> </span><span id="InR"><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#InR"><span class="hs-identifier hs-var">InR</span></a></span></span><span> </span><span class="annot"><a href="#local-6989586621682128145"><span class="hs-identifier hs-type">b</span></a></span><span>
+</span><span id="line-84"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682127580"><span id="local-6989586621682127591"><span id="local-6989586621682127594"><span id="local-6989586621682127596"><span class="annot"><span class="annottext">ReadPrec [a |? b]
+ReadPrec (a |? b)
+ReadS [a |? b]
+forall a.
+(Int -&gt; ReadS a)
+-&gt; ReadS [a] -&gt; ReadPrec a -&gt; ReadPrec [a] -&gt; Read a
+forall a b. (Read a, Read b) =&gt; ReadPrec [a |? b]
+forall a b. (Read a, Read b) =&gt; ReadPrec (a |? b)
+forall a b. (Read a, Read b) =&gt; Int -&gt; ReadS (a |? b)
+forall a b. (Read a, Read b) =&gt; ReadS [a |? b]
+readListPrec :: ReadPrec [a |? b]
+$creadListPrec :: forall a b. (Read a, Read b) =&gt; ReadPrec [a |? b]
+readPrec :: ReadPrec (a |? b)
+$creadPrec :: forall a b. (Read a, Read b) =&gt; ReadPrec (a |? b)
+readList :: ReadS [a |? b]
+$creadList :: forall a b. (Read a, Read b) =&gt; ReadS [a |? b]
+readsPrec :: Int -&gt; ReadS (a |? b)
+$creadsPrec :: forall a b. (Read a, Read b) =&gt; Int -&gt; ReadS (a |? b)
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Read</span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682127568"><span id="local-6989586621682127570"><span id="local-6989586621682127577"><span class="annot"><span class="annottext">Int -&gt; (a |? b) -&gt; ShowS
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+forall a b. (Show a, Show b) =&gt; Int -&gt; (a |? b) -&gt; ShowS
+forall a b. (Show a, Show b) =&gt; [a |? b] -&gt; ShowS
+forall a b. (Show a, Show b) =&gt; (a |? b) -&gt; String
+showList :: [a |? b] -&gt; ShowS
+$cshowList :: forall a b. (Show a, Show b) =&gt; [a |? b] -&gt; ShowS
+show :: (a |? b) -&gt; String
+$cshow :: forall a b. (Show a, Show b) =&gt; (a |? b) -&gt; String
+showsPrec :: Int -&gt; (a |? b) -&gt; ShowS
+$cshowsPrec :: forall a b. (Show a, Show b) =&gt; Int -&gt; (a |? b) -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682127562"><span id="local-6989586621682127566"><span class="annot"><span class="annottext">(a |? b) -&gt; (a |? b) -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+forall a b. (Eq a, Eq b) =&gt; (a |? b) -&gt; (a |? b) -&gt; Bool
+/= :: (a |? b) -&gt; (a |? b) -&gt; Bool
+$c/= :: forall a b. (Eq a, Eq b) =&gt; (a |? b) -&gt; (a |? b) -&gt; Bool
+== :: (a |? b) -&gt; (a |? b) -&gt; Bool
+$c== :: forall a b. (Eq a, Eq b) =&gt; (a |? b) -&gt; (a |? b) -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682127539"><span id="local-6989586621682127541"><span id="local-6989586621682127544"><span id="local-6989586621682127547"><span id="local-6989586621682127550"><span id="local-6989586621682127554"><span id="local-6989586621682127558"><span class="annot"><span class="annottext">(a |? b) -&gt; (a |? b) -&gt; Bool
+(a |? b) -&gt; (a |? b) -&gt; Ordering
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+forall {a} {b}. (Ord a, Ord b) =&gt; Eq (a |? b)
+forall a b. (Ord a, Ord b) =&gt; (a |? b) -&gt; (a |? b) -&gt; Bool
+forall a b. (Ord a, Ord b) =&gt; (a |? b) -&gt; (a |? b) -&gt; Ordering
+forall a b. (Ord a, Ord b) =&gt; (a |? b) -&gt; (a |? b) -&gt; a |? b
+min :: (a |? b) -&gt; (a |? b) -&gt; a |? b
+$cmin :: forall a b. (Ord a, Ord b) =&gt; (a |? b) -&gt; (a |? b) -&gt; a |? b
+max :: (a |? b) -&gt; (a |? b) -&gt; a |? b
+$cmax :: forall a b. (Ord a, Ord b) =&gt; (a |? b) -&gt; (a |? b) -&gt; a |? b
+&gt;= :: (a |? b) -&gt; (a |? b) -&gt; Bool
+$c&gt;= :: forall a b. (Ord a, Ord b) =&gt; (a |? b) -&gt; (a |? b) -&gt; Bool
+&gt; :: (a |? b) -&gt; (a |? b) -&gt; Bool
+$c&gt; :: forall a b. (Ord a, Ord b) =&gt; (a |? b) -&gt; (a |? b) -&gt; Bool
+&lt;= :: (a |? b) -&gt; (a |? b) -&gt; Bool
+$c&lt;= :: forall a b. (Ord a, Ord b) =&gt; (a |? b) -&gt; (a |? b) -&gt; Bool
+&lt; :: (a |? b) -&gt; (a |? b) -&gt; Bool
+$c&lt; :: forall a b. (Ord a, Ord b) =&gt; (a |? b) -&gt; (a |? b) -&gt; Bool
+compare :: (a |? b) -&gt; (a |? b) -&gt; Ordering
+$ccompare :: forall a b. (Ord a, Ord b) =&gt; (a |? b) -&gt; (a |? b) -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+forall a b x. Rep (a |? b) x -&gt; a |? b
+forall a b x. (a |? b) -&gt; Rep (a |? b) x
+$cto :: forall a b x. Rep (a |? b) x -&gt; a |? b
+$cfrom :: forall a b x. (a |? b) -&gt; Rep (a |? b) x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-85"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">anyclass</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682127535"><span class="annot"><span class="annottext">forall a. (a -&gt; ()) -&gt; NFData a
+forall a b. (NFData a, NFData b) =&gt; (a |? b) -&gt; ()
+rnf :: (a |? b) -&gt; ()
+$crnf :: forall a b. (NFData a, NFData b) =&gt; (a |? b) -&gt; ()
+</span><a href="#local-6989586621682127535"><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682127529"><span id="local-6989586621682127531"><span class="annot"><span class="annottext">forall a. Eq a -&gt; (Int -&gt; a -&gt; Int) -&gt; (a -&gt; Int) -&gt; Hashable a
+forall {a} {b}. (Hashable a, Hashable b) =&gt; Eq (a |? b)
+forall a b. (Hashable a, Hashable b) =&gt; Int -&gt; (a |? b) -&gt; Int
+forall a b. (Hashable a, Hashable b) =&gt; (a |? b) -&gt; Int
+hash :: (a |? b) -&gt; Int
+$chash :: forall a b. (Hashable a, Hashable b) =&gt; (a |? b) -&gt; Int
+hashWithSalt :: Int -&gt; (a |? b) -&gt; Int
+$chashWithSalt :: forall a b. (Hashable a, Hashable b) =&gt; Int -&gt; (a |? b) -&gt; Int
+</span><a href="#local-6989586621682127529"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Hashable</span></a></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-86"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621682127519"><span id="local-6989586621682127525"><span class="annot"><span class="annottext">forall ann. [a |? b] -&gt; Doc ann
+forall ann. (a |? b) -&gt; Doc ann
+forall a.
+(forall ann. a -&gt; Doc ann)
+-&gt; (forall ann. [a] -&gt; Doc ann) -&gt; Pretty a
+forall a b ann. (ToJSON a, ToJSON b) =&gt; [a |? b] -&gt; Doc ann
+forall a b ann. (ToJSON a, ToJSON b) =&gt; (a |? b) -&gt; Doc ann
+prettyList :: forall ann. [a |? b] -&gt; Doc ann
+$cprettyList :: forall a b ann. (ToJSON a, ToJSON b) =&gt; [a |? b] -&gt; Doc ann
+pretty :: forall ann. (a |? b) -&gt; Doc ann
+$cpretty :: forall a b ann. (ToJSON a, ToJSON b) =&gt; (a |? b) -&gt; Doc ann
+</span><a href="#local-6989586621682127519"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Pretty</span></a></span></span></span><span> </span><span class="hs-keyword">via</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html#ViaJSON"><span class="hs-identifier hs-type">ViaJSON</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621682128146"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#%7C%3F"><span class="hs-operator hs-type">|?</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682128145"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-87"></span><span class="hs-keyword">infixr</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#%7C%3F"><span class="hs-operator hs-type">|?</span></a></span><span>
+</span><span id="line-88"></span><span>
+</span><span id="line-89"></span><span class="hs-comment">-- | Prism for the left-hand side of an '(|?)'.</span><span>
+</span><span id="line-90"></span><span id="local-6989586621682128135"><span id="local-6989586621682128136"><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#_L"><span class="hs-identifier hs-type">_L</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Prism'</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621682128136"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#%7C%3F"><span class="hs-operator hs-type">|?</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682128135"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621682128136"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-91"></span><span id="_L"><span class="annot"><span class="annottext">_L :: forall a b. Prism' (a |? b) a
+</span><a href="Language.LSP.Protocol.Types.Common.html#_L"><span class="hs-identifier hs-var hs-var">_L</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall b s a. (b -&gt; s) -&gt; (s -&gt; Maybe a) -&gt; Prism s s a b
+</span><span class="hs-identifier hs-var">prism'</span></span><span> </span><span class="annot"><span class="annottext">forall a b. a -&gt; a |? b
+</span><a href="Language.LSP.Protocol.Types.Common.html#InL"><span class="hs-identifier hs-var">InL</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-92"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#InL"><span class="hs-identifier hs-type">InL</span></a></span><span> </span><span id="local-6989586621682127509"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682127509"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682127509"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-93"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#InR"><span class="hs-identifier hs-type">InR</span></a></span><span> </span><span class="annot"><span class="annottext">b
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-94"></span><span>
+</span><span id="line-95"></span><span class="hs-comment">-- | Prism for the right-hand side of an '(|?)'.</span><span>
+</span><span id="line-96"></span><span id="local-6989586621682128122"><span id="local-6989586621682128123"><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#_R"><span class="hs-identifier hs-type">_R</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Prism'</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621682128123"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#%7C%3F"><span class="hs-operator hs-type">|?</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682128122"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621682128122"><span class="hs-identifier hs-type">b</span></a></span></span></span><span>
+</span><span id="line-97"></span><span id="_R"><span class="annot"><span class="annottext">_R :: forall a b. Prism' (a |? b) b
+</span><a href="Language.LSP.Protocol.Types.Common.html#_R"><span class="hs-identifier hs-var hs-var">_R</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall b s a. (b -&gt; s) -&gt; (s -&gt; Maybe a) -&gt; Prism s s a b
+</span><span class="hs-identifier hs-var">prism'</span></span><span> </span><span class="annot"><span class="annottext">forall a b. b -&gt; a |? b
+</span><a href="Language.LSP.Protocol.Types.Common.html#InR"><span class="hs-identifier hs-var">InR</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-98"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#InL"><span class="hs-identifier hs-type">InL</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-99"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#InR"><span class="hs-identifier hs-type">InR</span></a></span><span> </span><span id="local-6989586621682127504"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621682127504"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621682127504"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-100"></span><span>
+</span><span id="line-101"></span><span id="local-6989586621682128116"><span id="local-6989586621682128117"><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#toEither"><span class="hs-identifier hs-type">toEither</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621682128117"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#%7C%3F"><span class="hs-operator hs-type">|?</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682128116"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="#local-6989586621682128117"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682128116"><span class="hs-identifier hs-type">b</span></a></span></span></span><span>
+</span><span id="line-102"></span><span id="toEither"><span class="annot"><span class="annottext">toEither :: forall a b. (a |? b) -&gt; Either a b
+</span><a href="Language.LSP.Protocol.Types.Common.html#toEither"><span class="hs-identifier hs-var hs-var">toEither</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#InL"><span class="hs-identifier hs-type">InL</span></a></span><span> </span><span id="local-6989586621682127503"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682127503"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682127503"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-103"></span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#toEither"><span class="hs-identifier hs-var">toEither</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#InR"><span class="hs-identifier hs-type">InR</span></a></span><span> </span><span id="local-6989586621682127502"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621682127502"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621682127502"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-104"></span><span>
+</span><span id="line-105"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682127495"><span id="local-6989586621682127497"><span id="local-6989586621682127499"><span id="local-6989586621682128137"><span id="local-6989586621682128138"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ToJSON</span></span><span> </span><span class="annot"><a href="#local-6989586621682128138"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ToJSON</span></span><span> </span><span class="annot"><a href="#local-6989586621682128137"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ToJSON</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621682128138"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#%7C%3F"><span class="hs-operator hs-type">|?</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682128137"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-106"></span><span>  </span><span id="local-6989586621682127492"><span class="annot"><span class="annottext">toJSON :: (a |? b) -&gt; Value
+</span><a href="#local-6989586621682127492"><span class="hs-identifier hs-var hs-var hs-var hs-var">toJSON</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#InL"><span class="hs-identifier hs-type">InL</span></a></span><span> </span><span id="local-6989586621682127491"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682127491"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. ToJSON a =&gt; a -&gt; Value
+</span><span class="hs-identifier hs-var">toJSON</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682127491"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-107"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">toJSON</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#InR"><span class="hs-identifier hs-type">InR</span></a></span><span> </span><span id="local-6989586621682127490"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621682127490"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. ToJSON a =&gt; a -&gt; Value
+</span><span class="hs-identifier hs-var">toJSON</span></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621682127490"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-108"></span><span>
+</span><span id="line-109"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682127487"><span id="local-6989586621682128110"><span id="local-6989586621682128111"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="#local-6989586621682128111"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ToJSON</span></span><span> </span><span class="annot"><a href="#local-6989586621682128111"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="#local-6989586621682128110"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ToJSON</span></span><span> </span><span class="annot"><a href="#local-6989586621682128110"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621682128111"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#%7C%3F"><span class="hs-operator hs-type">|?</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682128110"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-110"></span><span>  </span><span class="hs-comment">-- Truly atrocious and abominable hack. The issue is tha we may have siutations</span><span>
+</span><span id="line-111"></span><span>  </span><span class="hs-comment">-- where some input JSON can parse correctly as both sides of the union, because</span><span>
+</span><span id="line-112"></span><span>  </span><span class="hs-comment">-- we have no tag. What do we do in this situation? It's very unclear, and the</span><span>
+</span><span id="line-113"></span><span>  </span><span class="hs-comment">-- spec is no help. The heuristic we adopt here is that it is better to take</span><span>
+</span><span id="line-114"></span><span>  </span><span class="hs-comment">-- the version with &quot;more fields&quot;. How do we work that out? By converting back</span><span>
+</span><span id="line-115"></span><span>  </span><span class="hs-comment">-- to JSON and looking at the object fields.</span><span>
+</span><span id="line-116"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-117"></span><span>  </span><span class="hs-comment">-- Possibly we could do better by relying on Generic instances for a and b</span><span>
+</span><span id="line-118"></span><span>  </span><span class="hs-comment">-- in order to work out which has more fields on the Haskell side.</span><span>
+</span><span id="line-119"></span><span>  </span><span id="local-6989586621682127451"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser (a |? b)
+</span><a href="#local-6989586621682127451"><span class="hs-identifier hs-var hs-var hs-var hs-var">parseJSON</span></a></span></span><span> </span><span id="local-6989586621682127450"><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621682127450"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-120"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621682127449"><span class="annot"><span class="annottext">Result a
+</span><a href="#local-6989586621682127449"><span class="hs-identifier hs-var">ra</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Result</span></span><span> </span><span class="annot"><a href="#local-6989586621682128111"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Value -&gt; Result a
+</span><span class="hs-identifier hs-var">fromJSON</span></span><span> </span><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621682127450"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-121"></span><span>        </span><span id="local-6989586621682127447"><span class="annot"><span class="annottext">Result b
+</span><a href="#local-6989586621682127447"><span class="hs-identifier hs-var">rb</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Result</span></span><span> </span><span class="annot"><a href="#local-6989586621682128110"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Value -&gt; Result a
+</span><span class="hs-identifier hs-var">fromJSON</span></span><span> </span><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621682127450"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-122"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Result a
+</span><a href="#local-6989586621682127449"><span class="hs-identifier hs-var">ra</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Result b
+</span><a href="#local-6989586621682127447"><span class="hs-identifier hs-var">rb</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-123"></span><span>      </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Success</span></span><span> </span><span id="local-6989586621682127445"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682127445"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Error</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall a b. a -&gt; a |? b
+</span><a href="Language.LSP.Protocol.Types.Common.html#InL"><span class="hs-identifier hs-var">InL</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682127445"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-124"></span><span>      </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Error</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Success</span></span><span> </span><span id="local-6989586621682127443"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621682127443"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall a b. b -&gt; a |? b
+</span><a href="Language.LSP.Protocol.Types.Common.html#InR"><span class="hs-identifier hs-var">InR</span></a></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621682127443"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-125"></span><span>      </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Error</span></span><span> </span><span id="local-6989586621682127442"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682127442"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Error</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. MonadFail m =&gt; String -&gt; m a
+</span><span class="hs-identifier hs-var">fail</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682127442"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-126"></span><span>      </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Success</span></span><span> </span><span id="local-6989586621682127441"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682127441"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Success</span></span><span> </span><span id="local-6989586621682127440"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621682127440"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. ToJSON a =&gt; a -&gt; Value
+</span><span class="hs-identifier hs-var">toJSON</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682127441"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall a. ToJSON a =&gt; a -&gt; Value
+</span><span class="hs-identifier hs-var">toJSON</span></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621682127440"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-127"></span><span>        </span><span class="hs-comment">-- Both sides encode to the same thing, just pick one arbitrarily</span><span>
+</span><span id="line-128"></span><span>        </span><span class="hs-special">(</span><span id="local-6989586621682127439"><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621682127439"><span class="hs-identifier hs-var">l</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682127438"><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621682127438"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621682127439"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621682127438"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall a b. a -&gt; a |? b
+</span><a href="Language.LSP.Protocol.Types.Common.html#InL"><span class="hs-identifier hs-var">InL</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682127441"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-129"></span><span>        </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Object</span></span><span> </span><span id="local-6989586621682127436"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682127436"><span class="hs-identifier hs-var">oa</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Object</span></span><span> </span><span id="local-6989586621682127435"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682127435"><span class="hs-identifier hs-var">ob</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span>
+</span><span id="line-130"></span><span>          </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621682127434"><span class="annot"><span class="annottext">ka :: Set Key
+</span><a href="#local-6989586621682127434"><span class="hs-identifier hs-var hs-var">ka</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; [a] -&gt; Set a
+</span><span class="hs-identifier hs-var">Set.fromList</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall v. KeyMap v -&gt; [Key]
+</span><span class="hs-identifier hs-var">KM.keys</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682127436"><span class="hs-identifier hs-var">oa</span></a></span><span>
+</span><span id="line-131"></span><span>              </span><span id="local-6989586621682127431"><span class="annot"><span class="annottext">kb :: Set Key
+</span><a href="#local-6989586621682127431"><span class="hs-identifier hs-var hs-var">kb</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; [a] -&gt; Set a
+</span><span class="hs-identifier hs-var">Set.fromList</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall v. KeyMap v -&gt; [Key]
+</span><span class="hs-identifier hs-var">KM.keys</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682127435"><span class="hs-identifier hs-var">ob</span></a></span><span>
+</span><span id="line-132"></span><span>          </span><span class="hs-keyword">in</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Set Key
+</span><a href="#local-6989586621682127431"><span class="hs-identifier hs-var">kb</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; Set a -&gt; Set a -&gt; Bool
+</span><span class="hs-operator hs-var">`Set.isSubsetOf`</span></span><span> </span><span class="annot"><span class="annottext">Set Key
+</span><a href="#local-6989586621682127434"><span class="hs-identifier hs-var">ka</span></a></span><span>
+</span><span id="line-133"></span><span>          </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall a b. a -&gt; a |? b
+</span><a href="Language.LSP.Protocol.Types.Common.html#InL"><span class="hs-identifier hs-var">InL</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682127441"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-134"></span><span>          </span><span class="hs-keyword">else</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Set Key
+</span><a href="#local-6989586621682127434"><span class="hs-identifier hs-var">ka</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; Set a -&gt; Set a -&gt; Bool
+</span><span class="hs-operator hs-var">`Set.isSubsetOf`</span></span><span> </span><span class="annot"><span class="annottext">Set Key
+</span><a href="#local-6989586621682127431"><span class="hs-identifier hs-var">kb</span></a></span><span>
+</span><span id="line-135"></span><span>          </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall a b. b -&gt; a |? b
+</span><a href="Language.LSP.Protocol.Types.Common.html#InR"><span class="hs-identifier hs-var">InR</span></a></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621682127440"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-136"></span><span>          </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. MonadFail m =&gt; String -&gt; m a
+</span><span class="hs-identifier hs-var">fail</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Could not decide which type of value to produce, left encodes to an object with keys: &quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Set Key
+</span><a href="#local-6989586621682127434"><span class="hs-identifier hs-var">ka</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;; right has keys &quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Set Key
+</span><a href="#local-6989586621682127431"><span class="hs-identifier hs-var">kb</span></a></span><span>
+</span><span id="line-137"></span><span>        </span><span class="hs-special">(</span><span id="local-6989586621682127429"><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621682127429"><span class="hs-identifier hs-var">l</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682127428"><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621682127428"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. MonadFail m =&gt; String -&gt; m a
+</span><span class="hs-identifier hs-var">fail</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Could not decide which type of value to produce, left encodes to: &quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621682127429"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;; right encodes to: &quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621682127428"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-138"></span><span>
+</span><span id="line-139"></span><span class="hs-comment">-- We could use 'Proxy' for this, as aeson also serializes it to/from null,</span><span>
+</span><span id="line-140"></span><span class="hs-comment">-- but this is more explicit.</span><span>
+</span><span id="line-141"></span><span class="hs-comment">-- | A type for that is precisely null and nothing else.</span><span>
+</span><span id="line-142"></span><span class="hs-comment">--</span><span>
+</span><span id="line-143"></span><span class="hs-comment">-- This is useful since the LSP specification often includes types like @a | null@</span><span>
+</span><span id="line-144"></span><span class="hs-comment">-- as distinct from an optional value of type @a@.</span><span>
+</span><span id="line-145"></span><span id="local-6989586621682127426"><span id="local-6989586621682127427"></span></span><span class="hs-keyword">data</span><span> </span><span id="Null"><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#Null"><span class="hs-identifier hs-var">Null</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Null"><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#Null"><span class="hs-identifier hs-var">Null</span></a></span></span><span>
+</span><span id="line-146"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682127421"><span id="local-6989586621682127423"><span class="annot"><span class="annottext">Null -&gt; Null -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: Null -&gt; Null -&gt; Bool
+$c/= :: Null -&gt; Null -&gt; Bool
+== :: Null -&gt; Null -&gt; Bool
+$c== :: Null -&gt; Null -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682127402"><span id="local-6989586621682127404"><span id="local-6989586621682127407"><span id="local-6989586621682127410"><span id="local-6989586621682127413"><span id="local-6989586621682127415"><span id="local-6989586621682127417"><span class="annot"><span class="annottext">Eq Null
+Null -&gt; Null -&gt; Bool
+Null -&gt; Null -&gt; Ordering
+Null -&gt; Null -&gt; Null
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: Null -&gt; Null -&gt; Null
+$cmin :: Null -&gt; Null -&gt; Null
+max :: Null -&gt; Null -&gt; Null
+$cmax :: Null -&gt; Null -&gt; Null
+&gt;= :: Null -&gt; Null -&gt; Bool
+$c&gt;= :: Null -&gt; Null -&gt; Bool
+&gt; :: Null -&gt; Null -&gt; Bool
+$c&gt; :: Null -&gt; Null -&gt; Bool
+&lt;= :: Null -&gt; Null -&gt; Bool
+$c&lt;= :: Null -&gt; Null -&gt; Bool
+&lt; :: Null -&gt; Null -&gt; Bool
+$c&lt; :: Null -&gt; Null -&gt; Bool
+compare :: Null -&gt; Null -&gt; Ordering
+$ccompare :: Null -&gt; Null -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682127396"><span id="local-6989586621682127398"><span id="local-6989586621682127400"><span class="annot"><span class="annottext">Int -&gt; Null -&gt; ShowS
+[Null] -&gt; ShowS
+Null -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [Null] -&gt; ShowS
+$cshowList :: [Null] -&gt; ShowS
+show :: Null -&gt; String
+$cshow :: Null -&gt; String
+showsPrec :: Int -&gt; Null -&gt; ShowS
+$cshowsPrec :: Int -&gt; Null -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall x. Rep Null x -&gt; Null
+forall x. Null -&gt; Rep Null x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cto :: forall x. Rep Null x -&gt; Null
+$cfrom :: forall x. Null -&gt; Rep Null x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-147"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">anyclass</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682127392"><span class="annot"><span class="annottext">Null -&gt; ()
+forall a. (a -&gt; ()) -&gt; NFData a
+rnf :: Null -&gt; ()
+$crnf :: Null -&gt; ()
+</span><a href="#local-6989586621682127392"><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682127386"><span id="local-6989586621682127388"><span class="annot"><span class="annottext">Eq Null
+Int -&gt; Null -&gt; Int
+Null -&gt; Int
+forall a. Eq a -&gt; (Int -&gt; a -&gt; Int) -&gt; (a -&gt; Int) -&gt; Hashable a
+hash :: Null -&gt; Int
+$chash :: Null -&gt; Int
+hashWithSalt :: Int -&gt; Null -&gt; Int
+$chashWithSalt :: Int -&gt; Null -&gt; Int
+</span><a href="#local-6989586621682127386"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Hashable</span></a></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-148"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621682127379"><span id="local-6989586621682127384"><span class="annot"><span class="annottext">forall ann. [Null] -&gt; Doc ann
+forall ann. Null -&gt; Doc ann
+forall a.
+(forall ann. a -&gt; Doc ann)
+-&gt; (forall ann. [a] -&gt; Doc ann) -&gt; Pretty a
+prettyList :: forall ann. [Null] -&gt; Doc ann
+$cprettyList :: forall ann. [Null] -&gt; Doc ann
+pretty :: forall ann. Null -&gt; Doc ann
+$cpretty :: forall ann. Null -&gt; Doc ann
+</span><a href="#local-6989586621682127379"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Pretty</span></a></span></span></span><span> </span><span class="hs-keyword">via</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html#ViaJSON"><span class="hs-identifier hs-type">ViaJSON</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#Null"><span class="hs-identifier hs-type">Null</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-149"></span><span>
+</span><span id="line-150"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682127368"><span id="local-6989586621682127370"><span id="local-6989586621682127372"><span class="annot"><span class="hs-identifier hs-type">ToJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#Null"><span class="hs-identifier hs-type">Null</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-151"></span><span>  </span><span id="local-6989586621682127367"><span class="annot"><span class="annottext">toJSON :: Null -&gt; Value
+</span><a href="#local-6989586621682127367"><span class="hs-identifier hs-var hs-var hs-var hs-var">toJSON</span></a></span></span><span> </span><span class="annot"><span class="annottext">Null
+</span><a href="Language.LSP.Protocol.Types.Common.html#Null"><span class="hs-identifier hs-var">Null</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Value
+</span><span class="hs-identifier hs-var">J.Null</span></span><span>
+</span><span id="line-152"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682127364"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#Null"><span class="hs-identifier hs-type">Null</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-153"></span><span>  </span><span id="local-6989586621682127361"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser Null
+</span><a href="#local-6989586621682127361"><span class="hs-identifier hs-var hs-var hs-var hs-var">parseJSON</span></a></span></span><span> </span><span class="annot"><span class="annottext">Value
+</span><span class="hs-identifier hs-var">J.Null</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">Null
+</span><a href="Language.LSP.Protocol.Types.Common.html#Null"><span class="hs-identifier hs-var">Null</span></a></span><span>
+</span><span id="line-154"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">parseJSON</span></span><span> </span><span class="annot"><span class="annottext">Value
+</span><span class="hs-identifier">_</span></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. MonadFail m =&gt; String -&gt; m a
+</span><span class="hs-identifier hs-var">fail</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;expected 'null'&quot;</span></span><span>
+</span><span id="line-155"></span><span>
+</span><span id="line-156"></span><span id="local-6989586621682128091"><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#absorbNull"><span class="hs-identifier hs-type">absorbNull</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monoid</span></span><span> </span><span class="annot"><a href="#local-6989586621682128091"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621682128091"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#%7C%3F"><span class="hs-operator hs-type">|?</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#Null"><span class="hs-identifier hs-type">Null</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621682128091"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-157"></span><span id="absorbNull"><span class="annot"><span class="annottext">absorbNull :: forall a. Monoid a =&gt; (a |? Null) -&gt; a
+</span><a href="Language.LSP.Protocol.Types.Common.html#absorbNull"><span class="hs-identifier hs-var hs-var">absorbNull</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#InL"><span class="hs-identifier hs-type">InL</span></a></span><span> </span><span id="local-6989586621682127358"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682127358"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682127358"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-158"></span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#absorbNull"><span class="hs-identifier hs-var">absorbNull</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#InR"><span class="hs-identifier hs-type">InR</span></a></span><span> </span><span class="annot"><span class="annottext">Null
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-159"></span><span>
+</span><span id="line-160"></span><span id="local-6989586621682128088"><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#nullToMaybe"><span class="hs-identifier hs-type">nullToMaybe</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621682128088"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#%7C%3F"><span class="hs-operator hs-type">|?</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#Null"><span class="hs-identifier hs-type">Null</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621682128088"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-161"></span><span id="nullToMaybe"><span class="annot"><span class="annottext">nullToMaybe :: forall a. (a |? Null) -&gt; Maybe a
+</span><a href="Language.LSP.Protocol.Types.Common.html#nullToMaybe"><span class="hs-identifier hs-var hs-var">nullToMaybe</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#InL"><span class="hs-identifier hs-type">InL</span></a></span><span> </span><span id="local-6989586621682127357"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682127357"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682127357"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-162"></span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#nullToMaybe"><span class="hs-identifier hs-var">nullToMaybe</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#InR"><span class="hs-identifier hs-type">InR</span></a></span><span> </span><span class="annot"><span class="annottext">Null
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-163"></span><span>
+</span><span id="line-164"></span><span id="local-6989586621682128086"><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#maybeToNull"><span class="hs-identifier hs-type">maybeToNull</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621682128086"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621682128086"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#%7C%3F"><span class="hs-operator hs-type">|?</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#Null"><span class="hs-identifier hs-type">Null</span></a></span></span><span>
+</span><span id="line-165"></span><span id="maybeToNull"><span class="annot"><span class="annottext">maybeToNull :: forall a. Maybe a -&gt; a |? Null
+</span><a href="Language.LSP.Protocol.Types.Common.html#maybeToNull"><span class="hs-identifier hs-var hs-var">maybeToNull</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621682127356"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682127356"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. a -&gt; a |? b
+</span><a href="Language.LSP.Protocol.Types.Common.html#InL"><span class="hs-identifier hs-var">InL</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682127356"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-166"></span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#maybeToNull"><span class="hs-identifier hs-var">maybeToNull</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. b -&gt; a |? b
+</span><a href="Language.LSP.Protocol.Types.Common.html#InR"><span class="hs-identifier hs-var">InR</span></a></span><span> </span><span class="annot"><span class="annottext">Null
+</span><a href="Language.LSP.Protocol.Types.Common.html#Null"><span class="hs-identifier hs-var">Null</span></a></span><span>
+</span><span id="line-167"></span><span>
+</span><span id="line-168"></span><span class="hs-comment">-- This is equivalent to the instance for 'Maybe s'</span><span>
+</span><span id="line-169"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682127351"><span id="local-6989586621682127353"><span id="local-6989586621682128082"><span class="annot"><span class="hs-identifier hs-type">Semigroup</span></span><span> </span><span class="annot"><a href="#local-6989586621682128082"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Semigroup</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621682128082"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#%7C%3F"><span class="hs-operator hs-type">|?</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#Null"><span class="hs-identifier hs-type">Null</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-170"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#InL"><span class="hs-identifier hs-type">InL</span></a></span><span> </span><span id="local-6989586621682127348"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621682127348"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621682127347"><span class="annot"><span class="annottext">&lt;&gt; :: (s |? Null) -&gt; (s |? Null) -&gt; s |? Null
+</span><span class="hs-operator hs-var hs-var hs-var hs-var">&lt;&gt;</span></span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#InL"><span class="hs-identifier hs-type">InL</span></a></span><span> </span><span id="local-6989586621682127346"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621682127346"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. a -&gt; a |? b
+</span><a href="Language.LSP.Protocol.Types.Common.html#InL"><span class="hs-identifier hs-var">InL</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621682127348"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621682127346"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-171"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#InL"><span class="hs-identifier hs-type">InL</span></a></span><span> </span><span id="local-6989586621682127345"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621682127345"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="annot"><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#InR"><span class="hs-identifier hs-type">InR</span></a></span><span> </span><span class="annot"><span class="annottext">Null
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. a -&gt; a |? b
+</span><a href="Language.LSP.Protocol.Types.Common.html#InL"><span class="hs-identifier hs-var">InL</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621682127345"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-172"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#InR"><span class="hs-identifier hs-type">InR</span></a></span><span> </span><span class="annot"><span class="annottext">Null
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#InL"><span class="hs-identifier hs-type">InL</span></a></span><span> </span><span id="local-6989586621682127344"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621682127344"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. a -&gt; a |? b
+</span><a href="Language.LSP.Protocol.Types.Common.html#InL"><span class="hs-identifier hs-var">InL</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621682127344"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-173"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#InR"><span class="hs-identifier hs-type">InR</span></a></span><span> </span><span class="annot"><span class="annottext">Null
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#InR"><span class="hs-identifier hs-type">InR</span></a></span><span> </span><span id="local-6989586621682127343"><span class="annot"><span class="annottext">Null
+</span><a href="#local-6989586621682127343"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. b -&gt; a |? b
+</span><a href="Language.LSP.Protocol.Types.Common.html#InR"><span class="hs-identifier hs-var">InR</span></a></span><span> </span><span class="annot"><span class="annottext">Null
+</span><a href="#local-6989586621682127343"><span class="hs-identifier hs-var">y</span></a></span><span>
+</span><span id="line-174"></span><span>
+</span><span id="line-175"></span><span>  </span><span class="hs-comment">-- We use String so we can use fromString on it to get a key that works</span><span>
+</span><span id="line-176"></span><span>  </span><span class="hs-comment">-- in both aeson-1 and aeson-2</span><span>
+</span><span id="line-177"></span><span class="hs-comment">-- | Include a value in an JSON object optionally, omitting it if it is 'Nothing'.</span><span>
+</span><span id="line-178"></span><span id="local-6989586621682128079"><span id="local-6989586621682128081"><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-type">(.=?)</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">J.KeyValue</span></span><span> </span><span class="annot"><a href="#local-6989586621682128081"><span class="hs-identifier hs-type">kv</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">J.ToJSON</span></span><span> </span><span class="annot"><a href="#local-6989586621682128079"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621682128079"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621682128081"><span class="hs-identifier hs-type">kv</span></a></span><span class="hs-special">]</span></span></span><span>
+</span><span id="line-179"></span><span id="local-6989586621682127334"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682127334"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span id=".%3D%3F"><span class="annot"><span class="annottext">.=? :: forall kv v. (KeyValue kv, ToJSON v) =&gt; String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var hs-var">.=?</span></a></span></span><span> </span><span id="local-6989586621682127333"><span class="annot"><span class="annottext">Maybe v
+</span><a href="#local-6989586621682127333"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Maybe v
+</span><a href="#local-6989586621682127333"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-180"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621682127332"><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621682127332"><span class="hs-identifier hs-var">v'</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">forall a. IsString a =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">fromString</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682127334"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">J..=</span></span><span> </span><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621682127332"><span class="hs-identifier hs-var">v'</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-181"></span><span>  </span><span class="annot"><span class="annottext">Maybe v
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-182"></span></pre></body></html>

@@ -1,0 +1,793 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DeriveGeneric #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE GeneralizedNewtypeDeriving #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE NoImplicitPrelude #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE PolyKinds #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LANGUAGE ScopedTypeVariables #-}</span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# LANGUAGE Trustworthy #-}</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- Module      :  Data.Functor.Const</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- Copyright   :  Conor McBride and Ross Paterson 2005</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- License     :  BSD-style (see the LICENSE file in the distribution)</span><span>
+</span><span id="line-13"></span><span class="hs-comment">--</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- Maintainer  :  libraries@haskell.org</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- Stability   :  experimental</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- Portability :  portable</span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- The 'Const' functor.</span><span>
+</span><span id="line-19"></span><span class="hs-comment">--</span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- @since 4.9.0.0</span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Data.Functor.Const</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Const.html#Const"><span class="hs-identifier">Const</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Bits.html"><span class="hs-identifier">Data.Bits</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Bits.html#Bits"><span class="hs-identifier">Bits</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Bits.html#FiniteBits"><span class="hs-identifier">FiniteBits</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Foldable.html"><span class="hs-identifier">Data.Foldable</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Foldable.html#Foldable"><span class="hs-identifier">Foldable</span></a></span><span class="hs-special">(</span><span class="annot"><a href="Data.Foldable.html#foldMap"><span class="hs-identifier">foldMap</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Foreign.Storable.html"><span class="hs-identifier">Foreign.Storable</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Foreign.Storable.html#Storable"><span class="hs-identifier">Storable</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Ix.html"><span class="hs-identifier">GHC.Ix</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Ix.html#Ix"><span class="hs-identifier">Ix</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Base.html"><span class="hs-identifier">GHC.Base</span></a></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Enum.html"><span class="hs-identifier">GHC.Enum</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Enum.html#Bounded"><span class="hs-identifier">Bounded</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Enum.html#Enum"><span class="hs-identifier">Enum</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Float.html"><span class="hs-identifier">GHC.Float</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Float.html#Floating"><span class="hs-identifier">Floating</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Float.html#RealFloat"><span class="hs-identifier">RealFloat</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Generics.html"><span class="hs-identifier">GHC.Generics</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Generics.html#Generic"><span class="hs-identifier">Generic</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Generics.html#Generic1"><span class="hs-identifier">Generic1</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Num.html"><span class="hs-identifier">GHC.Num</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Num.html#Num"><span class="hs-identifier">Num</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Real.html"><span class="hs-identifier">GHC.Real</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Real.html#Fractional"><span class="hs-identifier">Fractional</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Real.html#Integral"><span class="hs-identifier">Integral</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Real.html#Real"><span class="hs-identifier">Real</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Real.html#RealFrac"><span class="hs-identifier">RealFrac</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Read.html"><span class="hs-identifier">GHC.Read</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Read.html#Read"><span class="hs-identifier">Read</span></a></span><span class="hs-special">(</span><span class="annot"><a href="GHC.Read.html#readsPrec"><span class="hs-identifier">readsPrec</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Read.html#readParen"><span class="hs-identifier">readParen</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Read.html#lex"><span class="hs-identifier">lex</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Show.html"><span class="hs-identifier">GHC.Show</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Show.html#Show"><span class="hs-identifier">Show</span></a></span><span class="hs-special">(</span><span class="annot"><a href="GHC.Show.html#showsPrec"><span class="hs-identifier">showsPrec</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Show.html#showParen"><span class="hs-identifier">showParen</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Show.html#showString"><span class="hs-identifier">showString</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- | The 'Const' functor.</span><span>
+</span><span id="line-39"></span><span id="local-6989586621679622356"><span id="local-6989586621679622357"><span id="local-6989586621679622358"><span id="local-6989586621679622359"></span></span></span></span><span class="hs-keyword">newtype</span><span> </span><span id="Const"><span class="annot"><a href="Data.Functor.Const.html#Const"><span class="hs-identifier hs-var">Const</span></a></span></span><span> </span><span id="local-6989586621679622586"><span class="annot"><a href="#local-6989586621679622586"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span id="local-6989586621679622585"><span class="annot"><a href="#local-6989586621679622585"><span class="hs-identifier hs-type">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Const"><span class="annot"><a href="Data.Functor.Const.html#Const"><span class="hs-identifier hs-var">Const</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="getConst"><span class="annot"><span class="annottext">forall {k} a (b :: k). Const a b -&gt; a
+</span><a href="Data.Functor.Const.html#getConst"><span class="hs-identifier hs-var hs-var">getConst</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679622586"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-40"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span> </span><span id="local-6989586621679622263"><span id="local-6989586621679622267"><span id="local-6989586621679622271"><span id="local-6989586621679622275"><span id="local-6989586621679622279"><span id="local-6989586621679622283"><span id="local-6989586621679622287"><span id="local-6989586621679622291"><span id="local-6989586621679622295"><span id="local-6989586621679622299"><span id="local-6989586621679622303"><span id="local-6989586621679622307"><span id="local-6989586621679622311"><span id="local-6989586621679622315"><span id="local-6989586621679622319"><span id="local-6989586621679622323"><span id="local-6989586621679622327"><span id="local-6989586621679622331"><span id="local-6989586621679622335"><span id="local-6989586621679622339"><span id="local-6989586621679622343"><span id="local-6989586621679622347"><span class="annot"><span class="annottext">Const a b
+Int -&gt; Const a b
+Const a b -&gt; Bool
+Const a b -&gt; Int
+Const a b -&gt; Maybe Int
+Const a b -&gt; Const a b
+Const a b -&gt; Int -&gt; Bool
+Const a b -&gt; Int -&gt; Const a b
+Const a b -&gt; Const a b -&gt; Const a b
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; a
+-&gt; (Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; Bool)
+-&gt; (a -&gt; Maybe Int)
+-&gt; (a -&gt; Int)
+-&gt; (a -&gt; Bool)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int)
+-&gt; Bits a
+forall {a} {k} {b :: k}. Bits a =&gt; Eq (Const a b)
+forall a k (b :: k). Bits a =&gt; Const a b
+forall a k (b :: k). Bits a =&gt; Int -&gt; Const a b
+forall a k (b :: k). Bits a =&gt; Const a b -&gt; Bool
+forall a k (b :: k). Bits a =&gt; Const a b -&gt; Int
+forall a k (b :: k). Bits a =&gt; Const a b -&gt; Maybe Int
+forall a k (b :: k). Bits a =&gt; Const a b -&gt; Const a b
+forall a k (b :: k). Bits a =&gt; Const a b -&gt; Int -&gt; Bool
+forall a k (b :: k). Bits a =&gt; Const a b -&gt; Int -&gt; Const a b
+forall a k (b :: k). Bits a =&gt; Const a b -&gt; Const a b -&gt; Const a b
+popCount :: Const a b -&gt; Int
+$cpopCount :: forall a k (b :: k). Bits a =&gt; Const a b -&gt; Int
+rotateR :: Const a b -&gt; Int -&gt; Const a b
+$crotateR :: forall a k (b :: k). Bits a =&gt; Const a b -&gt; Int -&gt; Const a b
+rotateL :: Const a b -&gt; Int -&gt; Const a b
+$crotateL :: forall a k (b :: k). Bits a =&gt; Const a b -&gt; Int -&gt; Const a b
+unsafeShiftR :: Const a b -&gt; Int -&gt; Const a b
+$cunsafeShiftR :: forall a k (b :: k). Bits a =&gt; Const a b -&gt; Int -&gt; Const a b
+shiftR :: Const a b -&gt; Int -&gt; Const a b
+$cshiftR :: forall a k (b :: k). Bits a =&gt; Const a b -&gt; Int -&gt; Const a b
+unsafeShiftL :: Const a b -&gt; Int -&gt; Const a b
+$cunsafeShiftL :: forall a k (b :: k). Bits a =&gt; Const a b -&gt; Int -&gt; Const a b
+shiftL :: Const a b -&gt; Int -&gt; Const a b
+$cshiftL :: forall a k (b :: k). Bits a =&gt; Const a b -&gt; Int -&gt; Const a b
+isSigned :: Const a b -&gt; Bool
+$cisSigned :: forall a k (b :: k). Bits a =&gt; Const a b -&gt; Bool
+bitSize :: Const a b -&gt; Int
+$cbitSize :: forall a k (b :: k). Bits a =&gt; Const a b -&gt; Int
+bitSizeMaybe :: Const a b -&gt; Maybe Int
+$cbitSizeMaybe :: forall a k (b :: k). Bits a =&gt; Const a b -&gt; Maybe Int
+testBit :: Const a b -&gt; Int -&gt; Bool
+$ctestBit :: forall a k (b :: k). Bits a =&gt; Const a b -&gt; Int -&gt; Bool
+complementBit :: Const a b -&gt; Int -&gt; Const a b
+$ccomplementBit :: forall a k (b :: k). Bits a =&gt; Const a b -&gt; Int -&gt; Const a b
+clearBit :: Const a b -&gt; Int -&gt; Const a b
+$cclearBit :: forall a k (b :: k). Bits a =&gt; Const a b -&gt; Int -&gt; Const a b
+setBit :: Const a b -&gt; Int -&gt; Const a b
+$csetBit :: forall a k (b :: k). Bits a =&gt; Const a b -&gt; Int -&gt; Const a b
+bit :: Int -&gt; Const a b
+$cbit :: forall a k (b :: k). Bits a =&gt; Int -&gt; Const a b
+zeroBits :: Const a b
+$czeroBits :: forall a k (b :: k). Bits a =&gt; Const a b
+rotate :: Const a b -&gt; Int -&gt; Const a b
+$crotate :: forall a k (b :: k). Bits a =&gt; Const a b -&gt; Int -&gt; Const a b
+shift :: Const a b -&gt; Int -&gt; Const a b
+$cshift :: forall a k (b :: k). Bits a =&gt; Const a b -&gt; Int -&gt; Const a b
+complement :: Const a b -&gt; Const a b
+$ccomplement :: forall a k (b :: k). Bits a =&gt; Const a b -&gt; Const a b
+xor :: Const a b -&gt; Const a b -&gt; Const a b
+$cxor :: forall a k (b :: k). Bits a =&gt; Const a b -&gt; Const a b -&gt; Const a b
+.|. :: Const a b -&gt; Const a b -&gt; Const a b
+$c.|. :: forall a k (b :: k). Bits a =&gt; Const a b -&gt; Const a b -&gt; Const a b
+.&amp;. :: Const a b -&gt; Const a b -&gt; Const a b
+$c.&amp;. :: forall a k (b :: k). Bits a =&gt; Const a b -&gt; Const a b -&gt; Const a b
+</span><a href="GHC.Bits.html#C%3ABits"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Bits</span></a></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span>       </span><span class="hs-comment">-- ^ @since 4.9.0.0</span><span>
+</span><span id="line-41"></span><span>             </span><span class="hs-special">,</span><span> </span><span id="local-6989586621679622251"><span id="local-6989586621679622255"><span class="annot"><span class="annottext">Const a b
+forall a. a -&gt; a -&gt; Bounded a
+forall a k (b :: k). Bounded a =&gt; Const a b
+maxBound :: Const a b
+$cmaxBound :: forall a k (b :: k). Bounded a =&gt; Const a b
+minBound :: Const a b
+$cminBound :: forall a k (b :: k). Bounded a =&gt; Const a b
+</span><a href="GHC.Enum.html#Bounded"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Bounded</span></a></span></span></span><span>    </span><span class="hs-comment">-- ^ @since 4.9.0.0</span><span>
+</span><span id="line-42"></span><span>             </span><span class="hs-special">,</span><span> </span><span id="local-6989586621679622216"><span id="local-6989586621679622220"><span id="local-6989586621679622224"><span id="local-6989586621679622228"><span id="local-6989586621679622232"><span id="local-6989586621679622236"><span id="local-6989586621679622240"><span id="local-6989586621679622244"><span class="annot"><span class="annottext">Int -&gt; Const a b
+Const a b -&gt; Int
+Const a b -&gt; [Const a b]
+Const a b -&gt; Const a b
+Const a b -&gt; Const a b -&gt; [Const a b]
+Const a b -&gt; Const a b -&gt; Const a b -&gt; [Const a b]
+forall a.
+(a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (Int -&gt; a)
+-&gt; (a -&gt; Int)
+-&gt; (a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; a -&gt; [a])
+-&gt; Enum a
+forall a k (b :: k). Enum a =&gt; Int -&gt; Const a b
+forall a k (b :: k). Enum a =&gt; Const a b -&gt; Int
+forall a k (b :: k). Enum a =&gt; Const a b -&gt; [Const a b]
+forall a k (b :: k). Enum a =&gt; Const a b -&gt; Const a b
+forall a k (b :: k).
+Enum a =&gt;
+Const a b -&gt; Const a b -&gt; [Const a b]
+forall a k (b :: k).
+Enum a =&gt;
+Const a b -&gt; Const a b -&gt; Const a b -&gt; [Const a b]
+enumFromThenTo :: Const a b -&gt; Const a b -&gt; Const a b -&gt; [Const a b]
+$cenumFromThenTo :: forall a k (b :: k).
+Enum a =&gt;
+Const a b -&gt; Const a b -&gt; Const a b -&gt; [Const a b]
+enumFromTo :: Const a b -&gt; Const a b -&gt; [Const a b]
+$cenumFromTo :: forall a k (b :: k).
+Enum a =&gt;
+Const a b -&gt; Const a b -&gt; [Const a b]
+enumFromThen :: Const a b -&gt; Const a b -&gt; [Const a b]
+$cenumFromThen :: forall a k (b :: k).
+Enum a =&gt;
+Const a b -&gt; Const a b -&gt; [Const a b]
+enumFrom :: Const a b -&gt; [Const a b]
+$cenumFrom :: forall a k (b :: k). Enum a =&gt; Const a b -&gt; [Const a b]
+fromEnum :: Const a b -&gt; Int
+$cfromEnum :: forall a k (b :: k). Enum a =&gt; Const a b -&gt; Int
+toEnum :: Int -&gt; Const a b
+$ctoEnum :: forall a k (b :: k). Enum a =&gt; Int -&gt; Const a b
+pred :: Const a b -&gt; Const a b
+$cpred :: forall a k (b :: k). Enum a =&gt; Const a b -&gt; Const a b
+succ :: Const a b -&gt; Const a b
+$csucc :: forall a k (b :: k). Enum a =&gt; Const a b -&gt; Const a b
+</span><a href="GHC.Enum.html#Enum"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Enum</span></a></span></span></span></span></span></span></span></span></span><span>       </span><span class="hs-comment">-- ^ @since 4.9.0.0</span><span>
+</span><span id="line-43"></span><span>             </span><span class="hs-special">,</span><span> </span><span id="local-6989586621679622205"><span id="local-6989586621679622209"><span class="annot"><span class="annottext">Const a b -&gt; Const a b -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+forall a k (b :: k). Eq a =&gt; Const a b -&gt; Const a b -&gt; Bool
+/= :: Const a b -&gt; Const a b -&gt; Bool
+$c/= :: forall a k (b :: k). Eq a =&gt; Const a b -&gt; Const a b -&gt; Bool
+== :: Const a b -&gt; Const a b -&gt; Bool
+$c== :: forall a k (b :: k). Eq a =&gt; Const a b -&gt; Const a b -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#Eq"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></a></span></span></span><span>         </span><span class="hs-comment">-- ^ @since 4.9.0.0</span><span>
+</span><span id="line-44"></span><span>             </span><span class="hs-special">,</span><span> </span><span id="local-6989586621679622188"><span id="local-6989586621679622192"><span id="local-6989586621679622196"><span class="annot"><span class="annottext">Const a b -&gt; Int
+forall b.
+Bits b -&gt; (b -&gt; Int) -&gt; (b -&gt; Int) -&gt; (b -&gt; Int) -&gt; FiniteBits b
+forall {a} {k} {b :: k}. FiniteBits a =&gt; Bits (Const a b)
+forall a k (b :: k). FiniteBits a =&gt; Const a b -&gt; Int
+countTrailingZeros :: Const a b -&gt; Int
+$ccountTrailingZeros :: forall a k (b :: k). FiniteBits a =&gt; Const a b -&gt; Int
+countLeadingZeros :: Const a b -&gt; Int
+$ccountLeadingZeros :: forall a k (b :: k). FiniteBits a =&gt; Const a b -&gt; Int
+finiteBitSize :: Const a b -&gt; Int
+$cfiniteBitSize :: forall a k (b :: k). FiniteBits a =&gt; Const a b -&gt; Int
+</span><a href="GHC.Bits.html#C%3AFiniteBits"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">FiniteBits</span></a></span></span></span></span><span> </span><span class="hs-comment">-- ^ @since 4.9.0.0</span><span>
+</span><span id="line-45"></span><span>             </span><span class="hs-special">,</span><span> </span><span id="local-6989586621679622092"><span id="local-6989586621679622096"><span id="local-6989586621679622100"><span id="local-6989586621679622104"><span id="local-6989586621679622108"><span id="local-6989586621679622112"><span id="local-6989586621679622116"><span id="local-6989586621679622120"><span id="local-6989586621679622124"><span id="local-6989586621679622128"><span id="local-6989586621679622132"><span id="local-6989586621679622136"><span id="local-6989586621679622140"><span id="local-6989586621679622144"><span id="local-6989586621679622148"><span id="local-6989586621679622152"><span id="local-6989586621679622156"><span id="local-6989586621679622160"><span id="local-6989586621679622164"><span id="local-6989586621679622168"><span id="local-6989586621679622172"><span id="local-6989586621679622176"><span class="annot"><span class="annottext">Const a b
+Const a b -&gt; Const a b
+Const a b -&gt; Const a b -&gt; Const a b
+forall a.
+Fractional a
+-&gt; a
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; Floating a
+forall {a} {k} {b :: k}. Floating a =&gt; Fractional (Const a b)
+forall a k (b :: k). Floating a =&gt; Const a b
+forall a k (b :: k). Floating a =&gt; Const a b -&gt; Const a b
+forall a k (b :: k).
+Floating a =&gt;
+Const a b -&gt; Const a b -&gt; Const a b
+log1mexp :: Const a b -&gt; Const a b
+$clog1mexp :: forall a k (b :: k). Floating a =&gt; Const a b -&gt; Const a b
+log1pexp :: Const a b -&gt; Const a b
+$clog1pexp :: forall a k (b :: k). Floating a =&gt; Const a b -&gt; Const a b
+expm1 :: Const a b -&gt; Const a b
+$cexpm1 :: forall a k (b :: k). Floating a =&gt; Const a b -&gt; Const a b
+log1p :: Const a b -&gt; Const a b
+$clog1p :: forall a k (b :: k). Floating a =&gt; Const a b -&gt; Const a b
+atanh :: Const a b -&gt; Const a b
+$catanh :: forall a k (b :: k). Floating a =&gt; Const a b -&gt; Const a b
+acosh :: Const a b -&gt; Const a b
+$cacosh :: forall a k (b :: k). Floating a =&gt; Const a b -&gt; Const a b
+asinh :: Const a b -&gt; Const a b
+$casinh :: forall a k (b :: k). Floating a =&gt; Const a b -&gt; Const a b
+tanh :: Const a b -&gt; Const a b
+$ctanh :: forall a k (b :: k). Floating a =&gt; Const a b -&gt; Const a b
+cosh :: Const a b -&gt; Const a b
+$ccosh :: forall a k (b :: k). Floating a =&gt; Const a b -&gt; Const a b
+sinh :: Const a b -&gt; Const a b
+$csinh :: forall a k (b :: k). Floating a =&gt; Const a b -&gt; Const a b
+atan :: Const a b -&gt; Const a b
+$catan :: forall a k (b :: k). Floating a =&gt; Const a b -&gt; Const a b
+acos :: Const a b -&gt; Const a b
+$cacos :: forall a k (b :: k). Floating a =&gt; Const a b -&gt; Const a b
+asin :: Const a b -&gt; Const a b
+$casin :: forall a k (b :: k). Floating a =&gt; Const a b -&gt; Const a b
+tan :: Const a b -&gt; Const a b
+$ctan :: forall a k (b :: k). Floating a =&gt; Const a b -&gt; Const a b
+cos :: Const a b -&gt; Const a b
+$ccos :: forall a k (b :: k). Floating a =&gt; Const a b -&gt; Const a b
+sin :: Const a b -&gt; Const a b
+$csin :: forall a k (b :: k). Floating a =&gt; Const a b -&gt; Const a b
+logBase :: Const a b -&gt; Const a b -&gt; Const a b
+$clogBase :: forall a k (b :: k).
+Floating a =&gt;
+Const a b -&gt; Const a b -&gt; Const a b
+** :: Const a b -&gt; Const a b -&gt; Const a b
+$c** :: forall a k (b :: k).
+Floating a =&gt;
+Const a b -&gt; Const a b -&gt; Const a b
+sqrt :: Const a b -&gt; Const a b
+$csqrt :: forall a k (b :: k). Floating a =&gt; Const a b -&gt; Const a b
+log :: Const a b -&gt; Const a b
+$clog :: forall a k (b :: k). Floating a =&gt; Const a b -&gt; Const a b
+exp :: Const a b -&gt; Const a b
+$cexp :: forall a k (b :: k). Floating a =&gt; Const a b -&gt; Const a b
+pi :: Const a b
+$cpi :: forall a k (b :: k). Floating a =&gt; Const a b
+</span><a href="GHC.Float.html#Floating"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Floating</span></a></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span>   </span><span class="hs-comment">-- ^ @since 4.9.0.0</span><span>
+</span><span id="line-46"></span><span>             </span><span class="hs-special">,</span><span> </span><span id="local-6989586621679622072"><span id="local-6989586621679622076"><span id="local-6989586621679622080"><span class="annot"><span class="annottext">Rational -&gt; Const a b
+Const a b -&gt; Const a b
+Const a b -&gt; Const a b -&gt; Const a b
+forall a.
+Num a
+-&gt; (a -&gt; a -&gt; a) -&gt; (a -&gt; a) -&gt; (Rational -&gt; a) -&gt; Fractional a
+forall {a} {k} {b :: k}. Fractional a =&gt; Num (Const a b)
+forall a k (b :: k). Fractional a =&gt; Rational -&gt; Const a b
+forall a k (b :: k). Fractional a =&gt; Const a b -&gt; Const a b
+forall a k (b :: k).
+Fractional a =&gt;
+Const a b -&gt; Const a b -&gt; Const a b
+fromRational :: Rational -&gt; Const a b
+$cfromRational :: forall a k (b :: k). Fractional a =&gt; Rational -&gt; Const a b
+recip :: Const a b -&gt; Const a b
+$crecip :: forall a k (b :: k). Fractional a =&gt; Const a b -&gt; Const a b
+/ :: Const a b -&gt; Const a b -&gt; Const a b
+$c/ :: forall a k (b :: k).
+Fractional a =&gt;
+Const a b -&gt; Const a b -&gt; Const a b
+</span><a href="GHC.Real.html#Fractional"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Fractional</span></a></span></span></span></span><span> </span><span class="hs-comment">-- ^ @since 4.9.0.0</span><span>
+</span><span id="line-47"></span><span>             </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+forall a k (b :: k) x. Rep (Const a b) x -&gt; Const a b
+forall a k (b :: k) x. Const a b -&gt; Rep (Const a b) x
+$cto :: forall a k (b :: k) x. Rep (Const a b) x -&gt; Const a b
+$cfrom :: forall a k (b :: k) x. Const a b -&gt; Rep (Const a b) x
+</span><a href="GHC.Generics.html#Generic"><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></a></span><span>    </span><span class="hs-comment">-- ^ @since 4.9.0.0</span><span>
+</span><span id="line-48"></span><span>             </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall k a (a :: k). Rep1 (Const a) a -&gt; Const a a
+forall k a (a :: k). Const a a -&gt; Rep1 (Const a) a
+forall k (f :: k -&gt; *).
+(forall (a :: k). f a -&gt; Rep1 f a)
+-&gt; (forall (a :: k). Rep1 f a -&gt; f a) -&gt; Generic1 f
+$cto1 :: forall k a (a :: k). Rep1 (Const a) a -&gt; Const a a
+$cfrom1 :: forall k a (a :: k). Const a a -&gt; Rep1 (Const a) a
+</span><a href="GHC.Generics.html#Generic1"><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic1</span></a></span><span>   </span><span class="hs-comment">-- ^ @since 4.9.0.0</span><span>
+</span><span id="line-49"></span><span>             </span><span class="hs-special">,</span><span> </span><span id="local-6989586621679622026"><span id="local-6989586621679622030"><span id="local-6989586621679622034"><span id="local-6989586621679622038"><span id="local-6989586621679622042"><span id="local-6989586621679622046"><span id="local-6989586621679622050"><span class="annot"><span class="annottext">Const a b -&gt; Integer
+Const a b -&gt; Const a b -&gt; (Const a b, Const a b)
+Const a b -&gt; Const a b -&gt; Const a b
+forall a.
+Real a
+-&gt; Enum a
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; (a, a))
+-&gt; (a -&gt; a -&gt; (a, a))
+-&gt; (a -&gt; Integer)
+-&gt; Integral a
+forall {a} {k} {b :: k}. Integral a =&gt; Enum (Const a b)
+forall {a} {k} {b :: k}. Integral a =&gt; Real (Const a b)
+forall a k (b :: k). Integral a =&gt; Const a b -&gt; Integer
+forall a k (b :: k).
+Integral a =&gt;
+Const a b -&gt; Const a b -&gt; (Const a b, Const a b)
+forall a k (b :: k).
+Integral a =&gt;
+Const a b -&gt; Const a b -&gt; Const a b
+toInteger :: Const a b -&gt; Integer
+$ctoInteger :: forall a k (b :: k). Integral a =&gt; Const a b -&gt; Integer
+divMod :: Const a b -&gt; Const a b -&gt; (Const a b, Const a b)
+$cdivMod :: forall a k (b :: k).
+Integral a =&gt;
+Const a b -&gt; Const a b -&gt; (Const a b, Const a b)
+quotRem :: Const a b -&gt; Const a b -&gt; (Const a b, Const a b)
+$cquotRem :: forall a k (b :: k).
+Integral a =&gt;
+Const a b -&gt; Const a b -&gt; (Const a b, Const a b)
+mod :: Const a b -&gt; Const a b -&gt; Const a b
+$cmod :: forall a k (b :: k).
+Integral a =&gt;
+Const a b -&gt; Const a b -&gt; Const a b
+div :: Const a b -&gt; Const a b -&gt; Const a b
+$cdiv :: forall a k (b :: k).
+Integral a =&gt;
+Const a b -&gt; Const a b -&gt; Const a b
+rem :: Const a b -&gt; Const a b -&gt; Const a b
+$crem :: forall a k (b :: k).
+Integral a =&gt;
+Const a b -&gt; Const a b -&gt; Const a b
+quot :: Const a b -&gt; Const a b -&gt; Const a b
+$cquot :: forall a k (b :: k).
+Integral a =&gt;
+Const a b -&gt; Const a b -&gt; Const a b
+</span><a href="GHC.Real.html#Integral"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Integral</span></a></span></span></span></span></span></span></span></span><span>   </span><span class="hs-comment">-- ^ @since 4.9.0.0</span><span>
+</span><span id="line-50"></span><span>             </span><span class="hs-special">,</span><span> </span><span id="local-6989586621679621993"><span id="local-6989586621679621997"><span id="local-6989586621679622001"><span id="local-6989586621679622005"><span id="local-6989586621679622009"><span id="local-6989586621679622013"><span class="annot"><span class="annottext">(Const a b, Const a b) -&gt; Int
+(Const a b, Const a b) -&gt; [Const a b]
+(Const a b, Const a b) -&gt; Const a b -&gt; Bool
+(Const a b, Const a b) -&gt; Const a b -&gt; Int
+forall a.
+Ord a
+-&gt; ((a, a) -&gt; [a])
+-&gt; ((a, a) -&gt; a -&gt; Int)
+-&gt; ((a, a) -&gt; a -&gt; Int)
+-&gt; ((a, a) -&gt; a -&gt; Bool)
+-&gt; ((a, a) -&gt; Int)
+-&gt; ((a, a) -&gt; Int)
+-&gt; Ix a
+forall {a} {k} {b :: k}. Ix a =&gt; Ord (Const a b)
+forall a k (b :: k). Ix a =&gt; (Const a b, Const a b) -&gt; Int
+forall a k (b :: k). Ix a =&gt; (Const a b, Const a b) -&gt; [Const a b]
+forall a k (b :: k).
+Ix a =&gt;
+(Const a b, Const a b) -&gt; Const a b -&gt; Bool
+forall a k (b :: k).
+Ix a =&gt;
+(Const a b, Const a b) -&gt; Const a b -&gt; Int
+unsafeRangeSize :: (Const a b, Const a b) -&gt; Int
+$cunsafeRangeSize :: forall a k (b :: k). Ix a =&gt; (Const a b, Const a b) -&gt; Int
+rangeSize :: (Const a b, Const a b) -&gt; Int
+$crangeSize :: forall a k (b :: k). Ix a =&gt; (Const a b, Const a b) -&gt; Int
+inRange :: (Const a b, Const a b) -&gt; Const a b -&gt; Bool
+$cinRange :: forall a k (b :: k).
+Ix a =&gt;
+(Const a b, Const a b) -&gt; Const a b -&gt; Bool
+unsafeIndex :: (Const a b, Const a b) -&gt; Const a b -&gt; Int
+$cunsafeIndex :: forall a k (b :: k).
+Ix a =&gt;
+(Const a b, Const a b) -&gt; Const a b -&gt; Int
+index :: (Const a b, Const a b) -&gt; Const a b -&gt; Int
+$cindex :: forall a k (b :: k).
+Ix a =&gt;
+(Const a b, Const a b) -&gt; Const a b -&gt; Int
+range :: (Const a b, Const a b) -&gt; [Const a b]
+$crange :: forall a k (b :: k). Ix a =&gt; (Const a b, Const a b) -&gt; [Const a b]
+</span><a href="GHC.Ix.html#Ix"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ix</span></a></span></span></span></span></span></span></span><span>         </span><span class="hs-comment">-- ^ @since 4.9.0.0</span><span>
+</span><span id="line-51"></span><span>             </span><span class="hs-special">,</span><span> </span><span id="local-6989586621679621975"><span id="local-6989586621679621981"><span id="local-6989586621679621985"><span class="annot"><span class="annottext">NonEmpty (Const a b) -&gt; Const a b
+Const a b -&gt; Const a b -&gt; Const a b
+forall b. Integral b =&gt; b -&gt; Const a b -&gt; Const a b
+forall a.
+(a -&gt; a -&gt; a)
+-&gt; (NonEmpty a -&gt; a)
+-&gt; (forall b. Integral b =&gt; b -&gt; a -&gt; a)
+-&gt; Semigroup a
+forall a k (b :: k).
+Semigroup a =&gt;
+NonEmpty (Const a b) -&gt; Const a b
+forall a k (b :: k).
+Semigroup a =&gt;
+Const a b -&gt; Const a b -&gt; Const a b
+forall a k (b :: k) b.
+(Semigroup a, Integral b) =&gt;
+b -&gt; Const a b -&gt; Const a b
+stimes :: forall b. Integral b =&gt; b -&gt; Const a b -&gt; Const a b
+$cstimes :: forall a k (b :: k) b.
+(Semigroup a, Integral b) =&gt;
+b -&gt; Const a b -&gt; Const a b
+sconcat :: NonEmpty (Const a b) -&gt; Const a b
+$csconcat :: forall a k (b :: k).
+Semigroup a =&gt;
+NonEmpty (Const a b) -&gt; Const a b
+&lt;&gt; :: Const a b -&gt; Const a b -&gt; Const a b
+$c&lt;&gt; :: forall a k (b :: k).
+Semigroup a =&gt;
+Const a b -&gt; Const a b -&gt; Const a b
+</span><a href="GHC.Base.html#Semigroup"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Semigroup</span></a></span></span></span></span><span>  </span><span class="hs-comment">-- ^ @since 4.9.0.0</span><span>
+</span><span id="line-52"></span><span>             </span><span class="hs-special">,</span><span> </span><span id="local-6989586621679621955"><span id="local-6989586621679621959"><span id="local-6989586621679621963"><span class="annot"><span class="annottext">Const a b
+[Const a b] -&gt; Const a b
+Const a b -&gt; Const a b -&gt; Const a b
+forall a.
+Semigroup a -&gt; a -&gt; (a -&gt; a -&gt; a) -&gt; ([a] -&gt; a) -&gt; Monoid a
+forall {a} {k} {b :: k}. Monoid a =&gt; Semigroup (Const a b)
+forall a k (b :: k). Monoid a =&gt; Const a b
+forall a k (b :: k). Monoid a =&gt; [Const a b] -&gt; Const a b
+forall a k (b :: k).
+Monoid a =&gt;
+Const a b -&gt; Const a b -&gt; Const a b
+mconcat :: [Const a b] -&gt; Const a b
+$cmconcat :: forall a k (b :: k). Monoid a =&gt; [Const a b] -&gt; Const a b
+mappend :: Const a b -&gt; Const a b -&gt; Const a b
+$cmappend :: forall a k (b :: k).
+Monoid a =&gt;
+Const a b -&gt; Const a b -&gt; Const a b
+mempty :: Const a b
+$cmempty :: forall a k (b :: k). Monoid a =&gt; Const a b
+</span><a href="GHC.Base.html#Monoid"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Monoid</span></a></span></span></span></span><span>     </span><span class="hs-comment">-- ^ @since 4.9.0.0</span><span>
+</span><span id="line-53"></span><span>             </span><span class="hs-special">,</span><span> </span><span id="local-6989586621679621923"><span id="local-6989586621679621927"><span id="local-6989586621679621931"><span id="local-6989586621679621935"><span id="local-6989586621679621939"><span id="local-6989586621679621943"><span id="local-6989586621679621947"><span class="annot"><span class="annottext">Integer -&gt; Const a b
+Const a b -&gt; Const a b
+Const a b -&gt; Const a b -&gt; Const a b
+forall a.
+(a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (Integer -&gt; a)
+-&gt; Num a
+forall a k (b :: k). Num a =&gt; Integer -&gt; Const a b
+forall a k (b :: k). Num a =&gt; Const a b -&gt; Const a b
+forall a k (b :: k). Num a =&gt; Const a b -&gt; Const a b -&gt; Const a b
+fromInteger :: Integer -&gt; Const a b
+$cfromInteger :: forall a k (b :: k). Num a =&gt; Integer -&gt; Const a b
+signum :: Const a b -&gt; Const a b
+$csignum :: forall a k (b :: k). Num a =&gt; Const a b -&gt; Const a b
+abs :: Const a b -&gt; Const a b
+$cabs :: forall a k (b :: k). Num a =&gt; Const a b -&gt; Const a b
+negate :: Const a b -&gt; Const a b
+$cnegate :: forall a k (b :: k). Num a =&gt; Const a b -&gt; Const a b
+* :: Const a b -&gt; Const a b -&gt; Const a b
+$c* :: forall a k (b :: k). Num a =&gt; Const a b -&gt; Const a b -&gt; Const a b
+- :: Const a b -&gt; Const a b -&gt; Const a b
+$c- :: forall a k (b :: k). Num a =&gt; Const a b -&gt; Const a b -&gt; Const a b
++ :: Const a b -&gt; Const a b -&gt; Const a b
+$c+ :: forall a k (b :: k). Num a =&gt; Const a b -&gt; Const a b -&gt; Const a b
+</span><a href="GHC.Num.html#Num"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Num</span></a></span></span></span></span></span></span></span></span><span>        </span><span class="hs-comment">-- ^ @since 4.9.0.0</span><span>
+</span><span id="line-54"></span><span>             </span><span class="hs-special">,</span><span> </span><span id="local-6989586621679621890"><span id="local-6989586621679621894"><span id="local-6989586621679621898"><span id="local-6989586621679621902"><span id="local-6989586621679621906"><span id="local-6989586621679621910"><span id="local-6989586621679621914"><span class="annot"><span class="annottext">Const a b -&gt; Const a b -&gt; Bool
+Const a b -&gt; Const a b -&gt; Ordering
+Const a b -&gt; Const a b -&gt; Const a b
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+forall {a} {k} {b :: k}. Ord a =&gt; Eq (Const a b)
+forall a k (b :: k). Ord a =&gt; Const a b -&gt; Const a b -&gt; Bool
+forall a k (b :: k). Ord a =&gt; Const a b -&gt; Const a b -&gt; Ordering
+forall a k (b :: k). Ord a =&gt; Const a b -&gt; Const a b -&gt; Const a b
+min :: Const a b -&gt; Const a b -&gt; Const a b
+$cmin :: forall a k (b :: k). Ord a =&gt; Const a b -&gt; Const a b -&gt; Const a b
+max :: Const a b -&gt; Const a b -&gt; Const a b
+$cmax :: forall a k (b :: k). Ord a =&gt; Const a b -&gt; Const a b -&gt; Const a b
+&gt;= :: Const a b -&gt; Const a b -&gt; Bool
+$c&gt;= :: forall a k (b :: k). Ord a =&gt; Const a b -&gt; Const a b -&gt; Bool
+&gt; :: Const a b -&gt; Const a b -&gt; Bool
+$c&gt; :: forall a k (b :: k). Ord a =&gt; Const a b -&gt; Const a b -&gt; Bool
+&lt;= :: Const a b -&gt; Const a b -&gt; Bool
+$c&lt;= :: forall a k (b :: k). Ord a =&gt; Const a b -&gt; Const a b -&gt; Bool
+&lt; :: Const a b -&gt; Const a b -&gt; Bool
+$c&lt; :: forall a k (b :: k). Ord a =&gt; Const a b -&gt; Const a b -&gt; Bool
+compare :: Const a b -&gt; Const a b -&gt; Ordering
+$ccompare :: forall a k (b :: k). Ord a =&gt; Const a b -&gt; Const a b -&gt; Ordering
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#Ord"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></a></span></span></span></span></span></span></span></span><span>        </span><span class="hs-comment">-- ^ @since 4.9.0.0</span><span>
+</span><span id="line-55"></span><span>             </span><span class="hs-special">,</span><span> </span><span id="local-6989586621679621877"><span class="annot"><span class="annottext">Const a b -&gt; Rational
+forall a. Num a -&gt; Ord a -&gt; (a -&gt; Rational) -&gt; Real a
+forall {a} {k} {b :: k}. Real a =&gt; Num (Const a b)
+forall {a} {k} {b :: k}. Real a =&gt; Ord (Const a b)
+forall a k (b :: k). Real a =&gt; Const a b -&gt; Rational
+toRational :: Const a b -&gt; Rational
+$ctoRational :: forall a k (b :: k). Real a =&gt; Const a b -&gt; Rational
+</span><a href="GHC.Real.html#Real"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Real</span></a></span></span><span>       </span><span class="hs-comment">-- ^ @since 4.9.0.0</span><span>
+</span><span id="line-56"></span><span>             </span><span class="hs-special">,</span><span> </span><span id="local-6989586621679621829"><span id="local-6989586621679621837"><span id="local-6989586621679621845"><span id="local-6989586621679621853"><span id="local-6989586621679621861"><span class="annot"><span class="annottext">forall b. Integral b =&gt; Const a b -&gt; b
+forall b. Integral b =&gt; Const a b -&gt; (b, Const a b)
+forall a.
+Real a
+-&gt; Fractional a
+-&gt; (forall b. Integral b =&gt; a -&gt; (b, a))
+-&gt; (forall b. Integral b =&gt; a -&gt; b)
+-&gt; (forall b. Integral b =&gt; a -&gt; b)
+-&gt; (forall b. Integral b =&gt; a -&gt; b)
+-&gt; (forall b. Integral b =&gt; a -&gt; b)
+-&gt; RealFrac a
+forall {a} {k} {b :: k}. RealFrac a =&gt; Fractional (Const a b)
+forall {a} {k} {b :: k}. RealFrac a =&gt; Real (Const a b)
+forall a k (b :: k) b. (RealFrac a, Integral b) =&gt; Const a b -&gt; b
+forall a k (b :: k) b.
+(RealFrac a, Integral b) =&gt;
+Const a b -&gt; (b, Const a b)
+floor :: forall b. Integral b =&gt; Const a b -&gt; b
+$cfloor :: forall a k (b :: k) b. (RealFrac a, Integral b) =&gt; Const a b -&gt; b
+ceiling :: forall b. Integral b =&gt; Const a b -&gt; b
+$cceiling :: forall a k (b :: k) b. (RealFrac a, Integral b) =&gt; Const a b -&gt; b
+round :: forall b. Integral b =&gt; Const a b -&gt; b
+$cround :: forall a k (b :: k) b. (RealFrac a, Integral b) =&gt; Const a b -&gt; b
+truncate :: forall b. Integral b =&gt; Const a b -&gt; b
+$ctruncate :: forall a k (b :: k) b. (RealFrac a, Integral b) =&gt; Const a b -&gt; b
+properFraction :: forall b. Integral b =&gt; Const a b -&gt; (b, Const a b)
+$cproperFraction :: forall a k (b :: k) b.
+(RealFrac a, Integral b) =&gt;
+Const a b -&gt; (b, Const a b)
+</span><a href="GHC.Real.html#RealFrac"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">RealFrac</span></a></span></span></span></span></span></span><span>   </span><span class="hs-comment">-- ^ @since 4.9.0.0</span><span>
+</span><span id="line-57"></span><span>             </span><span class="hs-special">,</span><span> </span><span id="local-6989586621679621760"><span id="local-6989586621679621764"><span id="local-6989586621679621768"><span id="local-6989586621679621772"><span id="local-6989586621679621776"><span id="local-6989586621679621780"><span id="local-6989586621679621784"><span id="local-6989586621679621788"><span id="local-6989586621679621792"><span id="local-6989586621679621796"><span id="local-6989586621679621800"><span id="local-6989586621679621804"><span id="local-6989586621679621808"><span id="local-6989586621679621812"><span class="annot"><span class="annottext">Int -&gt; Const a b -&gt; Const a b
+Integer -&gt; Int -&gt; Const a b
+Const a b -&gt; Bool
+Const a b -&gt; Int
+Const a b -&gt; Integer
+Const a b -&gt; (Int, Int)
+Const a b -&gt; (Integer, Int)
+Const a b -&gt; Const a b
+Const a b -&gt; Const a b -&gt; Const a b
+forall a.
+RealFrac a
+-&gt; Floating a
+-&gt; (a -&gt; Integer)
+-&gt; (a -&gt; Int)
+-&gt; (a -&gt; (Int, Int))
+-&gt; (a -&gt; (Integer, Int))
+-&gt; (Integer -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int)
+-&gt; (a -&gt; a)
+-&gt; (Int -&gt; a -&gt; a)
+-&gt; (a -&gt; Bool)
+-&gt; (a -&gt; Bool)
+-&gt; (a -&gt; Bool)
+-&gt; (a -&gt; Bool)
+-&gt; (a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; RealFloat a
+forall {a} {k} {b :: k}. RealFloat a =&gt; Floating (Const a b)
+forall {a} {k} {b :: k}. RealFloat a =&gt; RealFrac (Const a b)
+forall a k (b :: k). RealFloat a =&gt; Int -&gt; Const a b -&gt; Const a b
+forall a k (b :: k). RealFloat a =&gt; Integer -&gt; Int -&gt; Const a b
+forall a k (b :: k). RealFloat a =&gt; Const a b -&gt; Bool
+forall a k (b :: k). RealFloat a =&gt; Const a b -&gt; Int
+forall a k (b :: k). RealFloat a =&gt; Const a b -&gt; Integer
+forall a k (b :: k). RealFloat a =&gt; Const a b -&gt; (Int, Int)
+forall a k (b :: k). RealFloat a =&gt; Const a b -&gt; (Integer, Int)
+forall a k (b :: k). RealFloat a =&gt; Const a b -&gt; Const a b
+forall a k (b :: k).
+RealFloat a =&gt;
+Const a b -&gt; Const a b -&gt; Const a b
+atan2 :: Const a b -&gt; Const a b -&gt; Const a b
+$catan2 :: forall a k (b :: k).
+RealFloat a =&gt;
+Const a b -&gt; Const a b -&gt; Const a b
+isIEEE :: Const a b -&gt; Bool
+$cisIEEE :: forall a k (b :: k). RealFloat a =&gt; Const a b -&gt; Bool
+isNegativeZero :: Const a b -&gt; Bool
+$cisNegativeZero :: forall a k (b :: k). RealFloat a =&gt; Const a b -&gt; Bool
+isDenormalized :: Const a b -&gt; Bool
+$cisDenormalized :: forall a k (b :: k). RealFloat a =&gt; Const a b -&gt; Bool
+isInfinite :: Const a b -&gt; Bool
+$cisInfinite :: forall a k (b :: k). RealFloat a =&gt; Const a b -&gt; Bool
+isNaN :: Const a b -&gt; Bool
+$cisNaN :: forall a k (b :: k). RealFloat a =&gt; Const a b -&gt; Bool
+scaleFloat :: Int -&gt; Const a b -&gt; Const a b
+$cscaleFloat :: forall a k (b :: k). RealFloat a =&gt; Int -&gt; Const a b -&gt; Const a b
+significand :: Const a b -&gt; Const a b
+$csignificand :: forall a k (b :: k). RealFloat a =&gt; Const a b -&gt; Const a b
+exponent :: Const a b -&gt; Int
+$cexponent :: forall a k (b :: k). RealFloat a =&gt; Const a b -&gt; Int
+encodeFloat :: Integer -&gt; Int -&gt; Const a b
+$cencodeFloat :: forall a k (b :: k). RealFloat a =&gt; Integer -&gt; Int -&gt; Const a b
+decodeFloat :: Const a b -&gt; (Integer, Int)
+$cdecodeFloat :: forall a k (b :: k). RealFloat a =&gt; Const a b -&gt; (Integer, Int)
+floatRange :: Const a b -&gt; (Int, Int)
+$cfloatRange :: forall a k (b :: k). RealFloat a =&gt; Const a b -&gt; (Int, Int)
+floatDigits :: Const a b -&gt; Int
+$cfloatDigits :: forall a k (b :: k). RealFloat a =&gt; Const a b -&gt; Int
+floatRadix :: Const a b -&gt; Integer
+$cfloatRadix :: forall a k (b :: k). RealFloat a =&gt; Const a b -&gt; Integer
+</span><a href="GHC.Float.html#RealFloat"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">RealFloat</span></a></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span>  </span><span class="hs-comment">-- ^ @since 4.9.0.0</span><span>
+</span><span id="line-58"></span><span>             </span><span class="hs-special">,</span><span> </span><span id="local-6989586621679621723"><span id="local-6989586621679621727"><span id="local-6989586621679621731"><span id="local-6989586621679621735"><span id="local-6989586621679621739"><span id="local-6989586621679621743"><span id="local-6989586621679621747"><span id="local-6989586621679621751"><span class="annot"><span class="annottext">Ptr (Const a b) -&gt; IO (Const a b)
+Ptr (Const a b) -&gt; Int -&gt; IO (Const a b)
+Ptr (Const a b) -&gt; Int -&gt; Const a b -&gt; IO ()
+Ptr (Const a b) -&gt; Const a b -&gt; IO ()
+Const a b -&gt; Int
+forall b. Ptr b -&gt; Int -&gt; IO (Const a b)
+forall b. Ptr b -&gt; Int -&gt; Const a b -&gt; IO ()
+forall a.
+(a -&gt; Int)
+-&gt; (a -&gt; Int)
+-&gt; (Ptr a -&gt; Int -&gt; IO a)
+-&gt; (Ptr a -&gt; Int -&gt; a -&gt; IO ())
+-&gt; (forall b. Ptr b -&gt; Int -&gt; IO a)
+-&gt; (forall b. Ptr b -&gt; Int -&gt; a -&gt; IO ())
+-&gt; (Ptr a -&gt; IO a)
+-&gt; (Ptr a -&gt; a -&gt; IO ())
+-&gt; Storable a
+forall a k (b :: k).
+Storable a =&gt;
+Ptr (Const a b) -&gt; IO (Const a b)
+forall a k (b :: k).
+Storable a =&gt;
+Ptr (Const a b) -&gt; Int -&gt; IO (Const a b)
+forall a k (b :: k).
+Storable a =&gt;
+Ptr (Const a b) -&gt; Int -&gt; Const a b -&gt; IO ()
+forall a k (b :: k).
+Storable a =&gt;
+Ptr (Const a b) -&gt; Const a b -&gt; IO ()
+forall a k (b :: k). Storable a =&gt; Const a b -&gt; Int
+forall a k (b :: k) b. Storable a =&gt; Ptr b -&gt; Int -&gt; IO (Const a b)
+forall a k (b :: k) b.
+Storable a =&gt;
+Ptr b -&gt; Int -&gt; Const a b -&gt; IO ()
+poke :: Ptr (Const a b) -&gt; Const a b -&gt; IO ()
+$cpoke :: forall a k (b :: k).
+Storable a =&gt;
+Ptr (Const a b) -&gt; Const a b -&gt; IO ()
+peek :: Ptr (Const a b) -&gt; IO (Const a b)
+$cpeek :: forall a k (b :: k).
+Storable a =&gt;
+Ptr (Const a b) -&gt; IO (Const a b)
+pokeByteOff :: forall b. Ptr b -&gt; Int -&gt; Const a b -&gt; IO ()
+$cpokeByteOff :: forall a k (b :: k) b.
+Storable a =&gt;
+Ptr b -&gt; Int -&gt; Const a b -&gt; IO ()
+peekByteOff :: forall b. Ptr b -&gt; Int -&gt; IO (Const a b)
+$cpeekByteOff :: forall a k (b :: k) b. Storable a =&gt; Ptr b -&gt; Int -&gt; IO (Const a b)
+pokeElemOff :: Ptr (Const a b) -&gt; Int -&gt; Const a b -&gt; IO ()
+$cpokeElemOff :: forall a k (b :: k).
+Storable a =&gt;
+Ptr (Const a b) -&gt; Int -&gt; Const a b -&gt; IO ()
+peekElemOff :: Ptr (Const a b) -&gt; Int -&gt; IO (Const a b)
+$cpeekElemOff :: forall a k (b :: k).
+Storable a =&gt;
+Ptr (Const a b) -&gt; Int -&gt; IO (Const a b)
+alignment :: Const a b -&gt; Int
+$calignment :: forall a k (b :: k). Storable a =&gt; Const a b -&gt; Int
+sizeOf :: Const a b -&gt; Int
+$csizeOf :: forall a k (b :: k). Storable a =&gt; Const a b -&gt; Int
+</span><a href="Foreign.Storable.html#C%3AStorable"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Storable</span></a></span></span></span></span></span></span></span></span></span><span>   </span><span class="hs-comment">-- ^ @since 4.9.0.0</span><span>
+</span><span id="line-59"></span><span>             </span><span class="hs-special">)</span><span>
+</span><span id="line-60"></span><span>
+</span><span id="line-61"></span><span class="hs-comment">-- | This instance would be equivalent to the derived instances of the</span><span>
+</span><span id="line-62"></span><span class="hs-comment">-- 'Const' newtype if the 'getConst' field were removed</span><span>
+</span><span id="line-63"></span><span class="hs-comment">--</span><span>
+</span><span id="line-64"></span><span class="hs-comment">-- @since 4.8.0.0</span><span>
+</span><span id="line-65"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679621712"><span id="local-6989586621679621714"><span id="local-6989586621679621716"><span id="local-6989586621679622481"><span id="local-6989586621679622482"><span class="annot"><a href="GHC.Read.html#Read"><span class="hs-identifier hs-type">Read</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679622482"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="GHC.Read.html#Read"><span class="hs-identifier hs-type">Read</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Const.html#Const"><span class="hs-identifier hs-type">Const</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679622482"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679622481"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-66"></span><span>    </span><span id="local-6989586621679621705"><span class="annot"><span class="annottext">readsPrec :: Int -&gt; ReadS (Const a b)
+</span><a href="#local-6989586621679621705"><span class="hs-identifier hs-var hs-var hs-var hs-var">readsPrec</span></a></span></span><span> </span><span id="local-6989586621679621704"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679621704"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Bool -&gt; ReadS a -&gt; ReadS a
+</span><a href="GHC.Read.html#readParen"><span class="hs-identifier hs-var">readParen</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679621704"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#%3E"><span class="hs-operator hs-var">&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">10</span></span><span class="hs-special">)</span><span>
+</span><span id="line-67"></span><span>        </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="GHC.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679621702"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679621702"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall {k} a (b :: k). a -&gt; Const a b
+</span><a href="Data.Functor.Const.html#Const"><span class="hs-identifier hs-var">Const</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679621701"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679621700"><span class="hs-identifier hs-var">t</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">|</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Const&quot;</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679621699"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679621699"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ReadS String
+</span><a href="GHC.Read.html#lex"><span class="hs-identifier hs-var">lex</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679621702"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679621701"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679621701"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679621700"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679621700"><span class="hs-identifier hs-var">t</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a. Read a =&gt; Int -&gt; ReadS a
+</span><a href="GHC.Read.html#readsPrec"><span class="hs-identifier hs-var">readsPrec</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">11</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679621699"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-68"></span><span>
+</span><span id="line-69"></span><span class="hs-comment">-- | This instance would be equivalent to the derived instances of the</span><span>
+</span><span id="line-70"></span><span class="hs-comment">-- 'Const' newtype if the 'getConst' field were removed</span><span>
+</span><span id="line-71"></span><span class="hs-comment">--</span><span>
+</span><span id="line-72"></span><span class="hs-comment">-- @since 4.8.0.0</span><span>
+</span><span id="line-73"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679621694"><span id="local-6989586621679621696"><span id="local-6989586621679622472"><span id="local-6989586621679622473"><span class="annot"><a href="GHC.Show.html#Show"><span class="hs-identifier hs-type">Show</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679622473"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="GHC.Show.html#Show"><span class="hs-identifier hs-type">Show</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Const.html#Const"><span class="hs-identifier hs-type">Const</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679622473"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679622472"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-74"></span><span>    </span><span id="local-6989586621679621689"><span class="annot"><span class="annottext">showsPrec :: Int -&gt; Const a b -&gt; ShowS
+</span><a href="#local-6989586621679621689"><span class="hs-identifier hs-var hs-var hs-var hs-var">showsPrec</span></a></span></span><span> </span><span id="local-6989586621679621688"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679621688"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Const.html#Const"><span class="hs-identifier hs-type">Const</span></a></span><span> </span><span id="local-6989586621679621687"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679621687"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; ShowS -&gt; ShowS
+</span><a href="GHC.Show.html#showParen"><span class="hs-identifier hs-var">showParen</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679621688"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Classes.html#%3E"><span class="hs-operator hs-var">&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">10</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="GHC.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span>
+</span><span id="line-75"></span><span>                            </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><a href="GHC.Show.html#showString"><span class="hs-identifier hs-var">showString</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Const &quot;</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="GHC.Base.html#."><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Show a =&gt; Int -&gt; a -&gt; ShowS
+</span><a href="GHC.Show.html#showsPrec"><span class="hs-identifier hs-var">showsPrec</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">11</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679621687"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-76"></span><span>
+</span><span id="line-77"></span><span class="hs-comment">-- | @since 4.7.0.0</span><span>
+</span><span id="line-78"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679621653"><span id="local-6989586621679621655"><span id="local-6989586621679621657"><span id="local-6989586621679621659"><span id="local-6989586621679621661"><span id="local-6989586621679621663"><span id="local-6989586621679621665"><span id="local-6989586621679621667"><span id="local-6989586621679621669"><span id="local-6989586621679621671"><span id="local-6989586621679621673"><span id="local-6989586621679621675"><span id="local-6989586621679621677"><span id="local-6989586621679621679"><span id="local-6989586621679621681"><span id="local-6989586621679621684"><span id="local-6989586621679622444"><span class="annot"><a href="Data.Foldable.html#Foldable"><span class="hs-identifier hs-type">Foldable</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Const.html#Const"><span class="hs-identifier hs-type">Const</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679622444"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-79"></span><span>    </span><span id="local-6989586621679621649"><span class="annot"><span class="annottext">foldMap :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; Const m a -&gt; m
+</span><a href="#local-6989586621679621649"><span class="hs-identifier hs-var hs-var hs-var hs-var">foldMap</span></a></span></span><span> </span><span class="annot"><span class="annottext">a -&gt; m
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Const m a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Monoid a =&gt; a
+</span><a href="GHC.Base.html#mempty"><span class="hs-identifier hs-var">mempty</span></a></span><span>
+</span><span id="line-80"></span><span>
+</span><span id="line-81"></span><span class="hs-comment">-- | @since 2.01</span><span>
+</span><span id="line-82"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679621646"><span id="local-6989586621679622436"><span class="annot"><a href="GHC.Base.html#Functor"><span class="hs-identifier hs-type">Functor</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Const.html#Const"><span class="hs-identifier hs-type">Const</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679622436"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-83"></span><span>    </span><span id="local-6989586621679621644"><span class="annot"><span class="annottext">fmap :: forall a b. (a -&gt; b) -&gt; Const m a -&gt; Const m b
+</span><a href="GHC.Base.html#fmap"><span class="hs-identifier hs-var hs-var hs-var hs-var">fmap</span></a></span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Const.html#Const"><span class="hs-identifier hs-type">Const</span></a></span><span> </span><span id="local-6989586621679621643"><span class="annot"><span class="annottext">m
+</span><a href="#local-6989586621679621643"><span class="hs-identifier hs-var">v</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {k} a (b :: k). a -&gt; Const a b
+</span><a href="Data.Functor.Const.html#Const"><span class="hs-identifier hs-var">Const</span></a></span><span> </span><span class="annot"><span class="annottext">m
+</span><a href="#local-6989586621679621643"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-84"></span><span>
+</span><span id="line-85"></span><span class="hs-comment">-- | @since 2.0.1</span><span>
+</span><span id="line-86"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679621634"><span id="local-6989586621679621636"><span id="local-6989586621679622422"><span class="annot"><a href="GHC.Base.html#Monoid"><span class="hs-identifier hs-type">Monoid</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679622422"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="GHC.Base.html#Applicative"><span class="hs-identifier hs-type">Applicative</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Const.html#Const"><span class="hs-identifier hs-type">Const</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679622422"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-87"></span><span>    </span><span id="local-6989586621679621631"><span class="annot"><span class="annottext">pure :: forall a. a -&gt; Const m a
+</span><a href="GHC.Base.html#pure"><span class="hs-identifier hs-var hs-var hs-var hs-var">pure</span></a></span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {k} a (b :: k). a -&gt; Const a b
+</span><a href="Data.Functor.Const.html#Const"><span class="hs-identifier hs-var">Const</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Monoid a =&gt; a
+</span><a href="GHC.Base.html#mempty"><span class="hs-identifier hs-var">mempty</span></a></span><span>
+</span><span id="line-88"></span><span>    </span><span id="local-6989586621679621629"><span class="annot"><span class="annottext">liftA2 :: forall a b c. (a -&gt; b -&gt; c) -&gt; Const m a -&gt; Const m b -&gt; Const m c
+</span><a href="GHC.Base.html#liftA2"><span class="hs-identifier hs-var hs-var hs-var hs-var">liftA2</span></a></span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b -&gt; c
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Const.html#Const"><span class="hs-identifier hs-type">Const</span></a></span><span> </span><span id="local-6989586621679621627"><span class="annot"><span class="annottext">m
+</span><a href="#local-6989586621679621627"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Const.html#Const"><span class="hs-identifier hs-type">Const</span></a></span><span> </span><span id="local-6989586621679621626"><span class="annot"><span class="annottext">m
+</span><a href="#local-6989586621679621626"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {k} a (b :: k). a -&gt; Const a b
+</span><a href="Data.Functor.Const.html#Const"><span class="hs-identifier hs-var">Const</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">m
+</span><a href="#local-6989586621679621627"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Monoid a =&gt; a -&gt; a -&gt; a
+</span><a href="GHC.Base.html#mappend"><span class="hs-operator hs-var">`mappend`</span></a></span><span> </span><span class="annot"><span class="annottext">m
+</span><a href="#local-6989586621679621626"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-89"></span><span>    </span><span id="local-6989586621679621623"><span class="annot"><span class="annottext">&lt;*&gt; :: forall a b. Const m (a -&gt; b) -&gt; Const m a -&gt; Const m b
+</span><a href="GHC.Base.html#%3C%2A%3E"><span class="hs-operator hs-var hs-var hs-var hs-var">(&lt;*&gt;)</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">coerce :: forall a b. Coercible a b =&gt; a -&gt; b
+</span><a href="../../ghc-prim-0.8.0/src/GHC-Prim.html#coerce"><span class="hs-identifier hs-type">coerce</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Monoid a =&gt; a -&gt; a -&gt; a
+</span><a href="GHC.Base.html#mappend"><span class="hs-identifier hs-var">mappend</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679622422"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679622422"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679622422"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-90"></span><span class="hs-comment">-- This is pretty much the same as</span><span>
+</span><span id="line-91"></span><span class="hs-comment">-- Const f &lt;*&gt; Const v = Const (f `mappend` v)</span><span>
+</span><span id="line-92"></span><span class="hs-comment">-- but guarantees that mappend for Const a b will have the same arity</span><span>
+</span><span id="line-93"></span><span class="hs-comment">-- as the one for a; it won't create a closure to raise the arity</span><span>
+</span><span id="line-94"></span><span class="hs-comment">-- to 2.</span><span>
+</span><span id="line-95"></span></pre></body></html>

@@ -1,0 +1,166 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- THIS IS A GENERATED FILE, DO NOT EDIT</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-imports #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-matches #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-deprecations #-}</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.FileOperationRegistrationOptions</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Hashable</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html"><span class="hs-identifier">Language.LSP.Protocol.Utils.Misc</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prettyprinter</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Aeson.html"><span class="hs-identifier">Data.Row.Aeson</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Hashable.html"><span class="hs-identifier">Data.Row.Hashable</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Hashable</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.FileOperationFilter.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.FileOperationFilter</span></a></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html"><span class="hs-identifier">Language.LSP.Protocol.Types.Common</span></a></span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-comment">{-|
+The options to register for file operations.
+
+@since 3.16.0
+-}</span><span>
+</span><span id="line-24"></span><span id="local-6989586621682181471"><span id="local-6989586621682181472"></span></span><span class="hs-keyword">data</span><span> </span><span id="FileOperationRegistrationOptions"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.FileOperationRegistrationOptions.html#FileOperationRegistrationOptions"><span class="hs-identifier hs-var">FileOperationRegistrationOptions</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="FileOperationRegistrationOptions"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.FileOperationRegistrationOptions.html#FileOperationRegistrationOptions"><span class="hs-identifier hs-var">FileOperationRegistrationOptions</span></a></span></span><span> </span><span>
+</span><span id="line-25"></span><span>  </span><span class="hs-special">{</span><span> </span><span class="hs-comment">{-|
+  The actual filters.
+  -}</span><span>
+</span><span id="line-28"></span><span>  </span><span id="%24sel%3A_filters%3AFileOperationRegistrationOptions"><span class="annot"><span class="annottext">FileOperationRegistrationOptions -&gt; [FileOperationFilter]
+</span><a href="Language.LSP.Protocol.Internal.Types.FileOperationRegistrationOptions.html#%24sel%3A_filters%3AFileOperationRegistrationOptions"><span class="hs-identifier hs-var hs-var">_filters</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.FileOperationFilter.html#FileOperationFilter"><span class="hs-identifier hs-type">Language.LSP.Protocol.Internal.Types.FileOperationFilter.FileOperationFilter</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682181458"><span id="local-6989586621682181460"><span id="local-6989586621682181467"><span class="annot"><span class="annottext">Int -&gt; FileOperationRegistrationOptions -&gt; ShowS
+[FileOperationRegistrationOptions] -&gt; ShowS
+FileOperationRegistrationOptions -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [FileOperationRegistrationOptions] -&gt; ShowS
+$cshowList :: [FileOperationRegistrationOptions] -&gt; ShowS
+show :: FileOperationRegistrationOptions -&gt; String
+$cshow :: FileOperationRegistrationOptions -&gt; String
+showsPrec :: Int -&gt; FileOperationRegistrationOptions -&gt; ShowS
+$cshowsPrec :: Int -&gt; FileOperationRegistrationOptions -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682181449"><span id="local-6989586621682181454"><span class="annot"><span class="annottext">FileOperationRegistrationOptions
+-&gt; FileOperationRegistrationOptions -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: FileOperationRegistrationOptions
+-&gt; FileOperationRegistrationOptions -&gt; Bool
+$c/= :: FileOperationRegistrationOptions
+-&gt; FileOperationRegistrationOptions -&gt; Bool
+== :: FileOperationRegistrationOptions
+-&gt; FileOperationRegistrationOptions -&gt; Bool
+$c== :: FileOperationRegistrationOptions
+-&gt; FileOperationRegistrationOptions -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682181423"><span id="local-6989586621682181425"><span id="local-6989586621682181428"><span id="local-6989586621682181431"><span id="local-6989586621682181434"><span id="local-6989586621682181438"><span id="local-6989586621682181443"><span class="annot"><span class="annottext">Eq FileOperationRegistrationOptions
+FileOperationRegistrationOptions
+-&gt; FileOperationRegistrationOptions -&gt; Bool
+FileOperationRegistrationOptions
+-&gt; FileOperationRegistrationOptions -&gt; Ordering
+FileOperationRegistrationOptions
+-&gt; FileOperationRegistrationOptions
+-&gt; FileOperationRegistrationOptions
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: FileOperationRegistrationOptions
+-&gt; FileOperationRegistrationOptions
+-&gt; FileOperationRegistrationOptions
+$cmin :: FileOperationRegistrationOptions
+-&gt; FileOperationRegistrationOptions
+-&gt; FileOperationRegistrationOptions
+max :: FileOperationRegistrationOptions
+-&gt; FileOperationRegistrationOptions
+-&gt; FileOperationRegistrationOptions
+$cmax :: FileOperationRegistrationOptions
+-&gt; FileOperationRegistrationOptions
+-&gt; FileOperationRegistrationOptions
+&gt;= :: FileOperationRegistrationOptions
+-&gt; FileOperationRegistrationOptions -&gt; Bool
+$c&gt;= :: FileOperationRegistrationOptions
+-&gt; FileOperationRegistrationOptions -&gt; Bool
+&gt; :: FileOperationRegistrationOptions
+-&gt; FileOperationRegistrationOptions -&gt; Bool
+$c&gt; :: FileOperationRegistrationOptions
+-&gt; FileOperationRegistrationOptions -&gt; Bool
+&lt;= :: FileOperationRegistrationOptions
+-&gt; FileOperationRegistrationOptions -&gt; Bool
+$c&lt;= :: FileOperationRegistrationOptions
+-&gt; FileOperationRegistrationOptions -&gt; Bool
+&lt; :: FileOperationRegistrationOptions
+-&gt; FileOperationRegistrationOptions -&gt; Bool
+$c&lt; :: FileOperationRegistrationOptions
+-&gt; FileOperationRegistrationOptions -&gt; Bool
+compare :: FileOperationRegistrationOptions
+-&gt; FileOperationRegistrationOptions -&gt; Ordering
+$ccompare :: FileOperationRegistrationOptions
+-&gt; FileOperationRegistrationOptions -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall x.
+Rep FileOperationRegistrationOptions x
+-&gt; FileOperationRegistrationOptions
+forall x.
+FileOperationRegistrationOptions
+-&gt; Rep FileOperationRegistrationOptions x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cto :: forall x.
+Rep FileOperationRegistrationOptions x
+-&gt; FileOperationRegistrationOptions
+$cfrom :: forall x.
+FileOperationRegistrationOptions
+-&gt; Rep FileOperationRegistrationOptions x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">anyclass</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682181416"><span class="annot"><span class="annottext">FileOperationRegistrationOptions -&gt; ()
+forall a. (a -&gt; ()) -&gt; NFData a
+rnf :: FileOperationRegistrationOptions -&gt; ()
+$crnf :: FileOperationRegistrationOptions -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682181409"><span id="local-6989586621682181411"><span class="annot"><span class="annottext">Eq FileOperationRegistrationOptions
+Int -&gt; FileOperationRegistrationOptions -&gt; Int
+FileOperationRegistrationOptions -&gt; Int
+forall a. Eq a -&gt; (Int -&gt; a -&gt; Int) -&gt; (a -&gt; Int) -&gt; Hashable a
+hash :: FileOperationRegistrationOptions -&gt; Int
+$chash :: FileOperationRegistrationOptions -&gt; Int
+hashWithSalt :: Int -&gt; FileOperationRegistrationOptions -&gt; Int
+$chashWithSalt :: Int -&gt; FileOperationRegistrationOptions -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Hashable</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621682181400"><span id="local-6989586621682181406"><span class="annot"><span class="annottext">forall ann. [FileOperationRegistrationOptions] -&gt; Doc ann
+forall ann. FileOperationRegistrationOptions -&gt; Doc ann
+forall a.
+(forall ann. a -&gt; Doc ann)
+-&gt; (forall ann. [a] -&gt; Doc ann) -&gt; Pretty a
+prettyList :: forall ann. [FileOperationRegistrationOptions] -&gt; Doc ann
+$cprettyList :: forall ann. [FileOperationRegistrationOptions] -&gt; Doc ann
+pretty :: forall ann. FileOperationRegistrationOptions -&gt; Doc ann
+$cpretty :: forall ann. FileOperationRegistrationOptions -&gt; Doc ann
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Pretty</span></span></span></span><span> </span><span class="hs-keyword">via</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html#ViaJSON"><span class="hs-identifier hs-type">ViaJSON</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.FileOperationRegistrationOptions.html#FileOperationRegistrationOptions"><span class="hs-identifier hs-type">FileOperationRegistrationOptions</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682181388"><span id="local-6989586621682181390"><span id="local-6989586621682181392"><span class="annot"><span class="hs-identifier hs-type">Aeson.ToJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.FileOperationRegistrationOptions.html#FileOperationRegistrationOptions"><span class="hs-identifier hs-type">FileOperationRegistrationOptions</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-35"></span><span>  </span><span id="local-6989586621682181376"><span class="annot"><span class="annottext">toJSON :: FileOperationRegistrationOptions -&gt; Value
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">toJSON</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.FileOperationRegistrationOptions.html#FileOperationRegistrationOptions"><span class="hs-identifier hs-type">FileOperationRegistrationOptions</span></a></span><span> </span><span id="local-6989586621682181374"><span class="annot"><span class="annottext">[FileOperationFilter]
+</span><a href="#local-6989586621682181374"><span class="hs-identifier hs-var">arg0</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">Aeson.object</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">concat</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>  </span><span class="hs-special">[</span><span class="hs-special">[</span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;filters&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">Aeson..=</span></span><span> </span><span class="annot"><span class="annottext">[FileOperationFilter]
+</span><a href="#local-6989586621682181374"><span class="hs-identifier hs-var">arg0</span></a></span><span class="hs-special">]</span><span class="hs-special">]</span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682181368"><span class="annot"><span class="hs-identifier hs-type">Aeson.FromJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.FileOperationRegistrationOptions.html#FileOperationRegistrationOptions"><span class="hs-identifier hs-type">FileOperationRegistrationOptions</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-38"></span><span>  </span><span id="local-6989586621682181359"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser FileOperationRegistrationOptions
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">Aeson.withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;FileOperationRegistrationOptions&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621682181356"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682181356"><span class="hs-identifier hs-var">arg</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[FileOperationFilter] -&gt; FileOperationRegistrationOptions
+</span><a href="Language.LSP.Protocol.Internal.Types.FileOperationRegistrationOptions.html#FileOperationRegistrationOptions"><span class="hs-identifier hs-var">FileOperationRegistrationOptions</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682181356"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">Aeson..:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;filters&quot;</span></span><span>
+</span><span id="line-39"></span></pre></body></html>

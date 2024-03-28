@@ -1,0 +1,650 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE RankNTypes #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE OverloadedStrings #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE FlexibleInstances #-}</span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ &gt;= 810
+</span><span class="hs-pragma">{-# LANGUAGE EmptyCase #-}</span><span class="hs-cpp">
+#endif
+</span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Test.Hspec.Core.Formatters.Pretty.Parser</span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-9"></span><span>  </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.Types.html#Expression"><span class="hs-identifier">Expression</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.Types.html#Literal"><span class="hs-identifier">Literal</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#parseExpression"><span class="hs-identifier">parseExpression</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#unsafeParseExpression"><span class="hs-identifier">unsafeParseExpression</span></a></span><span>
+</span><span id="line-13"></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Test.Hspec.Core.Compat.html"><span class="hs-identifier">Test.Hspec.Core.Compat</span></a></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">fail</span></span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.Types.html"><span class="hs-identifier">Test.Hspec.Core.Formatters.Pretty.Parser.Types</span></a></span><span class="hs-cpp">
+
+#ifndef __GHCJS__
+</span><span class="hs-cpp">#if __GLASGOW_HASKELL__ &gt;= 802 &amp;&amp; __GLASGOW_HASKELL__ &lt;= 902
+</span><span class="hs-cpp">#define PRETTY_PRINTING_SUPPORTED
+</span><span class="hs-cpp">#endif
+</span><span class="hs-cpp">#endif
+</span><span class="hs-cpp">
+#ifndef PRETTY_PRINTING_SUPPORTED
+</span><span>
+</span><span id="line-27"></span><span class="hs-identifier">parseExpression</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">String</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">Maybe</span><span> </span><span class="hs-identifier">Expression</span><span>
+</span><span id="line-28"></span><span class="hs-identifier">parseExpression</span><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">Nothing</span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="hs-identifier">unsafeParseExpression</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">String</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">Maybe</span><span> </span><span class="hs-identifier">Expression</span><span>
+</span><span id="line-31"></span><span class="hs-identifier">unsafeParseExpression</span><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">Nothing</span><span class="hs-cpp">
+
+#else
+</span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">GHC.Stack</span></span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">GHC.Exception</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">throw</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">errorCallWithCallStackException</span></span><span class="hs-special">)</span><span class="hs-cpp">
+
+#if __GLASGOW_HASKELL__ &gt;= 804
+</span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">GHC.LanguageExtensions.Type</span></span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ &gt;= 902
+</span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">GHC.Types.SourceText</span></span><span class="hs-cpp">
+#elif __GLASGOW_HASKELL__ &gt;= 900
+</span><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">GHC.Types.Basic</span><span>
+</span><span id="line-46"></span><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">GHC.Unit.Types</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ &gt;= 900
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Parser</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">GHC</span></span><span>
+</span><span id="line-51"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">GHC.Parser.Lexer</span></span><span>
+</span><span id="line-52"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">GHC.Data.StringBuffer</span></span><span>
+</span><span id="line-53"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">GHC.Data.FastString</span></span><span>
+</span><span id="line-54"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">GHC.Types.SrcLoc</span></span><span>
+</span><span id="line-55"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Data.EnumSet</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">EnumSet</span></span><span>
+</span><span id="line-56"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">GHC.Types.Name</span></span><span>
+</span><span id="line-57"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">GHC.Types.Name.Reader</span></span><span>
+</span><span id="line-58"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">GHC.Parser.PostProcess</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Tuple</span></span><span class="hs-special">)</span><span class="hs-cpp">
+#else
+</span><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Lexer</span><span>
+</span><span id="line-61"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-identifier">Parser</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">GHC</span><span>
+</span><span id="line-62"></span><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">StringBuffer</span><span>
+</span><span id="line-63"></span><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">FastString</span><span>
+</span><span id="line-64"></span><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">SrcLoc</span><span>
+</span><span id="line-65"></span><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Name</span><span>
+</span><span id="line-66"></span><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">RdrName</span><span>
+</span><span id="line-67"></span><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">BasicTypes</span><span>
+</span><span id="line-68"></span><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Module</span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ &gt;= 804
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-identifier">EnumSet</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">#endif
+</span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ == 810
+</span><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">RdrHsSyn</span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Tuple</span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ &gt;= 810
+</span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">GHC.Hs</span></span><span class="hs-cpp">
+#else
+</span><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">HsSyn</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ &lt;= 806
+</span><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data.Bits</span><span>
+</span><span id="line-86"></span><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Control.Exception</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-89"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#parseExpression"><span class="hs-identifier hs-type">parseExpression</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.Types.html#Expression"><span class="hs-identifier hs-type">Expression</span></a></span><span>
+</span><span id="line-90"></span><span id="parseExpression"><span class="annot"><span class="annottext">parseExpression :: String -&gt; Maybe Expression
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#parseExpression"><span class="hs-identifier hs-var hs-var">parseExpression</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Error -&gt; Maybe Expression) -&gt; String -&gt; Maybe Expression
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#parseWith"><span class="hs-identifier hs-var">parseWith</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">)</span><span>
+</span><span id="line-91"></span><span>
+</span><span id="line-92"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#unsafeParseExpression"><span class="hs-identifier hs-type">unsafeParseExpression</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.Types.html#Expression"><span class="hs-identifier hs-type">Expression</span></a></span><span>
+</span><span id="line-93"></span><span id="unsafeParseExpression"><span class="annot"><span class="annottext">unsafeParseExpression :: String -&gt; Maybe Expression
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#unsafeParseExpression"><span class="hs-identifier hs-var hs-var">unsafeParseExpression</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Error -&gt; Maybe Expression) -&gt; String -&gt; Maybe Expression
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#parseWith"><span class="hs-identifier hs-var">parseWith</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Error -&gt; a
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#throwError"><span class="hs-identifier hs-var">throwError</span></a></span><span>
+</span><span id="line-94"></span><span>
+</span><span id="line-95"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#parseWith"><span class="hs-identifier hs-type">parseWith</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Error"><span class="hs-identifier hs-type">Error</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.Types.html#Expression"><span class="hs-identifier hs-type">Expression</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.Types.html#Expression"><span class="hs-identifier hs-type">Expression</span></a></span><span>
+</span><span id="line-96"></span><span id="parseWith"><span class="annot"><span class="annottext">parseWith :: (Error -&gt; Maybe Expression) -&gt; String -&gt; Maybe Expression
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#parseWith"><span class="hs-identifier hs-var hs-var">parseWith</span></a></span></span><span> </span><span id="local-6989586621679156743"><span class="annot"><span class="annottext">Error -&gt; Maybe Expression
+</span><a href="#local-6989586621679156743"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Maybe (HsExpr GhcPs)
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#parse"><span class="hs-identifier hs-var">parse</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b c.
+Monad m =&gt;
+(a -&gt; m b) -&gt; (b -&gt; m c) -&gt; a -&gt; m c
+</span><span class="hs-operator hs-var">&gt;=&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall a c b. (a -&gt; c) -&gt; (b -&gt; c) -&gt; Either a b -&gt; c
+</span><span class="hs-identifier hs-var">either</span></span><span> </span><span class="annot"><span class="annottext">Error -&gt; Maybe Expression
+</span><a href="#local-6989586621679156743"><span class="hs-identifier hs-var">err</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall a. ToExpression a =&gt; a -&gt; Either Error Expression
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#toExpression"><span class="hs-identifier hs-var">toExpression</span></a></span><span>
+</span><span id="line-97"></span><span>
+</span><span id="line-98"></span><span class="hs-keyword">data</span><span> </span><span id="Error"><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Error"><span class="hs-identifier hs-var">Error</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Error"><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Error"><span class="hs-identifier hs-var">Error</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CallStack</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-99"></span><span>
+</span><span id="line-100"></span><span id="local-6989586621679156879"><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#throwError"><span class="hs-identifier hs-type">throwError</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Error"><span class="hs-identifier hs-type">Error</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679156879"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-101"></span><span id="throwError"><span class="annot"><span class="annottext">throwError :: forall a. Error -&gt; a
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#throwError"><span class="hs-identifier hs-var hs-var">throwError</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Error"><span class="hs-identifier hs-type">Error</span></a></span><span> </span><span id="local-6989586621679156734"><span class="annot"><span class="annottext">CallStack
+</span><a href="#local-6989586621679156734"><span class="hs-identifier hs-var">stack</span></a></span></span><span> </span><span id="local-6989586621679156733"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679156733"><span class="hs-identifier hs-var">err</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a e. Exception e =&gt; e -&gt; a
+</span><span class="hs-identifier hs-var">throw</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; CallStack -&gt; SomeException
+</span><span class="hs-identifier hs-var">errorCallWithCallStackException</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679156733"><span class="hs-identifier hs-var">err</span></a></span><span> </span><span class="annot"><span class="annottext">CallStack
+</span><a href="#local-6989586621679156734"><span class="hs-identifier hs-var">stack</span></a></span><span>
+</span><span id="line-102"></span><span>
+</span><span id="line-103"></span><span id="local-6989586621679156857"><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#fail"><span class="hs-identifier hs-type">fail</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">HasCallStack</span></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Error"><span class="hs-identifier hs-type">Error</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679156857"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-104"></span><span id="fail"><span class="annot"><span class="annottext">fail :: forall a. HasCallStack =&gt; String -&gt; Either Error a
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#fail"><span class="hs-identifier hs-var hs-var">fail</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">CallStack -&gt; String -&gt; Error
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Error"><span class="hs-identifier hs-var">Error</span></a></span><span> </span><span class="annot"><span class="annottext">HasCallStack =&gt; CallStack
+</span><span class="hs-identifier hs-var">callStack</span></span><span>
+</span><span id="line-105"></span><span>
+</span><span id="line-106"></span><span class="hs-keyword">class</span><span> </span><span id="ToExpression"><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#ToExpression"><span class="hs-identifier hs-var">ToExpression</span></a></span></span><span> </span><span id="local-6989586621679156868"><span class="annot"><a href="#local-6989586621679156868"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-107"></span><span>  </span><span id="toExpression"><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#toExpression"><span class="hs-identifier hs-type">toExpression</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679156868"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Error"><span class="hs-identifier hs-type">Error</span></a></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.Types.html#Expression"><span class="hs-identifier hs-type">Expression</span></a></span><span class="hs-cpp">
+
+#if __GLASGOW_HASKELL__ &lt; 806
+</span><span class="hs-cpp">#define _x
+</span><span class="hs-cpp">#endif
+</span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ &gt;= 900
+</span><span class="hs-cpp">#define X(name, expr)
+</span><span class="hs-cpp">#elif __GLASGOW_HASKELL__ == 810
+</span><span class="hs-cpp">#define X(name, expr) name none -&gt; case none of
+</span><span class="hs-cpp">#elif __GLASGOW_HASKELL__ &gt;= 806
+</span><span class="hs-cpp">#define X(name, expr) name none -&gt; case none of NoExt -&gt; expr
+</span><span class="hs-cpp">#else
+</span><span class="hs-cpp">#define X(name, expr)
+</span><span class="hs-cpp">#endif
+</span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ &gt;= 804
+</span><span class="hs-cpp">#define GhcPsHsLit GhcPs
+</span><span class="hs-cpp">#else
+</span><span class="hs-keyword">type</span><span> </span><span class="hs-identifier">GhcPs</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">RdrName</span><span class="hs-cpp">
+#define GhcPsHsLit
+</span><span class="hs-cpp">#endif
+</span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ &gt;= 902
+</span><span class="hs-cpp">#define _listSynExpr
+</span><span class="hs-cpp">#endif
+</span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ &gt;= 806
+</span><span class="hs-cpp">#define RecCon(name, fields) RecordCon _ (L _ name) fields
+</span><span class="hs-cpp">#else
+</span><span class="hs-cpp">#define RecCon(name, fields) RecordCon (L _ name) _ _ fields
+</span><span class="hs-cpp">#endif
+</span><span class="hs-cpp">
+#define REJECT(name) name{} -&gt; fail &quot;name&quot;
+</span><span>
+</span><span id="line-142"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#ToExpression"><span class="hs-identifier hs-type">ToExpression</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">HsExpr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">GhcPs</span></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-143"></span><span>  </span><span id="local-6989586621679156627"><span class="annot"><span class="annottext">toExpression :: HsExpr GhcPs -&gt; Either Error Expression
+</span><a href="#local-6989586621679156627"><span class="hs-identifier hs-var hs-var hs-var hs-var">toExpression</span></a></span></span><span> </span><span id="local-6989586621679156626"><span class="annot"><span class="annottext">HsExpr GhcPs
+</span><a href="#local-6989586621679156626"><span class="hs-identifier hs-var">expr</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">HsExpr GhcPs
+</span><a href="#local-6989586621679156626"><span class="hs-identifier hs-var">expr</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-144"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">HsVar</span></span><span> </span><span id="local-6989586621679156624"><span class="annot"><span class="annottext">XVar GhcPs
+</span><a href="#local-6989586621679156624"><span class="hs-identifier hs-var">_x</span></a></span></span><span> </span><span id="local-6989586621679156623"><span class="annot"><span class="annottext">LIdP GhcPs
+</span><a href="#local-6989586621679156623"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. ToExpression a =&gt; a -&gt; Either Error Expression
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#toExpression"><span class="hs-identifier hs-var">toExpression</span></a></span><span> </span><span class="annot"><span class="annottext">LIdP GhcPs
+</span><a href="#local-6989586621679156623"><span class="hs-identifier hs-var">name</span></a></span><span>
+</span><span id="line-145"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">HsLit</span></span><span> </span><span id="local-6989586621679156621"><span class="annot"><span class="annottext">XLitE GhcPs
+</span><a href="#local-6989586621679156621"><span class="hs-identifier hs-var">_x</span></a></span></span><span> </span><span id="local-6989586621679156620"><span class="annot"><span class="annottext">HsLit GhcPs
+</span><a href="#local-6989586621679156620"><span class="hs-identifier hs-var">lit</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. ToExpression a =&gt; a -&gt; Either Error Expression
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#toExpression"><span class="hs-identifier hs-var">toExpression</span></a></span><span> </span><span class="annot"><span class="annottext">HsLit GhcPs
+</span><a href="#local-6989586621679156620"><span class="hs-identifier hs-var">lit</span></a></span><span>
+</span><span id="line-146"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">HsOverLit</span></span><span> </span><span id="local-6989586621679156618"><span class="annot"><span class="annottext">XOverLitE GhcPs
+</span><a href="#local-6989586621679156618"><span class="hs-identifier hs-var">_x</span></a></span></span><span> </span><span id="local-6989586621679156617"><span class="annot"><span class="annottext">HsOverLit GhcPs
+</span><a href="#local-6989586621679156617"><span class="hs-identifier hs-var">lit</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. ToExpression a =&gt; a -&gt; Either Error Expression
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#toExpression"><span class="hs-identifier hs-var">toExpression</span></a></span><span> </span><span class="annot"><span class="annottext">HsOverLit GhcPs
+</span><a href="#local-6989586621679156617"><span class="hs-identifier hs-var">lit</span></a></span><span>
+</span><span id="line-147"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">HsApp</span></span><span> </span><span id="local-6989586621679156615"><span class="annot"><span class="annottext">XApp GhcPs
+</span><a href="#local-6989586621679156615"><span class="hs-identifier hs-var">_x</span></a></span></span><span> </span><span id="local-6989586621679156614"><span class="annot"><span class="annottext">LHsExpr GhcPs
+</span><a href="#local-6989586621679156614"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679156613"><span class="annot"><span class="annottext">LHsExpr GhcPs
+</span><a href="#local-6989586621679156613"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Expression -&gt; Expression -&gt; Expression
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.Types.html#App"><span class="hs-identifier hs-var">App</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall a. ToExpression a =&gt; a -&gt; Either Error Expression
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#toExpression"><span class="hs-identifier hs-var">toExpression</span></a></span><span> </span><span class="annot"><span class="annottext">LHsExpr GhcPs
+</span><a href="#local-6989586621679156614"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall a. ToExpression a =&gt; a -&gt; Either Error Expression
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#toExpression"><span class="hs-identifier hs-var">toExpression</span></a></span><span> </span><span class="annot"><span class="annottext">LHsExpr GhcPs
+</span><a href="#local-6989586621679156613"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-148"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">NegApp</span></span><span> </span><span id="local-6989586621679156609"><span class="annot"><span class="annottext">XNegApp GhcPs
+</span><a href="#local-6989586621679156609"><span class="hs-identifier hs-var">_x</span></a></span></span><span> </span><span id="local-6989586621679156608"><span class="annot"><span class="annottext">LHsExpr GhcPs
+</span><a href="#local-6989586621679156608"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="annot"><span class="annottext">SyntaxExpr GhcPs
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. ToExpression a =&gt; a -&gt; Either Error Expression
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#toExpression"><span class="hs-identifier hs-var">toExpression</span></a></span><span> </span><span class="annot"><span class="annottext">LHsExpr GhcPs
+</span><a href="#local-6989586621679156608"><span class="hs-identifier hs-var">e</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621679156607"><span class="annot"><span class="annottext">Expression
+</span><a href="#local-6989586621679156607"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Expression
+</span><a href="#local-6989586621679156607"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-149"></span><span>      </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.Types.html#Literal"><span class="hs-identifier hs-type">Literal</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.Types.html#Rational"><span class="hs-identifier hs-type">Rational</span></a></span><span> </span><span id="local-6989586621679156604"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679156604"><span class="hs-identifier hs-var">n</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Literal -&gt; Expression
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.Types.html#Literal"><span class="hs-identifier hs-var">Literal</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; Literal
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.Types.html#Rational"><span class="hs-identifier hs-var">Rational</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'-'</span></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679156604"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-150"></span><span>      </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.Types.html#Literal"><span class="hs-identifier hs-type">Literal</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.Types.html#Integer"><span class="hs-identifier hs-type">Integer</span></a></span><span> </span><span id="local-6989586621679156602"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679156602"><span class="hs-identifier hs-var">n</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Literal -&gt; Expression
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.Types.html#Literal"><span class="hs-identifier hs-var">Literal</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer -&gt; Literal
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.Types.html#Integer"><span class="hs-identifier hs-var">Integer</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">negate</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679156602"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-151"></span><span>      </span><span class="annot"><span class="annottext">Expression
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. HasCallStack =&gt; String -&gt; Either Error a
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#fail"><span class="hs-identifier hs-var">fail</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;NegApp&quot;</span></span><span>
+</span><span id="line-152"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">HsPar</span></span><span> </span><span id="local-6989586621679156600"><span class="annot"><span class="annottext">XPar GhcPs
+</span><a href="#local-6989586621679156600"><span class="hs-identifier hs-var">_x</span></a></span></span><span> </span><span id="local-6989586621679156599"><span class="annot"><span class="annottext">LHsExpr GhcPs
+</span><a href="#local-6989586621679156599"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Expression -&gt; Expression
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.Types.html#Parentheses"><span class="hs-identifier hs-var">Parentheses</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall a. ToExpression a =&gt; a -&gt; Either Error Expression
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#toExpression"><span class="hs-identifier hs-var">toExpression</span></a></span><span> </span><span class="annot"><span class="annottext">LHsExpr GhcPs
+</span><a href="#local-6989586621679156599"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-153"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">ExplicitTuple</span></span><span> </span><span id="local-6989586621679156596"><span class="annot"><span class="annottext">XExplicitTuple GhcPs
+</span><a href="#local-6989586621679156596"><span class="hs-identifier hs-var">_x</span></a></span></span><span> </span><span id="local-6989586621679156595"><span class="annot"><span class="annottext">[HsTupArg GhcPs]
+</span><a href="#local-6989586621679156595"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="annot"><span class="annottext">Boxity
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Expression] -&gt; Expression
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.Types.html#Tuple"><span class="hs-identifier hs-var">Tuple</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Traversable t, Monad m) =&gt;
+(a -&gt; m b) -&gt; t a -&gt; m (t b)
+</span><span class="hs-identifier hs-var">mapM</span></span><span> </span><span class="annot"><span class="annottext">forall a. ToExpression a =&gt; a -&gt; Either Error Expression
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#toExpression"><span class="hs-identifier hs-var">toExpression</span></a></span><span> </span><span class="annot"><span class="annottext">[HsTupArg GhcPs]
+</span><a href="#local-6989586621679156595"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-154"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">ExplicitList</span></span><span> </span><span class="annot"><span class="annottext">XExplicitList GhcPs
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679156591"></span><span class="hs-identifier">_listSynExpr</span><span> </span><span class="hs-identifier">xs</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">List</span><span> </span><span class="hs-operator">&lt;$&gt;</span><span> </span><span class="hs-identifier">mapM</span><span> </span><span class="hs-identifier">toExpression</span><span> </span><span class="hs-identifier">xs</span><span>
+</span><span id="line-155"></span><span>    </span><span class="hs-identifier">RecCon</span><span class="hs-special">(</span><span class="hs-identifier">name</span><span class="hs-special">,</span><span> </span><span id="local-6989586621679156587"></span><span class="hs-identifier">fields</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span id="local-6989586621679156586"><span class="annot"><span class="annottext">HsRecordBinds GhcPs
+</span><a href="#local-6989586621679156586"><span class="hs-identifier hs-var">Record</span></a></span></span><span> </span><span class="hs-special">(</span><span class="hs-identifier">showRdrName</span><span> </span><span class="hs-identifier">name</span><span class="hs-special">)</span><span> </span><span class="hs-operator">&lt;$&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">recordFields</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-identifier">rec_flds</span><span> </span><span class="hs-identifier">fields</span><span class="hs-special">)</span><span>
+</span><span id="line-156"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-157"></span><span>        </span><span id="local-6989586621679156581"><span class="annot"><span class="annottext">fieldName :: HsRecField' (FieldOcc GhcPs) arg -&gt; String
+</span><a href="#local-6989586621679156581"><span class="hs-identifier hs-var hs-var">fieldName</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FieldOcc GhcPs -&gt; String
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#showFieldLabel"><span class="hs-identifier hs-var">showFieldLabel</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall l e. GenLocated l e -&gt; e
+</span><span class="hs-identifier hs-var">unLoc</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall id arg. HsRecField' id arg -&gt; Located id
+</span><span class="hs-identifier hs-var">hsRecFieldLbl</span></span><span>
+</span><span id="line-158"></span><span>        </span><span id="local-6989586621679156583"><span class="annot"><span class="annottext">recordFields :: [GenLocated
+   l
+   (HsRecField'
+      (FieldOcc GhcPs) (GenLocated SrcSpanAnnA (HsExpr GhcPs)))]
+-&gt; Either Error [(String, Expression)]
+</span><a href="#local-6989586621679156583"><span class="hs-identifier hs-var hs-var">recordFields</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Traversable t, Monad m) =&gt;
+(a -&gt; m b) -&gt; t a -&gt; m (t b)
+</span><span class="hs-identifier hs-var">mapM</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall {a}.
+ToExpression a =&gt;
+HsRecField' (FieldOcc GhcPs) a -&gt; Either Error (String, Expression)
+</span><a href="#local-6989586621679156574"><span class="hs-identifier hs-var">recordField</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall l e. GenLocated l e -&gt; e
+</span><span class="hs-identifier hs-var">unLoc</span></span><span class="hs-special">)</span><span>
+</span><span id="line-159"></span><span>        </span><span id="local-6989586621679156574"><span class="annot"><span class="annottext">recordField :: HsRecField' (FieldOcc GhcPs) a -&gt; Either Error (String, Expression)
+</span><a href="#local-6989586621679156574"><span class="hs-identifier hs-var hs-var">recordField</span></a></span></span><span> </span><span id="local-6989586621679156570"><span class="annot"><span class="annottext">HsRecField' (FieldOcc GhcPs) a
+</span><a href="#local-6989586621679156570"><span class="hs-identifier hs-var">field</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-special">,</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall {arg}. HsRecField' (FieldOcc GhcPs) arg -&gt; String
+</span><a href="#local-6989586621679156581"><span class="hs-identifier hs-var">fieldName</span></a></span><span> </span><span class="annot"><span class="annottext">HsRecField' (FieldOcc GhcPs) a
+</span><a href="#local-6989586621679156570"><span class="hs-identifier hs-var">field</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall a. ToExpression a =&gt; a -&gt; Either Error Expression
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#toExpression"><span class="hs-identifier hs-var">toExpression</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall id arg. HsRecField' id arg -&gt; arg
+</span><span class="hs-identifier hs-var">hsRecFieldArg</span></span><span> </span><span class="annot"><span class="annottext">HsRecField' (FieldOcc GhcPs) a
+</span><a href="#local-6989586621679156570"><span class="hs-identifier hs-var">field</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-160"></span><span>
+</span><span id="line-161"></span><span>    </span><span class="hs-identifier">REJECT</span><span class="hs-special">(</span><span class="hs-identifier">HsUnboundVar</span><span class="hs-special">)</span><span>
+</span><span id="line-162"></span><span>    </span><span class="hs-identifier">REJECT</span><span class="hs-special">(</span><span class="hs-identifier">HsConLikeOut</span><span class="hs-special">)</span><span>
+</span><span id="line-163"></span><span>    </span><span class="hs-identifier">REJECT</span><span class="hs-special">(</span><span class="hs-identifier">HsRecFld</span><span class="hs-special">)</span><span>
+</span><span id="line-164"></span><span>    </span><span class="hs-identifier">REJECT</span><span class="hs-special">(</span><span class="hs-identifier">HsOverLabel</span><span class="hs-special">)</span><span>
+</span><span id="line-165"></span><span>    </span><span class="hs-identifier">REJECT</span><span class="hs-special">(</span><span class="hs-identifier">HsIPVar</span><span class="hs-special">)</span><span>
+</span><span id="line-166"></span><span>    </span><span class="hs-identifier">REJECT</span><span class="hs-special">(</span><span class="hs-identifier">HsLam</span><span class="hs-special">)</span><span>
+</span><span id="line-167"></span><span>    </span><span class="hs-identifier">REJECT</span><span class="hs-special">(</span><span class="hs-identifier">HsLamCase</span><span class="hs-special">)</span><span>
+</span><span id="line-168"></span><span>    </span><span class="hs-identifier">REJECT</span><span class="hs-special">(</span><span class="hs-identifier">HsAppType</span><span class="hs-special">)</span><span>
+</span><span id="line-169"></span><span>    </span><span class="hs-identifier">REJECT</span><span class="hs-special">(</span><span class="hs-identifier">OpApp</span><span class="hs-special">)</span><span>
+</span><span id="line-170"></span><span>    </span><span class="hs-identifier">REJECT</span><span class="hs-special">(</span><span class="hs-identifier">SectionL</span><span class="hs-special">)</span><span>
+</span><span id="line-171"></span><span>    </span><span class="hs-identifier">REJECT</span><span class="hs-special">(</span><span class="hs-identifier">SectionR</span><span class="hs-special">)</span><span>
+</span><span id="line-172"></span><span>    </span><span class="hs-identifier">REJECT</span><span class="hs-special">(</span><span class="hs-identifier">ExplicitSum</span><span class="hs-special">)</span><span>
+</span><span id="line-173"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">REJECT</span></span><span class="hs-special">(</span><span class="hs-identifier">HsCase</span><span class="hs-special">)</span><span>
+</span><span id="line-174"></span><span>    </span><span class="annot"><span class="annottext">HsExpr GhcPs
+</span><span class="hs-identifier">REJECT</span></span><span class="hs-special">(</span><span class="hs-identifier">HsIf</span><span class="hs-special">)</span><span>
+</span><span id="line-175"></span><span>    </span><span class="hs-identifier">REJECT</span><span class="hs-special">(</span><span class="hs-identifier">HsMultiIf</span><span class="hs-special">)</span><span>
+</span><span id="line-176"></span><span>    </span><span class="hs-identifier">REJECT</span><span class="hs-special">(</span><span class="hs-identifier">HsLet</span><span class="hs-special">)</span><span>
+</span><span id="line-177"></span><span>    </span><span class="annot"><span class="annottext">HsExpr GhcPs
+</span><span class="hs-identifier">REJECT</span></span><span class="hs-special">(</span><span class="hs-identifier">HsDo</span><span class="hs-special">)</span><span>
+</span><span id="line-178"></span><span>    </span><span class="hs-identifier">REJECT</span><span class="hs-special">(</span><span class="hs-identifier">RecordUpd</span><span class="hs-special">)</span><span>
+</span><span id="line-179"></span><span>    </span><span class="hs-identifier">REJECT</span><span class="hs-special">(</span><span class="hs-identifier">ExprWithTySig</span><span class="hs-special">)</span><span>
+</span><span id="line-180"></span><span>    </span><span class="hs-identifier">REJECT</span><span class="hs-special">(</span><span class="hs-identifier">ArithSeq</span><span class="hs-special">)</span><span>
+</span><span id="line-181"></span><span>    </span><span class="hs-identifier">REJECT</span><span class="hs-special">(</span><span class="hs-identifier">HsBracket</span><span class="hs-special">)</span><span>
+</span><span id="line-182"></span><span>    </span><span class="hs-identifier">REJECT</span><span class="hs-special">(</span><span class="hs-identifier">HsRnBracketOut</span><span class="hs-special">)</span><span>
+</span><span id="line-183"></span><span>    </span><span class="hs-identifier">REJECT</span><span class="hs-special">(</span><span class="hs-identifier">HsTcBracketOut</span><span class="hs-special">)</span><span>
+</span><span id="line-184"></span><span>    </span><span class="hs-identifier">REJECT</span><span class="hs-special">(</span><span class="hs-identifier">HsSpliceE</span><span class="hs-special">)</span><span>
+</span><span id="line-185"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">REJECT</span></span><span class="hs-special">(</span><span class="hs-identifier">HsProc</span><span class="hs-special">)</span><span>
+</span><span id="line-186"></span><span>    </span><span class="hs-identifier">REJECT</span><span class="hs-special">(</span><span class="hs-identifier">HsStatic</span><span class="hs-special">)</span><span>
+</span><span id="line-187"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">REJECT</span></span><span class="hs-special">(</span><span class="hs-identifier">HsTick</span><span class="hs-special">)</span><span>
+</span><span id="line-188"></span><span>    </span><span class="hs-identifier">REJECT</span><span class="hs-special">(</span><span class="hs-identifier">HsBinTick</span><span class="hs-special">)</span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ &gt;= 902
+</span><span>    </span><span class="hs-identifier">REJECT</span><span class="hs-special">(</span><span class="hs-identifier">HsGetField</span><span class="hs-special">)</span><span>
+</span><span id="line-191"></span><span>    </span><span class="hs-identifier">REJECT</span><span class="hs-special">(</span><span class="hs-identifier">HsProjection</span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">#if __GLASGOW_HASKELL__ &gt;= 900
+</span><span>    </span><span class="hs-identifier">REJECT</span><span class="hs-special">(</span><span class="hs-identifier">HsPragE</span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">#if __GLASGOW_HASKELL__ &lt;= 810
+</span><span>    </span><span class="hs-identifier">REJECT</span><span class="hs-special">(</span><span class="hs-identifier">HsSCC</span><span class="hs-special">)</span><span>
+</span><span id="line-198"></span><span>    </span><span class="hs-identifier">REJECT</span><span class="hs-special">(</span><span class="hs-identifier">HsCoreAnn</span><span class="hs-special">)</span><span>
+</span><span id="line-199"></span><span>    </span><span class="hs-identifier">REJECT</span><span class="hs-special">(</span><span class="hs-identifier">HsTickPragma</span><span class="hs-special">)</span><span>
+</span><span id="line-200"></span><span>    </span><span class="hs-identifier">REJECT</span><span class="hs-special">(</span><span class="hs-identifier">HsWrap</span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">#if __GLASGOW_HASKELL__ &lt;= 808
+</span><span>    </span><span class="hs-identifier">REJECT</span><span class="hs-special">(</span><span class="hs-identifier">HsArrApp</span><span class="hs-special">)</span><span>
+</span><span id="line-204"></span><span>    </span><span class="hs-identifier">REJECT</span><span class="hs-special">(</span><span class="hs-identifier">HsArrForm</span><span class="hs-special">)</span><span>
+</span><span id="line-205"></span><span>    </span><span class="hs-identifier">REJECT</span><span class="hs-special">(</span><span class="hs-identifier">EWildPat</span><span class="hs-special">)</span><span>
+</span><span id="line-206"></span><span>    </span><span class="hs-identifier">REJECT</span><span class="hs-special">(</span><span class="hs-identifier">EAsPat</span><span class="hs-special">)</span><span>
+</span><span id="line-207"></span><span>    </span><span class="hs-identifier">REJECT</span><span class="hs-special">(</span><span class="hs-identifier">EViewPat</span><span class="hs-special">)</span><span>
+</span><span id="line-208"></span><span>    </span><span class="hs-identifier">REJECT</span><span class="hs-special">(</span><span class="hs-identifier">ELazyPat</span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">#if __GLASGOW_HASKELL__ &lt;= 804
+</span><span>    </span><span class="hs-identifier">REJECT</span><span class="hs-special">(</span><span class="hs-identifier">HsAppTypeOut</span><span class="hs-special">)</span><span>
+</span><span id="line-212"></span><span>    </span><span class="hs-identifier">REJECT</span><span class="hs-special">(</span><span class="hs-identifier">ExplicitPArr</span><span class="hs-special">)</span><span>
+</span><span id="line-213"></span><span>    </span><span class="hs-identifier">REJECT</span><span class="hs-special">(</span><span class="hs-identifier">ExprWithTySigOut</span><span class="hs-special">)</span><span>
+</span><span id="line-214"></span><span>    </span><span class="hs-identifier">REJECT</span><span class="hs-special">(</span><span class="hs-identifier">PArrSeq</span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span>    </span><span class="hs-identifier">X</span><span class="hs-special">(</span><span class="hs-identifier">XExpr</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">fail</span><span> </span><span class="hs-string">&quot;XExpr&quot;</span><span class="hs-special">)</span><span>
+</span><span id="line-217"></span><span>
+</span><span id="line-218"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#ToExpression"><span class="hs-identifier hs-type">ToExpression</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">RdrName</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-219"></span><span>  </span><span id="local-6989586621679156535"><span class="annot"><span class="annottext">toExpression :: RdrName -&gt; Either Error Expression
+</span><a href="#local-6989586621679156535"><span class="hs-identifier hs-var hs-var hs-var hs-var">toExpression</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Expression
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.Types.html#Id"><span class="hs-identifier hs-var">Id</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">RdrName -&gt; String
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#showRdrName"><span class="hs-identifier hs-var">showRdrName</span></a></span><span>
+</span><span id="line-220"></span><span>
+</span><span id="line-221"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#ToExpression"><span class="hs-identifier hs-type">ToExpression</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">HsTupArg</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">GhcPs</span></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-222"></span><span>  </span><span id="local-6989586621679156529"><span class="annot"><span class="annottext">toExpression :: HsTupArg GhcPs -&gt; Either Error Expression
+</span><a href="#local-6989586621679156529"><span class="hs-identifier hs-var hs-var hs-var hs-var">toExpression</span></a></span></span><span> </span><span id="local-6989586621679156528"><span class="annot"><span class="annottext">HsTupArg GhcPs
+</span><a href="#local-6989586621679156528"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">HsTupArg GhcPs
+</span><a href="#local-6989586621679156528"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-223"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Present</span></span><span> </span><span id="local-6989586621679156526"><span class="annot"><span class="annottext">XPresent GhcPs
+</span><a href="#local-6989586621679156526"><span class="hs-identifier hs-var">_x</span></a></span></span><span> </span><span id="local-6989586621679156525"><span class="annot"><span class="annottext">LHsExpr GhcPs
+</span><a href="#local-6989586621679156525"><span class="hs-identifier hs-var">expr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. ToExpression a =&gt; a -&gt; Either Error Expression
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#toExpression"><span class="hs-identifier hs-var">toExpression</span></a></span><span> </span><span class="annot"><span class="annottext">LHsExpr GhcPs
+</span><a href="#local-6989586621679156525"><span class="hs-identifier hs-var">expr</span></a></span><span>
+</span><span id="line-224"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Missing</span></span><span> </span><span class="annot"><span class="annottext">XMissing GhcPs
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. HasCallStack =&gt; String -&gt; Either Error a
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#fail"><span class="hs-identifier hs-var">fail</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Missing (tuple section)&quot;</span></span><span>
+</span><span id="line-225"></span><span>    </span><span class="hs-identifier">X</span><span class="hs-special">(</span><span class="hs-identifier">XTupArg</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">fail</span><span> </span><span class="hs-string">&quot;XTupArg&quot;</span><span class="hs-special">)</span><span>
+</span><span id="line-226"></span><span>
+</span><span id="line-227"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679156842"><span id="local-6989586621679156843"><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#ToExpression"><span class="hs-identifier hs-type">ToExpression</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679156843"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#ToExpression"><span class="hs-identifier hs-type">ToExpression</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">GenLocated</span></span><span> </span><span class="annot"><a href="#local-6989586621679156842"><span class="hs-identifier hs-type">l</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679156843"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-228"></span><span>  </span><span id="local-6989586621679156520"><span class="annot"><span class="annottext">toExpression :: GenLocated l e -&gt; Either Error Expression
+</span><a href="#local-6989586621679156520"><span class="hs-identifier hs-var hs-var hs-var hs-var">toExpression</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">L</span></span><span> </span><span class="annot"><span class="annottext">l
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679156519"><span class="annot"><span class="annottext">e
+</span><a href="#local-6989586621679156519"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. ToExpression a =&gt; a -&gt; Either Error Expression
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#toExpression"><span class="hs-identifier hs-var">toExpression</span></a></span><span> </span><span class="annot"><span class="annottext">e
+</span><a href="#local-6989586621679156519"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-229"></span><span>
+</span><span id="line-230"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#ToExpression"><span class="hs-identifier hs-type">ToExpression</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">HsOverLit</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">GhcPs</span></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-231"></span><span>  </span><span id="local-6989586621679156515"><span class="annot"><span class="annottext">toExpression :: HsOverLit GhcPs -&gt; Either Error Expression
+</span><a href="#local-6989586621679156515"><span class="hs-identifier hs-var hs-var hs-var hs-var">toExpression</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. ToExpression a =&gt; a -&gt; Either Error Expression
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#toExpression"><span class="hs-identifier hs-var">toExpression</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall p. HsOverLit p -&gt; OverLitVal
+</span><span class="hs-identifier hs-var">ol_val</span></span><span class="hs-cpp">
+
+#if __GLASGOW_HASKELL__ &gt; 802
+</span><span class="hs-cpp">#define _integralSource
+</span><span>
+</span><span id="line-236"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#ToExpression"><span class="hs-identifier hs-type">ToExpression</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IntegralLit</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-237"></span><span>  </span><span id="local-6989586621679156509"><span class="annot"><span class="annottext">toExpression :: IntegralLit -&gt; Either Error Expression
+</span><a href="#local-6989586621679156509"><span class="hs-identifier hs-var hs-var hs-var hs-var">toExpression</span></a></span></span><span> </span><span id="local-6989586621679156508"><span class="annot"><span class="annottext">IntegralLit
+</span><a href="#local-6989586621679156508"><span class="hs-identifier hs-var">il</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. ToExpression a =&gt; a -&gt; Either Error Expression
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#toExpression"><span class="hs-identifier hs-var">toExpression</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IntegralLit -&gt; Integer
+</span><span class="hs-identifier hs-var">il_value</span></span><span> </span><span class="annot"><span class="annottext">IntegralLit
+</span><a href="#local-6989586621679156508"><span class="hs-identifier hs-var">il</span></a></span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-240"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#ToExpression"><span class="hs-identifier hs-type">ToExpression</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">OverLitVal</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-241"></span><span>  </span><span id="local-6989586621679156500"><span class="annot"><span class="annottext">toExpression :: OverLitVal -&gt; Either Error Expression
+</span><a href="#local-6989586621679156500"><span class="hs-identifier hs-var hs-var hs-var hs-var">toExpression</span></a></span></span><span> </span><span id="local-6989586621679156499"><span class="annot"><span class="annottext">OverLitVal
+</span><a href="#local-6989586621679156499"><span class="hs-identifier hs-var">lit</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">OverLitVal
+</span><a href="#local-6989586621679156499"><span class="hs-identifier hs-var">lit</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-242"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">HsIntegral</span></span><span> </span><span id="local-6989586621679156497"></span><span class="hs-identifier">_integralSource</span><span> </span><span class="hs-identifier">il</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">toExpression</span><span> </span><span class="hs-identifier">il</span><span>
+</span><span id="line-243"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">HsFractional</span></span><span> </span><span id="local-6989586621679156495"><span class="annot"><span class="annottext">FractionalLit
+</span><a href="#local-6989586621679156495"><span class="hs-identifier hs-var">fl</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. ToExpression a =&gt; a -&gt; Either Error Expression
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#toExpression"><span class="hs-identifier hs-var">toExpression</span></a></span><span> </span><span class="annot"><span class="annottext">FractionalLit
+</span><a href="#local-6989586621679156495"><span class="hs-identifier hs-var">fl</span></a></span><span>
+</span><span id="line-244"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">HsIsString</span></span><span> </span><span class="annot"><span class="annottext">SourceText
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679156493"><span class="annot"><span class="annottext">FastString
+</span><a href="#local-6989586621679156493"><span class="hs-identifier hs-var">str</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. ToExpression a =&gt; a -&gt; Either Error Expression
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#toExpression"><span class="hs-identifier hs-var">toExpression</span></a></span><span> </span><span class="annot"><span class="annottext">FastString
+</span><a href="#local-6989586621679156493"><span class="hs-identifier hs-var">str</span></a></span><span>
+</span><span id="line-245"></span><span>
+</span><span id="line-246"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#ToExpression"><span class="hs-identifier hs-type">ToExpression</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">FractionalLit</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-247"></span><span>  </span><span id="local-6989586621679156488"><span class="annot"><span class="annottext">toExpression :: FractionalLit -&gt; Either Error Expression
+</span><a href="#local-6989586621679156488"><span class="hs-identifier hs-var hs-var hs-var hs-var">toExpression</span></a></span></span><span> </span><span id="local-6989586621679156487"><span class="annot"><span class="annottext">FractionalLit
+</span><a href="#local-6989586621679156487"><span class="hs-identifier hs-var">fl</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">FractionalLit -&gt; SourceText
+</span><span class="hs-identifier hs-var">fl_text</span></span><span> </span><span class="annot"><span class="annottext">FractionalLit
+</span><a href="#local-6989586621679156487"><span class="hs-identifier hs-var">fl</span></a></span><span> </span><span class="hs-keyword">of</span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ &gt; 802
+</span><span>    </span><span class="hs-identifier">REJECT</span><span class="hs-special">(</span><span class="hs-identifier">NoSourceText</span><span class="hs-special">)</span><span>
+</span><span id="line-250"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">SourceText</span></span><span> </span><span id="local-6989586621679156483"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679156483"><span class="hs-identifier hs-var">n</span></a></span></span><span class="hs-cpp">
+#else
+</span><span>    </span><span class="hs-identifier">n</span><span class="hs-cpp">
+#endif
+</span><span>      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Literal -&gt; Expression
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.Types.html#Literal"><span class="hs-identifier hs-var">Literal</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Literal
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.Types.html#Rational"><span class="hs-identifier hs-var">Rational</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679156483"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-255"></span><span>
+</span><span id="line-256"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#ToExpression"><span class="hs-identifier hs-type">ToExpression</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">FastString</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-257"></span><span>  </span><span id="local-6989586621679156480"><span class="annot"><span class="annottext">toExpression :: FastString -&gt; Either Error Expression
+</span><a href="#local-6989586621679156480"><span class="hs-identifier hs-var hs-var hs-var hs-var">toExpression</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Literal -&gt; Expression
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.Types.html#Literal"><span class="hs-identifier hs-var">Literal</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Literal
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.Types.html#String"><span class="hs-identifier hs-var">String</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">FastString -&gt; String
+</span><span class="hs-identifier hs-var">unpackFS</span></span><span>
+</span><span id="line-258"></span><span>
+</span><span id="line-259"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#ToExpression"><span class="hs-identifier hs-type">ToExpression</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-260"></span><span>  </span><span id="local-6989586621679156475"><span class="annot"><span class="annottext">toExpression :: Integer -&gt; Either Error Expression
+</span><a href="#local-6989586621679156475"><span class="hs-identifier hs-var hs-var hs-var hs-var">toExpression</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Literal -&gt; Expression
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.Types.html#Literal"><span class="hs-identifier hs-var">Literal</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Literal
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.Types.html#Integer"><span class="hs-identifier hs-var">Integer</span></a></span><span>
+</span><span id="line-261"></span><span>
+</span><span id="line-262"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#ToExpression"><span class="hs-identifier hs-type">ToExpression</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Char</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-263"></span><span>  </span><span id="local-6989586621679156471"><span class="annot"><span class="annottext">toExpression :: Char -&gt; Either Error Expression
+</span><a href="#local-6989586621679156471"><span class="hs-identifier hs-var hs-var hs-var hs-var">toExpression</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Literal -&gt; Expression
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.Types.html#Literal"><span class="hs-identifier hs-var">Literal</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Literal
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.Types.html#Char"><span class="hs-identifier hs-var">Char</span></a></span><span>
+</span><span id="line-264"></span><span>
+</span><span id="line-265"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#ToExpression"><span class="hs-identifier hs-type">ToExpression</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">HsLit</span></span><span> </span><span class="hs-identifier">GhcPsHsLit</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-266"></span><span>  </span><span id="local-6989586621679156444"><span class="annot"><span class="annottext">toExpression :: HsLit GhcPs -&gt; Either Error Expression
+</span><a href="#local-6989586621679156444"><span class="hs-identifier hs-var hs-var hs-var hs-var">toExpression</span></a></span></span><span> </span><span id="local-6989586621679156443"><span class="annot"><span class="annottext">HsLit GhcPs
+</span><a href="#local-6989586621679156443"><span class="hs-identifier hs-var">lit</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">HsLit GhcPs
+</span><a href="#local-6989586621679156443"><span class="hs-identifier hs-var">lit</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-267"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">HsChar</span></span><span> </span><span class="annot"><span class="annottext">XHsChar GhcPs
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679156441"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679156441"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. ToExpression a =&gt; a -&gt; Either Error Expression
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#toExpression"><span class="hs-identifier hs-var">toExpression</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679156441"><span class="hs-identifier hs-var">c</span></a></span><span>
+</span><span id="line-268"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">HsString</span></span><span> </span><span class="annot"><span class="annottext">XHsString GhcPs
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679156439"><span class="annot"><span class="annottext">FastString
+</span><a href="#local-6989586621679156439"><span class="hs-identifier hs-var">str</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. ToExpression a =&gt; a -&gt; Either Error Expression
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#toExpression"><span class="hs-identifier hs-var">toExpression</span></a></span><span> </span><span class="annot"><span class="annottext">FastString
+</span><a href="#local-6989586621679156439"><span class="hs-identifier hs-var">str</span></a></span><span>
+</span><span id="line-269"></span><span>    </span><span class="hs-identifier">REJECT</span><span class="hs-special">(</span><span class="hs-identifier">HsCharPrim</span><span class="hs-special">)</span><span>
+</span><span id="line-270"></span><span>    </span><span class="hs-identifier">REJECT</span><span class="hs-special">(</span><span class="hs-identifier">HsStringPrim</span><span class="hs-special">)</span><span>
+</span><span id="line-271"></span><span>    </span><span class="hs-identifier">REJECT</span><span class="hs-special">(</span><span class="hs-identifier">HsInt</span><span class="hs-special">)</span><span>
+</span><span id="line-272"></span><span>    </span><span class="hs-identifier">REJECT</span><span class="hs-special">(</span><span class="hs-identifier">HsIntPrim</span><span class="hs-special">)</span><span>
+</span><span id="line-273"></span><span>    </span><span class="hs-identifier">REJECT</span><span class="hs-special">(</span><span class="hs-identifier">HsWordPrim</span><span class="hs-special">)</span><span>
+</span><span id="line-274"></span><span>    </span><span class="hs-identifier">REJECT</span><span class="hs-special">(</span><span class="hs-identifier">HsInt64Prim</span><span class="hs-special">)</span><span>
+</span><span id="line-275"></span><span>    </span><span class="hs-identifier">REJECT</span><span class="hs-special">(</span><span class="hs-identifier">HsWord64Prim</span><span class="hs-special">)</span><span>
+</span><span id="line-276"></span><span>    </span><span class="hs-identifier">REJECT</span><span class="hs-special">(</span><span class="hs-identifier">HsInteger</span><span class="hs-special">)</span><span>
+</span><span id="line-277"></span><span>    </span><span class="hs-identifier">REJECT</span><span class="hs-special">(</span><span class="hs-identifier">HsRat</span><span class="hs-special">)</span><span>
+</span><span id="line-278"></span><span>    </span><span class="hs-identifier">REJECT</span><span class="hs-special">(</span><span class="hs-identifier">HsFloatPrim</span><span class="hs-special">)</span><span>
+</span><span id="line-279"></span><span>    </span><span class="hs-identifier">REJECT</span><span class="hs-special">(</span><span class="hs-identifier">HsDoublePrim</span><span class="hs-special">)</span><span>
+</span><span id="line-280"></span><span>    </span><span class="hs-identifier">X</span><span class="hs-special">(</span><span class="hs-identifier">XLit</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">fail</span><span> </span><span class="hs-string">&quot;XLit&quot;</span><span class="hs-special">)</span><span>
+</span><span id="line-281"></span><span>
+</span><span id="line-282"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#showFieldLabel"><span class="hs-identifier hs-type">showFieldLabel</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FieldOcc</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">GhcPs</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-283"></span><span id="showFieldLabel"><span class="annot"><span class="annottext">showFieldLabel :: FieldOcc GhcPs -&gt; String
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#showFieldLabel"><span class="hs-identifier hs-var hs-var">showFieldLabel</span></a></span></span><span> </span><span id="local-6989586621679156427"><span class="annot"><span class="annottext">FieldOcc GhcPs
+</span><a href="#local-6989586621679156427"><span class="hs-keyword hs-var">label</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">FieldOcc GhcPs
+</span><a href="#local-6989586621679156427"><span class="hs-keyword hs-var">label</span></a></span><span> </span><span class="hs-keyword">of</span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ &gt;= 806
+</span><span>  </span><span class="annot"><span class="hs-identifier hs-type">FieldOcc</span></span><span> </span><span class="annot"><span class="annottext">XCFieldOcc GhcPs
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">L</span></span><span> </span><span class="annot"><span class="annottext">SrcSpanAnnN
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679156425"><span class="annot"><span class="annottext">RdrName
+</span><a href="#local-6989586621679156425"><span class="hs-identifier hs-var">name</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">RdrName -&gt; String
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#showRdrName"><span class="hs-identifier hs-var">showRdrName</span></a></span><span> </span><span class="annot"><span class="annottext">RdrName
+</span><a href="#local-6989586621679156425"><span class="hs-identifier hs-var">name</span></a></span><span class="hs-cpp">
+#else
+</span><span>  </span><span class="hs-identifier">FieldOcc</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">L</span><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-identifier">name</span><span class="hs-special">)</span><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">showRdrName</span><span> </span><span class="hs-identifier">name</span><span class="hs-cpp">
+#endif
+</span><span>  </span><span class="hs-identifier">X</span><span class="hs-special">(</span><span class="hs-identifier">XFieldOcc</span><span class="hs-special">,</span><span> </span><span class="hs-string">&quot;&quot;</span><span class="hs-special">)</span><span>
+</span><span id="line-290"></span><span>
+</span><span id="line-291"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#showRdrName"><span class="hs-identifier hs-type">showRdrName</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">RdrName</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-292"></span><span id="showRdrName"><span class="annot"><span class="annottext">showRdrName :: RdrName -&gt; String
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#showRdrName"><span class="hs-identifier hs-var hs-var">showRdrName</span></a></span></span><span> </span><span id="local-6989586621679156424"><span class="annot"><span class="annottext">RdrName
+</span><a href="#local-6989586621679156424"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">RdrName
+</span><a href="#local-6989586621679156424"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-293"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Unqual</span></span><span> </span><span id="local-6989586621679156422"><span class="annot"><span class="annottext">OccName
+</span><a href="#local-6989586621679156422"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">OccName -&gt; String
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#showOccName"><span class="hs-identifier hs-var">showOccName</span></a></span><span> </span><span class="annot"><span class="annottext">OccName
+</span><a href="#local-6989586621679156422"><span class="hs-identifier hs-var">name</span></a></span><span>
+</span><span id="line-294"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Qual</span></span><span> </span><span class="annot"><span class="annottext">ModuleName
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679156419"><span class="annot"><span class="annottext">OccName
+</span><a href="#local-6989586621679156419"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">OccName -&gt; String
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#showOccName"><span class="hs-identifier hs-var">showOccName</span></a></span><span> </span><span class="annot"><span class="annottext">OccName
+</span><a href="#local-6989586621679156419"><span class="hs-identifier hs-var">name</span></a></span><span>
+</span><span id="line-295"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Orig</span></span><span> </span><span class="annot"><span class="annottext">Module
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679156417"><span class="annot"><span class="annottext">OccName
+</span><a href="#local-6989586621679156417"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">OccName -&gt; String
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#showOccName"><span class="hs-identifier hs-var">showOccName</span></a></span><span> </span><span class="annot"><span class="annottext">OccName
+</span><a href="#local-6989586621679156417"><span class="hs-identifier hs-var">name</span></a></span><span>
+</span><span id="line-296"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Exact</span></span><span> </span><span id="local-6989586621679156415"><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679156415"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">OccName -&gt; String
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#showOccName"><span class="hs-identifier hs-var">showOccName</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Name -&gt; OccName
+</span><span class="hs-identifier hs-var">nameOccName</span></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679156415"><span class="hs-identifier hs-var">name</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-297"></span><span>
+</span><span id="line-298"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#showOccName"><span class="hs-identifier hs-type">showOccName</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">OccName</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-299"></span><span id="showOccName"><span class="annot"><span class="annottext">showOccName :: OccName -&gt; String
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#showOccName"><span class="hs-identifier hs-var hs-var">showOccName</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FastString -&gt; String
+</span><span class="hs-identifier hs-var">unpackFS</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">OccName -&gt; FastString
+</span><span class="hs-identifier hs-var">occNameFS</span></span><span>
+</span><span id="line-300"></span><span>
+</span><span id="line-301"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#parse"><span class="hs-identifier hs-type">parse</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">HsExpr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">GhcPs</span></span><span class="hs-special">)</span><span>
+</span><span id="line-302"></span><span id="parse"><span class="annot"><span class="annottext">parse :: String -&gt; Maybe (HsExpr GhcPs)
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#parse"><span class="hs-identifier hs-var hs-var">parse</span></a></span></span><span> </span><span id="local-6989586621679156412"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679156412"><span class="hs-identifier hs-var">input</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">forall a. String -&gt; P a -&gt; ParseResult a
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#runParser"><span class="hs-identifier hs-var">runParser</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679156412"><span class="hs-identifier hs-var">input</span></a></span><span> </span><span class="annot"><span class="annottext">P (GenLocated SrcSpanAnnA (HsExpr GhcPs))
+</span><a href="#local-6989586621679156410"><span class="hs-identifier hs-var">pHsExpr</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-303"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">POk</span></span><span> </span><span class="annot"><span class="annottext">PState
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">L</span></span><span> </span><span class="annot"><span class="annottext">SrcSpanAnnA
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679156408"><span class="annot"><span class="annottext">HsExpr GhcPs
+</span><a href="#local-6989586621679156408"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">HsExpr GhcPs
+</span><a href="#local-6989586621679156408"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-304"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">PFailed</span></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-305"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-306"></span><span>    </span><span id="local-6989586621679156410"><span class="annot"><span class="annottext">pHsExpr :: P (GenLocated SrcSpanAnnA (HsExpr GhcPs))
+</span><a href="#local-6989586621679156410"><span class="hs-identifier hs-var hs-var">pHsExpr</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-307"></span><span>      </span><span id="local-6989586621679156402"><span class="annot"><span class="annottext">ECP
+</span><a href="#local-6989586621679156402"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">P ECP
+</span><span class="hs-identifier hs-var">GHC.parseExpression</span></span><span>
+</span><span id="line-308"></span><span>      </span><span class="annot"><span class="annottext">forall a. PV a -&gt; P a
+</span><span class="hs-identifier hs-var">runPV</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ECP -&gt; forall b. DisambECP b =&gt; PV (LocatedA b)
+</span><span class="hs-identifier hs-var">unECP</span></span><span> </span><span class="annot"><span class="annottext">ECP
+</span><a href="#local-6989586621679156402"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">)</span><span class="hs-cpp">
+
+#if __GLASGOW_HASKELL__ &lt;= 900
+</span><span class="hs-cpp">#if __GLASGOW_HASKELL__ &gt;= 810
+</span><span>    </span><span class="hs-identifier">unECP</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">runECP_PV</span><span class="hs-cpp">
+#else
+</span><span>    </span><span class="hs-identifier">unECP</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">return</span><span>
+</span><span id="line-315"></span><span>    </span><span class="hs-identifier">runPV</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">id</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">#endif
+</span><span>
+</span><span id="line-319"></span><span id="local-6989586621679156775"><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#runParser"><span class="hs-identifier hs-type">runParser</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">P</span></span><span> </span><span class="annot"><a href="#local-6989586621679156775"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ParseResult</span></span><span> </span><span class="annot"><a href="#local-6989586621679156775"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-320"></span><span id="runParser"><span class="annot"><span class="annottext">runParser :: forall a. String -&gt; P a -&gt; ParseResult a
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#runParser"><span class="hs-identifier hs-var hs-var">runParser</span></a></span></span><span> </span><span id="local-6989586621679156398"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679156398"><span class="hs-identifier hs-var">str</span></a></span></span><span> </span><span id="local-6989586621679156397"><span class="annot"><span class="annottext">P a
+</span><a href="#local-6989586621679156397"><span class="hs-identifier hs-var">parser</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. P a -&gt; PState -&gt; ParseResult a
+</span><span class="hs-identifier hs-var">unP</span></span><span> </span><span class="annot"><span class="annottext">P a
+</span><a href="#local-6989586621679156397"><span class="hs-identifier hs-var">parser</span></a></span><span> </span><span class="annot"><span class="annottext">PState
+</span><a href="#local-6989586621679156395"><span class="hs-identifier hs-var">parseState</span></a></span><span>
+</span><span id="line-321"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-322"></span><span>    </span><span id="local-6989586621679156392"><span class="annot"><span class="annottext">location :: RealSrcLoc
+</span><a href="#local-6989586621679156392"><span class="hs-identifier hs-var hs-var">location</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FastString -&gt; Int -&gt; Int -&gt; RealSrcLoc
+</span><span class="hs-identifier hs-var">mkRealSrcLoc</span></span><span> </span><span class="annot"><span class="annottext">FastString
+</span><span class="hs-string">&quot;&quot;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-323"></span><span>    </span><span id="local-6989586621679156390"><span class="annot"><span class="annottext">input :: StringBuffer
+</span><a href="#local-6989586621679156390"><span class="hs-identifier hs-var hs-var">input</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; StringBuffer
+</span><span class="hs-identifier hs-var">stringToStringBuffer</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679156398"><span class="hs-identifier hs-var">str</span></a></span><span>
+</span><span id="line-324"></span><span>    </span><span id="local-6989586621679156395"><span class="annot"><span class="annottext">parseState :: PState
+</span><a href="#local-6989586621679156395"><span class="hs-identifier hs-var hs-var">parseState</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ParserOpts -&gt; StringBuffer -&gt; RealSrcLoc -&gt; PState
+</span><span class="hs-identifier hs-var">initParserState</span></span><span> </span><span class="annot"><span class="annottext">ParserOpts
+</span><a href="#local-6989586621679156387"><span class="hs-identifier hs-var">opts</span></a></span><span> </span><span class="annot"><span class="annottext">StringBuffer
+</span><a href="#local-6989586621679156390"><span class="hs-identifier hs-var">input</span></a></span><span> </span><span class="annot"><span class="annottext">RealSrcLoc
+</span><a href="#local-6989586621679156392"><span class="hs-identifier hs-var">location</span></a></span><span>
+</span><span id="line-325"></span><span>    </span><span id="local-6989586621679156387"><span class="annot"><span class="annottext">opts :: ParserOpts
+</span><a href="#local-6989586621679156387"><span class="hs-identifier hs-var hs-var">opts</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">EnumSet WarningFlag
+-&gt; EnumSet Extension -&gt; Bool -&gt; Bool -&gt; Bool -&gt; Bool -&gt; ParserOpts
+</span><span class="hs-identifier hs-var">mkParserOpts</span></span><span> </span><span class="annot"><span class="annottext">forall {a}. EnumSet a
+</span><a href="#local-6989586621679156385"><span class="hs-identifier hs-var">warn</span></a></span><span> </span><span class="annot"><span class="annottext">EnumSet Extension
+</span><a href="#local-6989586621679156384"><span class="hs-identifier hs-var">extensions</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span class="hs-cpp">
+
+#if __GLASGOW_HASKELL__ &gt;= 804
+</span><span>    </span><span id="local-6989586621679156384"><span class="annot"><span class="annottext">extensions :: EnumSet Extension
+</span><a href="#local-6989586621679156384"><span class="hs-identifier hs-var hs-var">extensions</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Enum a =&gt; [a] -&gt; EnumSet a
+</span><span class="hs-identifier hs-var">EnumSet.fromList</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Extension
+</span><span class="hs-identifier hs-var">TraditionalRecordSyntax</span></span><span class="hs-special">]</span><span>
+</span><span id="line-329"></span><span>    </span><span id="local-6989586621679156385"><span class="annot"><span class="annottext">warn :: EnumSet a
+</span><a href="#local-6989586621679156385"><span class="hs-identifier hs-var hs-var">warn</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {a}. EnumSet a
+</span><span class="hs-identifier hs-var">EnumSet.empty</span></span><span class="hs-cpp">
+#else
+</span><span>    </span><span class="hs-identifier">extensions</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">mempty</span><span>
+</span><span id="line-332"></span><span>    </span><span class="hs-identifier">warn</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">mempty</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ &lt;= 900
+</span><span>    </span><span class="hs-identifier">initParserState</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">mkPStatePure</span><span>
+</span><span id="line-337"></span><span>    </span><span class="hs-identifier">mkParserOpts</span><span> </span><span class="hs-identifier">warningFlags</span><span> </span><span class="hs-identifier">extensionFlags</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">mkParserFlags'</span><span> </span><span class="hs-identifier">warningFlags</span><span> </span><span class="hs-identifier">extensionFlags</span><span> </span><span class="hs-keyword">unit</span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ == 900
+</span><span>    </span><span class="hs-keyword">unit</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">UnitId</span><span> </span><span class="hs-string">&quot;&quot;</span><span class="hs-cpp">
+#else
+</span><span>    </span><span class="hs-keyword">unit</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">fsToUnitId</span><span> </span><span class="hs-string">&quot;&quot;</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">#endif
+</span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ &lt;= 806
+</span><span>    </span><span class="hs-identifier">mkParserFlags'</span><span> </span><span class="hs-identifier">ws</span><span> </span><span class="hs-identifier">es</span><span> </span><span class="hs-identifier">u</span><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">assert</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">traditionalRecordSyntaxEnabled</span><span> </span><span class="hs-identifier">extensionsBitmap</span><span class="hs-special">)</span><span> </span><span class="hs-operator">$</span><span>
+</span><span id="line-347"></span><span>      </span><span class="hs-identifier">ParserFlags</span><span> </span><span class="hs-identifier">ws</span><span> </span><span class="hs-identifier">es</span><span> </span><span class="hs-identifier">u</span><span> </span><span class="hs-identifier">extensionsBitmap</span><span>
+</span><span id="line-348"></span><span>    </span><span class="hs-identifier">extensionsBitmap</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">shift</span><span> </span><span class="hs-number">1</span><span> </span><span class="hs-identifier">traditionalRecordSyntaxBit</span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ == 806
+</span><span>    </span><span class="hs-identifier">traditionalRecordSyntaxBit</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-number">28</span><span class="hs-cpp">
+#else
+</span><span>    </span><span class="hs-identifier">traditionalRecordSyntaxBit</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-number">29</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">#endif
+</span><span class="hs-cpp">
+#endif
+</span></pre></body></html>

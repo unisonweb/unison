@@ -1,0 +1,520 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span class="hs-cpp">
+#ifdef __GLASGOW_HASKELL__
+</span><span class="hs-pragma">{-# LANGUAGE Safe #-}</span><span class="hs-cpp">
+#endif
+</span><span class="hs-comment">-----------------------------------------</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- Andy Gill and Colin Runciman, June 2006</span><span>
+</span><span id="line-7"></span><span class="hs-comment">------------------------------------------</span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- | Minor utilities for the HPC tools.</span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Trace.Hpc.Util</span><span>
+</span><span id="line-12"></span><span>       </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Trace.Hpc.Util.html#HpcPos"><span class="hs-identifier">HpcPos</span></a></span><span>
+</span><span id="line-13"></span><span>       </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Trace.Hpc.Util.html#fromHpcPos"><span class="hs-identifier">fromHpcPos</span></a></span><span>
+</span><span id="line-14"></span><span>       </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Trace.Hpc.Util.html#toHpcPos"><span class="hs-identifier">toHpcPos</span></a></span><span>
+</span><span id="line-15"></span><span>       </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Trace.Hpc.Util.html#insideHpcPos"><span class="hs-identifier">insideHpcPos</span></a></span><span>
+</span><span id="line-16"></span><span>       </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Trace.Hpc.Util.html#HpcHash"><span class="hs-identifier">HpcHash</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span>       </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Trace.Hpc.Util.html#Hash"><span class="hs-identifier">Hash</span></a></span><span>
+</span><span id="line-18"></span><span>       </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Trace.Hpc.Util.html#catchIO"><span class="hs-identifier">catchIO</span></a></span><span>
+</span><span id="line-19"></span><span>       </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Trace.Hpc.Util.html#readFileUtf8"><span class="hs-identifier">readFileUtf8</span></a></span><span>
+</span><span id="line-20"></span><span>       </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Trace.Hpc.Util.html#writeFileUtf8"><span class="hs-identifier">writeFileUtf8</span></a></span><span>
+</span><span id="line-21"></span><span>       </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../deepseq-1.4.6.1/src/Control-DeepSeq.html#"><span class="hs-identifier">Control.DeepSeq</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../deepseq-1.4.6.1/src/Control-DeepSeq.html#deepseq"><span class="hs-identifier">deepseq</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Control-Exception.html#"><span class="hs-identifier">Control.Exception</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Exception</span></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Data-List.html#"><span class="hs-identifier">Data.List</span></a></span><span class="hs-special">(</span><span class="annot"><a href="../../base-4.16.4.0/src/Data-Foldable.html#foldl%27"><span class="hs-identifier">foldl'</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Data-Char.html#"><span class="hs-identifier">Data.Char</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Base.html#ord"><span class="hs-identifier">ord</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Data-Bits.html#"><span class="hs-identifier">Data.Bits</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Bits.html#xor"><span class="hs-identifier">xor</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Data-Word.html#"><span class="hs-identifier">Data.Word</span></a></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../directory-1.3.6.2/src/System-Directory.html#"><span class="hs-identifier">System.Directory</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../directory-1.3.6.2/src/System-Directory.html#createDirectoryIfMissing"><span class="hs-identifier">createDirectoryIfMissing</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../filepath-1.4.2.2/src/System-FilePath.html#"><span class="hs-identifier">System.FilePath</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../filepath-1.4.2.2/src/System-FilePath-Posix.html#takeDirectory"><span class="hs-identifier">takeDirectory</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/System-IO.html#"><span class="hs-identifier">System.IO</span></a></span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span class="hs-comment">-- | 'HpcPos' is an Hpc local rendition of a Span.</span><span>
+</span><span id="line-34"></span><span class="hs-keyword">data</span><span> </span><span id="HpcPos"><span class="annot"><a href="Trace.Hpc.Util.html#HpcPos"><span class="hs-identifier hs-var">HpcPos</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="P"><span class="annot"><a href="Trace.Hpc.Util.html#P"><span class="hs-identifier hs-var">P</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679040380"><span id="local-6989586621679040386"><span class="annot"><span class="annottext">HpcPos -&gt; HpcPos -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: HpcPos -&gt; HpcPos -&gt; Bool
+$c/= :: HpcPos -&gt; HpcPos -&gt; Bool
+== :: HpcPos -&gt; HpcPos -&gt; Bool
+$c== :: HpcPos -&gt; HpcPos -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679040352"><span id="local-6989586621679040354"><span id="local-6989586621679040357"><span id="local-6989586621679040360"><span id="local-6989586621679040363"><span id="local-6989586621679040369"><span id="local-6989586621679040375"><span class="annot"><span class="annottext">Eq HpcPos
+HpcPos -&gt; HpcPos -&gt; Bool
+HpcPos -&gt; HpcPos -&gt; Ordering
+HpcPos -&gt; HpcPos -&gt; HpcPos
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: HpcPos -&gt; HpcPos -&gt; HpcPos
+$cmin :: HpcPos -&gt; HpcPos -&gt; HpcPos
+max :: HpcPos -&gt; HpcPos -&gt; HpcPos
+$cmax :: HpcPos -&gt; HpcPos -&gt; HpcPos
+&gt;= :: HpcPos -&gt; HpcPos -&gt; Bool
+$c&gt;= :: HpcPos -&gt; HpcPos -&gt; Bool
+&gt; :: HpcPos -&gt; HpcPos -&gt; Bool
+$c&gt; :: HpcPos -&gt; HpcPos -&gt; Bool
+&lt;= :: HpcPos -&gt; HpcPos -&gt; Bool
+$c&lt;= :: HpcPos -&gt; HpcPos -&gt; Bool
+&lt; :: HpcPos -&gt; HpcPos -&gt; Bool
+$c&lt; :: HpcPos -&gt; HpcPos -&gt; Bool
+compare :: HpcPos -&gt; HpcPos -&gt; Ordering
+$ccompare :: HpcPos -&gt; HpcPos -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- | 'fromHpcPos' explodes the HpcPos into /line:column/-/line:column/</span><span>
+</span><span id="line-37"></span><span class="annot"><a href="Trace.Hpc.Util.html#fromHpcPos"><span class="hs-identifier hs-type">fromHpcPos</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Trace.Hpc.Util.html#HpcPos"><span class="hs-identifier hs-type">HpcPos</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span>
+</span><span id="line-38"></span><span id="fromHpcPos"><span class="annot"><span class="annottext">fromHpcPos :: HpcPos -&gt; (Int, Int, Int, Int)
+</span><a href="Trace.Hpc.Util.html#fromHpcPos"><span class="hs-identifier hs-var hs-var">fromHpcPos</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Trace.Hpc.Util.html#P"><span class="hs-identifier hs-type">P</span></a></span><span> </span><span id="local-6989586621679040350"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040350"><span class="hs-identifier hs-var">l1</span></a></span></span><span> </span><span id="local-6989586621679040349"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040349"><span class="hs-identifier hs-var">c1</span></a></span></span><span> </span><span id="local-6989586621679040348"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040348"><span class="hs-identifier hs-var">l2</span></a></span></span><span> </span><span id="local-6989586621679040347"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040347"><span class="hs-identifier hs-var">c2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040350"><span class="hs-identifier hs-var">l1</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040349"><span class="hs-identifier hs-var">c1</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040348"><span class="hs-identifier hs-var">l2</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040347"><span class="hs-identifier hs-var">c2</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- | 'toHpcPos' implodes to HpcPos, from /line:column/-/line:column/</span><span>
+</span><span id="line-41"></span><span class="annot"><a href="Trace.Hpc.Util.html#toHpcPos"><span class="hs-identifier hs-type">toHpcPos</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Trace.Hpc.Util.html#HpcPos"><span class="hs-identifier hs-type">HpcPos</span></a></span><span>
+</span><span id="line-42"></span><span id="toHpcPos"><span class="annot"><span class="annottext">toHpcPos :: (Int, Int, Int, Int) -&gt; HpcPos
+</span><a href="Trace.Hpc.Util.html#toHpcPos"><span class="hs-identifier hs-var hs-var">toHpcPos</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679040346"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040346"><span class="hs-identifier hs-var">l1</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679040345"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040345"><span class="hs-identifier hs-var">c1</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679040344"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040344"><span class="hs-identifier hs-var">l2</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679040343"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040343"><span class="hs-identifier hs-var">c2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int -&gt; Int -&gt; HpcPos
+</span><a href="Trace.Hpc.Util.html#P"><span class="hs-identifier hs-var">P</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040346"><span class="hs-identifier hs-var">l1</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040345"><span class="hs-identifier hs-var">c1</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040344"><span class="hs-identifier hs-var">l2</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040343"><span class="hs-identifier hs-var">c2</span></a></span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span class="hs-comment">-- | Predicate determining whether the first argument is inside the second argument.</span><span>
+</span><span id="line-45"></span><span class="annot"><a href="Trace.Hpc.Util.html#insideHpcPos"><span class="hs-identifier hs-type">insideHpcPos</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Trace.Hpc.Util.html#HpcPos"><span class="hs-identifier hs-type">HpcPos</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Trace.Hpc.Util.html#HpcPos"><span class="hs-identifier hs-type">HpcPos</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-46"></span><span id="insideHpcPos"><span class="annot"><span class="annottext">insideHpcPos :: HpcPos -&gt; HpcPos -&gt; Bool
+</span><a href="Trace.Hpc.Util.html#insideHpcPos"><span class="hs-identifier hs-var hs-var">insideHpcPos</span></a></span></span><span> </span><span id="local-6989586621679040342"><span class="annot"><span class="annottext">HpcPos
+</span><a href="#local-6989586621679040342"><span class="hs-identifier hs-var">small</span></a></span></span><span> </span><span id="local-6989586621679040341"><span class="annot"><span class="annottext">HpcPos
+</span><a href="#local-6989586621679040341"><span class="hs-identifier hs-var">big</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-47"></span><span>             </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040340"><span class="hs-identifier hs-var">sl1</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040339"><span class="hs-identifier hs-var">bl1</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span>
+</span><span id="line-48"></span><span>             </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040340"><span class="hs-identifier hs-var">sl1</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040339"><span class="hs-identifier hs-var">bl1</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040335"><span class="hs-identifier hs-var">sc1</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040334"><span class="hs-identifier hs-var">bc1</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span>
+</span><span id="line-49"></span><span>             </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040333"><span class="hs-identifier hs-var">sl2</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040331"><span class="hs-identifier hs-var">bl2</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span>
+</span><span id="line-50"></span><span>             </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040333"><span class="hs-identifier hs-var">sl2</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040331"><span class="hs-identifier hs-var">bl2</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040330"><span class="hs-identifier hs-var">sc2</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040329"><span class="hs-identifier hs-var">bc2</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-51"></span><span>  </span><span class="hs-keyword">where</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679040340"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040340"><span class="hs-identifier hs-var">sl1</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679040335"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040335"><span class="hs-identifier hs-var">sc1</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679040333"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040333"><span class="hs-identifier hs-var">sl2</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679040330"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040330"><span class="hs-identifier hs-var">sc2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HpcPos -&gt; (Int, Int, Int, Int)
+</span><a href="Trace.Hpc.Util.html#fromHpcPos"><span class="hs-identifier hs-var">fromHpcPos</span></a></span><span> </span><span class="annot"><span class="annottext">HpcPos
+</span><a href="#local-6989586621679040342"><span class="hs-identifier hs-var">small</span></a></span><span>
+</span><span id="line-52"></span><span>        </span><span class="hs-special">(</span><span id="local-6989586621679040339"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040339"><span class="hs-identifier hs-var">bl1</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679040334"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040334"><span class="hs-identifier hs-var">bc1</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679040331"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040331"><span class="hs-identifier hs-var">bl2</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679040329"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040329"><span class="hs-identifier hs-var">bc2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HpcPos -&gt; (Int, Int, Int, Int)
+</span><a href="Trace.Hpc.Util.html#fromHpcPos"><span class="hs-identifier hs-var">fromHpcPos</span></a></span><span> </span><span class="annot"><span class="annottext">HpcPos
+</span><a href="#local-6989586621679040341"><span class="hs-identifier hs-var">big</span></a></span><span>
+</span><span id="line-53"></span><span>
+</span><span id="line-54"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679040324"><span id="local-6989586621679040327"><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Show.html#Show"><span class="hs-identifier hs-type">Show</span></a></span><span> </span><span class="annot"><a href="Trace.Hpc.Util.html#HpcPos"><span class="hs-identifier hs-type">HpcPos</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-55"></span><span>   </span><span id="local-6989586621679040317"><span class="annot"><span class="annottext">show :: HpcPos -&gt; String
+</span><a href="../../base-4.16.4.0/src/GHC-Show.html#show"><span class="hs-identifier hs-var hs-var hs-var hs-var">show</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Trace.Hpc.Util.html#P"><span class="hs-identifier hs-type">P</span></a></span><span> </span><span id="local-6989586621679040315"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040315"><span class="hs-identifier hs-var">l1</span></a></span></span><span> </span><span id="local-6989586621679040314"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040314"><span class="hs-identifier hs-var">c1</span></a></span></span><span> </span><span id="local-6989586621679040313"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040313"><span class="hs-identifier hs-var">l2</span></a></span></span><span> </span><span id="local-6989586621679040312"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040312"><span class="hs-identifier hs-var">c2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Show a =&gt; a -&gt; String
+</span><a href="../../base-4.16.4.0/src/GHC-Show.html#show"><span class="hs-identifier hs-var">show</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040315"><span class="hs-identifier hs-var">l1</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%2B%2B"><span class="hs-operator hs-var">++</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">':'</span></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">forall a. Show a =&gt; a -&gt; String
+</span><a href="../../base-4.16.4.0/src/GHC-Show.html#show"><span class="hs-identifier hs-var">show</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040314"><span class="hs-identifier hs-var">c1</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%2B%2B"><span class="hs-operator hs-var">++</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'-'</span></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">forall a. Show a =&gt; a -&gt; String
+</span><a href="../../base-4.16.4.0/src/GHC-Show.html#show"><span class="hs-identifier hs-var">show</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040313"><span class="hs-identifier hs-var">l2</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%2B%2B"><span class="hs-operator hs-var">++</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">':'</span></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">forall a. Show a =&gt; a -&gt; String
+</span><a href="../../base-4.16.4.0/src/GHC-Show.html#show"><span class="hs-identifier hs-var">show</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040312"><span class="hs-identifier hs-var">c2</span></a></span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679040305"><span id="local-6989586621679040307"><span id="local-6989586621679040309"><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Read.html#Read"><span class="hs-identifier hs-type">Read</span></a></span><span> </span><span class="annot"><a href="Trace.Hpc.Util.html#HpcPos"><span class="hs-identifier hs-type">HpcPos</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-58"></span><span>  </span><span id="local-6989586621679040298"><span class="annot"><span class="annottext">readsPrec :: Int -&gt; ReadS HpcPos
+</span><a href="../../base-4.16.4.0/src/GHC-Read.html#readsPrec"><span class="hs-identifier hs-var hs-var hs-var hs-var">readsPrec</span></a></span></span><span> </span><span id="local-6989586621679040296"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040296"><span class="hs-identifier hs-var">_i</span></a></span></span><span> </span><span id="local-6989586621679040295"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040295"><span class="hs-identifier hs-var">pos</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Int, Int, Int, Int) -&gt; HpcPos
+</span><a href="Trace.Hpc.Util.html#toHpcPos"><span class="hs-identifier hs-var">toHpcPos</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Read a =&gt; String -&gt; a
+</span><a href="../../base-4.16.4.0/src/Text-Read.html#read"><span class="hs-identifier hs-var">read</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040293"><span class="hs-identifier hs-var">l1</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">forall a. Read a =&gt; String -&gt; a
+</span><a href="../../base-4.16.4.0/src/Text-Read.html#read"><span class="hs-identifier hs-var">read</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040292"><span class="hs-identifier hs-var">c1</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">forall a. Read a =&gt; String -&gt; a
+</span><a href="../../base-4.16.4.0/src/Text-Read.html#read"><span class="hs-identifier hs-var">read</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040291"><span class="hs-identifier hs-var">l2</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">forall a. Read a =&gt; String -&gt; a
+</span><a href="../../base-4.16.4.0/src/Text-Read.html#read"><span class="hs-identifier hs-var">read</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040290"><span class="hs-identifier hs-var">c2</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040289"><span class="hs-identifier hs-var">after</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-59"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-60"></span><span>         </span><span class="hs-special">(</span><span id="local-6989586621679040286"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040286"><span class="hs-identifier hs-var">before</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679040289"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040289"><span class="hs-identifier hs-var">after</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. (a -&gt; Bool) -&gt; [a] -&gt; ([a], [a])
+</span><a href="../../base-4.16.4.0/src/GHC-List.html#span"><span class="hs-identifier hs-var">span</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">','</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040295"><span class="hs-identifier hs-var">pos</span></a></span><span>
+</span><span id="line-61"></span><span>         </span><span id="local-6989586621679040280"><span class="annot"><span class="annottext">parseError :: a -&gt; a
+</span><a href="#local-6989586621679040280"><span class="hs-identifier hs-var hs-var">parseError</span></a></span></span><span> </span><span id="local-6989586621679040279"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679040279"><span class="hs-identifier hs-var">a</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. HasCallStack =&gt; String -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Err.html#error"><span class="hs-identifier hs-var">error</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Read HpcPos: Could not parse: &quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%2B%2B"><span class="hs-operator hs-var">++</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Show a =&gt; a -&gt; String
+</span><a href="../../base-4.16.4.0/src/GHC-Show.html#show"><span class="hs-identifier hs-var">show</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679040279"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-62"></span><span>         </span><span class="hs-special">(</span><span id="local-6989586621679040272"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040272"><span class="hs-identifier hs-var">lhs0</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679040271"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040271"><span class="hs-identifier hs-var">rhs0</span></a></span></span><span class="hs-special">)</span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">forall a. (a -&gt; Bool) -&gt; [a] -&gt; ([a], [a])
+</span><a href="../../base-4.16.4.0/src/GHC-List.html#span"><span class="hs-identifier hs-var">span</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'-'</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040286"><span class="hs-identifier hs-var">before</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-63"></span><span>                               </span><span class="hs-special">(</span><span id="local-6989586621679040270"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040270"><span class="hs-identifier hs-var">lhs</span></a></span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'-'</span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679040269"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040269"><span class="hs-identifier hs-var">rhs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040270"><span class="hs-identifier hs-var">lhs</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040269"><span class="hs-identifier hs-var">rhs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-64"></span><span>                               </span><span class="hs-special">(</span><span id="local-6989586621679040268"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040268"><span class="hs-identifier hs-var">lhs</span></a></span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;&quot;</span></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040268"><span class="hs-identifier hs-var">lhs</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040268"><span class="hs-identifier hs-var">lhs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-65"></span><span>                               </span><span class="annot"><span class="annottext">(String, String)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall {a} {a}. Show a =&gt; a -&gt; a
+</span><a href="#local-6989586621679040280"><span class="hs-identifier hs-var">parseError</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040286"><span class="hs-identifier hs-var">before</span></a></span><span>
+</span><span id="line-66"></span><span>         </span><span class="hs-special">(</span><span id="local-6989586621679040293"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040293"><span class="hs-identifier hs-var">l1</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679040292"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040292"><span class="hs-identifier hs-var">c1</span></a></span></span><span class="hs-special">)</span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">forall a. (a -&gt; Bool) -&gt; [a] -&gt; ([a], [a])
+</span><a href="../../base-4.16.4.0/src/GHC-List.html#span"><span class="hs-identifier hs-var">span</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">':'</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040272"><span class="hs-identifier hs-var">lhs0</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-67"></span><span>                            </span><span class="hs-special">(</span><span id="local-6989586621679040264"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040264"><span class="hs-identifier hs-var">l</span></a></span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">':'</span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679040263"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040263"><span class="hs-identifier hs-var">c</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040264"><span class="hs-identifier hs-var">l</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040263"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-68"></span><span>                            </span><span class="annot"><span class="annottext">(String, String)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall {a} {a}. Show a =&gt; a -&gt; a
+</span><a href="#local-6989586621679040280"><span class="hs-identifier hs-var">parseError</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040272"><span class="hs-identifier hs-var">lhs0</span></a></span><span>
+</span><span id="line-69"></span><span>         </span><span class="hs-special">(</span><span id="local-6989586621679040291"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040291"><span class="hs-identifier hs-var">l2</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679040290"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040290"><span class="hs-identifier hs-var">c2</span></a></span></span><span class="hs-special">)</span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">forall a. (a -&gt; Bool) -&gt; [a] -&gt; ([a], [a])
+</span><a href="../../base-4.16.4.0/src/GHC-List.html#span"><span class="hs-identifier hs-var">span</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">':'</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040271"><span class="hs-identifier hs-var">rhs0</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-70"></span><span>                            </span><span class="hs-special">(</span><span id="local-6989586621679040259"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040259"><span class="hs-identifier hs-var">l</span></a></span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">':'</span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679040258"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040258"><span class="hs-identifier hs-var">c</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040259"><span class="hs-identifier hs-var">l</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040258"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-71"></span><span>                            </span><span class="annot"><span class="annottext">(String, String)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall {a} {a}. Show a =&gt; a -&gt; a
+</span><a href="#local-6989586621679040280"><span class="hs-identifier hs-var">parseError</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040271"><span class="hs-identifier hs-var">rhs0</span></a></span><span>
+</span><span id="line-72"></span><span>
+</span><span id="line-73"></span><span class="hs-comment">------------------------------------------------------------------------------</span><span>
+</span><span id="line-74"></span><span>
+</span><span id="line-75"></span><span class="hs-comment">-- Very simple Hash number generators</span><span>
+</span><span id="line-76"></span><span>
+</span><span id="line-77"></span><span class="hs-keyword">class</span><span> </span><span id="HpcHash"><span class="annot"><a href="Trace.Hpc.Util.html#HpcHash"><span class="hs-identifier hs-var">HpcHash</span></a></span></span><span> </span><span id="local-6989586621679040467"><span class="annot"><a href="#local-6989586621679040467"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-78"></span><span>  </span><span id="toHash"><span class="annot"><a href="Trace.Hpc.Util.html#toHash"><span class="hs-identifier hs-type">toHash</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679040467"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Trace.Hpc.Util.html#Hash"><span class="hs-identifier hs-type">Hash</span></a></span><span>
+</span><span id="line-79"></span><span>
+</span><span id="line-80"></span><span class="hs-keyword">newtype</span><span> </span><span id="Hash"><span class="annot"><a href="Trace.Hpc.Util.html#Hash"><span class="hs-identifier hs-var">Hash</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Hash"><span class="annot"><a href="Trace.Hpc.Util.html#Hash"><span class="hs-identifier hs-var">Hash</span></a></span></span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Word.html#Word32"><span class="hs-identifier hs-type">Word32</span></a></span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679040249"><span id="local-6989586621679040254"><span class="annot"><span class="annottext">Hash -&gt; Hash -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: Hash -&gt; Hash -&gt; Bool
+$c/= :: Hash -&gt; Hash -&gt; Bool
+== :: Hash -&gt; Hash -&gt; Bool
+$c== :: Hash -&gt; Hash -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-81"></span><span>
+</span><span id="line-82"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679040239"><span id="local-6989586621679040241"><span id="local-6989586621679040243"><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Read.html#Read"><span class="hs-identifier hs-type">Read</span></a></span><span> </span><span class="annot"><a href="Trace.Hpc.Util.html#Hash"><span class="hs-identifier hs-type">Hash</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-83"></span><span>  </span><span id="local-6989586621679040236"><span class="annot"><span class="annottext">readsPrec :: Int -&gt; ReadS Hash
+</span><a href="#local-6989586621679040236"><span class="hs-identifier hs-var hs-var hs-var hs-var">readsPrec</span></a></span></span><span> </span><span id="local-6989586621679040235"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040235"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span id="local-6989586621679040234"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040234"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word32 -&gt; Hash
+</span><a href="Trace.Hpc.Util.html#Hash"><span class="hs-identifier hs-var">Hash</span></a></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679040233"><span class="hs-identifier hs-var">v</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040232"><span class="hs-identifier hs-var">rest</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-84"></span><span>                  </span><span class="hs-glyph">|</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679040233"><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679040233"><span class="hs-identifier hs-var">v</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679040232"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040232"><span class="hs-identifier hs-var">rest</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a. Read a =&gt; Int -&gt; ReadS a
+</span><a href="../../base-4.16.4.0/src/GHC-Read.html#readsPrec"><span class="hs-identifier hs-var">readsPrec</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040235"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040234"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-85"></span><span>                  </span><span class="hs-special">]</span><span>
+</span><span id="line-86"></span><span>
+</span><span id="line-87"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679040227"><span id="local-6989586621679040229"><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Show.html#Show"><span class="hs-identifier hs-type">Show</span></a></span><span> </span><span class="annot"><a href="Trace.Hpc.Util.html#Hash"><span class="hs-identifier hs-type">Hash</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-88"></span><span>  </span><span id="local-6989586621679040224"><span class="annot"><span class="annottext">showsPrec :: Int -&gt; Hash -&gt; ShowS
+</span><a href="../../base-4.16.4.0/src/GHC-Show.html#showsPrec"><span class="hs-identifier hs-var hs-var hs-var hs-var">showsPrec</span></a></span></span><span> </span><span id="local-6989586621679040222"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040222"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Trace.Hpc.Util.html#Hash"><span class="hs-identifier hs-type">Hash</span></a></span><span> </span><span id="local-6989586621679040221"><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679040221"><span class="hs-identifier hs-var">n</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Show a =&gt; Int -&gt; a -&gt; ShowS
+</span><a href="../../base-4.16.4.0/src/GHC-Show.html#showsPrec"><span class="hs-identifier hs-var">showsPrec</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040222"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679040221"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-89"></span><span>
+</span><span id="line-90"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Num.html#Num"><span class="hs-identifier hs-type">Num</span></a></span><span> </span><span class="annot"><a href="Trace.Hpc.Util.html#Hash"><span class="hs-identifier hs-type">Hash</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-91"></span><span>  </span><span class="hs-special">(</span><span class="annot"><a href="Trace.Hpc.Util.html#Hash"><span class="hs-identifier hs-type">Hash</span></a></span><span> </span><span id="local-6989586621679040209"><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679040209"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679040208"><span class="annot"><span class="annottext">+ :: Hash -&gt; Hash -&gt; Hash
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2B"><span class="hs-operator hs-var hs-var hs-var hs-var">+</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Trace.Hpc.Util.html#Hash"><span class="hs-identifier hs-type">Hash</span></a></span><span> </span><span id="local-6989586621679040206"><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679040206"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word32 -&gt; Hash
+</span><a href="Trace.Hpc.Util.html#Hash"><span class="hs-identifier hs-var">Hash</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679040209"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679040206"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-92"></span><span>  </span><span class="hs-special">(</span><span class="annot"><a href="Trace.Hpc.Util.html#Hash"><span class="hs-identifier hs-type">Hash</span></a></span><span> </span><span id="local-6989586621679040204"><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679040204"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679040203"><span class="annot"><span class="annottext">* :: Hash -&gt; Hash -&gt; Hash
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2A"><span class="hs-operator hs-var hs-var hs-var hs-var">*</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Trace.Hpc.Util.html#Hash"><span class="hs-identifier hs-type">Hash</span></a></span><span> </span><span id="local-6989586621679040201"><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679040201"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word32 -&gt; Hash
+</span><a href="Trace.Hpc.Util.html#Hash"><span class="hs-identifier hs-var">Hash</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679040204"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2A"><span class="hs-operator hs-var">*</span></a></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679040201"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-93"></span><span>  </span><span class="hs-special">(</span><span class="annot"><a href="Trace.Hpc.Util.html#Hash"><span class="hs-identifier hs-type">Hash</span></a></span><span> </span><span id="local-6989586621679040199"><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679040199"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679040198"><span class="annot"><span class="annottext">- :: Hash -&gt; Hash -&gt; Hash
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#-"><span class="hs-glyph hs-var hs-var hs-var hs-var">-</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Trace.Hpc.Util.html#Hash"><span class="hs-identifier hs-type">Hash</span></a></span><span> </span><span id="local-6989586621679040197"><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679040197"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word32 -&gt; Hash
+</span><a href="Trace.Hpc.Util.html#Hash"><span class="hs-identifier hs-var">Hash</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679040199"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#-"><span class="hs-glyph hs-var">-</span></a></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679040197"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-94"></span><span>  </span><span id="local-6989586621679040195"><span class="annot"><span class="annottext">negate :: Hash -&gt; Hash
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#negate"><span class="hs-identifier hs-var hs-var hs-var hs-var">negate</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Trace.Hpc.Util.html#Hash"><span class="hs-identifier hs-type">Hash</span></a></span><span> </span><span id="local-6989586621679040194"><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679040194"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word32 -&gt; Hash
+</span><a href="Trace.Hpc.Util.html#Hash"><span class="hs-identifier hs-var">Hash</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#negate"><span class="hs-identifier hs-var">negate</span></a></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679040194"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-95"></span><span>  </span><span id="local-6989586621679040192"><span class="annot"><span class="annottext">abs :: Hash -&gt; Hash
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#abs"><span class="hs-identifier hs-var hs-var hs-var hs-var">abs</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Trace.Hpc.Util.html#Hash"><span class="hs-identifier hs-type">Hash</span></a></span><span> </span><span id="local-6989586621679040190"><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679040190"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word32 -&gt; Hash
+</span><a href="Trace.Hpc.Util.html#Hash"><span class="hs-identifier hs-var">Hash</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#abs"><span class="hs-identifier hs-var">abs</span></a></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679040190"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-96"></span><span>  </span><span id="local-6989586621679040188"><span class="annot"><span class="annottext">signum :: Hash -&gt; Hash
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#signum"><span class="hs-identifier hs-var hs-var hs-var hs-var">signum</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Trace.Hpc.Util.html#Hash"><span class="hs-identifier hs-type">Hash</span></a></span><span> </span><span id="local-6989586621679040186"><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679040186"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word32 -&gt; Hash
+</span><a href="Trace.Hpc.Util.html#Hash"><span class="hs-identifier hs-var">Hash</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#signum"><span class="hs-identifier hs-var">signum</span></a></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679040186"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-97"></span><span>  </span><span id="local-6989586621679040184"><span class="annot"><span class="annottext">fromInteger :: Integer -&gt; Hash
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#fromInteger"><span class="hs-identifier hs-var hs-var hs-var hs-var">fromInteger</span></a></span></span><span> </span><span id="local-6989586621679040183"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040183"><span class="hs-identifier hs-var">n</span></a></span></span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word32 -&gt; Hash
+</span><a href="Trace.Hpc.Util.html#Hash"><span class="hs-identifier hs-var">Hash</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; Integer -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#fromInteger"><span class="hs-identifier hs-var">fromInteger</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040183"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-98"></span><span>
+</span><span id="line-99"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Trace.Hpc.Util.html#HpcHash"><span class="hs-identifier hs-type">HpcHash</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-100"></span><span>  </span><span id="local-6989586621679040176"><span class="annot"><span class="annottext">toHash :: Int -&gt; Hash
+</span><a href="#local-6989586621679040176"><span class="hs-identifier hs-var hs-var hs-var hs-var">toHash</span></a></span></span><span> </span><span id="local-6989586621679040175"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040175"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word32 -&gt; Hash
+</span><a href="Trace.Hpc.Util.html#Hash"><span class="hs-identifier hs-var">Hash</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Real.html#fromIntegral"><span class="hs-identifier hs-var">fromIntegral</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040175"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-101"></span><span>
+</span><span id="line-102"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Trace.Hpc.Util.html#HpcHash"><span class="hs-identifier hs-type">HpcHash</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-103"></span><span>  </span><span id="local-6989586621679040171"><span class="annot"><span class="annottext">toHash :: Integer -&gt; Hash
+</span><a href="#local-6989586621679040171"><span class="hs-identifier hs-var hs-var hs-var hs-var">toHash</span></a></span></span><span> </span><span id="local-6989586621679040170"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040170"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; Integer -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#fromInteger"><span class="hs-identifier hs-var">fromInteger</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040170"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-104"></span><span>
+</span><span id="line-105"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Trace.Hpc.Util.html#HpcHash"><span class="hs-identifier hs-type">HpcHash</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Char</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-106"></span><span>  </span><span id="local-6989586621679040165"><span class="annot"><span class="annottext">toHash :: Char -&gt; Hash
+</span><a href="#local-6989586621679040165"><span class="hs-identifier hs-var hs-var hs-var hs-var">toHash</span></a></span></span><span> </span><span id="local-6989586621679040164"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679040164"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word32 -&gt; Hash
+</span><a href="Trace.Hpc.Util.html#Hash"><span class="hs-identifier hs-var">Hash</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Real.html#fromIntegral"><span class="hs-identifier hs-var">fromIntegral</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Int
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#ord"><span class="hs-identifier hs-var">ord</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679040164"><span class="hs-identifier hs-var">c</span></a></span><span>
+</span><span id="line-107"></span><span>
+</span><span id="line-108"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Trace.Hpc.Util.html#HpcHash"><span class="hs-identifier hs-type">HpcHash</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-109"></span><span>  </span><span id="local-6989586621679040159"><span class="annot"><span class="annottext">toHash :: Bool -&gt; Hash
+</span><a href="#local-6989586621679040159"><span class="hs-identifier hs-var hs-var hs-var hs-var">toHash</span></a></span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Hash
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-110"></span><span>  </span><span class="annot"><a href="Trace.Hpc.Util.html#toHash"><span class="hs-identifier hs-var">toHash</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Hash
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-111"></span><span>
+</span><span id="line-112"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679040462"><span class="annot"><a href="Trace.Hpc.Util.html#HpcHash"><span class="hs-identifier hs-type">HpcHash</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679040462"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Trace.Hpc.Util.html#HpcHash"><span class="hs-identifier hs-type">HpcHash</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679040462"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-113"></span><span>  </span><span id="local-6989586621679040149"><span class="annot"><span class="annottext">toHash :: [a] -&gt; Hash
+</span><a href="#local-6989586621679040149"><span class="hs-identifier hs-var hs-var hs-var hs-var">toHash</span></a></span></span><span> </span><span id="local-6989586621679040148"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679040148"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) b a.
+Foldable t =&gt;
+(b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><a href="../../base-4.16.4.0/src/Data-Foldable.html#foldl%27"><span class="hs-identifier hs-var">foldl'</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621679040147"><span class="annot"><span class="annottext">Hash
+</span><a href="#local-6989586621679040147"><span class="hs-identifier hs-var">h</span></a></span></span><span> </span><span id="local-6989586621679040146"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679040146"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. HpcHash a =&gt; a -&gt; Hash
+</span><a href="Trace.Hpc.Util.html#toHash"><span class="hs-identifier hs-var">toHash</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679040146"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Hash -&gt; Hash -&gt; Hash
+</span><a href="Trace.Hpc.Util.html#hxor"><span class="hs-operator hs-var">`hxor`</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Hash
+</span><a href="#local-6989586621679040147"><span class="hs-identifier hs-var">h</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2A"><span class="hs-operator hs-var">*</span></a></span><span> </span><span class="annot"><span class="annottext">Hash
+</span><span class="hs-number">33</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Hash
+</span><span class="hs-number">5381</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679040148"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-114"></span><span>
+</span><span id="line-115"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679040455"><span id="local-6989586621679040456"><span class="hs-special">(</span><span class="annot"><a href="Trace.Hpc.Util.html#HpcHash"><span class="hs-identifier hs-type">HpcHash</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679040456"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span class="annot"><a href="Trace.Hpc.Util.html#HpcHash"><span class="hs-identifier hs-type">HpcHash</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679040455"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Trace.Hpc.Util.html#HpcHash"><span class="hs-identifier hs-type">HpcHash</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679040456"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span class="annot"><a href="#local-6989586621679040455"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-116"></span><span>  </span><span id="local-6989586621679040136"><span class="annot"><span class="annottext">toHash :: (a, b) -&gt; Hash
+</span><a href="#local-6989586621679040136"><span class="hs-identifier hs-var hs-var hs-var hs-var">toHash</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679040135"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679040135"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679040134"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679040134"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. HpcHash a =&gt; a -&gt; Hash
+</span><a href="Trace.Hpc.Util.html#toHash"><span class="hs-identifier hs-var">toHash</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679040135"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2A"><span class="hs-operator hs-var">*</span></a></span><span> </span><span class="annot"><span class="annottext">Hash
+</span><span class="hs-number">33</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Hash -&gt; Hash -&gt; Hash
+</span><a href="Trace.Hpc.Util.html#hxor"><span class="hs-operator hs-var">`hxor`</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. HpcHash a =&gt; a -&gt; Hash
+</span><a href="Trace.Hpc.Util.html#toHash"><span class="hs-identifier hs-var">toHash</span></a></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679040134"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-117"></span><span>
+</span><span id="line-118"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Trace.Hpc.Util.html#HpcHash"><span class="hs-identifier hs-type">HpcHash</span></a></span><span> </span><span class="annot"><a href="Trace.Hpc.Util.html#HpcPos"><span class="hs-identifier hs-type">HpcPos</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-119"></span><span>  </span><span id="local-6989586621679040119"><span class="annot"><span class="annottext">toHash :: HpcPos -&gt; Hash
+</span><a href="#local-6989586621679040119"><span class="hs-identifier hs-var hs-var hs-var hs-var">toHash</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Trace.Hpc.Util.html#P"><span class="hs-identifier hs-type">P</span></a></span><span> </span><span id="local-6989586621679040118"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040118"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679040117"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040117"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span id="local-6989586621679040116"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040116"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span id="local-6989586621679040115"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040115"><span class="hs-identifier hs-var">d</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word32 -&gt; Hash
+</span><a href="Trace.Hpc.Util.html#Hash"><span class="hs-identifier hs-var">Hash</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Real.html#fromIntegral"><span class="hs-identifier hs-var">fromIntegral</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040118"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2A"><span class="hs-operator hs-var">*</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0x1000000</span></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040117"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2A"><span class="hs-operator hs-var">*</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0x10000</span></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040116"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2A"><span class="hs-operator hs-var">*</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0x100</span></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040115"><span class="hs-identifier hs-var">d</span></a></span><span>
+</span><span id="line-120"></span><span>
+</span><span id="line-121"></span><span class="annot"><a href="Trace.Hpc.Util.html#hxor"><span class="hs-identifier hs-type">hxor</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Trace.Hpc.Util.html#Hash"><span class="hs-identifier hs-type">Hash</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Trace.Hpc.Util.html#Hash"><span class="hs-identifier hs-type">Hash</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Trace.Hpc.Util.html#Hash"><span class="hs-identifier hs-type">Hash</span></a></span><span>
+</span><span id="line-122"></span><span id="hxor"><span class="annot"><span class="annottext">hxor :: Hash -&gt; Hash -&gt; Hash
+</span><a href="Trace.Hpc.Util.html#hxor"><span class="hs-identifier hs-var hs-var">hxor</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Trace.Hpc.Util.html#Hash"><span class="hs-identifier hs-type">Hash</span></a></span><span> </span><span id="local-6989586621679040114"><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679040114"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Trace.Hpc.Util.html#Hash"><span class="hs-identifier hs-type">Hash</span></a></span><span> </span><span id="local-6989586621679040113"><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679040113"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word32 -&gt; Hash
+</span><a href="Trace.Hpc.Util.html#Hash"><span class="hs-identifier hs-var">Hash</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679040114"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Bits.html#xor"><span class="hs-operator hs-var">`xor`</span></a></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679040113"><span class="hs-identifier hs-var">y</span></a></span><span>
+</span><span id="line-123"></span><span>
+</span><span id="line-124"></span><span id="local-6989586621679040453"><span class="annot"><a href="Trace.Hpc.Util.html#catchIO"><span class="hs-identifier hs-type">catchIO</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679040453"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-IO-Exception.html#IOException"><span class="hs-identifier hs-type">Exception.IOException</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679040453"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679040453"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-125"></span><span id="catchIO"><span class="annot"><span class="annottext">catchIO :: forall a. IO a -&gt; (IOException -&gt; IO a) -&gt; IO a
+</span><a href="Trace.Hpc.Util.html#catchIO"><span class="hs-identifier hs-var hs-var">catchIO</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall e a. Exception e =&gt; IO a -&gt; (e -&gt; IO a) -&gt; IO a
+</span><a href="../../base-4.16.4.0/src/GHC-IO.html#catch"><span class="hs-identifier hs-var">Exception.catch</span></a></span><span>
+</span><span id="line-126"></span><span>
+</span><span id="line-127"></span><span>
+</span><span id="line-128"></span><span class="hs-comment">-- | Read a file strictly, as opposed to how `readFile` does it using lazy IO, but also</span><span>
+</span><span id="line-129"></span><span class="hs-comment">-- disregard system locale and assume that the file is encoded in UTF-8. Haskell source</span><span>
+</span><span id="line-130"></span><span class="hs-comment">-- files are expected to be encoded in UTF-8 by GHC.</span><span>
+</span><span id="line-131"></span><span class="annot"><a href="Trace.Hpc.Util.html#readFileUtf8"><span class="hs-identifier hs-type">readFileUtf8</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-IO.html#FilePath"><span class="hs-identifier hs-type">FilePath</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Base.html#String"><span class="hs-identifier hs-type">String</span></a></span><span>
+</span><span id="line-132"></span><span id="readFileUtf8"><span class="annot"><span class="annottext">readFileUtf8 :: String -&gt; IO String
+</span><a href="Trace.Hpc.Util.html#readFileUtf8"><span class="hs-identifier hs-var hs-var">readFileUtf8</span></a></span></span><span> </span><span id="local-6989586621679040108"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040108"><span class="hs-identifier hs-var">filepath</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-133"></span><span>  </span><span class="annot"><span class="annottext">forall r. String -&gt; IOMode -&gt; (Handle -&gt; IO r) -&gt; IO r
+</span><a href="../../base-4.16.4.0/src/GHC-IO-StdHandles.html#withBinaryFile"><span class="hs-identifier hs-var">withBinaryFile</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040108"><span class="hs-identifier hs-var">filepath</span></a></span><span> </span><span class="annot"><span class="annottext">IOMode
+</span><a href="../../base-4.16.4.0/src/GHC-IO-IOMode.html#ReadMode"><span class="hs-identifier hs-var">ReadMode</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679040105"><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621679040105"><span class="hs-identifier hs-var">h</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-134"></span><span>    </span><span class="annot"><span class="annottext">Handle -&gt; TextEncoding -&gt; IO ()
+</span><a href="../../base-4.16.4.0/src/GHC-IO-Handle.html#hSetEncoding"><span class="hs-identifier hs-var">hSetEncoding</span></a></span><span> </span><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621679040105"><span class="hs-identifier hs-var">h</span></a></span><span> </span><span class="annot"><span class="annottext">TextEncoding
+</span><a href="../../base-4.16.4.0/src/GHC-IO-Encoding.html#utf8"><span class="hs-identifier hs-var">utf8</span></a></span><span>  </span><span class="hs-comment">-- see #17073</span><span>
+</span><span id="line-135"></span><span>    </span><span id="local-6989586621679040102"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040102"><span class="hs-identifier hs-var">contents</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Handle -&gt; IO String
+</span><a href="../../base-4.16.4.0/src/GHC-IO-Handle-Text.html#hGetContents"><span class="hs-identifier hs-var">hGetContents</span></a></span><span> </span><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621679040105"><span class="hs-identifier hs-var">h</span></a></span><span>
+</span><span id="line-136"></span><span>    </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040102"><span class="hs-identifier hs-var">contents</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. NFData a =&gt; a -&gt; b -&gt; b
+</span><a href="../../deepseq-1.4.6.1/src/Control-DeepSeq.html#deepseq"><span class="hs-operator hs-var">`deepseq`</span></a></span><span> </span><span class="annot"><span class="annottext">Handle -&gt; IO ()
+</span><a href="../../base-4.16.4.0/src/GHC-IO-Handle.html#hClose"><span class="hs-identifier hs-var">hClose</span></a></span><span> </span><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621679040105"><span class="hs-identifier hs-var">h</span></a></span><span> </span><span class="hs-comment">-- prevent lazy IO</span><span>
+</span><span id="line-137"></span><span>    </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#return"><span class="hs-identifier hs-var">return</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040102"><span class="hs-identifier hs-var">contents</span></a></span><span>
+</span><span id="line-138"></span><span>
+</span><span id="line-139"></span><span class="hs-comment">-- | Write file in UTF-8 encoding. Parent directory will be created if missing.</span><span>
+</span><span id="line-140"></span><span class="annot"><a href="Trace.Hpc.Util.html#writeFileUtf8"><span class="hs-identifier hs-type">writeFileUtf8</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-IO.html#FilePath"><span class="hs-identifier hs-type">FilePath</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Base.html#String"><span class="hs-identifier hs-type">String</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-141"></span><span id="writeFileUtf8"><span class="annot"><span class="annottext">writeFileUtf8 :: String -&gt; String -&gt; IO ()
+</span><a href="Trace.Hpc.Util.html#writeFileUtf8"><span class="hs-identifier hs-var hs-var">writeFileUtf8</span></a></span></span><span> </span><span id="local-6989586621679040099"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040099"><span class="hs-identifier hs-var">filepath</span></a></span></span><span> </span><span id="local-6989586621679040098"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040098"><span class="hs-identifier hs-var">str</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-142"></span><span>  </span><span class="annot"><span class="annottext">Bool -&gt; String -&gt; IO ()
+</span><a href="../../directory-1.3.6.2/src/System-Directory.html#createDirectoryIfMissing"><span class="hs-identifier hs-var">createDirectoryIfMissing</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ShowS
+</span><a href="../../filepath-1.4.2.2/src/System-FilePath-Posix.html#takeDirectory"><span class="hs-identifier hs-var">takeDirectory</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040099"><span class="hs-identifier hs-var">filepath</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-143"></span><span>  </span><span class="annot"><span class="annottext">forall r. String -&gt; IOMode -&gt; (Handle -&gt; IO r) -&gt; IO r
+</span><a href="../../base-4.16.4.0/src/GHC-IO-StdHandles.html#withBinaryFile"><span class="hs-identifier hs-var">withBinaryFile</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040099"><span class="hs-identifier hs-var">filepath</span></a></span><span> </span><span class="annot"><span class="annottext">IOMode
+</span><a href="../../base-4.16.4.0/src/GHC-IO-IOMode.html#WriteMode"><span class="hs-identifier hs-var">WriteMode</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679040096"><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621679040096"><span class="hs-identifier hs-var">h</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-144"></span><span>    </span><span class="annot"><span class="annottext">Handle -&gt; TextEncoding -&gt; IO ()
+</span><a href="../../base-4.16.4.0/src/GHC-IO-Handle.html#hSetEncoding"><span class="hs-identifier hs-var">hSetEncoding</span></a></span><span> </span><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621679040096"><span class="hs-identifier hs-var">h</span></a></span><span> </span><span class="annot"><span class="annottext">TextEncoding
+</span><a href="../../base-4.16.4.0/src/GHC-IO-Encoding.html#utf8"><span class="hs-identifier hs-var">utf8</span></a></span><span>  </span><span class="hs-comment">-- see #17073</span><span>
+</span><span id="line-145"></span><span>    </span><span class="annot"><span class="annottext">Handle -&gt; String -&gt; IO ()
+</span><a href="../../base-4.16.4.0/src/GHC-IO-Handle-Text.html#hPutStr"><span class="hs-identifier hs-var">hPutStr</span></a></span><span> </span><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621679040096"><span class="hs-identifier hs-var">h</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040098"><span class="hs-identifier hs-var">str</span></a></span><span>
+</span><span id="line-146"></span></pre></body></html>

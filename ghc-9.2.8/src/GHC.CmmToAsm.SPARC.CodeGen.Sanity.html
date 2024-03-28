@@ -1,0 +1,123 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- | One ounce of sanity checking is worth 10000000000000000 ounces</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- of staring blindly at assembly code trying to find the problem..</span><span>
+</span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">GHC.CmmToAsm.SPARC.CodeGen.Sanity</span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-4"></span><span>        </span><span class="annot"><a href="GHC.CmmToAsm.SPARC.CodeGen.Sanity.html#checkBlock"><span class="hs-identifier">checkBlock</span></a></span><span>
+</span><span id="line-5"></span><span class="hs-special">)</span><span>
+</span><span id="line-6"></span><span>
+</span><span id="line-7"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Prelude.html"><span class="hs-identifier">GHC.Prelude</span></a></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Platform.html"><span class="hs-identifier">GHC.Platform</span></a></span><span>
+</span><span id="line-11"></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.CmmToAsm.SPARC.Instr.html"><span class="hs-identifier">GHC.CmmToAsm.SPARC.Instr</span></a></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.CmmToAsm.SPARC.Ppr.html"><span class="hs-identifier">GHC.CmmToAsm.SPARC.Ppr</span></a></span><span>        </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-comment">-- For Outputable instances</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.CmmToAsm.Types.html"><span class="hs-identifier">GHC.CmmToAsm.Types</span></a></span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Cmm.html"><span class="hs-identifier">GHC.Cmm</span></a></span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html"><span class="hs-identifier">GHC.Utils.Outputable</span></a></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Panic.html"><span class="hs-identifier">GHC.Utils.Panic</span></a></span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- | Enforce intra-block invariants.</span><span>
+</span><span id="line-23"></span><span class="hs-comment">--</span><span>
+</span><span id="line-24"></span><span class="annot"><a href="GHC.CmmToAsm.SPARC.CodeGen.Sanity.html#checkBlock"><span class="hs-identifier hs-type">checkBlock</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Platform.html#Platform"><span class="hs-identifier hs-type">Platform</span></a></span><span>
+</span><span id="line-25"></span><span>           </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Cmm.html#CmmBlock"><span class="hs-identifier hs-type">CmmBlock</span></a></span><span>
+</span><span id="line-26"></span><span>           </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.CmmToAsm.Types.html#NatBasicBlock"><span class="hs-identifier hs-type">NatBasicBlock</span></a></span><span> </span><span class="annot"><a href="GHC.CmmToAsm.SPARC.Instr.html#Instr"><span class="hs-identifier hs-type">Instr</span></a></span><span>
+</span><span id="line-27"></span><span>           </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.CmmToAsm.Types.html#NatBasicBlock"><span class="hs-identifier hs-type">NatBasicBlock</span></a></span><span> </span><span class="annot"><a href="GHC.CmmToAsm.SPARC.Instr.html#Instr"><span class="hs-identifier hs-type">Instr</span></a></span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span id="checkBlock"><span class="annot"><span class="annottext">checkBlock :: Platform -&gt; CmmBlock -&gt; NatBasicBlock Instr -&gt; NatBasicBlock Instr
+</span><a href="GHC.CmmToAsm.SPARC.CodeGen.Sanity.html#checkBlock"><span class="hs-identifier hs-var hs-var">checkBlock</span></a></span></span><span> </span><span id="local-6989586621681231878"><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621681231878"><span class="hs-identifier hs-var">platform</span></a></span></span><span> </span><span id="local-6989586621681231877"><span class="annot"><span class="annottext">CmmBlock
+</span><a href="#local-6989586621681231877"><span class="hs-identifier hs-var">cmm</span></a></span></span><span> </span><span id="local-6989586621681231876"><span class="annot"><span class="annottext">block :: NatBasicBlock Instr
+</span><a href="#local-6989586621681231876"><span class="hs-identifier hs-var">block</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="GHC.Cmm.html#BasicBlock"><span class="hs-identifier hs-type">BasicBlock</span></a></span><span> </span><span class="annot"><span class="annottext">BlockId
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681231874"><span class="annot"><span class="annottext">[Instr]
+</span><a href="#local-6989586621681231874"><span class="hs-identifier hs-var">instrs</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">[Instr] -&gt; Bool
+</span><a href="GHC.CmmToAsm.SPARC.CodeGen.Sanity.html#checkBlockInstrs"><span class="hs-identifier hs-var">checkBlockInstrs</span></a></span><span> </span><span class="annot"><span class="annottext">[Instr]
+</span><a href="#local-6989586621681231874"><span class="hs-identifier hs-var">instrs</span></a></span><span>
+</span><span id="line-31"></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">NatBasicBlock Instr
+</span><a href="#local-6989586621681231876"><span class="hs-identifier hs-var">block</span></a></span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#otherwise"><span class="hs-identifier hs-var">otherwise</span></a></span><span>
+</span><span id="line-34"></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. HasCallStack =&gt; String -&gt; SDoc -&gt; a
+</span><a href="GHC.Utils.Panic.html#pprPanic"><span class="hs-identifier hs-var">pprPanic</span></a></span><span>
+</span><span id="line-35"></span><span>                </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;SPARC.CodeGen: bad block\n&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span>                </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="annottext">[SDoc] -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#vcat"><span class="hs-identifier hs-var">vcat</span></a></span><span>  </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot; -- cmm -----------------\n&quot;</span></span><span>
+</span><span id="line-37"></span><span>                        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall env a. OutputableP env a =&gt; env -&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#pdoc"><span class="hs-identifier hs-var">pdoc</span></a></span><span> </span><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621681231878"><span class="hs-identifier hs-var">platform</span></a></span><span> </span><span class="annot"><span class="annottext">CmmBlock
+</span><a href="#local-6989586621681231877"><span class="hs-identifier hs-var">cmm</span></a></span><span>
+</span><span id="line-38"></span><span>                        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot; -- native code ---------\n&quot;</span></span><span>
+</span><span id="line-39"></span><span>                        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall env a. OutputableP env a =&gt; env -&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#pdoc"><span class="hs-identifier hs-var">pdoc</span></a></span><span> </span><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621681231878"><span class="hs-identifier hs-var">platform</span></a></span><span> </span><span class="annot"><span class="annottext">NatBasicBlock Instr
+</span><a href="#local-6989586621681231876"><span class="hs-identifier hs-var">block</span></a></span><span> </span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span class="annot"><a href="GHC.CmmToAsm.SPARC.CodeGen.Sanity.html#checkBlockInstrs"><span class="hs-identifier hs-type">checkBlockInstrs</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.CmmToAsm.SPARC.Instr.html#Instr"><span class="hs-identifier hs-type">Instr</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-43"></span><span id="checkBlockInstrs"><span class="annot"><span class="annottext">checkBlockInstrs :: [Instr] -&gt; Bool
+</span><a href="GHC.CmmToAsm.SPARC.CodeGen.Sanity.html#checkBlockInstrs"><span class="hs-identifier hs-var hs-var">checkBlockInstrs</span></a></span></span><span> </span><span id="local-6989586621681231868"><span class="annot"><span class="annottext">[Instr]
+</span><a href="#local-6989586621681231868"><span class="hs-identifier hs-var">ii</span></a></span></span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span>        </span><span class="hs-comment">-- An unconditional jumps end the block.</span><span>
+</span><span id="line-46"></span><span>        </span><span class="hs-comment">--      There must be an unconditional jump in the block, otherwise</span><span>
+</span><span id="line-47"></span><span>        </span><span class="hs-comment">--      the register liveness determinator will get the liveness</span><span>
+</span><span id="line-48"></span><span>        </span><span class="hs-comment">--      information wrong.</span><span>
+</span><span id="line-49"></span><span>        </span><span class="hs-comment">--</span><span>
+</span><span id="line-50"></span><span>        </span><span class="hs-comment">--      If the block ends with a cmm call that never returns</span><span>
+</span><span id="line-51"></span><span>        </span><span class="hs-comment">--      then there can be unreachable instructions after the jump,</span><span>
+</span><span id="line-52"></span><span>        </span><span class="hs-comment">--      but we don't mind here.</span><span>
+</span><span id="line-53"></span><span>        </span><span class="hs-comment">--</span><span>
+</span><span id="line-54"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span id="local-6989586621681231867"><span class="annot"><span class="annottext">Instr
+</span><a href="#local-6989586621681231867"><span class="hs-identifier hs-var">instr</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span class="annot"><span class="annottext">Instr
+</span><a href="GHC.CmmToAsm.SPARC.Instr.html#NOP"><span class="hs-identifier hs-var">NOP</span></a></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span class="annot"><span class="annottext">[Instr]
+</span><span class="hs-identifier">_</span></span><span>       </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[Instr]
+</span><a href="#local-6989586621681231868"><span class="hs-identifier hs-var">ii</span></a></span><span>
+</span><span id="line-55"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Instr -&gt; Bool
+</span><a href="GHC.CmmToAsm.SPARC.Instr.html#isUnconditionalJump"><span class="hs-identifier hs-var">isUnconditionalJump</span></a></span><span> </span><span class="annot"><span class="annottext">Instr
+</span><a href="#local-6989586621681231867"><span class="hs-identifier hs-var">instr</span></a></span><span>
+</span><span id="line-56"></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span>        </span><span class="hs-comment">-- All jumps must have a NOP in their branch delay slot.</span><span>
+</span><span id="line-59"></span><span>        </span><span class="hs-comment">--      The liveness determinator and register allocators aren't smart</span><span>
+</span><span id="line-60"></span><span>        </span><span class="hs-comment">--      enough to handle branch delay slots.</span><span>
+</span><span id="line-61"></span><span>        </span><span class="hs-comment">--</span><span>
+</span><span id="line-62"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span id="local-6989586621681231864"><span class="annot"><span class="annottext">Instr
+</span><a href="#local-6989586621681231864"><span class="hs-identifier hs-var">instr</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span class="annot"><span class="annottext">Instr
+</span><a href="GHC.CmmToAsm.SPARC.Instr.html#NOP"><span class="hs-identifier hs-var">NOP</span></a></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621681231863"><span class="annot"><span class="annottext">[Instr]
+</span><a href="#local-6989586621681231863"><span class="hs-identifier hs-var">is</span></a></span></span><span>      </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[Instr]
+</span><a href="#local-6989586621681231868"><span class="hs-identifier hs-var">ii</span></a></span><span>
+</span><span id="line-63"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Instr -&gt; Bool
+</span><a href="GHC.CmmToAsm.SPARC.Instr.html#isJumpishInstr"><span class="hs-identifier hs-var">isJumpishInstr</span></a></span><span> </span><span class="annot"><span class="annottext">Instr
+</span><a href="#local-6989586621681231864"><span class="hs-identifier hs-var">instr</span></a></span><span>
+</span><span id="line-64"></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Instr] -&gt; Bool
+</span><a href="GHC.CmmToAsm.SPARC.CodeGen.Sanity.html#checkBlockInstrs"><span class="hs-identifier hs-var">checkBlockInstrs</span></a></span><span> </span><span class="annot"><span class="annottext">[Instr]
+</span><a href="#local-6989586621681231863"><span class="hs-identifier hs-var">is</span></a></span><span>
+</span><span id="line-65"></span><span>
+</span><span id="line-66"></span><span>        </span><span class="hs-comment">-- keep checking</span><span>
+</span><span id="line-67"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Instr
+</span><span class="hs-identifier">_</span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621681231861"><span class="annot"><span class="annottext">Instr
+</span><a href="#local-6989586621681231861"><span class="hs-identifier hs-var">i2</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621681231860"><span class="annot"><span class="annottext">[Instr]
+</span><a href="#local-6989586621681231860"><span class="hs-identifier hs-var">is</span></a></span></span><span>               </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[Instr]
+</span><a href="#local-6989586621681231868"><span class="hs-identifier hs-var">ii</span></a></span><span>
+</span><span id="line-68"></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Instr] -&gt; Bool
+</span><a href="GHC.CmmToAsm.SPARC.CodeGen.Sanity.html#checkBlockInstrs"><span class="hs-identifier hs-var">checkBlockInstrs</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Instr
+</span><a href="#local-6989586621681231861"><span class="hs-identifier hs-var">i2</span></a></span><span class="annot"><span class="annottext">forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span class="annot"><span class="annottext">[Instr]
+</span><a href="#local-6989586621681231860"><span class="hs-identifier hs-var">is</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-69"></span><span>
+</span><span id="line-70"></span><span>        </span><span class="hs-comment">-- this block is no good</span><span>
+</span><span id="line-71"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#otherwise"><span class="hs-identifier hs-var">otherwise</span></a></span><span>
+</span><span id="line-72"></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-73"></span></pre></body></html>

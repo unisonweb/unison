@@ -1,0 +1,135 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- THIS IS A GENERATED FILE, DO NOT EDIT</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-imports #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-matches #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-deprecations #-}</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.NotebookDocumentFilter</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Hashable</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html"><span class="hs-identifier">Language.LSP.Protocol.Utils.Misc</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prettyprinter</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Row</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Row</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Aeson.html"><span class="hs-identifier">Data.Row.Aeson</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Hashable.html"><span class="hs-identifier">Data.Row.Hashable</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Hashable</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html"><span class="hs-identifier">Language.LSP.Protocol.Types.Common</span></a></span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="hs-comment">{-|
+A notebook document filter denotes a notebook document by
+different properties. The properties will be match
+against the notebook's URI (same as with documents)
+
+@since 3.17.0
+-}</span><span>
+</span><span id="line-27"></span><span id="local-6989586621682158847"><span id="local-6989586621682158848"></span></span><span class="hs-keyword">newtype</span><span> </span><span id="NotebookDocumentFilter"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.NotebookDocumentFilter.html#NotebookDocumentFilter"><span class="hs-identifier hs-var">NotebookDocumentFilter</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="NotebookDocumentFilter"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.NotebookDocumentFilter.html#NotebookDocumentFilter"><span class="hs-identifier hs-var">NotebookDocumentFilter</span></a></span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Row.Rec</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-string">&quot;notebookType&quot;</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">Row..==</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Data.Text.Text</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">Row..+</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-string">&quot;scheme&quot;</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">Row..==</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Data.Text.Text</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-operator hs-type">Row..+</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-string">&quot;pattern&quot;</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">Row..==</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Data.Text.Text</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-operator hs-type">Row..+</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Row.Empty</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#%7C%3F"><span class="hs-operator hs-type">Language.LSP.Protocol.Types.Common.|?</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Row.Rec</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-string">&quot;notebookType&quot;</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">Row..==</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Data.Text.Text</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-operator hs-type">Row..+</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-string">&quot;scheme&quot;</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">Row..==</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Data.Text.Text</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">Row..+</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-string">&quot;pattern&quot;</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">Row..==</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Data.Text.Text</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-operator hs-type">Row..+</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Row.Empty</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#%7C%3F"><span class="hs-operator hs-type">Language.LSP.Protocol.Types.Common.|?</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Row.Rec</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-string">&quot;notebookType&quot;</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">Row..==</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Data.Text.Text</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-operator hs-type">Row..+</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-string">&quot;scheme&quot;</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">Row..==</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Data.Text.Text</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-operator hs-type">Row..+</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-string">&quot;pattern&quot;</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">Row..==</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Data.Text.Text</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">Row..+</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Row.Empty</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">newtype</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682158825"><span id="local-6989586621682158831"><span id="local-6989586621682158837"><span id="local-6989586621682158843"><span class="annot"><span class="annottext">[NotebookDocumentFilter] -&gt; Encoding
+[NotebookDocumentFilter] -&gt; Value
+NotebookDocumentFilter -&gt; Encoding
+NotebookDocumentFilter -&gt; Value
+forall a.
+(a -&gt; Value)
+-&gt; (a -&gt; Encoding)
+-&gt; ([a] -&gt; Value)
+-&gt; ([a] -&gt; Encoding)
+-&gt; ToJSON a
+toEncodingList :: [NotebookDocumentFilter] -&gt; Encoding
+$ctoEncodingList :: [NotebookDocumentFilter] -&gt; Encoding
+toJSONList :: [NotebookDocumentFilter] -&gt; Value
+$ctoJSONList :: [NotebookDocumentFilter] -&gt; Value
+toEncoding :: NotebookDocumentFilter -&gt; Encoding
+$ctoEncoding :: NotebookDocumentFilter -&gt; Encoding
+toJSON :: NotebookDocumentFilter -&gt; Value
+$ctoJSON :: NotebookDocumentFilter -&gt; Value
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Aeson.ToJSON</span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682158534"><span id="local-6989586621682158540"><span class="annot"><span class="annottext">Value -&gt; Parser [NotebookDocumentFilter]
+Value -&gt; Parser NotebookDocumentFilter
+forall a.
+(Value -&gt; Parser a) -&gt; (Value -&gt; Parser [a]) -&gt; FromJSON a
+parseJSONList :: Value -&gt; Parser [NotebookDocumentFilter]
+$cparseJSONList :: Value -&gt; Parser [NotebookDocumentFilter]
+parseJSON :: Value -&gt; Parser NotebookDocumentFilter
+$cparseJSON :: Value -&gt; Parser NotebookDocumentFilter
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Aeson.FromJSON</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682158321"><span id="local-6989586621682158323"><span id="local-6989586621682158331"><span class="annot"><span class="annottext">Int -&gt; NotebookDocumentFilter -&gt; ShowS
+[NotebookDocumentFilter] -&gt; ShowS
+NotebookDocumentFilter -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [NotebookDocumentFilter] -&gt; ShowS
+$cshowList :: [NotebookDocumentFilter] -&gt; ShowS
+show :: NotebookDocumentFilter -&gt; String
+$cshow :: NotebookDocumentFilter -&gt; String
+showsPrec :: Int -&gt; NotebookDocumentFilter -&gt; ShowS
+$cshowsPrec :: Int -&gt; NotebookDocumentFilter -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682158244"><span id="local-6989586621682158250"><span class="annot"><span class="annottext">NotebookDocumentFilter -&gt; NotebookDocumentFilter -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: NotebookDocumentFilter -&gt; NotebookDocumentFilter -&gt; Bool
+$c/= :: NotebookDocumentFilter -&gt; NotebookDocumentFilter -&gt; Bool
+== :: NotebookDocumentFilter -&gt; NotebookDocumentFilter -&gt; Bool
+$c== :: NotebookDocumentFilter -&gt; NotebookDocumentFilter -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682158151"><span id="local-6989586621682158153"><span id="local-6989586621682158156"><span id="local-6989586621682158159"><span id="local-6989586621682158162"><span id="local-6989586621682158167"><span id="local-6989586621682158173"><span class="annot"><span class="annottext">Eq NotebookDocumentFilter
+NotebookDocumentFilter -&gt; NotebookDocumentFilter -&gt; Bool
+NotebookDocumentFilter -&gt; NotebookDocumentFilter -&gt; Ordering
+NotebookDocumentFilter
+-&gt; NotebookDocumentFilter -&gt; NotebookDocumentFilter
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: NotebookDocumentFilter
+-&gt; NotebookDocumentFilter -&gt; NotebookDocumentFilter
+$cmin :: NotebookDocumentFilter
+-&gt; NotebookDocumentFilter -&gt; NotebookDocumentFilter
+max :: NotebookDocumentFilter
+-&gt; NotebookDocumentFilter -&gt; NotebookDocumentFilter
+$cmax :: NotebookDocumentFilter
+-&gt; NotebookDocumentFilter -&gt; NotebookDocumentFilter
+&gt;= :: NotebookDocumentFilter -&gt; NotebookDocumentFilter -&gt; Bool
+$c&gt;= :: NotebookDocumentFilter -&gt; NotebookDocumentFilter -&gt; Bool
+&gt; :: NotebookDocumentFilter -&gt; NotebookDocumentFilter -&gt; Bool
+$c&gt; :: NotebookDocumentFilter -&gt; NotebookDocumentFilter -&gt; Bool
+&lt;= :: NotebookDocumentFilter -&gt; NotebookDocumentFilter -&gt; Bool
+$c&lt;= :: NotebookDocumentFilter -&gt; NotebookDocumentFilter -&gt; Bool
+&lt; :: NotebookDocumentFilter -&gt; NotebookDocumentFilter -&gt; Bool
+$c&lt; :: NotebookDocumentFilter -&gt; NotebookDocumentFilter -&gt; Bool
+compare :: NotebookDocumentFilter -&gt; NotebookDocumentFilter -&gt; Ordering
+$ccompare :: NotebookDocumentFilter -&gt; NotebookDocumentFilter -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall x. Rep NotebookDocumentFilter x -&gt; NotebookDocumentFilter
+forall x. NotebookDocumentFilter -&gt; Rep NotebookDocumentFilter x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cto :: forall x. Rep NotebookDocumentFilter x -&gt; NotebookDocumentFilter
+$cfrom :: forall x. NotebookDocumentFilter -&gt; Rep NotebookDocumentFilter x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">anyclass</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682157974"><span class="annot"><span class="annottext">NotebookDocumentFilter -&gt; ()
+forall a. (a -&gt; ()) -&gt; NFData a
+rnf :: NotebookDocumentFilter -&gt; ()
+$crnf :: NotebookDocumentFilter -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682157967"><span id="local-6989586621682157969"><span class="annot"><span class="annottext">Eq NotebookDocumentFilter
+Int -&gt; NotebookDocumentFilter -&gt; Int
+NotebookDocumentFilter -&gt; Int
+forall a. Eq a -&gt; (Int -&gt; a -&gt; Int) -&gt; (a -&gt; Int) -&gt; Hashable a
+hash :: NotebookDocumentFilter -&gt; Int
+$chash :: NotebookDocumentFilter -&gt; Int
+hashWithSalt :: Int -&gt; NotebookDocumentFilter -&gt; Int
+$chashWithSalt :: Int -&gt; NotebookDocumentFilter -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Hashable</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621682157958"><span id="local-6989586621682157964"><span class="annot"><span class="annottext">forall ann. [NotebookDocumentFilter] -&gt; Doc ann
+forall ann. NotebookDocumentFilter -&gt; Doc ann
+forall a.
+(forall ann. a -&gt; Doc ann)
+-&gt; (forall ann. [a] -&gt; Doc ann) -&gt; Pretty a
+prettyList :: forall ann. [NotebookDocumentFilter] -&gt; Doc ann
+$cprettyList :: forall ann. [NotebookDocumentFilter] -&gt; Doc ann
+pretty :: forall ann. NotebookDocumentFilter -&gt; Doc ann
+$cpretty :: forall ann. NotebookDocumentFilter -&gt; Doc ann
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Pretty</span></span></span></span><span> </span><span class="hs-keyword">via</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html#ViaJSON"><span class="hs-identifier hs-type">ViaJSON</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.NotebookDocumentFilter.html#NotebookDocumentFilter"><span class="hs-identifier hs-type">NotebookDocumentFilter</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span></pre></body></html>

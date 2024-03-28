@@ -1,0 +1,454 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE OverloadedStrings #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE RecordWildCards #-}</span><span>
+</span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Network.HTTP.Client.Response</span><span>
+</span><span id="line-4"></span><span>    </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Network.HTTP.Client.Response.html#getRedirectedRequest"><span class="hs-identifier">getRedirectedRequest</span></a></span><span>
+</span><span id="line-5"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Client.Response.html#getResponse"><span class="hs-identifier">getResponse</span></a></span><span>
+</span><span id="line-6"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Client.Response.html#lbsResponse"><span class="hs-identifier">lbsResponse</span></a></span><span>
+</span><span id="line-7"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Client.Response.html#getOriginalRequest"><span class="hs-identifier">getOriginalRequest</span></a></span><span>
+</span><span id="line-8"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ByteString</span></span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString.Char8</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">S8</span></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString.Lazy</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">L</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.CaseInsensitive</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">CI</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Arrow</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">second</span></span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Monoid</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">mempty</span></span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Network.HTTP.Types</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">W</span></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Network.URI</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">parseURIReference</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">escapeURIString</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">isAllowedInURI</span></span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.HTTP.Client.Types.html"><span class="hs-identifier">Network.HTTP.Client.Types</span></a></span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.HTTP.Client.Request.html"><span class="hs-identifier">Network.HTTP.Client.Request</span></a></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.HTTP.Client.Util.html"><span class="hs-identifier">Network.HTTP.Client.Util</span></a></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.HTTP.Client.Body.html"><span class="hs-identifier">Network.HTTP.Client.Body</span></a></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.HTTP.Client.Headers.html"><span class="hs-identifier">Network.HTTP.Client.Headers</span></a></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.KeyedPool.html"><span class="hs-identifier">Data.KeyedPool</span></a></span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- | If a request is a redirection (status code 3xx) this function will create</span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- a new request from the old request, the server headers returned with the</span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- redirection, and the redirection code itself. This function returns 'Nothing'</span><span>
+</span><span id="line-32"></span><span class="hs-comment">-- if the code is not a 3xx, there is no 'location' header included, or if the</span><span>
+</span><span id="line-33"></span><span class="hs-comment">-- redirected response couldn't be parsed with 'parseRequest'.</span><span>
+</span><span id="line-34"></span><span class="hs-comment">--</span><span>
+</span><span id="line-35"></span><span class="hs-comment">-- If a user of this library wants to know the url chain that results from a</span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- specific request, that user has to re-implement the redirect-following logic</span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- themselves. An example of that might look like this:</span><span>
+</span><span id="line-38"></span><span class="hs-comment">--</span><span>
+</span><span id="line-39"></span><span class="hs-comment">-- &gt; myHttp req man = do</span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- &gt;    (res, redirectRequests) &lt;- (`runStateT` []) $</span><span>
+</span><span id="line-41"></span><span class="hs-comment">-- &gt;         'httpRedirect'</span><span>
+</span><span id="line-42"></span><span class="hs-comment">-- &gt;             9000</span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- &gt;             (\req' -&gt; do</span><span>
+</span><span id="line-44"></span><span class="hs-comment">-- &gt;                res &lt;- http req'{redirectCount=0} man</span><span>
+</span><span id="line-45"></span><span class="hs-comment">-- &gt;                modify (\rqs -&gt; req' : rqs)</span><span>
+</span><span id="line-46"></span><span class="hs-comment">-- &gt;                return (res, getRedirectedRequest req' (responseHeaders res) (responseCookieJar res) (W.statusCode (responseStatus res))</span><span>
+</span><span id="line-47"></span><span class="hs-comment">-- &gt;                )</span><span>
+</span><span id="line-48"></span><span class="hs-comment">-- &gt;             'lift'</span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- &gt;             req</span><span>
+</span><span id="line-50"></span><span class="hs-comment">-- &gt;    applyCheckStatus (checkStatus req) res</span><span>
+</span><span id="line-51"></span><span class="hs-comment">-- &gt;    return redirectRequests</span><span>
+</span><span id="line-52"></span><span class="annot"><a href="Network.HTTP.Client.Response.html#getRedirectedRequest"><span class="hs-identifier hs-type">getRedirectedRequest</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP.Client.Types.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">W.ResponseHeaders</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP.Client.Types.html#CookieJar"><span class="hs-identifier hs-type">CookieJar</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Network.HTTP.Client.Types.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span>
+</span><span id="line-53"></span><span id="getRedirectedRequest"><span class="annot"><span class="annottext">getRedirectedRequest :: Request -&gt; ResponseHeaders -&gt; CookieJar -&gt; Int -&gt; Maybe Request
+</span><a href="Network.HTTP.Client.Response.html#getRedirectedRequest"><span class="hs-identifier hs-var hs-var">getRedirectedRequest</span></a></span></span><span> </span><span id="local-6989586621679099780"><span class="annot"><span class="annottext">Request
+</span><a href="#local-6989586621679099780"><span class="hs-identifier hs-var">req</span></a></span></span><span> </span><span id="local-6989586621679099779"><span class="annot"><span class="annottext">ResponseHeaders
+</span><a href="#local-6989586621679099779"><span class="hs-identifier hs-var">hs</span></a></span></span><span> </span><span id="local-6989586621679099778"><span class="annot"><span class="annottext">CookieJar
+</span><a href="#local-6989586621679099778"><span class="hs-identifier hs-var">cookie_jar</span></a></span></span><span> </span><span id="local-6989586621679099777"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679099777"><span class="hs-identifier hs-var">code</span></a></span></span><span>
+</span><span id="line-54"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">300</span></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679099777"><span class="hs-identifier hs-var">code</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679099777"><span class="hs-identifier hs-var">code</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">400</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-55"></span><span>        </span><span id="local-6989586621679099773"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679099773"><span class="hs-identifier hs-var">l'</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a b. Eq a =&gt; a -&gt; [(a, b)] -&gt; Maybe b
+</span><span class="hs-identifier hs-var">lookup</span></span><span> </span><span class="annot"><span class="annottext">HeaderName
+</span><span class="hs-string">&quot;location&quot;</span></span><span> </span><span class="annot"><span class="annottext">ResponseHeaders
+</span><a href="#local-6989586621679099779"><span class="hs-identifier hs-var">hs</span></a></span><span>
+</span><span id="line-56"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679099771"><span class="annot"><span class="annottext">l :: String
+</span><a href="#local-6989586621679099771"><span class="hs-identifier hs-var hs-var">l</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Char -&gt; Bool) -&gt; String -&gt; String
+</span><span class="hs-identifier hs-var">escapeURIString</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isAllowedInURI</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString -&gt; String
+</span><span class="hs-identifier hs-var">S8.unpack</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679099773"><span class="hs-identifier hs-var">l'</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-57"></span><span>            </span><span id="local-6989586621679099769"><span class="annot"><span class="annottext">stripHeaders :: Request -&gt; Request
+</span><a href="#local-6989586621679099769"><span class="hs-identifier hs-var hs-var">stripHeaders</span></a></span></span><span> </span><span id="local-6989586621679099768"><span class="annot"><span class="annottext">Request
+</span><a href="#local-6989586621679099768"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-58"></span><span>              </span><span class="annot"><span class="annottext">Request
+</span><a href="#local-6989586621679099768"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">{</span><span class="annot"><span class="annottext">requestHeaders :: ResponseHeaders
+</span><a href="Network.HTTP.Client.Types.html#requestHeaders"><span class="hs-identifier hs-var">requestHeaders</span></a></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-59"></span><span>                </span><span class="annot"><span class="annottext">forall a. (a -&gt; Bool) -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">filter</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Request -&gt; HeaderName -&gt; Bool
+</span><a href="Network.HTTP.Client.Types.html#shouldStripHeaderOnRedirect"><span class="hs-identifier hs-var">shouldStripHeaderOnRedirect</span></a></span><span> </span><span class="annot"><span class="annottext">Request
+</span><a href="#local-6989586621679099780"><span class="hs-identifier hs-var">req</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a, b) -&gt; a
+</span><span class="hs-identifier hs-var">fst</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-60"></span><span>                </span><span class="annot"><span class="annottext">Request -&gt; ResponseHeaders
+</span><a href="Network.HTTP.Client.Types.html#requestHeaders"><span class="hs-identifier hs-var">requestHeaders</span></a></span><span> </span><span class="annot"><span class="annottext">Request
+</span><a href="#local-6989586621679099768"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">}</span><span>
+</span><span id="line-61"></span><span>        </span><span id="local-6989586621679099763"><span class="annot"><span class="annottext">Request
+</span><a href="#local-6989586621679099763"><span class="hs-identifier hs-var">req'</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">Request -&gt; Request
+</span><a href="#local-6989586621679099769"><span class="hs-identifier hs-var">stripHeaders</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *). MonadThrow m =&gt; Request -&gt; URI -&gt; m Request
+</span><a href="Network.HTTP.Client.Request.html#setUriRelative"><span class="hs-identifier hs-var">setUriRelative</span></a></span><span> </span><span class="annot"><span class="annottext">Request
+</span><a href="#local-6989586621679099780"><span class="hs-identifier hs-var">req</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; (a -&gt; m b) -&gt; m a -&gt; m b
+</span><span class="hs-operator hs-var">=&lt;&lt;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Maybe URI
+</span><span class="hs-identifier hs-var">parseURIReference</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679099771"><span class="hs-identifier hs-var">l</span></a></span><span>
+</span><span id="line-62"></span><span>        </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-63"></span><span>            </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679099777"><span class="hs-identifier hs-var">code</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">302</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679099777"><span class="hs-identifier hs-var">code</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">303</span></span><span>
+</span><span id="line-64"></span><span>                </span><span class="hs-comment">-- According to the spec, this should *only* be for status code</span><span>
+</span><span id="line-65"></span><span>                </span><span class="hs-comment">-- 303. However, almost all clients mistakenly implement it for</span><span>
+</span><span id="line-66"></span><span>                </span><span class="hs-comment">-- 302 as well. So we have to be wrong like everyone else...</span><span>
+</span><span id="line-67"></span><span>                </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Request
+</span><a href="#local-6989586621679099763"><span class="hs-identifier hs-var">req'</span></a></span><span>
+</span><span id="line-68"></span><span>                    </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">method :: ByteString
+</span><a href="Network.HTTP.Client.Types.html#method"><span class="hs-identifier hs-var">method</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;GET&quot;</span></span><span>
+</span><span id="line-69"></span><span>                    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">requestBody :: RequestBody
+</span><a href="Network.HTTP.Client.Types.html#requestBody"><span class="hs-identifier hs-var">requestBody</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; RequestBody
+</span><a href="Network.HTTP.Client.Types.html#RequestBodyBS"><span class="hs-identifier hs-var">RequestBodyBS</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;&quot;</span></span><span>
+</span><span id="line-70"></span><span>                    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">cookieJar :: Maybe CookieJar
+</span><a href="Network.HTTP.Client.Types.html#cookieJar"><span class="hs-identifier hs-var">cookieJar</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe CookieJar
+</span><a href="#local-6989586621679099754"><span class="hs-identifier hs-var">cookie_jar'</span></a></span><span>
+</span><span id="line-71"></span><span>                    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">requestHeaders :: ResponseHeaders
+</span><a href="Network.HTTP.Client.Types.html#requestHeaders"><span class="hs-identifier hs-var">requestHeaders</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. (a -&gt; Bool) -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">filter</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">HeaderName
+</span><span class="hs-identifier hs-var">W.hContentType</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a, b) -&gt; a
+</span><span class="hs-identifier hs-var">fst</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Request -&gt; ResponseHeaders
+</span><a href="Network.HTTP.Client.Types.html#requestHeaders"><span class="hs-identifier hs-var">requestHeaders</span></a></span><span> </span><span class="annot"><span class="annottext">Request
+</span><a href="#local-6989586621679099763"><span class="hs-identifier hs-var">req'</span></a></span><span>
+</span><span id="line-72"></span><span>                    </span><span class="hs-special">}</span><span>
+</span><span id="line-73"></span><span>                </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Request
+</span><a href="#local-6989586621679099763"><span class="hs-identifier hs-var">req'</span></a></span><span> </span><span class="hs-special">{</span><span class="annot"><span class="annottext">cookieJar :: Maybe CookieJar
+</span><a href="Network.HTTP.Client.Types.html#cookieJar"><span class="hs-identifier hs-var">cookieJar</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe CookieJar
+</span><a href="#local-6989586621679099754"><span class="hs-identifier hs-var">cookie_jar'</span></a></span><span class="hs-special">}</span><span>
+</span><span id="line-74"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-75"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-76"></span><span>    </span><span id="local-6989586621679099754"><span class="annot"><span class="annottext">cookie_jar' :: Maybe CookieJar
+</span><a href="#local-6989586621679099754"><span class="hs-identifier hs-var hs-var">cookie_jar'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="annot"><span class="annottext">CookieJar
+</span><a href="#local-6989586621679099778"><span class="hs-identifier hs-var">cookie_jar</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Request -&gt; Maybe CookieJar
+</span><a href="Network.HTTP.Client.Types.html#cookieJar"><span class="hs-identifier hs-var">cookieJar</span></a></span><span> </span><span class="annot"><span class="annottext">Request
+</span><a href="#local-6989586621679099780"><span class="hs-identifier hs-var">req</span></a></span><span>
+</span><span id="line-77"></span><span>
+</span><span id="line-78"></span><span class="hs-comment">-- | Convert a 'Response' that has a 'Source' body to one with a lazy</span><span>
+</span><span id="line-79"></span><span class="hs-comment">-- 'L.ByteString' body.</span><span>
+</span><span id="line-80"></span><span class="annot"><a href="Network.HTTP.Client.Response.html#lbsResponse"><span class="hs-identifier hs-type">lbsResponse</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP.Client.Types.html#Response"><span class="hs-identifier hs-type">Response</span></a></span><span> </span><span class="annot"><a href="Network.HTTP.Client.Types.html#BodyReader"><span class="hs-identifier hs-type">BodyReader</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.HTTP.Client.Types.html#Response"><span class="hs-identifier hs-type">Response</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">L.ByteString</span></span><span class="hs-special">)</span><span>
+</span><span id="line-81"></span><span id="lbsResponse"><span class="annot"><span class="annottext">lbsResponse :: Response BodyReader -&gt; IO (Response ByteString)
+</span><a href="Network.HTTP.Client.Response.html#lbsResponse"><span class="hs-identifier hs-var hs-var">lbsResponse</span></a></span></span><span> </span><span id="local-6989586621679099749"><span class="annot"><span class="annottext">Response BodyReader
+</span><a href="#local-6989586621679099749"><span class="hs-identifier hs-var">res</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-82"></span><span>    </span><span id="local-6989586621679099748"><span class="annot"><span class="annottext">[ByteString]
+</span><a href="#local-6989586621679099748"><span class="hs-identifier hs-var">bss</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">BodyReader -&gt; IO [ByteString]
+</span><a href="Network.HTTP.Client.Body.html#brConsume"><span class="hs-identifier hs-var">brConsume</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall body. Response body -&gt; body
+</span><a href="Network.HTTP.Client.Types.html#responseBody"><span class="hs-identifier hs-var">responseBody</span></a></span><span> </span><span class="annot"><span class="annottext">Response BodyReader
+</span><a href="#local-6989586621679099749"><span class="hs-identifier hs-var">res</span></a></span><span>
+</span><span id="line-83"></span><span>    </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Response BodyReader
+</span><a href="#local-6989586621679099749"><span class="hs-identifier hs-var">res</span></a></span><span>
+</span><span id="line-84"></span><span>        </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">responseBody :: ByteString
+</span><a href="Network.HTTP.Client.Types.html#responseBody"><span class="hs-identifier hs-var">responseBody</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[ByteString] -&gt; ByteString
+</span><span class="hs-identifier hs-var">L.fromChunks</span></span><span> </span><span class="annot"><span class="annottext">[ByteString]
+</span><a href="#local-6989586621679099748"><span class="hs-identifier hs-var">bss</span></a></span><span>
+</span><span id="line-85"></span><span>        </span><span class="hs-special">}</span><span>
+</span><span id="line-86"></span><span>
+</span><span id="line-87"></span><span class="annot"><a href="Network.HTTP.Client.Response.html#getResponse"><span class="hs-identifier hs-type">getResponse</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-88"></span><span>            </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP.Client.Types.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span>
+</span><span id="line-89"></span><span>            </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.KeyedPool.html#Managed"><span class="hs-identifier hs-type">Managed</span></a></span><span> </span><span class="annot"><a href="Network.HTTP.Client.Types.html#Connection"><span class="hs-identifier hs-type">Connection</span></a></span><span>
+</span><span id="line-90"></span><span>            </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-comment">-- ^ Action to run in case of a '100 Continue'.</span><span>
+</span><span id="line-91"></span><span>            </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.HTTP.Client.Types.html#Response"><span class="hs-identifier hs-type">Response</span></a></span><span> </span><span class="annot"><a href="Network.HTTP.Client.Types.html#BodyReader"><span class="hs-identifier hs-type">BodyReader</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-92"></span><span id="getResponse"><span class="annot"><span class="annottext">getResponse :: Maybe Int
+-&gt; Request
+-&gt; Managed Connection
+-&gt; Maybe (IO ())
+-&gt; IO (Response BodyReader)
+</span><a href="Network.HTTP.Client.Response.html#getResponse"><span class="hs-identifier hs-var hs-var">getResponse</span></a></span></span><span> </span><span id="local-6989586621679099744"><span class="annot"><span class="annottext">Maybe Int
+</span><a href="#local-6989586621679099744"><span class="hs-identifier hs-var">timeout'</span></a></span></span><span> </span><span id="local-6989586621679099743"><span class="annot"><span class="annottext">req :: Request
+</span><a href="#local-6989586621679099743"><span class="hs-identifier hs-var">req</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="Network.HTTP.Client.Types.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="hs-special">{</span><span id="local-6989586621679099720"><span id="local-6989586621679099721"><span id="local-6989586621679099722"><span id="local-6989586621679099723"><span id="local-6989586621679099724"><span id="local-6989586621679099725"><span id="local-6989586621679099726"><span id="local-6989586621679099727"><span id="local-6989586621679099728"><span id="local-6989586621679099729"><span id="local-6989586621679099730"><span id="local-6989586621679099731"><span id="local-6989586621679099732"><span id="local-6989586621679099733"><span id="local-6989586621679099734"><span id="local-6989586621679099735"><span id="local-6989586621679099736"><span id="local-6989586621679099737"><span id="local-6989586621679099738"><span id="local-6989586621679099739"><span id="local-6989586621679099740"><span id="local-6989586621679099741"><span class="annot"><span class="annottext">Bool
+Int
+ResponseHeaders
+Maybe HostAddress
+Maybe Manager
+Maybe Proxy
+Maybe CookieJar
+ByteString
+Set HeaderName
+HttpVersion
+ResponseTimeout
+RequestBody
+ProxySecureMode
+ByteString -&gt; Bool
+SomeException -&gt; IO ()
+HeaderName -&gt; Bool
+Request -&gt; Response BodyReader -&gt; IO ()
+redactHeaders :: Request -&gt; Set HeaderName
+proxySecureMode :: Request -&gt; ProxySecureMode
+requestManagerOverride :: Request -&gt; Maybe Manager
+onRequestBodyException :: Request -&gt; SomeException -&gt; IO ()
+requestVersion :: Request -&gt; HttpVersion
+responseTimeout :: Request -&gt; ResponseTimeout
+checkResponse :: Request -&gt; Request -&gt; Response BodyReader -&gt; IO ()
+redirectCount :: Request -&gt; Int
+decompress :: Request -&gt; ByteString -&gt; Bool
+rawBody :: Request -&gt; Bool
+hostAddress :: Request -&gt; Maybe HostAddress
+proxy :: Request -&gt; Maybe Proxy
+queryString :: Request -&gt; ByteString
+path :: Request -&gt; ByteString
+port :: Request -&gt; Int
+host :: Request -&gt; ByteString
+secure :: Request -&gt; Bool
+redactHeaders :: Set HeaderName
+proxySecureMode :: ProxySecureMode
+shouldStripHeaderOnRedirect :: HeaderName -&gt; Bool
+requestManagerOverride :: Maybe Manager
+onRequestBodyException :: SomeException -&gt; IO ()
+requestVersion :: HttpVersion
+cookieJar :: Maybe CookieJar
+responseTimeout :: ResponseTimeout
+checkResponse :: Request -&gt; Response BodyReader -&gt; IO ()
+redirectCount :: Int
+decompress :: ByteString -&gt; Bool
+rawBody :: Bool
+hostAddress :: Maybe HostAddress
+proxy :: Maybe Proxy
+requestBody :: RequestBody
+requestHeaders :: ResponseHeaders
+queryString :: ByteString
+path :: ByteString
+port :: Int
+host :: ByteString
+secure :: Bool
+method :: ByteString
+cookieJar :: Request -&gt; Maybe CookieJar
+requestBody :: Request -&gt; RequestBody
+method :: Request -&gt; ByteString
+shouldStripHeaderOnRedirect :: Request -&gt; HeaderName -&gt; Bool
+requestHeaders :: Request -&gt; ResponseHeaders
+</span><a href="Network.HTTP.Client.Types.html#redactHeaders"><span class="hs-glyph hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">..</span></a></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span id="local-6989586621679099702"><span class="annot"><span class="annottext">Managed Connection
+</span><a href="#local-6989586621679099702"><span class="hs-identifier hs-var">mconn</span></a></span></span><span> </span><span id="local-6989586621679099701"><span class="annot"><span class="annottext">Maybe (IO ())
+</span><a href="#local-6989586621679099701"><span class="hs-identifier hs-var">cont</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-93"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679099700"><span class="annot"><span class="annottext">conn :: Connection
+</span><a href="#local-6989586621679099700"><span class="hs-identifier hs-var hs-var">conn</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall resource. Managed resource -&gt; resource
+</span><a href="Data.KeyedPool.html#managedResource"><span class="hs-identifier hs-var">managedResource</span></a></span><span> </span><span class="annot"><span class="annottext">Managed Connection
+</span><a href="#local-6989586621679099702"><span class="hs-identifier hs-var">mconn</span></a></span><span>
+</span><span id="line-94"></span><span>    </span><span class="annot"><a href="Network.HTTP.Client.Types.html#StatusHeaders"><span class="hs-identifier hs-type">StatusHeaders</span></a></span><span> </span><span id="local-6989586621679099697"><span class="annot"><span class="annottext">Status
+</span><a href="#local-6989586621679099697"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span id="local-6989586621679099696"><span class="annot"><span class="annottext">HttpVersion
+</span><a href="#local-6989586621679099696"><span class="hs-identifier hs-var">version</span></a></span></span><span> </span><span id="local-6989586621679099695"><span class="annot"><span class="annottext">ResponseHeaders
+</span><a href="#local-6989586621679099695"><span class="hs-identifier hs-var">hs</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Connection -&gt; Maybe Int -&gt; Maybe (IO ()) -&gt; IO StatusHeaders
+</span><a href="Network.HTTP.Client.Headers.html#parseStatusHeaders"><span class="hs-identifier hs-var">parseStatusHeaders</span></a></span><span> </span><span class="annot"><span class="annottext">Connection
+</span><a href="#local-6989586621679099700"><span class="hs-identifier hs-var">conn</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Int
+</span><a href="#local-6989586621679099744"><span class="hs-identifier hs-var">timeout'</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe (IO ())
+</span><a href="#local-6989586621679099701"><span class="hs-identifier hs-var">cont</span></a></span><span>
+</span><span id="line-95"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679099687"><span class="annot"><span class="annottext">mcl :: Maybe Int
+</span><a href="#local-6989586621679099687"><span class="hs-identifier hs-var hs-var">mcl</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. Eq a =&gt; a -&gt; [(a, b)] -&gt; Maybe b
+</span><span class="hs-identifier hs-var">lookup</span></span><span> </span><span class="annot"><span class="annottext">HeaderName
+</span><span class="hs-string">&quot;content-length&quot;</span></span><span> </span><span class="annot"><span class="annottext">ResponseHeaders
+</span><a href="#local-6989586621679099695"><span class="hs-identifier hs-var">hs</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Maybe Int
+</span><a href="Network.HTTP.Client.Util.html#readPositiveInt"><span class="hs-identifier hs-var">readPositiveInt</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; String
+</span><span class="hs-identifier hs-var">S8.unpack</span></span><span>
+</span><span id="line-96"></span><span>        </span><span id="local-6989586621679099670"><span class="annot"><span class="annottext">isChunked :: Bool
+</span><a href="#local-6989586621679099670"><span class="hs-identifier hs-var hs-var">isChunked</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">HeaderName
+</span><span class="hs-string">&quot;transfer-encoding&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall s. FoldCase s =&gt; s -&gt; CI s
+</span><span class="hs-identifier hs-var">CI.mk</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;chunked&quot;</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. (Foldable t, Eq a) =&gt; a -&gt; t a -&gt; Bool
+</span><span class="hs-operator hs-var">`elem`</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (a :: * -&gt; * -&gt; *) b c d.
+Arrow a =&gt;
+a b c -&gt; a (d, b) (d, c)
+</span><span class="hs-identifier hs-var">second</span></span><span> </span><span class="annot"><span class="annottext">forall s. FoldCase s =&gt; s -&gt; CI s
+</span><span class="hs-identifier hs-var">CI.mk</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ResponseHeaders
+</span><a href="#local-6989586621679099695"><span class="hs-identifier hs-var">hs</span></a></span><span>
+</span><span id="line-97"></span><span>
+</span><span id="line-98"></span><span>        </span><span class="hs-comment">-- should we put this connection back into the connection manager?</span><span>
+</span><span id="line-99"></span><span>        </span><span id="local-6989586621679099659"><span class="annot"><span class="annottext">toPut :: Bool
+</span><a href="#local-6989586621679099659"><span class="hs-identifier hs-var hs-var">toPut</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;close&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">forall a b. Eq a =&gt; a -&gt; [(a, b)] -&gt; Maybe b
+</span><span class="hs-identifier hs-var">lookup</span></span><span> </span><span class="annot"><span class="annottext">HeaderName
+</span><span class="hs-string">&quot;connection&quot;</span></span><span> </span><span class="annot"><span class="annottext">ResponseHeaders
+</span><a href="#local-6989586621679099695"><span class="hs-identifier hs-var">hs</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">HttpVersion
+</span><a href="#local-6989586621679099696"><span class="hs-identifier hs-var">version</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; HttpVersion
+</span><span class="hs-identifier hs-var">W.HttpVersion</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-100"></span><span>        </span><span id="local-6989586621679099655"><span class="annot"><span class="annottext">cleanup :: Bool -&gt; IO ()
+</span><a href="#local-6989586621679099655"><span class="hs-identifier hs-var hs-var">cleanup</span></a></span></span><span> </span><span id="local-6989586621679099654"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679099654"><span class="hs-identifier hs-var">bodyConsumed</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-101"></span><span>            </span><span class="annot"><span class="annottext">forall resource. Managed resource -&gt; Reuse -&gt; IO ()
+</span><a href="Data.KeyedPool.html#managedRelease"><span class="hs-identifier hs-var">managedRelease</span></a></span><span> </span><span class="annot"><span class="annottext">Managed Connection
+</span><a href="#local-6989586621679099702"><span class="hs-identifier hs-var">mconn</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679099659"><span class="hs-identifier hs-var">toPut</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679099654"><span class="hs-identifier hs-var">bodyConsumed</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Reuse
+</span><a href="Data.KeyedPool.html#Reuse"><span class="hs-identifier hs-var">Reuse</span></a></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Reuse
+</span><a href="Data.KeyedPool.html#DontReuse"><span class="hs-identifier hs-var">DontReuse</span></a></span><span>
+</span><span id="line-102"></span><span>            </span><span class="hs-comment">-- Keep alive the `Managed Connection` until we're done with it, to prevent an early</span><span>
+</span><span id="line-103"></span><span>            </span><span class="hs-comment">-- collection.</span><span>
+</span><span id="line-104"></span><span>            </span><span class="hs-comment">-- Reasoning: as long as someone holds a reference to the explicit cleanup,</span><span>
+</span><span id="line-105"></span><span>            </span><span class="hs-comment">-- we shouldn't perform an implicit cleanup.</span><span>
+</span><span id="line-106"></span><span>            </span><span class="annot"><span class="annottext">forall resource. Managed resource -&gt; IO ()
+</span><a href="Data.KeyedPool.html#keepAlive"><span class="hs-identifier hs-var">keepAlive</span></a></span><span> </span><span class="annot"><span class="annottext">Managed Connection
+</span><a href="#local-6989586621679099702"><span class="hs-identifier hs-var">mconn</span></a></span><span>
+</span><span id="line-107"></span><span>
+</span><span id="line-108"></span><span>
+</span><span id="line-109"></span><span>    </span><span id="local-6989586621679099649"><span class="annot"><span class="annottext">BodyReader
+</span><a href="#local-6989586621679099649"><span class="hs-identifier hs-var">body</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span>
+</span><span id="line-110"></span><span>        </span><span class="hs-comment">-- RFC 2616 section 4.4_1 defines responses that must not include a body</span><span>
+</span><span id="line-111"></span><span>        </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Int -&gt; Bool
+</span><a href="Network.HTTP.Client.Response.html#hasNoBody"><span class="hs-identifier hs-var">hasNoBody</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679099741"><span class="hs-identifier hs-var">method</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Status -&gt; Int
+</span><span class="hs-identifier hs-var">W.statusCode</span></span><span> </span><span class="annot"><span class="annottext">Status
+</span><a href="#local-6989586621679099697"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe Int
+</span><a href="#local-6989586621679099687"><span class="hs-identifier hs-var">mcl</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679099670"><span class="hs-identifier hs-var">isChunked</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-112"></span><span>            </span><span class="hs-keyword">then</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-113"></span><span>                </span><span class="annot"><span class="annottext">Bool -&gt; IO ()
+</span><a href="#local-6989586621679099655"><span class="hs-identifier hs-var">cleanup</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-114"></span><span>                </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">BodyReader
+</span><a href="Network.HTTP.Client.Body.html#brEmpty"><span class="hs-identifier hs-var">brEmpty</span></a></span><span>
+</span><span id="line-115"></span><span>            </span><span class="hs-keyword">else</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-116"></span><span>                </span><span id="local-6989586621679099645"><span class="annot"><span class="annottext">BodyReader
+</span><a href="#local-6989586621679099645"><span class="hs-identifier hs-var">body1</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span>
+</span><span id="line-117"></span><span>                    </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679099670"><span class="hs-identifier hs-var">isChunked</span></a></span><span>
+</span><span id="line-118"></span><span>                        </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">IO () -&gt; Bool -&gt; Connection -&gt; IO BodyReader
+</span><a href="Network.HTTP.Client.Body.html#makeChunkedReader"><span class="hs-identifier hs-var">makeChunkedReader</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; IO ()
+</span><a href="#local-6989586621679099655"><span class="hs-identifier hs-var">cleanup</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679099731"><span class="hs-identifier hs-var">rawBody</span></a></span><span> </span><span class="annot"><span class="annottext">Connection
+</span><a href="#local-6989586621679099700"><span class="hs-identifier hs-var">conn</span></a></span><span>
+</span><span id="line-119"></span><span>                        </span><span class="hs-keyword">else</span><span>
+</span><span id="line-120"></span><span>                            </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Maybe Int
+</span><a href="#local-6989586621679099687"><span class="hs-identifier hs-var">mcl</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-121"></span><span>                                </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679099643"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679099643"><span class="hs-identifier hs-var">len</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IO () -&gt; Int -&gt; Connection -&gt; IO BodyReader
+</span><a href="Network.HTTP.Client.Body.html#makeLengthReader"><span class="hs-identifier hs-var">makeLengthReader</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; IO ()
+</span><a href="#local-6989586621679099655"><span class="hs-identifier hs-var">cleanup</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679099643"><span class="hs-identifier hs-var">len</span></a></span><span> </span><span class="annot"><span class="annottext">Connection
+</span><a href="#local-6989586621679099700"><span class="hs-identifier hs-var">conn</span></a></span><span>
+</span><span id="line-122"></span><span>                                </span><span class="annot"><span class="annottext">Maybe Int
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IO () -&gt; Connection -&gt; IO BodyReader
+</span><a href="Network.HTTP.Client.Body.html#makeUnlimitedReader"><span class="hs-identifier hs-var">makeUnlimitedReader</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; IO ()
+</span><a href="#local-6989586621679099655"><span class="hs-identifier hs-var">cleanup</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Connection
+</span><a href="#local-6989586621679099700"><span class="hs-identifier hs-var">conn</span></a></span><span>
+</span><span id="line-123"></span><span>                </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Request -&gt; ResponseHeaders -&gt; Bool
+</span><a href="Network.HTTP.Client.Request.html#needsGunzip"><span class="hs-identifier hs-var">needsGunzip</span></a></span><span> </span><span class="annot"><span class="annottext">Request
+</span><a href="#local-6989586621679099743"><span class="hs-identifier hs-var">req</span></a></span><span> </span><span class="annot"><span class="annottext">ResponseHeaders
+</span><a href="#local-6989586621679099695"><span class="hs-identifier hs-var">hs</span></a></span><span>
+</span><span id="line-124"></span><span>                    </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">BodyReader -&gt; IO BodyReader
+</span><a href="Network.HTTP.Client.Body.html#makeGzipReader"><span class="hs-identifier hs-var">makeGzipReader</span></a></span><span> </span><span class="annot"><span class="annottext">BodyReader
+</span><a href="#local-6989586621679099645"><span class="hs-identifier hs-var">body1</span></a></span><span>
+</span><span id="line-125"></span><span>                    </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">BodyReader
+</span><a href="#local-6989586621679099645"><span class="hs-identifier hs-var">body1</span></a></span><span>
+</span><span id="line-126"></span><span>
+</span><span id="line-127"></span><span>    </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><a href="Network.HTTP.Client.Types.html#Response"><span class="hs-identifier hs-type">Response</span></a></span><span>
+</span><span id="line-128"></span><span>        </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">responseStatus :: Status
+</span><a href="Network.HTTP.Client.Types.html#responseStatus"><span class="hs-identifier hs-var">responseStatus</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Status
+</span><a href="#local-6989586621679099697"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-129"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">responseVersion :: HttpVersion
+</span><a href="Network.HTTP.Client.Types.html#responseVersion"><span class="hs-identifier hs-var">responseVersion</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HttpVersion
+</span><a href="#local-6989586621679099696"><span class="hs-identifier hs-var">version</span></a></span><span>
+</span><span id="line-130"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">responseHeaders :: ResponseHeaders
+</span><a href="Network.HTTP.Client.Types.html#responseHeaders"><span class="hs-identifier hs-var">responseHeaders</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ResponseHeaders
+</span><a href="#local-6989586621679099695"><span class="hs-identifier hs-var">hs</span></a></span><span>
+</span><span id="line-131"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">responseBody :: BodyReader
+</span><a href="Network.HTTP.Client.Types.html#responseBody"><span class="hs-identifier hs-var">responseBody</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">BodyReader
+</span><a href="#local-6989586621679099649"><span class="hs-identifier hs-var">body</span></a></span><span>
+</span><span id="line-132"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">responseCookieJar :: CookieJar
+</span><a href="Network.HTTP.Client.Types.html#responseCookieJar"><span class="hs-identifier hs-var">responseCookieJar</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">Data.Monoid.mempty</span></span><span>
+</span><span id="line-133"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">responseClose' :: ResponseClose
+</span><a href="Network.HTTP.Client.Types.html#responseClose%27"><span class="hs-identifier hs-var">responseClose'</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO () -&gt; ResponseClose
+</span><a href="Network.HTTP.Client.Types.html#ResponseClose"><span class="hs-identifier hs-var">ResponseClose</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; IO ()
+</span><a href="#local-6989586621679099655"><span class="hs-identifier hs-var">cleanup</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span class="hs-special">)</span><span>
+</span><span id="line-134"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">responseOriginalRequest :: Request
+</span><a href="Network.HTTP.Client.Types.html#responseOriginalRequest"><span class="hs-identifier hs-var">responseOriginalRequest</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Request
+</span><a href="#local-6989586621679099743"><span class="hs-identifier hs-var">req</span></a></span><span> </span><span class="hs-special">{</span><span class="annot"><span class="annottext">requestBody :: RequestBody
+</span><a href="Network.HTTP.Client.Types.html#requestBody"><span class="hs-identifier hs-var">requestBody</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">RequestBody
+</span><span class="hs-string">&quot;&quot;</span></span><span class="hs-special">}</span><span>
+</span><span id="line-135"></span><span>        </span><span class="hs-special">}</span><span>
+</span><span id="line-136"></span><span>
+</span><span id="line-137"></span><span class="hs-comment">-- | Does this response have no body?</span><span>
+</span><span id="line-138"></span><span class="annot"><a href="Network.HTTP.Client.Response.html#hasNoBody"><span class="hs-identifier hs-type">hasNoBody</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span> </span><span class="hs-comment">-- ^ request method</span><span>
+</span><span id="line-139"></span><span>          </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-comment">-- ^ status code</span><span>
+</span><span id="line-140"></span><span>          </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-141"></span><span id="hasNoBody"><span class="annot"><span class="annottext">hasNoBody :: ByteString -&gt; Int -&gt; Bool
+</span><a href="Network.HTTP.Client.Response.html#hasNoBody"><span class="hs-identifier hs-var hs-var">hasNoBody</span></a></span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;HEAD&quot;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-142"></span><span class="annot"><a href="Network.HTTP.Client.Response.html#hasNoBody"><span class="hs-identifier hs-var">hasNoBody</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">204</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-143"></span><span class="annot"><a href="Network.HTTP.Client.Response.html#hasNoBody"><span class="hs-identifier hs-var">hasNoBody</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">304</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-144"></span><span class="annot"><a href="Network.HTTP.Client.Response.html#hasNoBody"><span class="hs-identifier hs-var">hasNoBody</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679099630"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679099630"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">100</span></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679099630"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679099630"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">200</span></span><span>
+</span><span id="line-145"></span><span>
+</span><span id="line-146"></span><span class="hs-comment">-- | Retrieve the orignal 'Request' from a 'Response'</span><span>
+</span><span id="line-147"></span><span class="hs-comment">--</span><span>
+</span><span id="line-148"></span><span class="hs-comment">-- Note that the 'requestBody' is not available and always set to empty.</span><span>
+</span><span id="line-149"></span><span class="hs-comment">--</span><span>
+</span><span id="line-150"></span><span class="hs-comment">-- @since 0.7.8</span><span>
+</span><span id="line-151"></span><span id="local-6989586621679099849"><span class="annot"><a href="Network.HTTP.Client.Response.html#getOriginalRequest"><span class="hs-identifier hs-type">getOriginalRequest</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP.Client.Types.html#Response"><span class="hs-identifier hs-type">Response</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679099849"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP.Client.Types.html#Request"><span class="hs-identifier hs-type">Request</span></a></span></span><span>
+</span><span id="line-152"></span><span id="getOriginalRequest"><span class="annot"><span class="annottext">getOriginalRequest :: forall a. Response a -&gt; Request
+</span><a href="Network.HTTP.Client.Response.html#getOriginalRequest"><span class="hs-identifier hs-var hs-var">getOriginalRequest</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Response a -&gt; Request
+</span><a href="Network.HTTP.Client.Types.html#responseOriginalRequest"><span class="hs-identifier hs-var">responseOriginalRequest</span></a></span><span>
+</span><span id="line-153"></span></pre></body></html>

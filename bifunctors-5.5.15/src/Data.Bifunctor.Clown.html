@@ -1,0 +1,588 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE DeriveDataTypeable #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE EmptyDataDecls #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE TypeFamilies #-}</span><span class="hs-cpp">
+
+#if __GLASGOW_HASKELL__ &gt;= 702
+</span><span class="hs-pragma">{-# LANGUAGE DeriveGeneric #-}</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ &gt;= 706
+</span><span class="hs-pragma">{-# LANGUAGE PolyKinds #-}</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ &gt;= 708
+</span><span class="hs-pragma">{-# LANGUAGE Safe #-}</span><span class="hs-cpp">
+#elif __GLASGOW_HASKELL__ &gt;= 702
+</span><span class="hs-pragma">{-# LANGUAGE Trustworthy #-}</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">#include &quot;bifunctors-common.h&quot;
+</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- Copyright   :  (C) 2008-2016 Edward Kmett</span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- License     :  BSD-style (see the file LICENSE)</span><span>
+</span><span id="line-25"></span><span class="hs-comment">--</span><span>
+</span><span id="line-26"></span><span class="hs-comment">-- Maintainer  :  Edward Kmett &lt;ekmett@gmail.com&gt;</span><span>
+</span><span id="line-27"></span><span class="hs-comment">-- Stability   :  provisional</span><span>
+</span><span id="line-28"></span><span class="hs-comment">-- Portability :  portable</span><span>
+</span><span id="line-29"></span><span class="hs-comment">--</span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- From the Functional Pearl \&quot;Clowns to the Left of me, Jokers to the Right: Dissecting Data Structures\&quot;</span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- by Conor McBride.</span><span>
+</span><span id="line-32"></span><span class="hs-comment">----------------------------------------------------------------------------</span><span>
+</span><span id="line-33"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Data.Bifunctor.Clown</span><span>
+</span><span id="line-34"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Data.Bifunctor.Clown.html#Clown"><span class="hs-identifier">Clown</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span class="hs-cpp">
+
+#if __GLASGOW_HASKELL__ &lt; 710
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Control.Applicative</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-41"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Biapplicative.html"><span class="hs-identifier">Data.Biapplicative</span></a></span><span>
+</span><span id="line-42"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Bifoldable</span></span><span>
+</span><span id="line-43"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Bitraversable</span></span><span>
+</span><span id="line-44"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Functor.Classes</span></span><span class="hs-cpp">
+
+#if __GLASGOW_HASKELL__ &lt; 710
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Foldable</span><span>
+</span><span id="line-48"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Monoid</span><span>
+</span><span id="line-49"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Traversable</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ &gt;= 708
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Typeable</span></span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ &gt;= 702
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-60"></span><span class="hs-comment">-- | Make a 'Functor' over the first argument of a 'Bifunctor'.</span><span>
+</span><span id="line-61"></span><span class="hs-comment">--</span><span>
+</span><span id="line-62"></span><span class="hs-comment">-- Mnemonic: C__l__owns to the __l__eft (parameter of the Bifunctor),</span><span>
+</span><span id="line-63"></span><span class="hs-comment">--           joke__r__s to the __r__ight.</span><span>
+</span><span id="line-64"></span><span id="local-6989586621679091636"><span id="local-6989586621679091637"><span id="local-6989586621679091638"><span id="local-6989586621679091639"></span></span></span></span><span class="hs-keyword">newtype</span><span> </span><span id="Clown"><span class="annot"><a href="Data.Bifunctor.Clown.html#Clown"><span class="hs-identifier hs-var">Clown</span></a></span></span><span> </span><span id="local-6989586621679092027"><span class="annot"><a href="#local-6989586621679092027"><span class="hs-identifier hs-type">f</span></a></span></span><span> </span><span id="local-6989586621679092026"><span class="annot"><a href="#local-6989586621679092026"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span id="local-6989586621679092025"><span class="annot"><a href="#local-6989586621679092025"><span class="hs-identifier hs-type">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Clown"><span class="annot"><a href="Data.Bifunctor.Clown.html#Clown"><span class="hs-identifier hs-var">Clown</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="runClown"><span class="annot"><span class="annottext">forall {k} {k} (f :: k -&gt; *) (a :: k) (b :: k). Clown f a b -&gt; f a
+</span><a href="Data.Bifunctor.Clown.html#runClown"><span class="hs-identifier hs-var hs-var">runClown</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679092027"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679092026"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-65"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span> </span><span id="local-6989586621679091627"><span id="local-6989586621679091631"><span class="annot"><span class="annottext">Clown f a b -&gt; Clown f a b -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+forall k (f :: k -&gt; *) (a :: k) k (b :: k).
+Eq (f a) =&gt;
+Clown f a b -&gt; Clown f a b -&gt; Bool
+/= :: Clown f a b -&gt; Clown f a b -&gt; Bool
+$c/= :: forall k (f :: k -&gt; *) (a :: k) k (b :: k).
+Eq (f a) =&gt;
+Clown f a b -&gt; Clown f a b -&gt; Bool
+== :: Clown f a b -&gt; Clown f a b -&gt; Bool
+$c== :: forall k (f :: k -&gt; *) (a :: k) k (b :: k).
+Eq (f a) =&gt;
+Clown f a b -&gt; Clown f a b -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679091593"><span id="local-6989586621679091597"><span id="local-6989586621679091601"><span id="local-6989586621679091605"><span id="local-6989586621679091609"><span id="local-6989586621679091613"><span id="local-6989586621679091617"><span class="annot"><span class="annottext">Clown f a b -&gt; Clown f a b -&gt; Bool
+Clown f a b -&gt; Clown f a b -&gt; Ordering
+Clown f a b -&gt; Clown f a b -&gt; Clown f a b
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+forall {k} {f :: k -&gt; *} {a :: k} {k} {b :: k}.
+Ord (f a) =&gt;
+Eq (Clown f a b)
+forall k (f :: k -&gt; *) (a :: k) k (b :: k).
+Ord (f a) =&gt;
+Clown f a b -&gt; Clown f a b -&gt; Bool
+forall k (f :: k -&gt; *) (a :: k) k (b :: k).
+Ord (f a) =&gt;
+Clown f a b -&gt; Clown f a b -&gt; Ordering
+forall k (f :: k -&gt; *) (a :: k) k (b :: k).
+Ord (f a) =&gt;
+Clown f a b -&gt; Clown f a b -&gt; Clown f a b
+min :: Clown f a b -&gt; Clown f a b -&gt; Clown f a b
+$cmin :: forall k (f :: k -&gt; *) (a :: k) k (b :: k).
+Ord (f a) =&gt;
+Clown f a b -&gt; Clown f a b -&gt; Clown f a b
+max :: Clown f a b -&gt; Clown f a b -&gt; Clown f a b
+$cmax :: forall k (f :: k -&gt; *) (a :: k) k (b :: k).
+Ord (f a) =&gt;
+Clown f a b -&gt; Clown f a b -&gt; Clown f a b
+&gt;= :: Clown f a b -&gt; Clown f a b -&gt; Bool
+$c&gt;= :: forall k (f :: k -&gt; *) (a :: k) k (b :: k).
+Ord (f a) =&gt;
+Clown f a b -&gt; Clown f a b -&gt; Bool
+&gt; :: Clown f a b -&gt; Clown f a b -&gt; Bool
+$c&gt; :: forall k (f :: k -&gt; *) (a :: k) k (b :: k).
+Ord (f a) =&gt;
+Clown f a b -&gt; Clown f a b -&gt; Bool
+&lt;= :: Clown f a b -&gt; Clown f a b -&gt; Bool
+$c&lt;= :: forall k (f :: k -&gt; *) (a :: k) k (b :: k).
+Ord (f a) =&gt;
+Clown f a b -&gt; Clown f a b -&gt; Bool
+&lt; :: Clown f a b -&gt; Clown f a b -&gt; Bool
+$c&lt; :: forall k (f :: k -&gt; *) (a :: k) k (b :: k).
+Ord (f a) =&gt;
+Clown f a b -&gt; Clown f a b -&gt; Bool
+compare :: Clown f a b -&gt; Clown f a b -&gt; Ordering
+$ccompare :: forall k (f :: k -&gt; *) (a :: k) k (b :: k).
+Ord (f a) =&gt;
+Clown f a b -&gt; Clown f a b -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679091579"><span id="local-6989586621679091581"><span id="local-6989586621679091586"><span class="annot"><span class="annottext">Int -&gt; Clown f a b -&gt; ShowS
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+forall k (f :: k -&gt; *) (a :: k) k (b :: k).
+Show (f a) =&gt;
+Int -&gt; Clown f a b -&gt; ShowS
+forall k (f :: k -&gt; *) (a :: k) k (b :: k).
+Show (f a) =&gt;
+[Clown f a b] -&gt; ShowS
+forall k (f :: k -&gt; *) (a :: k) k (b :: k).
+Show (f a) =&gt;
+Clown f a b -&gt; String
+showList :: [Clown f a b] -&gt; ShowS
+$cshowList :: forall k (f :: k -&gt; *) (a :: k) k (b :: k).
+Show (f a) =&gt;
+[Clown f a b] -&gt; ShowS
+show :: Clown f a b -&gt; String
+$cshow :: forall k (f :: k -&gt; *) (a :: k) k (b :: k).
+Show (f a) =&gt;
+Clown f a b -&gt; String
+showsPrec :: Int -&gt; Clown f a b -&gt; ShowS
+$cshowsPrec :: forall k (f :: k -&gt; *) (a :: k) k (b :: k).
+Show (f a) =&gt;
+Int -&gt; Clown f a b -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679091562"><span id="local-6989586621679091571"><span id="local-6989586621679091574"><span id="local-6989586621679091576"><span class="annot"><span class="annottext">ReadPrec [Clown f a b]
+ReadPrec (Clown f a b)
+ReadS [Clown f a b]
+forall a.
+(Int -&gt; ReadS a)
+-&gt; ReadS [a] -&gt; ReadPrec a -&gt; ReadPrec [a] -&gt; Read a
+forall k (f :: k -&gt; *) (a :: k) k (b :: k).
+Read (f a) =&gt;
+ReadPrec [Clown f a b]
+forall k (f :: k -&gt; *) (a :: k) k (b :: k).
+Read (f a) =&gt;
+ReadPrec (Clown f a b)
+forall k (f :: k -&gt; *) (a :: k) k (b :: k).
+Read (f a) =&gt;
+Int -&gt; ReadS (Clown f a b)
+forall k (f :: k -&gt; *) (a :: k) k (b :: k).
+Read (f a) =&gt;
+ReadS [Clown f a b]
+readListPrec :: ReadPrec [Clown f a b]
+$creadListPrec :: forall k (f :: k -&gt; *) (a :: k) k (b :: k).
+Read (f a) =&gt;
+ReadPrec [Clown f a b]
+readPrec :: ReadPrec (Clown f a b)
+$creadPrec :: forall k (f :: k -&gt; *) (a :: k) k (b :: k).
+Read (f a) =&gt;
+ReadPrec (Clown f a b)
+readList :: ReadS [Clown f a b]
+$creadList :: forall k (f :: k -&gt; *) (a :: k) k (b :: k).
+Read (f a) =&gt;
+ReadS [Clown f a b]
+readsPrec :: Int -&gt; ReadS (Clown f a b)
+$creadsPrec :: forall k (f :: k -&gt; *) (a :: k) k (b :: k).
+Read (f a) =&gt;
+Int -&gt; ReadS (Clown f a b)
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Read</span></span></span></span></span></span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ &gt;= 702
+</span><span>           </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+forall k (f :: k -&gt; *) (a :: k) k (b :: k) x.
+Rep (Clown f a b) x -&gt; Clown f a b
+forall k (f :: k -&gt; *) (a :: k) k (b :: k) x.
+Clown f a b -&gt; Rep (Clown f a b) x
+$cto :: forall k (f :: k -&gt; *) (a :: k) k (b :: k) x.
+Rep (Clown f a b) x -&gt; Clown f a b
+$cfrom :: forall k (f :: k -&gt; *) (a :: k) k (b :: k) x.
+Clown f a b -&gt; Rep (Clown f a b) x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">#if __GLASGOW_HASKELL__ &gt;= 708
+</span><span>           </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall k k (f :: k -&gt; *) (a :: k) (a :: k).
+Rep1 (Clown f a) a -&gt; Clown f a a
+forall k k (f :: k -&gt; *) (a :: k) (a :: k).
+Clown f a a -&gt; Rep1 (Clown f a) a
+forall k (f :: k -&gt; *).
+(forall (a :: k). f a -&gt; Rep1 f a)
+-&gt; (forall (a :: k). Rep1 f a -&gt; f a) -&gt; Generic1 f
+$cto1 :: forall k k (f :: k -&gt; *) (a :: k) (a :: k).
+Rep1 (Clown f a) a -&gt; Clown f a a
+$cfrom1 :: forall k k (f :: k -&gt; *) (a :: k) (a :: k).
+Clown f a a -&gt; Rep1 (Clown f a) a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic1</span></span><span>
+</span><span id="line-71"></span><span>           </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Typeable</span></span><span class="hs-cpp">
+#endif
+</span><span>           </span><span class="hs-special">)</span><span class="hs-cpp">
+
+#if __GLASGOW_HASKELL__ &gt;= 702 &amp;&amp; __GLASGOW_HASKELL__ &lt; 708
+</span><span class="hs-keyword">data</span><span> </span><span class="hs-identifier">ClownMetaData</span><span>
+</span><span id="line-77"></span><span class="hs-keyword">data</span><span> </span><span class="hs-identifier">ClownMetaCons</span><span>
+</span><span id="line-78"></span><span class="hs-keyword">data</span><span> </span><span class="hs-identifier">ClownMetaSel</span><span>
+</span><span id="line-79"></span><span>
+</span><span id="line-80"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">Datatype</span><span> </span><span class="hs-identifier">ClownMetaData</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-81"></span><span>    </span><span class="hs-identifier">datatypeName</span><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;Clown&quot;</span><span>
+</span><span id="line-82"></span><span>    </span><span class="hs-identifier">moduleName</span><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;Data.Bifunctor.Clown&quot;</span><span>
+</span><span id="line-83"></span><span>
+</span><span id="line-84"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">Constructor</span><span> </span><span class="hs-identifier">ClownMetaCons</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-85"></span><span>    </span><span class="hs-identifier">conName</span><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;Clown&quot;</span><span>
+</span><span id="line-86"></span><span>    </span><span class="hs-identifier">conIsRecord</span><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">True</span><span>
+</span><span id="line-87"></span><span>
+</span><span id="line-88"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">Selector</span><span> </span><span class="hs-identifier">ClownMetaSel</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-89"></span><span>    </span><span class="hs-identifier">selName</span><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;runClown&quot;</span><span>
+</span><span id="line-90"></span><span>
+</span><span id="line-91"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">Generic1</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Clown</span><span> </span><span class="hs-identifier">f</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-92"></span><span>    </span><span class="hs-keyword">type</span><span> </span><span class="hs-identifier">Rep1</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Clown</span><span> </span><span class="hs-identifier">f</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">D1</span><span> </span><span class="hs-identifier">ClownMetaData</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">C1</span><span> </span><span class="hs-identifier">ClownMetaCons</span><span>
+</span><span id="line-93"></span><span>        </span><span class="hs-special">(</span><span class="hs-identifier">S1</span><span> </span><span class="hs-identifier">ClownMetaSel</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Rec0</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">f</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-94"></span><span>    </span><span class="hs-identifier">from1</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">M1</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-identifier">M1</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-identifier">M1</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-identifier">K1</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-identifier">runClown</span><span>
+</span><span id="line-95"></span><span>    </span><span class="hs-identifier">to1</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">Clown</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-identifier">unK1</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-identifier">unM1</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-identifier">unM1</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-identifier">unM1</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#if LIFTED_FUNCTOR_CLASSES
+</span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679091991"><span id="local-6989586621679091992"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Eq1</span></span><span> </span><span class="annot"><a href="#local-6989586621679091992"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="#local-6989586621679091991"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Eq1</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Clown.html#Clown"><span class="hs-identifier hs-type">Clown</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679091992"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679091991"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-100"></span><span>  </span><span id="local-6989586621679091543"><span class="annot"><span class="annottext">liftEq :: forall a b. (a -&gt; b -&gt; Bool) -&gt; Clown f a a -&gt; Clown f a b -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">liftEq</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; * -&gt; *) a b c d.
+Eq2 f =&gt;
+(a -&gt; b -&gt; Bool) -&gt; (c -&gt; d -&gt; Bool) -&gt; f a c -&gt; f b d -&gt; Bool
+</span><span class="hs-identifier hs-var">liftEq2</span></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">(==)</span></span><span>
+</span><span id="line-101"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679091989"><span class="annot"><span class="hs-identifier hs-type">Eq1</span></span><span> </span><span class="annot"><a href="#local-6989586621679091989"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Eq2</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Clown.html#Clown"><span class="hs-identifier hs-type">Clown</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679091989"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-102"></span><span>  </span><span id="local-6989586621679091536"><span class="annot"><span class="annottext">liftEq2 :: forall a b c d.
+(a -&gt; b -&gt; Bool)
+-&gt; (c -&gt; d -&gt; Bool) -&gt; Clown f a c -&gt; Clown f b d -&gt; Bool
+</span><a href="#local-6989586621679091536"><span class="hs-identifier hs-var hs-var hs-var hs-var">liftEq2</span></a></span></span><span> </span><span id="local-6989586621679091535"><span class="annot"><span class="annottext">a -&gt; b -&gt; Bool
+</span><a href="#local-6989586621679091535"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="annot"><span class="annottext">c -&gt; d -&gt; Bool
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {k} {k} {k} (f :: k -&gt; *) (a1 :: k) (a2 :: k) (b1 :: k)
+       (b2 :: k).
+(f a1 -&gt; f a2 -&gt; Bool) -&gt; Clown f a1 b1 -&gt; Clown f a2 b2 -&gt; Bool
+</span><a href="Data.Bifunctor.Clown.html#eqClown"><span class="hs-identifier hs-var">eqClown</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b.
+Eq1 f =&gt;
+(a -&gt; b -&gt; Bool) -&gt; f a -&gt; f b -&gt; Bool
+</span><span class="hs-identifier hs-var">liftEq</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b -&gt; Bool
+</span><a href="#local-6989586621679091535"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-103"></span><span>
+</span><span id="line-104"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679091963"><span id="local-6989586621679091964"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord1</span></span><span> </span><span class="annot"><a href="#local-6989586621679091964"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679091963"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord1</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Clown.html#Clown"><span class="hs-identifier hs-type">Clown</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679091964"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679091963"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-105"></span><span>  </span><span id="local-6989586621679091520"><span class="annot"><span class="annottext">liftCompare :: forall a b.
+(a -&gt; b -&gt; Ordering) -&gt; Clown f a a -&gt; Clown f a b -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">liftCompare</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; * -&gt; *) a b c d.
+Ord2 f =&gt;
+(a -&gt; b -&gt; Ordering)
+-&gt; (c -&gt; d -&gt; Ordering) -&gt; f a c -&gt; f b d -&gt; Ordering
+</span><span class="hs-identifier hs-var">liftCompare2</span></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Ordering
+</span><span class="hs-identifier hs-var">compare</span></span><span>
+</span><span id="line-106"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679091961"><span class="annot"><span class="hs-identifier hs-type">Ord1</span></span><span> </span><span class="annot"><a href="#local-6989586621679091961"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord2</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Clown.html#Clown"><span class="hs-identifier hs-type">Clown</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679091961"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-107"></span><span>  </span><span id="local-6989586621679091509"><span class="annot"><span class="annottext">liftCompare2 :: forall a b c d.
+(a -&gt; b -&gt; Ordering)
+-&gt; (c -&gt; d -&gt; Ordering) -&gt; Clown f a c -&gt; Clown f b d -&gt; Ordering
+</span><a href="#local-6989586621679091509"><span class="hs-identifier hs-var hs-var hs-var hs-var">liftCompare2</span></a></span></span><span> </span><span id="local-6989586621679091508"><span class="annot"><span class="annottext">a -&gt; b -&gt; Ordering
+</span><a href="#local-6989586621679091508"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="annot"><span class="annottext">c -&gt; d -&gt; Ordering
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {k} {k} {k} (f :: k -&gt; *) (a1 :: k) (a2 :: k) (b1 :: k)
+       (b2 :: k).
+(f a1 -&gt; f a2 -&gt; Ordering)
+-&gt; Clown f a1 b1 -&gt; Clown f a2 b2 -&gt; Ordering
+</span><a href="Data.Bifunctor.Clown.html#compareClown"><span class="hs-identifier hs-var">compareClown</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b.
+Ord1 f =&gt;
+(a -&gt; b -&gt; Ordering) -&gt; f a -&gt; f b -&gt; Ordering
+</span><span class="hs-identifier hs-var">liftCompare</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b -&gt; Ordering
+</span><a href="#local-6989586621679091508"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-108"></span><span>
+</span><span id="line-109"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679091500"><span id="local-6989586621679091502"><span id="local-6989586621679091504"><span id="local-6989586621679091936"><span id="local-6989586621679091937"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Read1</span></span><span> </span><span class="annot"><a href="#local-6989586621679091937"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Read</span></span><span> </span><span class="annot"><a href="#local-6989586621679091936"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Read1</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Clown.html#Clown"><span class="hs-identifier hs-type">Clown</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679091937"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679091936"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-110"></span><span>  </span><span id="local-6989586621679091495"><span class="annot"><span class="annottext">liftReadsPrec :: forall a.
+(Int -&gt; ReadS a) -&gt; ReadS [a] -&gt; Int -&gt; ReadS (Clown f a a)
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">liftReadsPrec</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; * -&gt; *) a b.
+Read2 f =&gt;
+(Int -&gt; ReadS a)
+-&gt; ReadS [a]
+-&gt; (Int -&gt; ReadS b)
+-&gt; ReadS [b]
+-&gt; Int
+-&gt; ReadS (f a b)
+</span><span class="hs-identifier hs-var">liftReadsPrec2</span></span><span> </span><span class="annot"><span class="annottext">forall a. Read a =&gt; Int -&gt; ReadS a
+</span><span class="hs-identifier hs-var">readsPrec</span></span><span> </span><span class="annot"><span class="annottext">forall a. Read a =&gt; ReadS [a]
+</span><span class="hs-identifier hs-var">readList</span></span><span>
+</span><span id="line-111"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679091484"><span id="local-6989586621679091486"><span id="local-6989586621679091488"><span id="local-6989586621679091935"><span class="annot"><span class="hs-identifier hs-type">Read1</span></span><span> </span><span class="annot"><a href="#local-6989586621679091935"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Read2</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Clown.html#Clown"><span class="hs-identifier hs-type">Clown</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679091935"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-112"></span><span>  </span><span id="local-6989586621679091481"><span class="annot"><span class="annottext">liftReadsPrec2 :: forall a b.
+(Int -&gt; ReadS a)
+-&gt; ReadS [a]
+-&gt; (Int -&gt; ReadS b)
+-&gt; ReadS [b]
+-&gt; Int
+-&gt; ReadS (Clown f a b)
+</span><a href="#local-6989586621679091481"><span class="hs-identifier hs-var hs-var hs-var hs-var">liftReadsPrec2</span></a></span></span><span> </span><span id="local-6989586621679091480"><span class="annot"><span class="annottext">Int -&gt; ReadS a
+</span><a href="#local-6989586621679091480"><span class="hs-identifier hs-var">rp1</span></a></span></span><span> </span><span id="local-6989586621679091479"><span class="annot"><span class="annottext">ReadS [a]
+</span><a href="#local-6989586621679091479"><span class="hs-identifier hs-var">rl1</span></a></span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; ReadS b
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">ReadS [b]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {k} {k} (f :: k -&gt; *) (a :: k) (b :: k).
+(Int -&gt; ReadS (f a)) -&gt; Int -&gt; ReadS (Clown f a b)
+</span><a href="Data.Bifunctor.Clown.html#readsPrecClown"><span class="hs-identifier hs-var">readsPrecClown</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a.
+Read1 f =&gt;
+(Int -&gt; ReadS a) -&gt; ReadS [a] -&gt; Int -&gt; ReadS (f a)
+</span><span class="hs-identifier hs-var">liftReadsPrec</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; ReadS a
+</span><a href="#local-6989586621679091480"><span class="hs-identifier hs-var">rp1</span></a></span><span> </span><span class="annot"><span class="annottext">ReadS [a]
+</span><a href="#local-6989586621679091479"><span class="hs-identifier hs-var">rl1</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-113"></span><span>
+</span><span id="line-114"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679091475"><span id="local-6989586621679091914"><span id="local-6989586621679091915"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Show1</span></span><span> </span><span class="annot"><a href="#local-6989586621679091915"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="#local-6989586621679091914"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Show1</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Clown.html#Clown"><span class="hs-identifier hs-type">Clown</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679091915"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679091914"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-115"></span><span>  </span><span id="local-6989586621679091470"><span class="annot"><span class="annottext">liftShowsPrec :: forall a.
+(Int -&gt; a -&gt; ShowS)
+-&gt; ([a] -&gt; ShowS) -&gt; Int -&gt; Clown f a a -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">liftShowsPrec</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; * -&gt; *) a b.
+Show2 f =&gt;
+(Int -&gt; a -&gt; ShowS)
+-&gt; ([a] -&gt; ShowS)
+-&gt; (Int -&gt; b -&gt; ShowS)
+-&gt; ([b] -&gt; ShowS)
+-&gt; Int
+-&gt; f a b
+-&gt; ShowS
+</span><span class="hs-identifier hs-var">liftShowsPrec2</span></span><span> </span><span class="annot"><span class="annottext">forall a. Show a =&gt; Int -&gt; a -&gt; ShowS
+</span><span class="hs-identifier hs-var">showsPrec</span></span><span> </span><span class="annot"><span class="annottext">forall a. Show a =&gt; [a] -&gt; ShowS
+</span><span class="hs-identifier hs-var">showList</span></span><span>
+</span><span id="line-116"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679091463"><span id="local-6989586621679091913"><span class="annot"><span class="hs-identifier hs-type">Show1</span></span><span> </span><span class="annot"><a href="#local-6989586621679091913"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Show2</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Clown.html#Clown"><span class="hs-identifier hs-type">Clown</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679091913"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-117"></span><span>  </span><span id="local-6989586621679091460"><span class="annot"><span class="annottext">liftShowsPrec2 :: forall a b.
+(Int -&gt; a -&gt; ShowS)
+-&gt; ([a] -&gt; ShowS)
+-&gt; (Int -&gt; b -&gt; ShowS)
+-&gt; ([b] -&gt; ShowS)
+-&gt; Int
+-&gt; Clown f a b
+-&gt; ShowS
+</span><a href="#local-6989586621679091460"><span class="hs-identifier hs-var hs-var hs-var hs-var">liftShowsPrec2</span></a></span></span><span> </span><span id="local-6989586621679091459"><span class="annot"><span class="annottext">Int -&gt; a -&gt; ShowS
+</span><a href="#local-6989586621679091459"><span class="hs-identifier hs-var">sp1</span></a></span></span><span> </span><span id="local-6989586621679091458"><span class="annot"><span class="annottext">[a] -&gt; ShowS
+</span><a href="#local-6989586621679091458"><span class="hs-identifier hs-var">sl1</span></a></span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; b -&gt; ShowS
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">[b] -&gt; ShowS
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {k} {k} (f :: k -&gt; *) (a :: k) (b :: k).
+(Int -&gt; f a -&gt; ShowS) -&gt; Int -&gt; Clown f a b -&gt; ShowS
+</span><a href="Data.Bifunctor.Clown.html#showsPrecClown"><span class="hs-identifier hs-var">showsPrecClown</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a.
+Show1 f =&gt;
+(Int -&gt; a -&gt; ShowS) -&gt; ([a] -&gt; ShowS) -&gt; Int -&gt; f a -&gt; ShowS
+</span><span class="hs-identifier hs-var">liftShowsPrec</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; a -&gt; ShowS
+</span><a href="#local-6989586621679091459"><span class="hs-identifier hs-var">sp1</span></a></span><span> </span><span class="annot"><span class="annottext">[a] -&gt; ShowS
+</span><a href="#local-6989586621679091458"><span class="hs-identifier hs-var">sl1</span></a></span><span class="hs-special">)</span><span class="hs-cpp">
+#else
+</span><span class="hs-keyword">instance</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Eq1</span><span> </span><span class="hs-identifier">f</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">Eq</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-identifier">Eq1</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Clown</span><span> </span><span class="hs-identifier">f</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-120"></span><span>  </span><span class="hs-identifier">eq1</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">eqClown</span><span> </span><span class="hs-identifier">eq1</span><span>
+</span><span id="line-121"></span><span>
+</span><span id="line-122"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Ord1</span><span> </span><span class="hs-identifier">f</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">Ord</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-identifier">Ord1</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Clown</span><span> </span><span class="hs-identifier">f</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-123"></span><span>  </span><span class="hs-identifier">compare1</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">compareClown</span><span> </span><span class="hs-identifier">compare1</span><span>
+</span><span id="line-124"></span><span>
+</span><span id="line-125"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Read1</span><span> </span><span class="hs-identifier">f</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">Read</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-identifier">Read1</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Clown</span><span> </span><span class="hs-identifier">f</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-126"></span><span>  </span><span class="hs-identifier">readsPrec1</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">readsPrecClown</span><span> </span><span class="hs-identifier">readsPrec1</span><span>
+</span><span id="line-127"></span><span>
+</span><span id="line-128"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Show1</span><span> </span><span class="hs-identifier">f</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">Show</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-identifier">Show1</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Clown</span><span> </span><span class="hs-identifier">f</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-129"></span><span>  </span><span class="hs-identifier">showsPrec1</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">showsPrecClown</span><span> </span><span class="hs-identifier">showsPrec1</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-132"></span><span id="local-6989586621679091971"><span id="local-6989586621679091972"><span id="local-6989586621679091973"><span id="local-6989586621679091974"><span id="local-6989586621679091975"><span class="annot"><a href="Data.Bifunctor.Clown.html#eqClown"><span class="hs-identifier hs-type">eqClown</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679091975"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679091974"><span class="hs-identifier hs-type">a1</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679091975"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679091973"><span class="hs-identifier hs-type">a2</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span>
+</span><span id="line-133"></span><span>        </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Bifunctor.Clown.html#Clown"><span class="hs-identifier hs-type">Clown</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679091975"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679091974"><span class="hs-identifier hs-type">a1</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679091972"><span class="hs-identifier hs-type">b1</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Bifunctor.Clown.html#Clown"><span class="hs-identifier hs-type">Clown</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679091975"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679091973"><span class="hs-identifier hs-type">a2</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679091971"><span class="hs-identifier hs-type">b2</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span></span></span></span></span><span>
+</span><span id="line-134"></span><span id="eqClown"><span class="annot"><span class="annottext">eqClown :: forall {k} {k} {k} (f :: k -&gt; *) (a1 :: k) (a2 :: k) (b1 :: k)
+       (b2 :: k).
+(f a1 -&gt; f a2 -&gt; Bool) -&gt; Clown f a1 b1 -&gt; Clown f a2 b2 -&gt; Bool
+</span><a href="Data.Bifunctor.Clown.html#eqClown"><span class="hs-identifier hs-var hs-var">eqClown</span></a></span></span><span> </span><span id="local-6989586621679091456"><span class="annot"><span class="annottext">f a1 -&gt; f a2 -&gt; Bool
+</span><a href="#local-6989586621679091456"><span class="hs-identifier hs-var">eqA</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Clown.html#Clown"><span class="hs-identifier hs-type">Clown</span></a></span><span> </span><span id="local-6989586621679091455"><span class="annot"><span class="annottext">f a1
+</span><a href="#local-6989586621679091455"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Clown.html#Clown"><span class="hs-identifier hs-type">Clown</span></a></span><span> </span><span id="local-6989586621679091454"><span class="annot"><span class="annottext">f a2
+</span><a href="#local-6989586621679091454"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">f a1 -&gt; f a2 -&gt; Bool
+</span><a href="#local-6989586621679091456"><span class="hs-identifier hs-var">eqA</span></a></span><span> </span><span class="annot"><span class="annottext">f a1
+</span><a href="#local-6989586621679091455"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">f a2
+</span><a href="#local-6989586621679091454"><span class="hs-identifier hs-var">y</span></a></span><span>
+</span><span id="line-135"></span><span>
+</span><span id="line-136"></span><span id="local-6989586621679091943"><span id="local-6989586621679091944"><span id="local-6989586621679091945"><span id="local-6989586621679091946"><span id="local-6989586621679091947"><span class="annot"><a href="Data.Bifunctor.Clown.html#compareClown"><span class="hs-identifier hs-type">compareClown</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679091947"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679091946"><span class="hs-identifier hs-type">a1</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679091947"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679091945"><span class="hs-identifier hs-type">a2</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ordering</span></span><span class="hs-special">)</span><span>
+</span><span id="line-137"></span><span>             </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Bifunctor.Clown.html#Clown"><span class="hs-identifier hs-type">Clown</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679091947"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679091946"><span class="hs-identifier hs-type">a1</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679091944"><span class="hs-identifier hs-type">b1</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Bifunctor.Clown.html#Clown"><span class="hs-identifier hs-type">Clown</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679091947"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679091945"><span class="hs-identifier hs-type">a2</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679091943"><span class="hs-identifier hs-type">b2</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ordering</span></span></span></span></span></span></span><span>
+</span><span id="line-138"></span><span id="compareClown"><span class="annot"><span class="annottext">compareClown :: forall {k} {k} {k} (f :: k -&gt; *) (a1 :: k) (a2 :: k) (b1 :: k)
+       (b2 :: k).
+(f a1 -&gt; f a2 -&gt; Ordering)
+-&gt; Clown f a1 b1 -&gt; Clown f a2 b2 -&gt; Ordering
+</span><a href="Data.Bifunctor.Clown.html#compareClown"><span class="hs-identifier hs-var hs-var">compareClown</span></a></span></span><span> </span><span id="local-6989586621679091453"><span class="annot"><span class="annottext">f a1 -&gt; f a2 -&gt; Ordering
+</span><a href="#local-6989586621679091453"><span class="hs-identifier hs-var">compareA</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Clown.html#Clown"><span class="hs-identifier hs-type">Clown</span></a></span><span> </span><span id="local-6989586621679091452"><span class="annot"><span class="annottext">f a1
+</span><a href="#local-6989586621679091452"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Clown.html#Clown"><span class="hs-identifier hs-type">Clown</span></a></span><span> </span><span id="local-6989586621679091451"><span class="annot"><span class="annottext">f a2
+</span><a href="#local-6989586621679091451"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">f a1 -&gt; f a2 -&gt; Ordering
+</span><a href="#local-6989586621679091453"><span class="hs-identifier hs-var">compareA</span></a></span><span> </span><span class="annot"><span class="annottext">f a1
+</span><a href="#local-6989586621679091452"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">f a2
+</span><a href="#local-6989586621679091451"><span class="hs-identifier hs-var">y</span></a></span><span>
+</span><span id="line-139"></span><span>
+</span><span id="line-140"></span><span id="local-6989586621679091919"><span id="local-6989586621679091920"><span id="local-6989586621679091921"><span class="annot"><a href="Data.Bifunctor.Clown.html#readsPrecClown"><span class="hs-identifier hs-type">readsPrecClown</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ReadS</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679091921"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679091920"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-141"></span><span>               </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ReadS</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Clown.html#Clown"><span class="hs-identifier hs-type">Clown</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679091921"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679091920"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679091919"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-142"></span><span id="readsPrecClown"><span class="annot"><span class="annottext">readsPrecClown :: forall {k} {k} (f :: k -&gt; *) (a :: k) (b :: k).
+(Int -&gt; ReadS (f a)) -&gt; Int -&gt; ReadS (Clown f a b)
+</span><a href="Data.Bifunctor.Clown.html#readsPrecClown"><span class="hs-identifier hs-var hs-var">readsPrecClown</span></a></span></span><span> </span><span id="local-6989586621679091435"><span class="annot"><span class="annottext">Int -&gt; ReadS (f a)
+</span><a href="#local-6989586621679091435"><span class="hs-identifier hs-var">rpA</span></a></span></span><span> </span><span id="local-6989586621679091434"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679091434"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-143"></span><span>  </span><span class="annot"><span class="annottext">forall a. Bool -&gt; ReadS a -&gt; ReadS a
+</span><span class="hs-identifier hs-var">readParen</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679091434"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">10</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679091431"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679091431"><span class="hs-identifier hs-var">s0</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-144"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Clown&quot;</span></span><span class="hs-special">,</span><span>    </span><span id="local-6989586621679091430"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679091430"><span class="hs-identifier hs-var">s1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ReadS String
+</span><span class="hs-identifier hs-var">lex</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679091431"><span class="hs-identifier hs-var">s0</span></a></span><span>
+</span><span id="line-145"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;{&quot;</span></span><span class="hs-special">,</span><span>        </span><span id="local-6989586621679091428"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679091428"><span class="hs-identifier hs-var">s2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ReadS String
+</span><span class="hs-identifier hs-var">lex</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679091430"><span class="hs-identifier hs-var">s1</span></a></span><span>
+</span><span id="line-146"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;runClown&quot;</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679091427"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679091427"><span class="hs-identifier hs-var">s3</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ReadS String
+</span><span class="hs-identifier hs-var">lex</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679091428"><span class="hs-identifier hs-var">s2</span></a></span><span>
+</span><span id="line-147"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621679091426"><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679091426"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">,</span><span>          </span><span id="local-6989586621679091425"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679091425"><span class="hs-identifier hs-var">s4</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Int -&gt; ReadS (f a)
+</span><a href="#local-6989586621679091435"><span class="hs-identifier hs-var">rpA</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679091427"><span class="hs-identifier hs-var">s3</span></a></span><span>
+</span><span id="line-148"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;}&quot;</span></span><span class="hs-special">,</span><span>        </span><span id="local-6989586621679091424"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679091424"><span class="hs-identifier hs-var">s5</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ReadS String
+</span><span class="hs-identifier hs-var">lex</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679091425"><span class="hs-identifier hs-var">s4</span></a></span><span>
+</span><span id="line-149"></span><span>    </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall {k} {k} (f :: k -&gt; *) (a :: k) (b :: k). f a -&gt; Clown f a b
+</span><a href="Data.Bifunctor.Clown.html#Clown"><span class="hs-identifier hs-var">Clown</span></a></span><span> </span><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679091426"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679091424"><span class="hs-identifier hs-var">s5</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-150"></span><span>
+</span><span id="line-151"></span><span id="local-6989586621679091901"><span id="local-6989586621679091902"><span id="local-6989586621679091903"><span class="annot"><a href="Data.Bifunctor.Clown.html#showsPrecClown"><span class="hs-identifier hs-type">showsPrecClown</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679091903"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679091902"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ShowS</span></span><span class="hs-special">)</span><span>
+</span><span id="line-152"></span><span>               </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Bifunctor.Clown.html#Clown"><span class="hs-identifier hs-type">Clown</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679091903"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679091902"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679091901"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ShowS</span></span></span></span></span><span>
+</span><span id="line-153"></span><span id="showsPrecClown"><span class="annot"><span class="annottext">showsPrecClown :: forall {k} {k} (f :: k -&gt; *) (a :: k) (b :: k).
+(Int -&gt; f a -&gt; ShowS) -&gt; Int -&gt; Clown f a b -&gt; ShowS
+</span><a href="Data.Bifunctor.Clown.html#showsPrecClown"><span class="hs-identifier hs-var hs-var">showsPrecClown</span></a></span></span><span> </span><span id="local-6989586621679091421"><span class="annot"><span class="annottext">Int -&gt; f a -&gt; ShowS
+</span><a href="#local-6989586621679091421"><span class="hs-identifier hs-var">spA</span></a></span></span><span> </span><span id="local-6989586621679091420"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679091420"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Clown.html#Clown"><span class="hs-identifier hs-type">Clown</span></a></span><span> </span><span id="local-6989586621679091419"><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679091419"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-154"></span><span>  </span><span class="annot"><span class="annottext">Bool -&gt; ShowS -&gt; ShowS
+</span><span class="hs-identifier hs-var">showParen</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679091420"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">10</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-155"></span><span>      </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-identifier hs-var">showString</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Clown {runClown = &quot;</span></span><span>
+</span><span id="line-156"></span><span>    </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; f a -&gt; ShowS
+</span><a href="#local-6989586621679091421"><span class="hs-identifier hs-var">spA</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679091419"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-157"></span><span>    </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; ShowS
+</span><span class="hs-identifier hs-var">showChar</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'}'</span></span><span>
+</span><span id="line-158"></span><span>
+</span><span id="line-159"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679091852"><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="annot"><a href="#local-6989586621679091852"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bifunctor</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Clown.html#Clown"><span class="hs-identifier hs-type">Clown</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679091852"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-160"></span><span>  </span><span id="local-6989586621679091407"><span class="annot"><span class="annottext">first :: forall a b c. (a -&gt; b) -&gt; Clown f a c -&gt; Clown f b c
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">first</span></span></span><span> </span><span id="local-6989586621679091405"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679091405"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {k} {k} (f :: k -&gt; *) (a :: k) (b :: k). f a -&gt; Clown f a b
+</span><a href="Data.Bifunctor.Clown.html#Clown"><span class="hs-identifier hs-var">Clown</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679091405"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall {k} {k} (f :: k -&gt; *) (a :: k) (b :: k). Clown f a b -&gt; f a
+</span><a href="Data.Bifunctor.Clown.html#runClown"><span class="hs-identifier hs-var">runClown</span></a></span><span>
+</span><span id="line-161"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">first</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-162"></span><span>  </span><span id="local-6989586621679091404"><span class="annot"><span class="annottext">second :: forall b c a. (b -&gt; c) -&gt; Clown f a b -&gt; Clown f a c
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">second</span></span></span><span> </span><span class="annot"><span class="annottext">b -&gt; c
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {k} {k} (f :: k -&gt; *) (a :: k) (b :: k). f a -&gt; Clown f a b
+</span><a href="Data.Bifunctor.Clown.html#Clown"><span class="hs-identifier hs-var">Clown</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall {k} {k} (f :: k -&gt; *) (a :: k) (b :: k). Clown f a b -&gt; f a
+</span><a href="Data.Bifunctor.Clown.html#runClown"><span class="hs-identifier hs-var">runClown</span></a></span><span>
+</span><span id="line-163"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">second</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-164"></span><span>  </span><span id="local-6989586621679091401"><span class="annot"><span class="annottext">bimap :: forall a b c d. (a -&gt; b) -&gt; (c -&gt; d) -&gt; Clown f a c -&gt; Clown f b d
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">bimap</span></span></span><span> </span><span id="local-6989586621679091399"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679091399"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="annot"><span class="annottext">c -&gt; d
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {k} {k} (f :: k -&gt; *) (a :: k) (b :: k). f a -&gt; Clown f a b
+</span><a href="Data.Bifunctor.Clown.html#Clown"><span class="hs-identifier hs-var">Clown</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679091399"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall {k} {k} (f :: k -&gt; *) (a :: k) (b :: k). Clown f a b -&gt; f a
+</span><a href="Data.Bifunctor.Clown.html#runClown"><span class="hs-identifier hs-var">runClown</span></a></span><span>
+</span><span id="line-165"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">bimap</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-166"></span><span>
+</span><span id="line-167"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679091396"><span id="local-6989586621679091834"><span id="local-6989586621679091835"><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Clown.html#Clown"><span class="hs-identifier hs-type">Clown</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679091835"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679091834"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-168"></span><span>  </span><span id="local-6989586621679091394"><span class="annot"><span class="annottext">fmap :: forall a b. (a -&gt; b) -&gt; Clown f a a -&gt; Clown f a b
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">fmap</span></span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {k} {k} (f :: k -&gt; *) (a :: k) (b :: k). f a -&gt; Clown f a b
+</span><a href="Data.Bifunctor.Clown.html#Clown"><span class="hs-identifier hs-var">Clown</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall {k} {k} (f :: k -&gt; *) (a :: k) (b :: k). Clown f a b -&gt; f a
+</span><a href="Data.Bifunctor.Clown.html#runClown"><span class="hs-identifier hs-var">runClown</span></a></span><span>
+</span><span id="line-169"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">fmap</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-170"></span><span>
+</span><span id="line-171"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679091384"><span id="local-6989586621679091386"><span id="local-6989586621679091388"><span id="local-6989586621679091809"><span class="annot"><span class="hs-identifier hs-type">Applicative</span></span><span> </span><span class="annot"><a href="#local-6989586621679091809"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Biapplicative.html#Biapplicative"><span class="hs-identifier hs-type">Biapplicative</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Clown.html#Clown"><span class="hs-identifier hs-type">Clown</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679091809"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-172"></span><span>  </span><span id="local-6989586621679091381"><span class="annot"><span class="annottext">bipure :: forall a b. a -&gt; b -&gt; Clown f a b
+</span><a href="Data.Biapplicative.html#bipure"><span class="hs-identifier hs-var hs-var hs-var hs-var">bipure</span></a></span></span><span> </span><span id="local-6989586621679091379"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679091379"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="annot"><span class="annottext">b
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {k} {k} (f :: k -&gt; *) (a :: k) (b :: k). f a -&gt; Clown f a b
+</span><a href="Data.Bifunctor.Clown.html#Clown"><span class="hs-identifier hs-var">Clown</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679091379"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-173"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Biapplicative.html#bipure"><span class="hs-pragma hs-type">bipure</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-174"></span><span>
+</span><span id="line-175"></span><span>  </span><span class="annot"><a href="Data.Bifunctor.Clown.html#Clown"><span class="hs-identifier hs-type">Clown</span></a></span><span> </span><span id="local-6989586621679091377"><span class="annot"><span class="annottext">f (a -&gt; b)
+</span><a href="#local-6989586621679091377"><span class="hs-identifier hs-var">mf</span></a></span></span><span> </span><span id="local-6989586621679091376"><span class="annot"><span class="annottext">&lt;&lt;*&gt;&gt; :: forall a b c d.
+Clown f (a -&gt; b) (c -&gt; d) -&gt; Clown f a c -&gt; Clown f b d
+</span><a href="Data.Biapplicative.html#%3C%3C%2A%3E%3E"><span class="hs-operator hs-var hs-var hs-var hs-var">&lt;&lt;*&gt;&gt;</span></a></span></span><span> </span><span class="annot"><a href="Data.Bifunctor.Clown.html#Clown"><span class="hs-identifier hs-type">Clown</span></a></span><span> </span><span id="local-6989586621679091374"><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679091374"><span class="hs-identifier hs-var">mx</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {k} {k} (f :: k -&gt; *) (a :: k) (b :: k). f a -&gt; Clown f a b
+</span><a href="Data.Bifunctor.Clown.html#Clown"><span class="hs-identifier hs-var">Clown</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">f (a -&gt; b)
+</span><a href="#local-6989586621679091377"><span class="hs-identifier hs-var">mf</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679091374"><span class="hs-identifier hs-var">mx</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-176"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="hs-pragma">(</span><span class="hs-pragma">&lt;&lt;*&gt;&gt;</span><span class="hs-pragma">)</span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-177"></span><span>
+</span><span id="line-178"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679091367"><span id="local-6989586621679091369"><span id="local-6989586621679091372"><span id="local-6989586621679091788"><span class="annot"><span class="hs-identifier hs-type">Foldable</span></span><span> </span><span class="annot"><a href="#local-6989586621679091788"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bifoldable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Clown.html#Clown"><span class="hs-identifier hs-type">Clown</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679091788"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-179"></span><span>  </span><span id="local-6989586621679091362"><span class="annot"><span class="annottext">bifoldMap :: forall m a b. Monoid m =&gt; (a -&gt; m) -&gt; (b -&gt; m) -&gt; Clown f a b -&gt; m
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">bifoldMap</span></span></span><span> </span><span id="local-6989586621679091360"><span class="annot"><span class="annottext">a -&gt; m
+</span><a href="#local-6989586621679091360"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="annot"><span class="annottext">b -&gt; m
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) m a.
+(Foldable t, Monoid m) =&gt;
+(a -&gt; m) -&gt; t a -&gt; m
+</span><span class="hs-identifier hs-var">foldMap</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; m
+</span><a href="#local-6989586621679091360"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall {k} {k} (f :: k -&gt; *) (a :: k) (b :: k). Clown f a b -&gt; f a
+</span><a href="Data.Bifunctor.Clown.html#runClown"><span class="hs-identifier hs-var">runClown</span></a></span><span>
+</span><span id="line-180"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">bifoldMap</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-181"></span><span>
+</span><span id="line-182"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679091326"><span id="local-6989586621679091328"><span id="local-6989586621679091330"><span id="local-6989586621679091332"><span id="local-6989586621679091334"><span id="local-6989586621679091336"><span id="local-6989586621679091338"><span id="local-6989586621679091340"><span id="local-6989586621679091342"><span id="local-6989586621679091344"><span id="local-6989586621679091346"><span id="local-6989586621679091348"><span id="local-6989586621679091350"><span id="local-6989586621679091352"><span id="local-6989586621679091354"><span id="local-6989586621679091357"><span id="local-6989586621679091758"><span id="local-6989586621679091759"><span class="annot"><span class="hs-identifier hs-type">Foldable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Clown.html#Clown"><span class="hs-identifier hs-type">Clown</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679091759"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679091758"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-183"></span><span>  </span><span id="local-6989586621679091321"><span class="annot"><span class="annottext">foldMap :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; Clown f a a -&gt; m
+</span><a href="#local-6989586621679091321"><span class="hs-identifier hs-var hs-var hs-var hs-var">foldMap</span></a></span></span><span> </span><span class="annot"><span class="annottext">a -&gt; m
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-184"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">foldMap</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-185"></span><span>
+</span><span id="line-186"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679091743"><span class="annot"><span class="hs-identifier hs-type">Traversable</span></span><span> </span><span class="annot"><a href="#local-6989586621679091743"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bitraversable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Clown.html#Clown"><span class="hs-identifier hs-type">Clown</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679091743"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-187"></span><span>  </span><span id="local-6989586621679091303"><span class="annot"><span class="annottext">bitraverse :: forall (f :: * -&gt; *) a c b d.
+Applicative f =&gt;
+(a -&gt; f c) -&gt; (b -&gt; f d) -&gt; Clown f a b -&gt; f (Clown f c d)
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">bitraverse</span></span></span><span> </span><span id="local-6989586621679091301"><span class="annot"><span class="annottext">a -&gt; f c
+</span><a href="#local-6989586621679091301"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="annot"><span class="annottext">b -&gt; f d
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">forall {k} {k} (f :: k -&gt; *) (a :: k) (b :: k). f a -&gt; Clown f a b
+</span><a href="Data.Bifunctor.Clown.html#Clown"><span class="hs-identifier hs-var">Clown</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) (f :: * -&gt; *) a b.
+(Traversable t, Applicative f) =&gt;
+(a -&gt; f b) -&gt; t a -&gt; f (t b)
+</span><span class="hs-identifier hs-var">traverse</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; f c
+</span><a href="#local-6989586621679091301"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall {k} {k} (f :: k -&gt; *) (a :: k) (b :: k). Clown f a b -&gt; f a
+</span><a href="Data.Bifunctor.Clown.html#runClown"><span class="hs-identifier hs-var">runClown</span></a></span><span>
+</span><span id="line-188"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">bitraverse</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-189"></span><span>
+</span><span id="line-190"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679091289"><span id="local-6989586621679091291"><span id="local-6989586621679091293"><span id="local-6989586621679091725"><span id="local-6989586621679091726"><span class="annot"><span class="hs-identifier hs-type">Traversable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Clown.html#Clown"><span class="hs-identifier hs-type">Clown</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679091726"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679091725"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-191"></span><span>  </span><span id="local-6989586621679091285"><span class="annot"><span class="annottext">traverse :: forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; Clown f a a -&gt; f (Clown f a b)
+</span><a href="#local-6989586621679091285"><span class="hs-identifier hs-var hs-var hs-var hs-var">traverse</span></a></span></span><span> </span><span class="annot"><span class="annottext">a -&gt; f b
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall {k} {k} (f :: k -&gt; *) (a :: k) (b :: k). f a -&gt; Clown f a b
+</span><a href="Data.Bifunctor.Clown.html#Clown"><span class="hs-identifier hs-var">Clown</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall {k} {k} (f :: k -&gt; *) (a :: k) (b :: k). Clown f a b -&gt; f a
+</span><a href="Data.Bifunctor.Clown.html#runClown"><span class="hs-identifier hs-var">runClown</span></a></span><span>
+</span><span id="line-192"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">traverse</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-193"></span></pre></body></html>

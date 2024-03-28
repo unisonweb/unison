@@ -1,0 +1,974 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- Copyright (C) 2013, 2014, 2015, 2016, 2017  Fraser Tweedale</span><span>
+</span><span id="line-2"></span><span class="hs-comment">--</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- you may not use this file except in compliance with the License.</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- You may obtain a copy of the License at</span><span>
+</span><span id="line-6"></span><span class="hs-comment">--</span><span>
+</span><span id="line-7"></span><span class="hs-comment">--      http://www.apache.org/licenses/LICENSE-2.0</span><span>
+</span><span id="line-8"></span><span class="hs-comment">--</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- Unless required by applicable law or agreed to in writing, software</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- distributed under the License is distributed on an &quot;AS IS&quot; BASIS,</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- See the License for the specific language governing permissions and</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- limitations under the License.</span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span class="hs-pragma">{-# LANGUAGE FlexibleContexts #-}</span><span>
+</span><span id="line-16"></span><span class="hs-pragma">{-# LANGUAGE NoMonomorphismRestriction #-}</span><span>
+</span><span id="line-17"></span><span class="hs-pragma">{-# LANGUAGE OverloadedStrings #-}</span><span>
+</span><span id="line-18"></span><span class="hs-pragma">{-# LANGUAGE RecordWildCards #-}</span><span>
+</span><span id="line-19"></span><span class="hs-pragma">{-# LANGUAGE TemplateHaskell #-}</span><span>
+</span><span id="line-20"></span><span class="hs-pragma">{-# LANGUAGE TypeFamilies #-}</span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="hs-comment">{-|
+
+A JSON Web Key (JWK) is a JavaScript Object Notation (JSON) data
+structure that represents a cryptographic key.  This module also
+defines a JSON Web Key Set (JWK Set) JSON data structure for
+representing a set of JWKs.
+
+@
+-- Generate RSA JWK and set &quot;kid&quot; param to
+-- base64url-encoded SHA-256 thumbprint of key.
+--
+doGen :: IO JWK
+doGen = do
+  jwk &lt;- 'genJWK' (RSAGenParam (4096 \`div` 8))
+  let
+    h = view 'thumbprint' jwk :: Digest SHA256
+    kid = view (re ('base64url' . 'digest') . utf8) h
+  pure $ set 'jwkKid' (Just kid) jwk
+@
+
+-}</span><span>
+</span><span id="line-43"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Crypto.JOSE.JWK</span><span>
+</span><span id="line-44"></span><span>  </span><span class="hs-special">(</span><span>
+</span><span id="line-45"></span><span>  </span><span class="annot"><span class="hs-comment">-- * JWK generation</span></span><span>
+</span><span id="line-46"></span><span>    </span><span class="annot"><a href="Crypto.JOSE.JWK.html#genJWK"><span class="hs-identifier">genJWK</span></a></span><span>
+</span><span id="line-47"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.JOSE.JWA.JWK.html#KeyMaterialGenParam"><span class="hs-identifier">KeyMaterialGenParam</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-48"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.JOSE.JWA.JWK.html#Crv"><span class="hs-identifier">Crv</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-49"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.JOSE.JWA.JWK.html#OKPCrv"><span class="hs-identifier">OKPCrv</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-50"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.JOSE.JWK.html#JWK"><span class="hs-identifier">JWK</span></a></span><span>
+</span><span id="line-51"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.JOSE.JWA.JWK.html#AsPublicKey"><span class="hs-identifier">AsPublicKey</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-52"></span><span>
+</span><span id="line-53"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Parts of a JWK</span></span><span>
+</span><span id="line-54"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.JOSE.JWK.html#jwkMaterial"><span class="hs-identifier">jwkMaterial</span></a></span><span>
+</span><span id="line-55"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.JOSE.JWK.html#jwkUse"><span class="hs-identifier">jwkUse</span></a></span><span>
+</span><span id="line-56"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.JOSE.JWK.html#KeyUse"><span class="hs-identifier">KeyUse</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-57"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.JOSE.JWK.html#jwkKeyOps"><span class="hs-identifier">jwkKeyOps</span></a></span><span>
+</span><span id="line-58"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.JOSE.JWK.html#KeyOp"><span class="hs-identifier">KeyOp</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-59"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.JOSE.JWK.html#jwkAlg"><span class="hs-identifier">jwkAlg</span></a></span><span>
+</span><span id="line-60"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.JOSE.JWK.html#JWKAlg"><span class="hs-identifier">JWKAlg</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-61"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.JOSE.JWK.html#jwkKid"><span class="hs-identifier">jwkKid</span></a></span><span>
+</span><span id="line-62"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.JOSE.JWK.html#jwkX5u"><span class="hs-identifier">jwkX5u</span></a></span><span>
+</span><span id="line-63"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.JOSE.JWK.html#jwkX5c"><span class="hs-identifier">jwkX5c</span></a></span><span>
+</span><span id="line-64"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.JOSE.JWK.html#setJWKX5c"><span class="hs-identifier">setJWKX5c</span></a></span><span>
+</span><span id="line-65"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.JOSE.JWK.html#jwkX5t"><span class="hs-identifier">jwkX5t</span></a></span><span>
+</span><span id="line-66"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.JOSE.JWK.html#jwkX5tS256"><span class="hs-identifier">jwkX5tS256</span></a></span><span>
+</span><span id="line-67"></span><span>
+</span><span id="line-68"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Converting from other key formats</span></span><span>
+</span><span id="line-69"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.JOSE.JWK.html#fromKeyMaterial"><span class="hs-identifier">fromKeyMaterial</span></a></span><span>
+</span><span id="line-70"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.JOSE.JWK.html#fromRSA"><span class="hs-identifier">fromRSA</span></a></span><span>
+</span><span id="line-71"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.JOSE.JWK.html#fromOctets"><span class="hs-identifier">fromOctets</span></a></span><span>
+</span><span id="line-72"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.JOSE.JWK.html#fromX509Certificate"><span class="hs-identifier">fromX509Certificate</span></a></span><span>
+</span><span id="line-73"></span><span>
+</span><span id="line-74"></span><span>  </span><span class="annot"><span class="hs-comment">-- * JWK Thumbprint</span></span><span>
+</span><span id="line-75"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.JOSE.JWK.html#thumbprint"><span class="hs-identifier">thumbprint</span></a></span><span>
+</span><span id="line-76"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.JOSE.JWK.html#digest"><span class="hs-identifier">digest</span></a></span><span>
+</span><span id="line-77"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.JOSE.Types.Internal.html#base64url"><span class="hs-identifier">Types.base64url</span></a></span><span>
+</span><span id="line-78"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">module</span><span> </span><span class="annot"><span class="hs-identifier">Crypto.Hash</span></span><span>
+</span><span id="line-79"></span><span>
+</span><span id="line-80"></span><span>  </span><span class="annot"><span class="hs-comment">-- * JWK Set</span></span><span>
+</span><span id="line-81"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.JOSE.JWK.html#JWKSet"><span class="hs-identifier">JWKSet</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-82"></span><span>
+</span><span id="line-83"></span><span>  </span><span class="hs-comment">-- Miscellaneous</span><span>
+</span><span id="line-84"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.JOSE.JWK.html#bestJWSAlg"><span class="hs-identifier">bestJWSAlg</span></a></span><span>
+</span><span id="line-85"></span><span>
+</span><span id="line-86"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Crypto.JOSE.JWA.JWK.html"><span class="hs-identifier">Crypto.JOSE.JWA.JWK</span></a></span><span>
+</span><span id="line-87"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-88"></span><span>
+</span><span id="line-89"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Applicative</span></span><span>
+</span><span id="line-90"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-operator">(&gt;=&gt;)</span></span><span class="hs-special">)</span><span>
+</span><span id="line-91"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Function</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">on</span></span><span class="hs-special">)</span><span>
+</span><span id="line-92"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">catMaybes</span></span><span class="hs-special">)</span><span>
+</span><span id="line-93"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Monoid</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-operator">(&lt;&gt;)</span></span><span class="hs-special">)</span><span>
+</span><span id="line-94"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Word</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Word8</span></span><span class="hs-special">)</span><span>
+</span><span id="line-95"></span><span>
+</span><span id="line-96"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Lens</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-operator">(.=)</span></span><span class="hs-special">)</span><span>
+</span><span id="line-97"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Lens.Cons.Extras</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">recons</span></span><span class="hs-special">)</span><span>
+</span><span id="line-98"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Except</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">MonadError</span></span><span class="hs-special">)</span><span>
+</span><span id="line-99"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Error.Lens</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">throwing</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">throwing_</span></span><span class="hs-special">)</span><span>
+</span><span id="line-100"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Crypto.Hash</span></span><span>
+</span><span id="line-101"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Crypto.PubKey.RSA</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">RSA</span></span><span>
+</span><span id="line-102"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span>
+</span><span id="line-103"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteArray</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">BA</span></span><span>
+</span><span id="line-104"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">B</span></span><span>
+</span><span id="line-105"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString.Lazy</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">L</span></span><span>
+</span><span id="line-106"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString.Builder</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Builder</span></span><span>
+</span><span id="line-107"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.List.NonEmpty</span></span><span>
+</span><span id="line-108"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">T</span></span><span>
+</span><span id="line-109"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.X509</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">X509</span></span><span>
+</span><span id="line-110"></span><span>
+</span><span id="line-111"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Test.QuickCheck</span></span><span>
+</span><span id="line-112"></span><span>
+</span><span id="line-113"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Crypto.JOSE.Error.html"><span class="hs-identifier">Crypto.JOSE.Error</span></a></span><span>
+</span><span id="line-114"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Crypto.JOSE.JWA.JWE.Alg.html"><span class="hs-identifier">Crypto.JOSE.JWA.JWE.Alg</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">JWA.JWE</span></span><span>
+</span><span id="line-115"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Crypto.JOSE.JWA.JWK.html"><span class="hs-identifier">Crypto.JOSE.JWA.JWK</span></a></span><span>
+</span><span id="line-116"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Crypto.JOSE.JWA.JWS.html"><span class="hs-identifier">Crypto.JOSE.JWA.JWS</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">JWA.JWS</span></span><span>
+</span><span id="line-117"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Crypto.JOSE.TH.html"><span class="hs-identifier">Crypto.JOSE.TH</span></a></span><span>
+</span><span id="line-118"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Crypto.JOSE.Types.html"><span class="hs-identifier">Crypto.JOSE.Types</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Types</span></span><span>
+</span><span id="line-119"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Crypto.JOSE.Types.Internal.html"><span class="hs-identifier">Crypto.JOSE.Types.Internal</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Types</span></span><span>
+</span><span id="line-120"></span><span>
+</span><span id="line-121"></span><span>
+</span><span id="line-122"></span><span class="hs-comment">-- | RFC 7517 &#167;4.4.  &quot;alg&quot; (Algorithm) Parameter</span><span>
+</span><span id="line-123"></span><span class="hs-comment">--</span><span>
+</span><span id="line-124"></span><span class="hs-comment">-- See also RFC 7518 &#167;6.4. which states that for &quot;oct&quot; keys, an</span><span>
+</span><span id="line-125"></span><span class="hs-comment">-- &quot;alg&quot; member SHOULD be present to identify the algorithm intended</span><span>
+</span><span id="line-126"></span><span class="hs-comment">-- to be used with the key, unless the application uses another</span><span>
+</span><span id="line-127"></span><span class="hs-comment">-- means or convention to determine the algorithm used.</span><span>
+</span><span id="line-128"></span><span class="hs-comment">--</span><span>
+</span><span id="line-129"></span><span class="hs-keyword">data</span><span> </span><span id="JWKAlg"><span class="annot"><a href="Crypto.JOSE.JWK.html#JWKAlg"><span class="hs-identifier hs-var">JWKAlg</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="JWSAlg"><span class="annot"><a href="Crypto.JOSE.JWK.html#JWSAlg"><span class="hs-identifier hs-var">JWSAlg</span></a></span></span><span> </span><span class="annot"><a href="Crypto.JOSE.JWA.JWS.html#Alg"><span class="hs-identifier hs-type">JWA.JWS.Alg</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="JWEAlg"><span class="annot"><a href="Crypto.JOSE.JWK.html#JWEAlg"><span class="hs-identifier hs-var">JWEAlg</span></a></span></span><span> </span><span class="annot"><a href="Crypto.JOSE.JWA.JWE.Alg.html#Alg"><span class="hs-identifier hs-type">JWA.JWE.Alg</span></a></span><span>
+</span><span id="line-130"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679399736"><span id="local-6989586621679399742"><span class="annot"><span class="annottext">JWKAlg -&gt; JWKAlg -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: JWKAlg -&gt; JWKAlg -&gt; Bool
+$c/= :: JWKAlg -&gt; JWKAlg -&gt; Bool
+== :: JWKAlg -&gt; JWKAlg -&gt; Bool
+$c== :: JWKAlg -&gt; JWKAlg -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679399722"><span id="local-6989586621679399724"><span id="local-6989586621679399733"><span class="annot"><span class="annottext">Int -&gt; JWKAlg -&gt; ShowS
+[JWKAlg] -&gt; ShowS
+JWKAlg -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [JWKAlg] -&gt; ShowS
+$cshowList :: [JWKAlg] -&gt; ShowS
+show :: JWKAlg -&gt; String
+$cshow :: JWKAlg -&gt; String
+showsPrec :: Int -&gt; JWKAlg -&gt; ShowS
+$cshowsPrec :: Int -&gt; JWKAlg -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-131"></span><span>
+</span><span id="line-132"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679399718"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="Crypto.JOSE.JWK.html#JWKAlg"><span class="hs-identifier hs-type">JWKAlg</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-133"></span><span>  </span><span id="local-6989586621679399707"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser JWKAlg
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span id="local-6989586621679399705"><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679399705"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Alg -&gt; JWKAlg
+</span><a href="Crypto.JOSE.JWK.html#JWSAlg"><span class="hs-identifier hs-var">JWSAlg</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">parseJSON</span></span><span> </span><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679399705"><span class="hs-identifier hs-var">v</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Alternative f =&gt; f a -&gt; f a -&gt; f a
+</span><span class="hs-operator hs-var">&lt;|&gt;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Alg -&gt; JWKAlg
+</span><a href="Crypto.JOSE.JWK.html#JWEAlg"><span class="hs-identifier hs-var">JWEAlg</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">parseJSON</span></span><span> </span><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679399705"><span class="hs-identifier hs-var">v</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-134"></span><span>
+</span><span id="line-135"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679399696"><span id="local-6989586621679399698"><span id="local-6989586621679399700"><span class="annot"><span class="hs-identifier hs-type">ToJSON</span></span><span> </span><span class="annot"><a href="Crypto.JOSE.JWK.html#JWKAlg"><span class="hs-identifier hs-type">JWKAlg</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-136"></span><span>  </span><span id="local-6989586621679399690"><span class="annot"><span class="annottext">toJSON :: JWKAlg -&gt; Value
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">toJSON</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.JOSE.JWK.html#JWSAlg"><span class="hs-identifier hs-type">JWSAlg</span></a></span><span> </span><span id="local-6989586621679399688"><span class="annot"><span class="annottext">Alg
+</span><a href="#local-6989586621679399688"><span class="hs-identifier hs-var">alg</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. ToJSON a =&gt; a -&gt; Value
+</span><span class="hs-identifier hs-var">toJSON</span></span><span> </span><span class="annot"><span class="annottext">Alg
+</span><a href="#local-6989586621679399688"><span class="hs-identifier hs-var">alg</span></a></span><span>
+</span><span id="line-137"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">toJSON</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.JOSE.JWK.html#JWEAlg"><span class="hs-identifier hs-type">JWEAlg</span></a></span><span> </span><span id="local-6989586621679399687"><span class="annot"><span class="annottext">Alg
+</span><a href="#local-6989586621679399687"><span class="hs-identifier hs-var">alg</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. ToJSON a =&gt; a -&gt; Value
+</span><span class="hs-identifier hs-var">toJSON</span></span><span> </span><span class="annot"><span class="annottext">Alg
+</span><a href="#local-6989586621679399687"><span class="hs-identifier hs-var">alg</span></a></span><span>
+</span><span id="line-138"></span><span>
+</span><span id="line-139"></span><span>
+</span><span id="line-140"></span><span class="hs-comment">-- | RFC 7517 &#167;4.3.  &quot;key_ops&quot; (Key Operations) Parameter</span><span>
+</span><span id="line-141"></span><span class="hs-comment">--</span><span>
+</span><span id="line-142"></span><span class="hs-special">$</span><span id="DeriveBits"><span id="DeriveKey"><span id="UnwrapKey"><span id="WrapKey"><span id="Decrypt"><span id="Encrypt"><span id="Verify"><span id="Sign"><span id="local-6989586621679399605"><span id="local-6989586621679399639"><span id="local-6989586621679399641"><span id="local-6989586621679399643"><span id="local-6989586621679399645"><span id="local-6989586621679399656"><span id="local-6989586621679399658"><span id="local-6989586621679399660"><span id="local-6989586621679399662"><span id="local-6989586621679399664"><span id="local-6989586621679399666"><span id="local-6989586621679399669"><span id="local-6989586621679399672"><span id="local-6989586621679399675"><span id="local-6989586621679399677"><span id="local-6989586621679399679"><span id="local-6989586621679399683"><span id="local-6989586621679399685"><span id="KeyOp"><span class="hs-special">(</span><span class="hs-identifier">Crypto.JOSE.TH.deriveJOSEType</span><span> </span><span class="hs-string">&quot;KeyOp&quot;</span><span>
+</span><span id="line-143"></span><span>  </span><span class="hs-special">[</span><span> </span><span class="hs-string">&quot;sign&quot;</span><span class="hs-special">,</span><span> </span><span class="hs-string">&quot;verify&quot;</span><span class="hs-special">,</span><span> </span><span class="hs-string">&quot;encrypt&quot;</span><span class="hs-special">,</span><span> </span><span class="hs-string">&quot;decrypt&quot;</span><span>
+</span><span id="line-144"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-string">&quot;wrapKey&quot;</span><span class="hs-special">,</span><span> </span><span class="hs-string">&quot;unwrapKey&quot;</span><span class="hs-special">,</span><span> </span><span class="hs-string">&quot;deriveKey&quot;</span><span class="hs-special">,</span><span> </span><span class="hs-string">&quot;deriveBits&quot;</span><span>
+</span><span id="line-145"></span><span>  </span><span class="hs-special">]</span><span class="hs-special">)</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span>
+</span><span id="line-146"></span><span>
+</span><span id="line-147"></span><span>
+</span><span id="line-148"></span><span class="hs-comment">-- | RFC 7517 &#167;4.2.  &quot;use&quot; (Public Key Use) Parameter</span><span>
+</span><span id="line-149"></span><span class="hs-comment">--</span><span>
+</span><span id="line-150"></span><span class="hs-special">$</span><span id="Enc"><span id="Sig"><span id="local-6989586621679399542"><span id="local-6989586621679399554"><span id="local-6989586621679399556"><span id="local-6989586621679399558"><span id="local-6989586621679399560"><span id="local-6989586621679399564"><span id="local-6989586621679399566"><span id="local-6989586621679399568"><span id="local-6989586621679399570"><span id="local-6989586621679399572"><span id="local-6989586621679399574"><span id="local-6989586621679399577"><span id="local-6989586621679399580"><span id="local-6989586621679399583"><span id="local-6989586621679399585"><span id="local-6989586621679399587"><span id="local-6989586621679399591"><span id="local-6989586621679399593"><span id="KeyUse"><span class="hs-special">(</span><span class="hs-identifier">Crypto.JOSE.TH.deriveJOSEType</span><span> </span><span class="hs-string">&quot;KeyUse&quot;</span><span> </span><span class="hs-special">[</span><span class="hs-string">&quot;sig&quot;</span><span class="hs-special">,</span><span> </span><span class="hs-string">&quot;enc&quot;</span><span class="hs-special">]</span><span class="hs-special">)</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span>
+</span><span id="line-151"></span><span>
+</span><span id="line-152"></span><span>
+</span><span id="line-153"></span><span class="hs-comment">-- | RFC 7517 &#167;4.  JSON Web Key (JWK) Format</span><span>
+</span><span id="line-154"></span><span class="hs-comment">--</span><span>
+</span><span id="line-155"></span><span class="hs-keyword">data</span><span> </span><span id="JWK"><span class="annot"><a href="Crypto.JOSE.JWK.html#JWK"><span class="hs-identifier hs-var">JWK</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="JWK"><span class="annot"><a href="Crypto.JOSE.JWK.html#JWK"><span class="hs-identifier hs-var">JWK</span></a></span></span><span>
+</span><span id="line-156"></span><span>  </span><span class="hs-special">{</span><span>
+</span><span id="line-157"></span><span>    </span><span id="_jwkMaterial"><span class="annot"><span class="annottext">JWK -&gt; KeyMaterial
+</span><a href="Crypto.JOSE.JWK.html#_jwkMaterial"><span class="hs-identifier hs-var hs-var">_jwkMaterial</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Crypto.JOSE.JWA.JWK.html#KeyMaterial"><span class="hs-identifier hs-type">Crypto.JOSE.JWA.JWK.KeyMaterial</span></a></span><span>
+</span><span id="line-158"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="_jwkUse"><span class="annot"><span class="annottext">JWK -&gt; Maybe KeyUse
+</span><a href="Crypto.JOSE.JWK.html#_jwkUse"><span class="hs-identifier hs-var hs-var">_jwkUse</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Crypto.JOSE.JWK.html#KeyUse"><span class="hs-identifier hs-type">KeyUse</span></a></span><span>
+</span><span id="line-159"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="_jwkKeyOps"><span class="annot"><span class="annottext">JWK -&gt; Maybe [KeyOp]
+</span><a href="Crypto.JOSE.JWK.html#_jwkKeyOps"><span class="hs-identifier hs-var hs-var">_jwkKeyOps</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Crypto.JOSE.JWK.html#KeyOp"><span class="hs-identifier hs-type">KeyOp</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-160"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="_jwkAlg"><span class="annot"><span class="annottext">JWK -&gt; Maybe JWKAlg
+</span><a href="Crypto.JOSE.JWK.html#_jwkAlg"><span class="hs-identifier hs-var hs-var">_jwkAlg</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Crypto.JOSE.JWK.html#JWKAlg"><span class="hs-identifier hs-type">JWKAlg</span></a></span><span>
+</span><span id="line-161"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="_jwkKid"><span class="annot"><span class="annottext">JWK -&gt; Maybe Text
+</span><a href="Crypto.JOSE.JWK.html#_jwkKid"><span class="hs-identifier hs-var hs-var">_jwkKid</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">T.Text</span></span><span>
+</span><span id="line-162"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="_jwkX5u"><span class="annot"><span class="annottext">JWK -&gt; Maybe URI
+</span><a href="Crypto.JOSE.JWK.html#_jwkX5u"><span class="hs-identifier hs-var hs-var">_jwkX5u</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Types.URI</span></span><span>
+</span><span id="line-163"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="_jwkX5cRaw"><span class="annot"><span class="annottext">JWK -&gt; Maybe (NonEmpty SignedCertificate)
+</span><a href="Crypto.JOSE.JWK.html#_jwkX5cRaw"><span class="hs-identifier hs-var hs-var">_jwkX5cRaw</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">NonEmpty</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">X509.SignedCertificate</span></span><span class="hs-special">)</span><span>
+</span><span id="line-164"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="_jwkX5t"><span class="annot"><span class="annottext">JWK -&gt; Maybe Base64SHA1
+</span><a href="Crypto.JOSE.JWK.html#_jwkX5t"><span class="hs-identifier hs-var hs-var">_jwkX5t</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Crypto.JOSE.Types.html#Base64SHA1"><span class="hs-identifier hs-type">Types.Base64SHA1</span></a></span><span>
+</span><span id="line-165"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="_jwkX5tS256"><span class="annot"><span class="annottext">JWK -&gt; Maybe Base64SHA256
+</span><a href="Crypto.JOSE.JWK.html#_jwkX5tS256"><span class="hs-identifier hs-var hs-var">_jwkX5tS256</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Crypto.JOSE.Types.html#Base64SHA256"><span class="hs-identifier hs-type">Types.Base64SHA256</span></a></span><span>
+</span><span id="line-166"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-167"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679399508"><span id="local-6989586621679399527"><span class="annot"><span class="annottext">JWK -&gt; JWK -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: JWK -&gt; JWK -&gt; Bool
+$c/= :: JWK -&gt; JWK -&gt; Bool
+== :: JWK -&gt; JWK -&gt; Bool
+$c== :: JWK -&gt; JWK -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679399470"><span id="local-6989586621679399472"><span id="local-6989586621679399494"><span class="annot"><span class="annottext">Int -&gt; JWK -&gt; ShowS
+[JWK] -&gt; ShowS
+JWK -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [JWK] -&gt; ShowS
+$cshowList :: [JWK] -&gt; ShowS
+show :: JWK -&gt; String
+$cshow :: JWK -&gt; String
+showsPrec :: Int -&gt; JWK -&gt; ShowS
+$cshowsPrec :: Int -&gt; JWK -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-168"></span><span id="jwkX5cRaw"><span id="jwkX5tS256"><span id="jwkX5t"><span id="jwkX5u"><span id="jwkKid"><span id="jwkAlg"><span id="jwkKeyOps"><span id="jwkUse"><span id="jwkMaterial"><span class="hs-identifier">makeLenses</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">JWK</span></span></span></span></span></span></span></span></span></span><span>
+</span><span id="line-169"></span><span>
+</span><span id="line-170"></span><span class="hs-comment">-- | Get the certificate chain.  Not a lens, because the key of the first</span><span>
+</span><span id="line-171"></span><span class="hs-comment">-- certificate in the chain must correspond be the public key of the JWK.</span><span>
+</span><span id="line-172"></span><span class="hs-comment">-- To set the certificate chain use 'setJWKX5c'.</span><span>
+</span><span id="line-173"></span><span class="hs-comment">--</span><span>
+</span><span id="line-174"></span><span class="annot"><a href="Crypto.JOSE.JWK.html#jwkX5c"><span class="hs-identifier hs-type">jwkX5c</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Getter</span></span><span> </span><span class="annot"><a href="Crypto.JOSE.JWK.html#JWK"><span class="hs-identifier hs-type">JWK</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">NonEmpty</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">X509.SignedCertificate</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-175"></span><span id="jwkX5c"><span class="annot"><span class="annottext">jwkX5c :: Getter JWK (Maybe (NonEmpty SignedCertificate))
+</span><a href="Crypto.JOSE.JWK.html#jwkX5c"><span class="hs-identifier hs-var hs-var">jwkX5c</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Lens' JWK (Maybe (NonEmpty SignedCertificate))
+</span><a href="Crypto.JOSE.JWK.html#jwkX5cRaw"><span class="hs-identifier hs-var">jwkX5cRaw</span></a></span><span>
+</span><span id="line-176"></span><span>
+</span><span id="line-177"></span><span class="hs-comment">-- | Set the @&quot;x5c&quot;@ Certificate Chain parameter.  If setting the list,</span><span>
+</span><span id="line-178"></span><span class="hs-comment">-- checks that the key in the first certificate matches the JWK; returns</span><span>
+</span><span id="line-179"></span><span class="hs-comment">-- @Nothing@ if it does not.</span><span>
+</span><span id="line-180"></span><span class="hs-comment">--</span><span>
+</span><span id="line-181"></span><span class="annot"><a href="Crypto.JOSE.JWK.html#setJWKX5c"><span class="hs-identifier hs-type">setJWKX5c</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">NonEmpty</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">X509.SignedCertificate</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Crypto.JOSE.JWK.html#JWK"><span class="hs-identifier hs-type">JWK</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Crypto.JOSE.JWK.html#JWK"><span class="hs-identifier hs-type">JWK</span></a></span><span>
+</span><span id="line-182"></span><span id="setJWKX5c"><span class="annot"><span class="annottext">setJWKX5c :: Maybe (NonEmpty SignedCertificate) -&gt; JWK -&gt; Maybe JWK
+</span><a href="Crypto.JOSE.JWK.html#setJWKX5c"><span class="hs-identifier hs-var hs-var">setJWKX5c</span></a></span></span><span> </span><span class="annot"><span class="annottext">Maybe (NonEmpty SignedCertificate)
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span id="local-6989586621679399336"><span class="annot"><span class="annottext">JWK
+</span><a href="#local-6989586621679399336"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall s t a b. ASetter s t a b -&gt; b -&gt; s -&gt; t
+</span><span class="hs-identifier hs-var">set</span></span><span> </span><span class="annot"><span class="annottext">Lens' JWK (Maybe (NonEmpty SignedCertificate))
+</span><a href="Crypto.JOSE.JWK.html#jwkX5cRaw"><span class="hs-identifier hs-var">jwkX5cRaw</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="annot"><span class="annottext">JWK
+</span><a href="#local-6989586621679399336"><span class="hs-identifier hs-var">k</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-183"></span><span class="annot"><a href="Crypto.JOSE.JWK.html#setJWKX5c"><span class="hs-identifier hs-var">setJWKX5c</span></a></span><span> </span><span id="local-6989586621679399334"><span class="annot"><span class="annottext">certs :: Maybe (NonEmpty SignedCertificate)
+</span><a href="#local-6989586621679399334"><span class="hs-identifier hs-var">certs</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679399333"><span class="annot"><span class="annottext">SignedCertificate
+</span><a href="#local-6989586621679399333"><span class="hs-identifier hs-var">cert</span></a></span></span><span> </span><span class="annot"><span class="hs-operator hs-type">:|</span></span><span> </span><span class="annot"><span class="annottext">[SignedCertificate]
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span id="local-6989586621679399332"><span class="annot"><span class="annottext">JWK
+</span><a href="#local-6989586621679399332"><span class="hs-identifier hs-var">key</span></a></span></span><span>
+</span><span id="line-184"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">JWK -&gt; SignedCertificate -&gt; Bool
+</span><a href="Crypto.JOSE.JWK.html#certMatchesKey"><span class="hs-identifier hs-var">certMatchesKey</span></a></span><span> </span><span class="annot"><span class="annottext">JWK
+</span><a href="#local-6989586621679399332"><span class="hs-identifier hs-var">key</span></a></span><span> </span><span class="annot"><span class="annottext">SignedCertificate
+</span><a href="#local-6989586621679399333"><span class="hs-identifier hs-var">cert</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall s t a b. ASetter s t a b -&gt; b -&gt; s -&gt; t
+</span><span class="hs-identifier hs-var">set</span></span><span> </span><span class="annot"><span class="annottext">Lens' JWK (Maybe (NonEmpty SignedCertificate))
+</span><a href="Crypto.JOSE.JWK.html#jwkX5cRaw"><span class="hs-identifier hs-var">jwkX5cRaw</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe (NonEmpty SignedCertificate)
+</span><a href="#local-6989586621679399334"><span class="hs-identifier hs-var">certs</span></a></span><span> </span><span class="annot"><span class="annottext">JWK
+</span><a href="#local-6989586621679399332"><span class="hs-identifier hs-var">key</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-185"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-186"></span><span>
+</span><span id="line-187"></span><span class="annot"><a href="Crypto.JOSE.JWK.html#certMatchesKey"><span class="hs-identifier hs-type">certMatchesKey</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Crypto.JOSE.JWK.html#JWK"><span class="hs-identifier hs-type">JWK</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">X509.SignedCertificate</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-188"></span><span id="certMatchesKey"><span class="annot"><span class="annottext">certMatchesKey :: JWK -&gt; SignedCertificate -&gt; Bool
+</span><a href="Crypto.JOSE.JWK.html#certMatchesKey"><span class="hs-identifier hs-var hs-var">certMatchesKey</span></a></span></span><span> </span><span id="local-6989586621679399330"><span class="annot"><span class="annottext">JWK
+</span><a href="#local-6989586621679399330"><span class="hs-identifier hs-var">key</span></a></span></span><span> </span><span id="local-6989586621679399329"><span class="annot"><span class="annottext">SignedCertificate
+</span><a href="#local-6989586621679399329"><span class="hs-identifier hs-var">cert</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-189"></span><span>  </span><span class="annot"><span class="annottext">forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><span class="hs-identifier hs-var">maybe</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">(==)</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">`on`</span></span><span> </span><span class="annot"><span class="annottext">forall s (m :: * -&gt; *) a.
+MonadReader s m =&gt;
+Getting (First a) s a -&gt; m (Maybe a)
+</span><span class="hs-identifier hs-var">preview</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Lens' JWK KeyMaterial
+</span><a href="Crypto.JOSE.JWK.html#jwkMaterial"><span class="hs-identifier hs-var">jwkMaterial</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall k. AsPublicKey k =&gt; Getter k (Maybe k)
+</span><a href="Crypto.JOSE.JWA.JWK.html#asPublicKey"><span class="hs-identifier hs-var">asPublicKey</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">JWK
+</span><a href="#local-6989586621679399330"><span class="hs-identifier hs-var">key</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-190"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SignedCertificate -&gt; Maybe JWK
+</span><a href="Crypto.JOSE.JWK.html#fromX509CertificateMaybe"><span class="hs-identifier hs-var">fromX509CertificateMaybe</span></a></span><span> </span><span class="annot"><span class="annottext">SignedCertificate
+</span><a href="#local-6989586621679399329"><span class="hs-identifier hs-var">cert</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-191"></span><span>
+</span><span id="line-192"></span><span>
+</span><span id="line-193"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679399321"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="Crypto.JOSE.JWK.html#JWK"><span class="hs-identifier hs-type">JWK</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-194"></span><span>  </span><span id="local-6989586621679399277"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser JWK
+</span><a href="#local-6989586621679399277"><span class="hs-identifier hs-var hs-var hs-var hs-var">parseJSON</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;JWK&quot;</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679399275"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679399275"><span class="hs-identifier hs-var">o</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">KeyMaterial
+-&gt; Maybe KeyUse
+-&gt; Maybe [KeyOp]
+-&gt; Maybe JWKAlg
+-&gt; Maybe Text
+-&gt; Maybe URI
+-&gt; Maybe (NonEmpty SignedCertificate)
+-&gt; Maybe Base64SHA1
+-&gt; Maybe Base64SHA256
+-&gt; JWK
+</span><a href="Crypto.JOSE.JWK.html#JWK"><span class="hs-identifier hs-var">JWK</span></a></span><span>
+</span><span id="line-195"></span><span>    </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">parseJSON</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Object -&gt; Value
+</span><span class="hs-identifier hs-var">Object</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679399275"><span class="hs-identifier hs-var">o</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-196"></span><span>    </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679399275"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">.:?</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;use&quot;</span></span><span>
+</span><span id="line-197"></span><span>    </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679399275"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">.:?</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;key_ops&quot;</span></span><span>
+</span><span id="line-198"></span><span>    </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679399275"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">.:?</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;alg&quot;</span></span><span>
+</span><span id="line-199"></span><span>    </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679399275"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">.:?</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;kid&quot;</span></span><span>
+</span><span id="line-200"></span><span>    </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679399275"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">.:?</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;x5u&quot;</span></span><span>
+</span><span id="line-201"></span><span>    </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Crypto.JOSE.Types.html#Base64X509"><span class="hs-identifier hs-type">Types.Base64X509</span></a></span><span> </span><span id="local-6989586621679399271"><span class="annot"><span class="annottext">SignedCertificate
+</span><a href="#local-6989586621679399271"><span class="hs-identifier hs-var">cert</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">SignedCertificate
+</span><a href="#local-6989586621679399271"><span class="hs-identifier hs-var">cert</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679399275"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">.:?</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;x5c&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-202"></span><span>    </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679399275"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">.:?</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;x5t&quot;</span></span><span>
+</span><span id="line-203"></span><span>    </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679399275"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">.:?</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;x5t#S256&quot;</span></span><span>
+</span><span id="line-204"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b c.
+Monad m =&gt;
+(a -&gt; m b) -&gt; (b -&gt; m c) -&gt; a -&gt; m c
+</span><span class="hs-operator hs-var">&gt;=&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall {m :: * -&gt; *}. MonadFail m =&gt; JWK -&gt; m JWK
+</span><a href="#local-6989586621679399270"><span class="hs-identifier hs-var">checkKey</span></a></span><span>
+</span><span id="line-205"></span><span>    </span><span class="hs-keyword">where</span><span>
+</span><span id="line-206"></span><span>    </span><span id="local-6989586621679399270"><span class="annot"><span class="annottext">checkKey :: JWK -&gt; m JWK
+</span><a href="#local-6989586621679399270"><span class="hs-identifier hs-var hs-var">checkKey</span></a></span></span><span> </span><span id="local-6989586621679399259"><span class="annot"><span class="annottext">JWK
+</span><a href="#local-6989586621679399259"><span class="hs-identifier hs-var">k</span></a></span></span><span>
+</span><span id="line-207"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><span class="hs-identifier hs-var">maybe</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">JWK -&gt; SignedCertificate -&gt; Bool
+</span><a href="Crypto.JOSE.JWK.html#certMatchesKey"><span class="hs-identifier hs-var">certMatchesKey</span></a></span><span> </span><span class="annot"><span class="annottext">JWK
+</span><a href="#local-6989586621679399259"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall a. NonEmpty a -&gt; a
+</span><span class="hs-identifier hs-var">Data.List.NonEmpty.head</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall s (m :: * -&gt; *) a. MonadReader s m =&gt; Getting a s a -&gt; m a
+</span><span class="hs-identifier hs-var">view</span></span><span> </span><span class="annot"><span class="annottext">Getter JWK (Maybe (NonEmpty SignedCertificate))
+</span><a href="Crypto.JOSE.JWK.html#jwkX5c"><span class="hs-identifier hs-var">jwkX5c</span></a></span><span> </span><span class="annot"><span class="annottext">JWK
+</span><a href="#local-6989586621679399259"><span class="hs-identifier hs-var">k</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-208"></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. MonadFail m =&gt; String -&gt; m a
+</span><span class="hs-identifier hs-var">fail</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;X.509 cert in \&quot;x5c\&quot; param does not match key&quot;</span></span><span>
+</span><span id="line-209"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">JWK
+</span><a href="#local-6989586621679399259"><span class="hs-identifier hs-var">k</span></a></span><span>
+</span><span id="line-210"></span><span>
+</span><span id="line-211"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679399249"><span id="local-6989586621679399251"><span id="local-6989586621679399253"><span class="annot"><span class="hs-identifier hs-type">ToJSON</span></span><span> </span><span class="annot"><a href="Crypto.JOSE.JWK.html#JWK"><span class="hs-identifier hs-type">JWK</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-212"></span><span>  </span><span id="local-6989586621679399204"><span class="annot"><span class="annottext">toJSON :: JWK -&gt; Value
+</span><a href="#local-6989586621679399204"><span class="hs-identifier hs-var hs-var hs-var hs-var">toJSON</span></a></span></span><span> </span><span class="annot"><a href="Crypto.JOSE.JWK.html#JWK"><span class="hs-identifier hs-type">JWK</span></a></span><span class="hs-special">{</span><span id="local-6989586621679399195"><span id="local-6989586621679399196"><span id="local-6989586621679399197"><span id="local-6989586621679399198"><span id="local-6989586621679399199"><span id="local-6989586621679399200"><span id="local-6989586621679399201"><span id="local-6989586621679399202"><span id="local-6989586621679399203"><span class="annot"><span class="annottext">Maybe [KeyOp]
+Maybe (NonEmpty SignedCertificate)
+Maybe Text
+Maybe URI
+Maybe Base64SHA256
+Maybe Base64SHA1
+Maybe JWKAlg
+Maybe KeyUse
+KeyMaterial
+_jwkX5tS256 :: Maybe Base64SHA256
+_jwkX5t :: Maybe Base64SHA1
+_jwkX5cRaw :: Maybe (NonEmpty SignedCertificate)
+_jwkX5u :: Maybe URI
+_jwkKid :: Maybe Text
+_jwkAlg :: Maybe JWKAlg
+_jwkKeyOps :: Maybe [KeyOp]
+_jwkUse :: Maybe KeyUse
+_jwkMaterial :: KeyMaterial
+_jwkX5tS256 :: JWK -&gt; Maybe Base64SHA256
+_jwkX5t :: JWK -&gt; Maybe Base64SHA1
+_jwkX5cRaw :: JWK -&gt; Maybe (NonEmpty SignedCertificate)
+_jwkX5u :: JWK -&gt; Maybe URI
+_jwkKid :: JWK -&gt; Maybe Text
+_jwkAlg :: JWK -&gt; Maybe JWKAlg
+_jwkKeyOps :: JWK -&gt; Maybe [KeyOp]
+_jwkUse :: JWK -&gt; Maybe KeyUse
+_jwkMaterial :: JWK -&gt; KeyMaterial
+</span><a href="#local-6989586621679399195"><span class="hs-glyph hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">..</span></a></span></span></span></span></span></span></span></span></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Pair] -&gt; Value -&gt; Value
+</span><a href="Crypto.JOSE.Types.Internal.html#insertManyToObject"><span class="hs-identifier hs-var">Types.insertManyToObject</span></a></span><span> </span><span class="annot"><span class="annottext">[Pair]
+</span><a href="#local-6989586621679399193"><span class="hs-identifier hs-var">kvs</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. ToJSON a =&gt; a -&gt; Value
+</span><span class="hs-identifier hs-var">toJSON</span></span><span> </span><span class="annot"><span class="annottext">KeyMaterial
+</span><a href="#local-6989586621679399203"><span class="hs-identifier hs-var">_jwkMaterial</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-213"></span><span>    </span><span class="hs-keyword">where</span><span>
+</span><span id="line-214"></span><span>      </span><span id="local-6989586621679399193"><span class="annot"><span class="annottext">kvs :: [Pair]
+</span><a href="#local-6989586621679399193"><span class="hs-identifier hs-var hs-var">kvs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. [Maybe a] -&gt; [a]
+</span><span class="hs-identifier hs-var">catMaybes</span></span><span>
+</span><span id="line-215"></span><span>        </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;alg&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe JWKAlg
+</span><a href="#local-6989586621679399200"><span class="hs-identifier hs-var">_jwkAlg</span></a></span><span>
+</span><span id="line-216"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;use&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe KeyUse
+</span><a href="#local-6989586621679399202"><span class="hs-identifier hs-var">_jwkUse</span></a></span><span>
+</span><span id="line-217"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;key_ops&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe [KeyOp]
+</span><a href="#local-6989586621679399201"><span class="hs-identifier hs-var">_jwkKeyOps</span></a></span><span>
+</span><span id="line-218"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;kid&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe Text
+</span><a href="#local-6989586621679399199"><span class="hs-identifier hs-var">_jwkKid</span></a></span><span>
+</span><span id="line-219"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;x5u&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe URI
+</span><a href="#local-6989586621679399198"><span class="hs-identifier hs-var">_jwkX5u</span></a></span><span>
+</span><span id="line-220"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;x5c&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">SignedCertificate -&gt; Base64X509
+</span><a href="Crypto.JOSE.Types.html#Base64X509"><span class="hs-identifier hs-var">Types.Base64X509</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe (NonEmpty SignedCertificate)
+</span><a href="#local-6989586621679399197"><span class="hs-identifier hs-var">_jwkX5cRaw</span></a></span><span>
+</span><span id="line-221"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;x5t&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe Base64SHA1
+</span><a href="#local-6989586621679399196"><span class="hs-identifier hs-var">_jwkX5t</span></a></span><span>
+</span><span id="line-222"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;x5t#S256&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe Base64SHA256
+</span><a href="#local-6989586621679399195"><span class="hs-identifier hs-var">_jwkX5tS256</span></a></span><span>
+</span><span id="line-223"></span><span>        </span><span class="hs-special">]</span><span>
+</span><span id="line-224"></span><span>
+</span><span id="line-225"></span><span class="hs-comment">-- | Generate a JWK.  Apart from key parameters, no other parameters are set.</span><span>
+</span><span id="line-226"></span><span class="hs-comment">--</span><span>
+</span><span id="line-227"></span><span id="local-6989586621679400039"><span class="annot"><a href="Crypto.JOSE.JWK.html#genJWK"><span class="hs-identifier hs-type">genJWK</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadRandom</span></span><span> </span><span class="annot"><a href="#local-6989586621679400039"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Crypto.JOSE.JWA.JWK.html#KeyMaterialGenParam"><span class="hs-identifier hs-type">KeyMaterialGenParam</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679400039"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="Crypto.JOSE.JWK.html#JWK"><span class="hs-identifier hs-type">JWK</span></a></span></span><span>
+</span><span id="line-228"></span><span id="genJWK"><span class="annot"><span class="annottext">genJWK :: forall (m :: * -&gt; *). MonadRandom m =&gt; KeyMaterialGenParam -&gt; m JWK
+</span><a href="Crypto.JOSE.JWK.html#genJWK"><span class="hs-identifier hs-var hs-var">genJWK</span></a></span></span><span> </span><span id="local-6989586621679399183"><span class="annot"><span class="annottext">KeyMaterialGenParam
+</span><a href="#local-6989586621679399183"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">KeyMaterial -&gt; JWK
+</span><a href="Crypto.JOSE.JWK.html#fromKeyMaterial"><span class="hs-identifier hs-var">fromKeyMaterial</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *).
+MonadRandom m =&gt;
+KeyMaterialGenParam -&gt; m KeyMaterial
+</span><a href="Crypto.JOSE.JWA.JWK.html#genKeyMaterial"><span class="hs-identifier hs-var">genKeyMaterial</span></a></span><span> </span><span class="annot"><span class="annottext">KeyMaterialGenParam
+</span><a href="#local-6989586621679399183"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-229"></span><span>
+</span><span id="line-230"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679399179"><span class="annot"><span class="hs-identifier hs-type">Arbitrary</span></span><span> </span><span class="annot"><a href="Crypto.JOSE.JWK.html#JWK"><span class="hs-identifier hs-type">JWK</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-231"></span><span>  </span><span id="local-6989586621679399149"><span class="annot"><span class="annottext">arbitrary :: Gen JWK
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">arbitrary</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">KeyMaterial
+-&gt; Maybe KeyUse
+-&gt; Maybe [KeyOp]
+-&gt; Maybe JWKAlg
+-&gt; Maybe Text
+-&gt; Maybe URI
+-&gt; Maybe (NonEmpty SignedCertificate)
+-&gt; Maybe Base64SHA1
+-&gt; Maybe Base64SHA256
+-&gt; JWK
+</span><a href="Crypto.JOSE.JWK.html#JWK"><span class="hs-identifier hs-var">JWK</span></a></span><span>
+</span><span id="line-232"></span><span>    </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall a. Arbitrary a =&gt; Gen a
+</span><span class="hs-identifier hs-var">arbitrary</span></span><span>
+</span><span id="line-233"></span><span>    </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-234"></span><span>    </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-235"></span><span>    </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-236"></span><span>    </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall a. Arbitrary a =&gt; Gen a
+</span><span class="hs-identifier hs-var">arbitrary</span></span><span>
+</span><span id="line-237"></span><span>    </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-238"></span><span>    </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-239"></span><span>    </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall a. Arbitrary a =&gt; Gen a
+</span><span class="hs-identifier hs-var">arbitrary</span></span><span>
+</span><span id="line-240"></span><span>    </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall a. Arbitrary a =&gt; Gen a
+</span><span class="hs-identifier hs-var">arbitrary</span></span><span>
+</span><span id="line-241"></span><span>
+</span><span id="line-242"></span><span class="annot"><a href="Crypto.JOSE.JWK.html#fromKeyMaterial"><span class="hs-identifier hs-type">fromKeyMaterial</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Crypto.JOSE.JWA.JWK.html#KeyMaterial"><span class="hs-identifier hs-type">KeyMaterial</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Crypto.JOSE.JWK.html#JWK"><span class="hs-identifier hs-type">JWK</span></a></span><span>
+</span><span id="line-243"></span><span id="fromKeyMaterial"><span class="annot"><span class="annottext">fromKeyMaterial :: KeyMaterial -&gt; JWK
+</span><a href="Crypto.JOSE.JWK.html#fromKeyMaterial"><span class="hs-identifier hs-var hs-var">fromKeyMaterial</span></a></span></span><span> </span><span id="local-6989586621679399147"><span class="annot"><span class="annottext">KeyMaterial
+</span><a href="#local-6989586621679399147"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">KeyMaterial
+-&gt; Maybe KeyUse
+-&gt; Maybe [KeyOp]
+-&gt; Maybe JWKAlg
+-&gt; Maybe Text
+-&gt; Maybe URI
+-&gt; Maybe (NonEmpty SignedCertificate)
+-&gt; Maybe Base64SHA1
+-&gt; Maybe Base64SHA256
+-&gt; JWK
+</span><a href="Crypto.JOSE.JWK.html#JWK"><span class="hs-identifier hs-var">JWK</span></a></span><span> </span><span class="annot"><span class="annottext">KeyMaterial
+</span><a href="#local-6989586621679399147"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><a href="#local-6989586621679399146"><span class="hs-identifier hs-var">z</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><a href="#local-6989586621679399146"><span class="hs-identifier hs-var">z</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><a href="#local-6989586621679399146"><span class="hs-identifier hs-var">z</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><a href="#local-6989586621679399146"><span class="hs-identifier hs-var">z</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><a href="#local-6989586621679399146"><span class="hs-identifier hs-var">z</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><a href="#local-6989586621679399146"><span class="hs-identifier hs-var">z</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><a href="#local-6989586621679399146"><span class="hs-identifier hs-var">z</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><a href="#local-6989586621679399146"><span class="hs-identifier hs-var">z</span></a></span><span> </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679399146"><span class="annot"><span class="annottext">z :: Maybe a
+</span><a href="#local-6989586621679399146"><span class="hs-identifier hs-var hs-var">z</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-244"></span><span>
+</span><span id="line-245"></span><span>
+</span><span id="line-246"></span><span class="hs-comment">-- | Convert RSA private key into a JWK</span><span>
+</span><span id="line-247"></span><span class="hs-comment">--</span><span>
+</span><span id="line-248"></span><span class="annot"><a href="Crypto.JOSE.JWK.html#fromRSA"><span class="hs-identifier hs-type">fromRSA</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">RSA.PrivateKey</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Crypto.JOSE.JWK.html#JWK"><span class="hs-identifier hs-type">JWK</span></a></span><span>
+</span><span id="line-249"></span><span id="fromRSA"><span class="annot"><span class="annottext">fromRSA :: PrivateKey -&gt; JWK
+</span><a href="Crypto.JOSE.JWK.html#fromRSA"><span class="hs-identifier hs-var hs-var">fromRSA</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">KeyMaterial -&gt; JWK
+</span><a href="Crypto.JOSE.JWK.html#fromKeyMaterial"><span class="hs-identifier hs-var">fromKeyMaterial</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">RSAKeyParameters -&gt; KeyMaterial
+</span><a href="Crypto.JOSE.JWA.JWK.html#RSAKeyMaterial"><span class="hs-identifier hs-var">RSAKeyMaterial</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">PrivateKey -&gt; RSAKeyParameters
+</span><a href="Crypto.JOSE.JWA.JWK.html#toRSAKeyParameters"><span class="hs-identifier hs-var">toRSAKeyParameters</span></a></span><span>
+</span><span id="line-250"></span><span>
+</span><span id="line-251"></span><span class="hs-comment">-- | Convert an RSA public key into a JWK</span><span>
+</span><span id="line-252"></span><span class="hs-comment">--</span><span>
+</span><span id="line-253"></span><span class="annot"><a href="Crypto.JOSE.JWK.html#fromRSAPublic"><span class="hs-identifier hs-type">fromRSAPublic</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">RSA.PublicKey</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Crypto.JOSE.JWK.html#JWK"><span class="hs-identifier hs-type">JWK</span></a></span><span>
+</span><span id="line-254"></span><span id="fromRSAPublic"><span class="annot"><span class="annottext">fromRSAPublic :: PublicKey -&gt; JWK
+</span><a href="Crypto.JOSE.JWK.html#fromRSAPublic"><span class="hs-identifier hs-var hs-var">fromRSAPublic</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">KeyMaterial -&gt; JWK
+</span><a href="Crypto.JOSE.JWK.html#fromKeyMaterial"><span class="hs-identifier hs-var">fromKeyMaterial</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">RSAKeyParameters -&gt; KeyMaterial
+</span><a href="Crypto.JOSE.JWA.JWK.html#RSAKeyMaterial"><span class="hs-identifier hs-var">RSAKeyMaterial</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">PublicKey -&gt; RSAKeyParameters
+</span><a href="Crypto.JOSE.JWA.JWK.html#toRSAPublicKeyParameters"><span class="hs-identifier hs-var">toRSAPublicKeyParameters</span></a></span><span>
+</span><span id="line-255"></span><span>
+</span><span id="line-256"></span><span class="hs-comment">-- | Convert an EC public key into a JWK</span><span>
+</span><span id="line-257"></span><span class="hs-comment">--</span><span>
+</span><span id="line-258"></span><span class="annot"><a href="Crypto.JOSE.JWK.html#fromECPublic"><span class="hs-identifier hs-type">fromECPublic</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">X509.PubKeyEC</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Crypto.JOSE.JWK.html#JWK"><span class="hs-identifier hs-type">JWK</span></a></span><span>
+</span><span id="line-259"></span><span id="fromECPublic"><span class="annot"><span class="annottext">fromECPublic :: PubKeyEC -&gt; Maybe JWK
+</span><a href="Crypto.JOSE.JWK.html#fromECPublic"><span class="hs-identifier hs-var hs-var">fromECPublic</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">KeyMaterial -&gt; JWK
+</span><a href="Crypto.JOSE.JWK.html#fromKeyMaterial"><span class="hs-identifier hs-var">fromKeyMaterial</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ECKeyParameters -&gt; KeyMaterial
+</span><a href="Crypto.JOSE.JWA.JWK.html#ECKeyMaterial"><span class="hs-identifier hs-var">ECKeyMaterial</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">PubKeyEC -&gt; Maybe ECKeyParameters
+</span><a href="Crypto.JOSE.JWA.JWK.html#ecParametersFromX509"><span class="hs-identifier hs-var">ecParametersFromX509</span></a></span><span>
+</span><span id="line-260"></span><span>
+</span><span id="line-261"></span><span>
+</span><span id="line-262"></span><span class="hs-comment">-- | Convert octet string into a JWK</span><span>
+</span><span id="line-263"></span><span class="hs-comment">--</span><span>
+</span><span id="line-264"></span><span id="local-6989586621679400026"><span class="annot"><a href="Crypto.JOSE.JWK.html#fromOctets"><span class="hs-identifier hs-type">fromOctets</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Cons</span></span><span> </span><span class="annot"><a href="#local-6989586621679400026"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679400026"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679400026"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Crypto.JOSE.JWK.html#JWK"><span class="hs-identifier hs-type">JWK</span></a></span></span><span>
+</span><span id="line-265"></span><span id="fromOctets"><span class="annot"><span class="annottext">fromOctets :: forall s. Cons s s Word8 Word8 =&gt; s -&gt; JWK
+</span><a href="Crypto.JOSE.JWK.html#fromOctets"><span class="hs-identifier hs-var hs-var">fromOctets</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-266"></span><span>  </span><span class="annot"><span class="annottext">KeyMaterial -&gt; JWK
+</span><a href="Crypto.JOSE.JWK.html#fromKeyMaterial"><span class="hs-identifier hs-var">fromKeyMaterial</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">OctKeyParameters -&gt; KeyMaterial
+</span><a href="Crypto.JOSE.JWA.JWK.html#OctKeyMaterial"><span class="hs-identifier hs-var">OctKeyMaterial</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Base64Octets -&gt; OctKeyParameters
+</span><a href="Crypto.JOSE.JWA.JWK.html#OctKeyParameters"><span class="hs-identifier hs-var">OctKeyParameters</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Base64Octets
+</span><a href="Crypto.JOSE.Types.html#Base64Octets"><span class="hs-identifier hs-var">Types.Base64Octets</span></a></span><span>
+</span><span id="line-267"></span><span>  </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall s (m :: * -&gt; *) a. MonadReader s m =&gt; Getting a s a -&gt; m a
+</span><span class="hs-identifier hs-var">view</span></span><span> </span><span class="annot"><span class="annottext">forall s1 a s2.
+(Cons s1 s1 a a, Cons s2 s2 a a, AsEmpty s2) =&gt;
+Getter s1 s2
+</span><span class="hs-identifier hs-var">recons</span></span><span>
+</span><span id="line-268"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Crypto.JOSE.JWK.html#fromOctets"><span class="hs-pragma hs-type">fromOctets</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-269"></span><span>
+</span><span id="line-270"></span><span>
+</span><span id="line-271"></span><span class="hs-comment">-- | Convert an X.509 certificate into a JWK.</span><span>
+</span><span id="line-272"></span><span class="hs-comment">--</span><span>
+</span><span id="line-273"></span><span class="hs-comment">-- Only RSA keys are supported.  Other key types will throw</span><span>
+</span><span id="line-274"></span><span class="hs-comment">-- 'KeyMismatch'.</span><span>
+</span><span id="line-275"></span><span class="hs-comment">--</span><span>
+</span><span id="line-276"></span><span class="hs-comment">-- The @&quot;x5c&quot;@ field of the resulting JWK contains the certificate.</span><span>
+</span><span id="line-277"></span><span class="hs-comment">--</span><span>
+</span><span id="line-278"></span><span id="local-6989586621679400015"><span id="local-6989586621679400017"><span class="annot"><a href="Crypto.JOSE.JWK.html#fromX509Certificate"><span class="hs-identifier hs-type">fromX509Certificate</span></a></span><span>
+</span><span id="line-279"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.JOSE.Error.html#AsError"><span class="hs-identifier hs-type">AsError</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679400017"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadError</span></span><span> </span><span class="annot"><a href="#local-6989586621679400017"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679400015"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-280"></span><span>  </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">X509.SignedCertificate</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679400015"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="Crypto.JOSE.JWK.html#JWK"><span class="hs-identifier hs-type">JWK</span></a></span></span></span><span>
+</span><span id="line-281"></span><span id="fromX509Certificate"><span class="annot"><span class="annottext">fromX509Certificate :: forall e (m :: * -&gt; *).
+(AsError e, MonadError e m) =&gt;
+SignedCertificate -&gt; m JWK
+</span><a href="Crypto.JOSE.JWK.html#fromX509Certificate"><span class="hs-identifier hs-var hs-var">fromX509Certificate</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-282"></span><span>  </span><span class="annot"><span class="annottext">forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><span class="hs-identifier hs-var">maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall e (m :: * -&gt; *) t x.
+MonadError e m =&gt;
+AReview e t -&gt; t -&gt; m x
+</span><span class="hs-identifier hs-var">throwing</span></span><span> </span><span class="annot"><span class="annottext">forall r. AsError r =&gt; Prism' r Text
+</span><a href="Crypto.JOSE.Error.html#_KeyMismatch"><span class="hs-identifier hs-var">_KeyMismatch</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;X.509 key type not supported&quot;</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span>
+</span><span id="line-283"></span><span>  </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">SignedCertificate -&gt; Maybe JWK
+</span><a href="Crypto.JOSE.JWK.html#fromX509CertificateMaybe"><span class="hs-identifier hs-var">fromX509CertificateMaybe</span></a></span><span>
+</span><span id="line-284"></span><span>
+</span><span id="line-285"></span><span class="annot"><a href="Crypto.JOSE.JWK.html#fromX509CertificateMaybe"><span class="hs-identifier hs-type">fromX509CertificateMaybe</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">X509.SignedCertificate</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Crypto.JOSE.JWK.html#JWK"><span class="hs-identifier hs-type">JWK</span></a></span><span>
+</span><span id="line-286"></span><span id="fromX509CertificateMaybe"><span class="annot"><span class="annottext">fromX509CertificateMaybe :: SignedCertificate -&gt; Maybe JWK
+</span><a href="Crypto.JOSE.JWK.html#fromX509CertificateMaybe"><span class="hs-identifier hs-var hs-var">fromX509CertificateMaybe</span></a></span></span><span> </span><span id="local-6989586621679399112"><span class="annot"><span class="annottext">SignedCertificate
+</span><a href="#local-6989586621679399112"><span class="hs-identifier hs-var">cert</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-287"></span><span>  </span><span id="local-6989586621679399111"><span class="annot"><span class="annottext">JWK
+</span><a href="#local-6989586621679399111"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Certificate -&gt; PubKey
+</span><span class="hs-identifier hs-var">X509.certPubKey</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall a. (Show a, Eq a, ASN1Object a) =&gt; Signed a -&gt; a
+</span><span class="hs-identifier hs-var">X509.signedObject</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall a. (Show a, Eq a, ASN1Object a) =&gt; SignedExact a -&gt; Signed a
+</span><span class="hs-identifier hs-var">X509.getSigned</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">SignedCertificate
+</span><a href="#local-6989586621679399112"><span class="hs-identifier hs-var">cert</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-288"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">X509.PubKeyRSA</span></span><span> </span><span id="local-6989586621679399106"><span class="annot"><span class="annottext">PublicKey
+</span><a href="#local-6989586621679399106"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">PublicKey -&gt; JWK
+</span><a href="Crypto.JOSE.JWK.html#fromRSAPublic"><span class="hs-identifier hs-var">fromRSAPublic</span></a></span><span> </span><span class="annot"><span class="annottext">PublicKey
+</span><a href="#local-6989586621679399106"><span class="hs-identifier hs-var">k</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-289"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">X509.PubKeyEC</span></span><span> </span><span id="local-6989586621679399104"><span class="annot"><span class="annottext">PubKeyEC
+</span><a href="#local-6989586621679399104"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">PubKeyEC -&gt; Maybe JWK
+</span><a href="Crypto.JOSE.JWK.html#fromECPublic"><span class="hs-identifier hs-var">fromECPublic</span></a></span><span> </span><span class="annot"><span class="annottext">PubKeyEC
+</span><a href="#local-6989586621679399104"><span class="hs-identifier hs-var">k</span></a></span><span>
+</span><span id="line-290"></span><span>    </span><span class="annot"><span class="annottext">PubKey
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-291"></span><span>  </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">JWK
+</span><a href="#local-6989586621679399111"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">forall s t a b. ASetter s t a b -&gt; b -&gt; s -&gt; t
+</span><span class="hs-identifier hs-var">set</span></span><span> </span><span class="annot"><span class="annottext">Lens' JWK (Maybe (NonEmpty SignedCertificate))
+</span><a href="Crypto.JOSE.JWK.html#jwkX5cRaw"><span class="hs-identifier hs-var">jwkX5cRaw</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">SignedCertificate
+</span><a href="#local-6989586621679399112"><span class="hs-identifier hs-var">cert</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-292"></span><span>
+</span><span id="line-293"></span><span>
+</span><span id="line-294"></span><span>
+</span><span id="line-295"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Crypto.JOSE.JWA.JWK.html#AsPublicKey"><span class="hs-identifier hs-type">AsPublicKey</span></a></span><span> </span><span class="annot"><a href="Crypto.JOSE.JWK.html#JWK"><span class="hs-identifier hs-type">JWK</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-296"></span><span>  </span><span id="local-6989586621679399089"><span class="annot"><span class="annottext">asPublicKey :: Getter JWK (Maybe JWK)
+</span><a href="#local-6989586621679399089"><span class="hs-identifier hs-var hs-var hs-var hs-var">asPublicKey</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (p :: * -&gt; * -&gt; *) (f :: * -&gt; *) s a.
+(Profunctor p, Contravariant f) =&gt;
+(s -&gt; a) -&gt; Optic' p f s a
+</span><span class="hs-identifier hs-var">to</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Lens' JWK KeyMaterial
+</span><a href="Crypto.JOSE.JWK.html#jwkMaterial"><span class="hs-identifier hs-var">jwkMaterial</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall s (m :: * -&gt; *) a. MonadReader s m =&gt; Getting a s a -&gt; m a
+</span><span class="hs-identifier hs-var">view</span></span><span> </span><span class="annot"><span class="annottext">forall k. AsPublicKey k =&gt; Getter k (Maybe k)
+</span><a href="Crypto.JOSE.JWA.JWK.html#asPublicKey"><span class="hs-identifier hs-var">asPublicKey</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-297"></span><span>
+</span><span id="line-298"></span><span>
+</span><span id="line-299"></span><span class="hs-comment">-- | RFC 7517 &#167;5.  JWK Set Format</span><span>
+</span><span id="line-300"></span><span class="hs-comment">--</span><span>
+</span><span id="line-301"></span><span class="hs-keyword">newtype</span><span> </span><span id="JWKSet"><span class="annot"><a href="Crypto.JOSE.JWK.html#JWKSet"><span class="hs-identifier hs-var">JWKSet</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="JWKSet"><span class="annot"><a href="Crypto.JOSE.JWK.html#JWKSet"><span class="hs-identifier hs-var">JWKSet</span></a></span></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Crypto.JOSE.JWK.html#JWK"><span class="hs-identifier hs-type">JWK</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679399080"><span id="local-6989586621679399085"><span class="annot"><span class="annottext">JWKSet -&gt; JWKSet -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: JWKSet -&gt; JWKSet -&gt; Bool
+$c/= :: JWKSet -&gt; JWKSet -&gt; Bool
+== :: JWKSet -&gt; JWKSet -&gt; Bool
+$c== :: JWKSet -&gt; JWKSet -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679399067"><span id="local-6989586621679399069"><span id="local-6989586621679399074"><span class="annot"><span class="annottext">Int -&gt; JWKSet -&gt; ShowS
+[JWKSet] -&gt; ShowS
+JWKSet -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [JWKSet] -&gt; ShowS
+$cshowList :: [JWKSet] -&gt; ShowS
+show :: JWKSet -&gt; String
+$cshow :: JWKSet -&gt; String
+showsPrec :: Int -&gt; JWKSet -&gt; ShowS
+$cshowsPrec :: Int -&gt; JWKSet -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-302"></span><span>
+</span><span id="line-303"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679399064"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="Crypto.JOSE.JWK.html#JWKSet"><span class="hs-identifier hs-type">JWKSet</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-304"></span><span>  </span><span id="local-6989586621679399059"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser JWKSet
+</span><a href="#local-6989586621679399059"><span class="hs-identifier hs-var hs-var hs-var hs-var">parseJSON</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;JWKSet&quot;</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679399058"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679399058"><span class="hs-identifier hs-var">o</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[JWK] -&gt; JWKSet
+</span><a href="Crypto.JOSE.JWK.html#JWKSet"><span class="hs-identifier hs-var">JWKSet</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679399058"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;keys&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-305"></span><span>
+</span><span id="line-306"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679399050"><span id="local-6989586621679399052"><span id="local-6989586621679399054"><span class="annot"><span class="hs-identifier hs-type">ToJSON</span></span><span> </span><span class="annot"><a href="Crypto.JOSE.JWK.html#JWKSet"><span class="hs-identifier hs-type">JWKSet</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-307"></span><span>  </span><span id="local-6989586621679399043"><span class="annot"><span class="annottext">toJSON :: JWKSet -&gt; Value
+</span><a href="#local-6989586621679399043"><span class="hs-identifier hs-var hs-var hs-var hs-var">toJSON</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.JOSE.JWK.html#JWKSet"><span class="hs-identifier hs-type">JWKSet</span></a></span><span> </span><span id="local-6989586621679399042"><span class="annot"><span class="annottext">[JWK]
+</span><a href="#local-6989586621679399042"><span class="hs-identifier hs-var">ks</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">object</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;keys&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="annot"><span class="annottext">forall a. ToJSON a =&gt; a -&gt; Value
+</span><span class="hs-identifier hs-var">toJSON</span></span><span> </span><span class="annot"><span class="annottext">[JWK]
+</span><a href="#local-6989586621679399042"><span class="hs-identifier hs-var">ks</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-308"></span><span>
+</span><span id="line-309"></span><span>
+</span><span id="line-310"></span><span class="hs-comment">-- | Choose the cryptographically strongest JWS algorithm for a</span><span>
+</span><span id="line-311"></span><span class="hs-comment">-- given key.  The JWK &quot;alg&quot; algorithm parameter is ignored.</span><span>
+</span><span id="line-312"></span><span class="hs-comment">--</span><span>
+</span><span id="line-313"></span><span id="local-6989586621679399982"><span id="local-6989586621679399983"><span class="annot"><a href="Crypto.JOSE.JWK.html#bestJWSAlg"><span class="hs-identifier hs-type">bestJWSAlg</span></a></span><span>
+</span><span id="line-314"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MonadError</span></span><span> </span><span class="annot"><a href="#local-6989586621679399983"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679399982"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.JOSE.Error.html#AsError"><span class="hs-identifier hs-type">AsError</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679399983"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-315"></span><span>  </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Crypto.JOSE.JWK.html#JWK"><span class="hs-identifier hs-type">JWK</span></a></span><span>
+</span><span id="line-316"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679399982"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="Crypto.JOSE.JWA.JWS.html#Alg"><span class="hs-identifier hs-type">JWA.JWS.Alg</span></a></span></span></span><span>
+</span><span id="line-317"></span><span id="bestJWSAlg"><span class="annot"><span class="annottext">bestJWSAlg :: forall e (m :: * -&gt; *). (MonadError e m, AsError e) =&gt; JWK -&gt; m Alg
+</span><a href="Crypto.JOSE.JWK.html#bestJWSAlg"><span class="hs-identifier hs-var hs-var">bestJWSAlg</span></a></span></span><span> </span><span id="local-6989586621679398989"><span class="annot"><span class="annottext">JWK
+</span><a href="#local-6989586621679398989"><span class="hs-identifier hs-var">jwk</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">forall s (m :: * -&gt; *) a. MonadReader s m =&gt; Getting a s a -&gt; m a
+</span><span class="hs-identifier hs-var">view</span></span><span> </span><span class="annot"><span class="annottext">Lens' JWK KeyMaterial
+</span><a href="Crypto.JOSE.JWK.html#jwkMaterial"><span class="hs-identifier hs-var">jwkMaterial</span></a></span><span> </span><span class="annot"><span class="annottext">JWK
+</span><a href="#local-6989586621679398989"><span class="hs-identifier hs-var">jwk</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-318"></span><span>  </span><span class="annot"><a href="Crypto.JOSE.JWA.JWK.html#ECKeyMaterial"><span class="hs-identifier hs-type">ECKeyMaterial</span></a></span><span> </span><span id="local-6989586621679398988"><span class="annot"><span class="annottext">ECKeyParameters
+</span><a href="#local-6989586621679398988"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">forall s (m :: * -&gt; *) a. MonadReader s m =&gt; Getting a s a -&gt; m a
+</span><span class="hs-identifier hs-var">view</span></span><span> </span><span class="annot"><span class="annottext">Getter ECKeyParameters Crv
+</span><a href="Crypto.JOSE.JWA.JWK.html#ecCrv"><span class="hs-identifier hs-var">ecCrv</span></a></span><span> </span><span class="annot"><span class="annottext">ECKeyParameters
+</span><a href="#local-6989586621679398988"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-319"></span><span>    </span><span class="annot"><span class="annottext">Crv
+</span><a href="Crypto.JOSE.JWA.JWK.html#P_256"><span class="hs-identifier hs-var">P_256</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Alg
+</span><a href="Crypto.JOSE.JWA.JWS.html#ES256"><span class="hs-identifier hs-var">JWA.JWS.ES256</span></a></span><span>
+</span><span id="line-320"></span><span>    </span><span class="annot"><span class="annottext">Crv
+</span><a href="Crypto.JOSE.JWA.JWK.html#P_384"><span class="hs-identifier hs-var">P_384</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Alg
+</span><a href="Crypto.JOSE.JWA.JWS.html#ES384"><span class="hs-identifier hs-var">JWA.JWS.ES384</span></a></span><span>
+</span><span id="line-321"></span><span>    </span><span class="annot"><span class="annottext">Crv
+</span><a href="Crypto.JOSE.JWA.JWK.html#P_521"><span class="hs-identifier hs-var">P_521</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Alg
+</span><a href="Crypto.JOSE.JWA.JWS.html#ES512"><span class="hs-identifier hs-var">JWA.JWS.ES512</span></a></span><span>
+</span><span id="line-322"></span><span>  </span><span class="annot"><a href="Crypto.JOSE.JWA.JWK.html#RSAKeyMaterial"><span class="hs-identifier hs-type">RSAKeyMaterial</span></a></span><span> </span><span id="local-6989586621679398980"><span class="annot"><span class="annottext">RSAKeyParameters
+</span><a href="#local-6989586621679398980"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-323"></span><span>    </span><span class="hs-keyword">let</span><span>
+</span><span id="line-324"></span><span>      </span><span class="annot"><a href="Crypto.JOSE.Types.html#Base64Integer"><span class="hs-identifier hs-type">Types.Base64Integer</span></a></span><span> </span><span id="local-6989586621679398978"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679398978"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall s (m :: * -&gt; *) a. MonadReader s m =&gt; Getting a s a -&gt; m a
+</span><span class="hs-identifier hs-var">view</span></span><span> </span><span class="annot"><span class="annottext">Lens' RSAKeyParameters Base64Integer
+</span><a href="Crypto.JOSE.JWA.JWK.html#rsaN"><span class="hs-identifier hs-var">rsaN</span></a></span><span> </span><span class="annot"><span class="annottext">RSAKeyParameters
+</span><a href="#local-6989586621679398980"><span class="hs-identifier hs-var">k</span></a></span><span>
+</span><span id="line-325"></span><span>    </span><span class="hs-keyword">in</span><span>
+</span><span id="line-326"></span><span>      </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679398978"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">2</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (Num a, Integral b) =&gt; a -&gt; b -&gt; a
+</span><span class="hs-operator hs-var">^</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">2040</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span class="hs-special">)</span><span>
+</span><span id="line-327"></span><span>      </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">Alg
+</span><a href="Crypto.JOSE.JWA.JWS.html#PS512"><span class="hs-identifier hs-var">JWA.JWS.PS512</span></a></span><span>
+</span><span id="line-328"></span><span>      </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">forall e (m :: * -&gt; *) x. MonadError e m =&gt; AReview e () -&gt; m x
+</span><span class="hs-identifier hs-var">throwing_</span></span><span> </span><span class="annot"><span class="annottext">forall r. AsError r =&gt; Prism' r ()
+</span><a href="Crypto.JOSE.Error.html#_KeySizeTooSmall"><span class="hs-identifier hs-var">_KeySizeTooSmall</span></a></span><span>
+</span><span id="line-329"></span><span>  </span><span class="annot"><a href="Crypto.JOSE.JWA.JWK.html#OctKeyMaterial"><span class="hs-identifier hs-type">OctKeyMaterial</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.JOSE.JWA.JWK.html#OctKeyParameters"><span class="hs-identifier hs-type">OctKeyParameters</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.JOSE.Types.html#Base64Octets"><span class="hs-identifier hs-type">Types.Base64Octets</span></a></span><span> </span><span id="local-6989586621679398973"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679398973"><span class="hs-identifier hs-var">k</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-330"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Int
+</span><span class="hs-identifier hs-var">B.length</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679398973"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">512</span></span><span> </span><span class="annot"><span class="annottext">forall a. Integral a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`div`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">Alg
+</span><a href="Crypto.JOSE.JWA.JWS.html#HS512"><span class="hs-identifier hs-var">JWA.JWS.HS512</span></a></span><span>
+</span><span id="line-331"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Int
+</span><span class="hs-identifier hs-var">B.length</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679398973"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">384</span></span><span> </span><span class="annot"><span class="annottext">forall a. Integral a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`div`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">Alg
+</span><a href="Crypto.JOSE.JWA.JWS.html#HS384"><span class="hs-identifier hs-var">JWA.JWS.HS384</span></a></span><span>
+</span><span id="line-332"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Int
+</span><span class="hs-identifier hs-var">B.length</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679398973"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">256</span></span><span> </span><span class="annot"><span class="annottext">forall a. Integral a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`div`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">Alg
+</span><a href="Crypto.JOSE.JWA.JWS.html#HS256"><span class="hs-identifier hs-var">JWA.JWS.HS256</span></a></span><span>
+</span><span id="line-333"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall e (m :: * -&gt; *) x. MonadError e m =&gt; AReview e () -&gt; m x
+</span><span class="hs-identifier hs-var">throwing_</span></span><span> </span><span class="annot"><span class="annottext">forall r. AsError r =&gt; Prism' r ()
+</span><a href="Crypto.JOSE.Error.html#_KeySizeTooSmall"><span class="hs-identifier hs-var">_KeySizeTooSmall</span></a></span><span>
+</span><span id="line-334"></span><span>  </span><span class="annot"><a href="Crypto.JOSE.JWA.JWK.html#OKPKeyMaterial"><span class="hs-identifier hs-type">OKPKeyMaterial</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.JOSE.JWA.JWK.html#Ed25519Key"><span class="hs-identifier hs-type">Ed25519Key</span></a></span><span> </span><span class="annot"><span class="annottext">PublicKey
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Maybe SecretKey
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">Alg
+</span><a href="Crypto.JOSE.JWA.JWS.html#EdDSA"><span class="hs-identifier hs-var">JWA.JWS.EdDSA</span></a></span><span>
+</span><span id="line-335"></span><span>  </span><span class="annot"><a href="Crypto.JOSE.JWA.JWK.html#OKPKeyMaterial"><span class="hs-identifier hs-type">OKPKeyMaterial</span></a></span><span> </span><span class="annot"><span class="annottext">OKPKeyParameters
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall e (m :: * -&gt; *) t x.
+MonadError e m =&gt;
+AReview e t -&gt; t -&gt; m x
+</span><span class="hs-identifier hs-var">throwing</span></span><span> </span><span class="annot"><span class="annottext">forall r. AsError r =&gt; Prism' r Text
+</span><a href="Crypto.JOSE.Error.html#_KeyMismatch"><span class="hs-identifier hs-var">_KeyMismatch</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;Cannot sign with OKP ECDH key&quot;</span></span><span>
+</span><span id="line-336"></span><span>
+</span><span id="line-337"></span><span>
+</span><span id="line-338"></span><span class="hs-comment">-- | Compute the JWK Thumbprint of a JWK</span><span>
+</span><span id="line-339"></span><span class="hs-comment">--</span><span>
+</span><span id="line-340"></span><span id="local-6989586621679399971"><span class="annot"><a href="Crypto.JOSE.JWK.html#thumbprint"><span class="hs-identifier hs-type">thumbprint</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">HashAlgorithm</span></span><span> </span><span class="annot"><a href="#local-6989586621679399971"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Getter</span></span><span> </span><span class="annot"><a href="Crypto.JOSE.JWK.html#JWK"><span class="hs-identifier hs-type">JWK</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Digest</span></span><span> </span><span class="annot"><a href="#local-6989586621679399971"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-341"></span><span id="thumbprint"><span class="annot"><span class="annottext">thumbprint :: forall a. HashAlgorithm a =&gt; Getter JWK (Digest a)
+</span><a href="Crypto.JOSE.JWK.html#thumbprint"><span class="hs-identifier hs-var hs-var">thumbprint</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (p :: * -&gt; * -&gt; *) (f :: * -&gt; *) s a.
+(Profunctor p, Contravariant f) =&gt;
+(s -&gt; a) -&gt; Optic' p f s a
+</span><span class="hs-identifier hs-var">to</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall ba a.
+(ByteArrayAccess ba, HashAlgorithm a) =&gt;
+ba -&gt; Digest a
+</span><span class="hs-identifier hs-var">hash</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ByteString
+</span><span class="hs-identifier hs-var">L.toStrict</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">JWK -&gt; ByteString
+</span><a href="Crypto.JOSE.JWK.html#thumbprintRepr"><span class="hs-identifier hs-var">thumbprintRepr</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-342"></span><span>
+</span><span id="line-343"></span><span class="hs-comment">-- | Prism from ByteString to @HashAlgorithm a =&gt; Digest a@.</span><span>
+</span><span id="line-344"></span><span class="hs-comment">--</span><span>
+</span><span id="line-345"></span><span class="hs-comment">-- Use @'re' digest@ to view the bytes of a digest</span><span>
+</span><span id="line-346"></span><span class="hs-comment">--</span><span>
+</span><span id="line-347"></span><span id="local-6989586621679399963"><span class="annot"><a href="Crypto.JOSE.JWK.html#digest"><span class="hs-identifier hs-type">digest</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">HashAlgorithm</span></span><span> </span><span class="annot"><a href="#local-6989586621679399963"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Prism'</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Digest</span></span><span> </span><span class="annot"><a href="#local-6989586621679399963"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-348"></span><span id="digest"><span class="annot"><span class="annottext">digest :: forall a. HashAlgorithm a =&gt; Prism' ByteString (Digest a)
+</span><a href="Crypto.JOSE.JWK.html#digest"><span class="hs-identifier hs-var hs-var">digest</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall b s a. (b -&gt; s) -&gt; (s -&gt; Maybe a) -&gt; Prism s s a b
+</span><span class="hs-identifier hs-var">prism'</span></span><span> </span><span class="annot"><span class="annottext">forall bin bout.
+(ByteArrayAccess bin, ByteArray bout) =&gt;
+bin -&gt; bout
+</span><span class="hs-identifier hs-var">BA.convert</span></span><span> </span><span class="annot"><span class="annottext">forall a ba.
+(HashAlgorithm a, ByteArrayAccess ba) =&gt;
+ba -&gt; Maybe (Digest a)
+</span><span class="hs-identifier hs-var">digestFromByteString</span></span><span>
+</span><span id="line-349"></span><span>
+</span><span id="line-350"></span><span class="hs-comment">-- | JWK canonicalised for thumbprint computation</span><span>
+</span><span id="line-351"></span><span class="hs-comment">--</span><span>
+</span><span id="line-352"></span><span class="annot"><a href="Crypto.JOSE.JWK.html#thumbprintRepr"><span class="hs-identifier hs-type">thumbprintRepr</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Crypto.JOSE.JWK.html#JWK"><span class="hs-identifier hs-type">JWK</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">L.ByteString</span></span><span>
+</span><span id="line-353"></span><span id="thumbprintRepr"><span class="annot"><span class="annottext">thumbprintRepr :: JWK -&gt; ByteString
+</span><a href="Crypto.JOSE.JWK.html#thumbprintRepr"><span class="hs-identifier hs-var hs-var">thumbprintRepr</span></a></span></span><span> </span><span id="local-6989586621679398939"><span class="annot"><span class="annottext">JWK
+</span><a href="#local-6989586621679398939"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Builder -&gt; ByteString
+</span><span class="hs-identifier hs-var">Builder.toLazyByteString</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall tag. Encoding' tag -&gt; Builder
+</span><span class="hs-identifier hs-var">fromEncoding</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Series -&gt; Encoding
+</span><span class="hs-identifier hs-var">pairs</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-354"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">forall s (m :: * -&gt; *) a. MonadReader s m =&gt; Getting a s a -&gt; m a
+</span><span class="hs-identifier hs-var">view</span></span><span> </span><span class="annot"><span class="annottext">Lens' JWK KeyMaterial
+</span><a href="Crypto.JOSE.JWK.html#jwkMaterial"><span class="hs-identifier hs-var">jwkMaterial</span></a></span><span> </span><span class="annot"><span class="annottext">JWK
+</span><a href="#local-6989586621679398939"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-355"></span><span>    </span><span class="annot"><a href="Crypto.JOSE.JWA.JWK.html#ECKeyMaterial"><span class="hs-identifier hs-type">ECKeyMaterial</span></a></span><span> </span><span id="local-6989586621679398935"><span class="annot"><span class="annottext">ECKeyParameters
+</span><a href="#local-6989586621679398935"><span class="hs-identifier hs-var">k'</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;crv&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span>
+</span><span id="line-356"></span><span>      </span><span class="annot"><span class="annottext">forall s (m :: * -&gt; *) a. MonadReader s m =&gt; Getting a s a -&gt; m a
+</span><span class="hs-identifier hs-var">view</span></span><span> </span><span class="annot"><span class="annottext">Getter ECKeyParameters Crv
+</span><a href="Crypto.JOSE.JWA.JWK.html#ecCrv"><span class="hs-identifier hs-var">ecCrv</span></a></span><span> </span><span class="annot"><span class="annottext">ECKeyParameters
+</span><a href="#local-6989586621679398935"><span class="hs-identifier hs-var">k'</span></a></span><span>
+</span><span id="line-357"></span><span>      </span><span class="annot"><span class="annottext">forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;kty&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;EC&quot;</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">T.Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-358"></span><span>      </span><span class="annot"><span class="annottext">forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;x&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="annot"><span class="annottext">forall s (m :: * -&gt; *) a. MonadReader s m =&gt; Getting a s a -&gt; m a
+</span><span class="hs-identifier hs-var">view</span></span><span> </span><span class="annot"><span class="annottext">Getter ECKeyParameters SizedBase64Integer
+</span><a href="Crypto.JOSE.JWA.JWK.html#ecX"><span class="hs-identifier hs-var">ecX</span></a></span><span> </span><span class="annot"><span class="annottext">ECKeyParameters
+</span><a href="#local-6989586621679398935"><span class="hs-identifier hs-var">k'</span></a></span><span>
+</span><span id="line-359"></span><span>      </span><span class="annot"><span class="annottext">forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;y&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="annot"><span class="annottext">forall s (m :: * -&gt; *) a. MonadReader s m =&gt; Getting a s a -&gt; m a
+</span><span class="hs-identifier hs-var">view</span></span><span> </span><span class="annot"><span class="annottext">Getter ECKeyParameters SizedBase64Integer
+</span><a href="Crypto.JOSE.JWA.JWK.html#ecY"><span class="hs-identifier hs-var">ecY</span></a></span><span> </span><span class="annot"><span class="annottext">ECKeyParameters
+</span><a href="#local-6989586621679398935"><span class="hs-identifier hs-var">k'</span></a></span><span>
+</span><span id="line-360"></span><span>    </span><span class="annot"><a href="Crypto.JOSE.JWA.JWK.html#RSAKeyMaterial"><span class="hs-identifier hs-type">RSAKeyMaterial</span></a></span><span> </span><span id="local-6989586621679398932"><span class="annot"><span class="annottext">RSAKeyParameters
+</span><a href="#local-6989586621679398932"><span class="hs-identifier hs-var">k'</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-361"></span><span>      </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;e&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="annot"><span class="annottext">forall s (m :: * -&gt; *) a. MonadReader s m =&gt; Getting a s a -&gt; m a
+</span><span class="hs-identifier hs-var">view</span></span><span> </span><span class="annot"><span class="annottext">Lens' RSAKeyParameters Base64Integer
+</span><a href="Crypto.JOSE.JWA.JWK.html#rsaE"><span class="hs-identifier hs-var">rsaE</span></a></span><span> </span><span class="annot"><span class="annottext">RSAKeyParameters
+</span><a href="#local-6989586621679398932"><span class="hs-identifier hs-var">k'</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;kty&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;RSA&quot;</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">T.Text</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;n&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="annot"><span class="annottext">forall s (m :: * -&gt; *) a. MonadReader s m =&gt; Getting a s a -&gt; m a
+</span><span class="hs-identifier hs-var">view</span></span><span> </span><span class="annot"><span class="annottext">Lens' RSAKeyParameters Base64Integer
+</span><a href="Crypto.JOSE.JWA.JWK.html#rsaN"><span class="hs-identifier hs-var">rsaN</span></a></span><span> </span><span class="annot"><span class="annottext">RSAKeyParameters
+</span><a href="#local-6989586621679398932"><span class="hs-identifier hs-var">k'</span></a></span><span>
+</span><span id="line-362"></span><span>    </span><span class="annot"><a href="Crypto.JOSE.JWA.JWK.html#OctKeyMaterial"><span class="hs-identifier hs-type">OctKeyMaterial</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.JOSE.JWA.JWK.html#OctKeyParameters"><span class="hs-identifier hs-type">OctKeyParameters</span></a></span><span> </span><span id="local-6989586621679398930"><span class="annot"><span class="annottext">Base64Octets
+</span><a href="#local-6989586621679398930"><span class="hs-identifier hs-var">k'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-363"></span><span>      </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;k&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="annot"><span class="annottext">Base64Octets
+</span><a href="#local-6989586621679398930"><span class="hs-identifier hs-var">k'</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;kty&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;oct&quot;</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">T.Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-364"></span><span>    </span><span class="annot"><a href="Crypto.JOSE.JWA.JWK.html#OKPKeyMaterial"><span class="hs-identifier hs-type">OKPKeyMaterial</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.JOSE.JWA.JWK.html#Ed25519Key"><span class="hs-identifier hs-type">Ed25519Key</span></a></span><span> </span><span id="local-6989586621679398929"><span class="annot"><span class="annottext">PublicKey
+</span><a href="#local-6989586621679398929"><span class="hs-identifier hs-var">pk</span></a></span></span><span> </span><span class="annot"><span class="annottext">Maybe SecretKey
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall {a} {a}.
+(Semigroup a, KeyValue a, ByteArrayAccess a) =&gt;
+Text -&gt; a -&gt; a
+</span><a href="#local-6989586621679398928"><span class="hs-identifier hs-var">okpSeries</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;Ed25519&quot;</span></span><span> </span><span class="annot"><span class="annottext">PublicKey
+</span><a href="#local-6989586621679398929"><span class="hs-identifier hs-var">pk</span></a></span><span>
+</span><span id="line-365"></span><span>    </span><span class="annot"><a href="Crypto.JOSE.JWA.JWK.html#OKPKeyMaterial"><span class="hs-identifier hs-type">OKPKeyMaterial</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.JOSE.JWA.JWK.html#X25519Key"><span class="hs-identifier hs-type">X25519Key</span></a></span><span> </span><span id="local-6989586621679398926"><span class="annot"><span class="annottext">PublicKey
+</span><a href="#local-6989586621679398926"><span class="hs-identifier hs-var">pk</span></a></span></span><span> </span><span class="annot"><span class="annottext">Maybe SecretKey
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall {a} {a}.
+(Semigroup a, KeyValue a, ByteArrayAccess a) =&gt;
+Text -&gt; a -&gt; a
+</span><a href="#local-6989586621679398928"><span class="hs-identifier hs-var">okpSeries</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;X25519&quot;</span></span><span> </span><span class="annot"><span class="annottext">PublicKey
+</span><a href="#local-6989586621679398926"><span class="hs-identifier hs-var">pk</span></a></span><span>
+</span><span id="line-366"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-367"></span><span>    </span><span id="local-6989586621679398922"><span class="annot"><span class="annottext">b64 :: a -&gt; Base64Octets
+</span><a href="#local-6989586621679398922"><span class="hs-identifier hs-var hs-var">b64</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Base64Octets
+</span><a href="Crypto.JOSE.Types.html#Base64Octets"><span class="hs-identifier hs-var">Types.Base64Octets</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall bin bout.
+(ByteArrayAccess bin, ByteArray bout) =&gt;
+bin -&gt; bout
+</span><span class="hs-identifier hs-var">BA.convert</span></span><span>
+</span><span id="line-368"></span><span>    </span><span id="local-6989586621679398928"><span class="annot"><span class="annottext">okpSeries :: Text -&gt; a -&gt; a
+</span><a href="#local-6989586621679398928"><span class="hs-identifier hs-var hs-var">okpSeries</span></a></span></span><span> </span><span id="local-6989586621679398905"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679398905"><span class="hs-identifier hs-var">crv</span></a></span></span><span> </span><span id="local-6989586621679398904"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679398904"><span class="hs-identifier hs-var">pk</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-369"></span><span>      </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;crv&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679398905"><span class="hs-identifier hs-var">crv</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">T.Text</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;kty&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;OKP&quot;</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">T.Text</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;x&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="annot"><span class="annottext">forall {a}. ByteArrayAccess a =&gt; a -&gt; Base64Octets
+</span><a href="#local-6989586621679398922"><span class="hs-identifier hs-var">b64</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679398904"><span class="hs-identifier hs-var">pk</span></a></span><span>
+</span><span id="line-370"></span></pre></body></html>

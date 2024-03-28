@@ -1,0 +1,64 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">U.Codebase.Kind</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">data</span><span> </span><span id="Kind"><span class="annot"><a href="U.Codebase.Kind.html#Kind"><span class="hs-identifier hs-var">Kind</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Star"><span class="annot"><a href="U.Codebase.Kind.html#Star"><span class="hs-identifier hs-var">Star</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="Arrow"><span class="annot"><a href="U.Codebase.Kind.html#Arrow"><span class="hs-identifier hs-var">Arrow</span></a></span></span><span> </span><span class="annot"><a href="U.Codebase.Kind.html#Kind"><span class="hs-identifier hs-type">Kind</span></a></span><span> </span><span class="annot"><a href="U.Codebase.Kind.html#Kind"><span class="hs-identifier hs-type">Kind</span></a></span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679137041"><span id="local-6989586621679137045"><span class="annot"><span class="annottext">Kind -&gt; Kind -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: Kind -&gt; Kind -&gt; Bool
+$c/= :: Kind -&gt; Kind -&gt; Bool
+== :: Kind -&gt; Kind -&gt; Bool
+$c== :: Kind -&gt; Kind -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679137017"><span id="local-6989586621679137019"><span id="local-6989586621679137022"><span id="local-6989586621679137025"><span id="local-6989586621679137028"><span id="local-6989586621679137032"><span id="local-6989586621679137036"><span class="annot"><span class="annottext">Eq Kind
+Kind -&gt; Kind -&gt; Bool
+Kind -&gt; Kind -&gt; Ordering
+Kind -&gt; Kind -&gt; Kind
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: Kind -&gt; Kind -&gt; Kind
+$cmin :: Kind -&gt; Kind -&gt; Kind
+max :: Kind -&gt; Kind -&gt; Kind
+$cmax :: Kind -&gt; Kind -&gt; Kind
+&gt;= :: Kind -&gt; Kind -&gt; Bool
+$c&gt;= :: Kind -&gt; Kind -&gt; Bool
+&gt; :: Kind -&gt; Kind -&gt; Bool
+$c&gt; :: Kind -&gt; Kind -&gt; Bool
+&lt;= :: Kind -&gt; Kind -&gt; Bool
+$c&lt;= :: Kind -&gt; Kind -&gt; Bool
+&lt; :: Kind -&gt; Kind -&gt; Bool
+$c&lt; :: Kind -&gt; Kind -&gt; Bool
+compare :: Kind -&gt; Kind -&gt; Ordering
+$ccompare :: Kind -&gt; Kind -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679136998"><span id="local-6989586621679137009"><span id="local-6989586621679137012"><span id="local-6989586621679137014"><span class="annot"><span class="annottext">ReadPrec [Kind]
+ReadPrec Kind
+Int -&gt; ReadS Kind
+ReadS [Kind]
+forall a.
+(Int -&gt; ReadS a)
+-&gt; ReadS [a] -&gt; ReadPrec a -&gt; ReadPrec [a] -&gt; Read a
+readListPrec :: ReadPrec [Kind]
+$creadListPrec :: ReadPrec [Kind]
+readPrec :: ReadPrec Kind
+$creadPrec :: ReadPrec Kind
+readList :: ReadS [Kind]
+$creadList :: ReadS [Kind]
+readsPrec :: Int -&gt; ReadS Kind
+$creadsPrec :: Int -&gt; ReadS Kind
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Read</span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679136986"><span id="local-6989586621679136988"><span id="local-6989586621679136994"><span class="annot"><span class="annottext">Int -&gt; Kind -&gt; ShowS
+[Kind] -&gt; ShowS
+Kind -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [Kind] -&gt; ShowS
+$cshowList :: [Kind] -&gt; ShowS
+show :: Kind -&gt; String
+$cshow :: Kind -&gt; String
+showsPrec :: Int -&gt; Kind -&gt; ShowS
+$cshowsPrec :: Int -&gt; Kind -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-4"></span></pre></body></html>

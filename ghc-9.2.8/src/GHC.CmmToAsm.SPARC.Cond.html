@@ -1,0 +1,34 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">GHC.CmmToAsm.SPARC.Cond</span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-2"></span><span>        </span><span class="annot"><a href="GHC.CmmToAsm.SPARC.Cond.html#Cond"><span class="hs-identifier">Cond</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-3"></span><span class="hs-special">)</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-6"></span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Prelude.html"><span class="hs-identifier">GHC.Prelude</span></a></span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- | Branch condition codes.</span><span>
+</span><span id="line-10"></span><span class="hs-keyword">data</span><span> </span><span id="Cond"><span class="annot"><a href="GHC.CmmToAsm.SPARC.Cond.html#Cond"><span class="hs-identifier hs-var">Cond</span></a></span></span><span>
+</span><span id="line-11"></span><span>        </span><span class="hs-glyph">=</span><span> </span><span id="ALWAYS"><span class="annot"><a href="GHC.CmmToAsm.SPARC.Cond.html#ALWAYS"><span class="hs-identifier hs-var">ALWAYS</span></a></span></span><span>
+</span><span id="line-12"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span id="EQQ"><span class="annot"><a href="GHC.CmmToAsm.SPARC.Cond.html#EQQ"><span class="hs-identifier hs-var">EQQ</span></a></span></span><span>
+</span><span id="line-13"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span id="GE"><span class="annot"><a href="GHC.CmmToAsm.SPARC.Cond.html#GE"><span class="hs-identifier hs-var">GE</span></a></span></span><span>
+</span><span id="line-14"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span id="GEU"><span class="annot"><a href="GHC.CmmToAsm.SPARC.Cond.html#GEU"><span class="hs-identifier hs-var">GEU</span></a></span></span><span>
+</span><span id="line-15"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span id="GTT"><span class="annot"><a href="GHC.CmmToAsm.SPARC.Cond.html#GTT"><span class="hs-identifier hs-var">GTT</span></a></span></span><span>
+</span><span id="line-16"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span id="GU"><span class="annot"><a href="GHC.CmmToAsm.SPARC.Cond.html#GU"><span class="hs-identifier hs-var">GU</span></a></span></span><span>
+</span><span id="line-17"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span id="LE"><span class="annot"><a href="GHC.CmmToAsm.SPARC.Cond.html#LE"><span class="hs-identifier hs-var">LE</span></a></span></span><span>
+</span><span id="line-18"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span id="LEU"><span class="annot"><a href="GHC.CmmToAsm.SPARC.Cond.html#LEU"><span class="hs-identifier hs-var">LEU</span></a></span></span><span>
+</span><span id="line-19"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span id="LTT"><span class="annot"><a href="GHC.CmmToAsm.SPARC.Cond.html#LTT"><span class="hs-identifier hs-var">LTT</span></a></span></span><span>
+</span><span id="line-20"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span id="LU"><span class="annot"><a href="GHC.CmmToAsm.SPARC.Cond.html#LU"><span class="hs-identifier hs-var">LU</span></a></span></span><span>
+</span><span id="line-21"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span id="NE"><span class="annot"><a href="GHC.CmmToAsm.SPARC.Cond.html#NE"><span class="hs-identifier hs-var">NE</span></a></span></span><span>
+</span><span id="line-22"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span id="NEG"><span class="annot"><a href="GHC.CmmToAsm.SPARC.Cond.html#NEG"><span class="hs-identifier hs-var">NEG</span></a></span></span><span>
+</span><span id="line-23"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span id="NEVER"><span class="annot"><a href="GHC.CmmToAsm.SPARC.Cond.html#NEVER"><span class="hs-identifier hs-var">NEVER</span></a></span></span><span>
+</span><span id="line-24"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span id="POS"><span class="annot"><a href="GHC.CmmToAsm.SPARC.Cond.html#POS"><span class="hs-identifier hs-var">POS</span></a></span></span><span>
+</span><span id="line-25"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span id="VC"><span class="annot"><a href="GHC.CmmToAsm.SPARC.Cond.html#VC"><span class="hs-identifier hs-var">VC</span></a></span></span><span>
+</span><span id="line-26"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span id="VS"><span class="annot"><a href="GHC.CmmToAsm.SPARC.Cond.html#VS"><span class="hs-identifier hs-var">VS</span></a></span></span><span>
+</span><span id="line-27"></span><span>        </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621680961323"><span id="local-6989586621680961325"><span class="annot"><span class="annottext">Cond -&gt; Cond -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: Cond -&gt; Cond -&gt; Bool
+$c/= :: Cond -&gt; Cond -&gt; Bool
+== :: Cond -&gt; Cond -&gt; Bool
+$c== :: Cond -&gt; Cond -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span>
+</span><span id="line-28"></span></pre></body></html>

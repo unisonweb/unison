@@ -1,0 +1,311 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- ----------------------------------------------------------------------------</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- | Pretty print helpers for the LLVM Code generator.</span><span>
+</span><span id="line-5"></span><span class="hs-comment">--</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">GHC.CmmToLlvm.Ppr</span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-7"></span><span>        </span><span class="annot"><a href="GHC.CmmToLlvm.Ppr.html#pprLlvmCmmDecl"><span class="hs-identifier">pprLlvmCmmDecl</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.CmmToLlvm.Ppr.html#pprLlvmData"><span class="hs-identifier">pprLlvmData</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.CmmToLlvm.Ppr.html#infoSection"><span class="hs-identifier">infoSection</span></a></span><span>
+</span><span id="line-8"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span class="hs-cpp">
+
+#include &quot;HsVersions.h&quot;
+</span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Prelude.html"><span class="hs-identifier">GHC.Prelude</span></a></span><span>
+</span><span id="line-13"></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Driver.Ppr.html"><span class="hs-identifier">GHC.Driver.Ppr</span></a></span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Llvm.html"><span class="hs-identifier">GHC.Llvm</span></a></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.CmmToLlvm.Base.html"><span class="hs-identifier">GHC.CmmToLlvm.Base</span></a></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.CmmToLlvm.Data.html"><span class="hs-identifier">GHC.CmmToLlvm.Data</span></a></span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Cmm.CLabel.html"><span class="hs-identifier">GHC.Cmm.CLabel</span></a></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Cmm.html"><span class="hs-identifier">GHC.Cmm</span></a></span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Data.FastString.html"><span class="hs-identifier">GHC.Data.FastString</span></a></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html"><span class="hs-identifier">GHC.Utils.Outputable</span></a></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Unique.html"><span class="hs-identifier">GHC.Types.Unique</span></a></span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="hs-comment">-- ----------------------------------------------------------------------------</span><span>
+</span><span id="line-28"></span><span class="hs-comment">-- * Top level</span><span>
+</span><span id="line-29"></span><span class="hs-comment">--</span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- | Pretty print LLVM data code</span><span>
+</span><span id="line-32"></span><span class="annot"><a href="GHC.CmmToLlvm.Ppr.html#pprLlvmData"><span class="hs-identifier hs-type">pprLlvmData</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Llvm.Types.html#LlvmOpts"><span class="hs-identifier hs-type">LlvmOpts</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.CmmToLlvm.Base.html#LlvmData"><span class="hs-identifier hs-type">LlvmData</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#SDoc"><span class="hs-identifier hs-type">SDoc</span></a></span><span>
+</span><span id="line-33"></span><span id="pprLlvmData"><span class="annot"><span class="annottext">pprLlvmData :: LlvmOpts -&gt; LlvmData -&gt; SDoc
+</span><a href="GHC.CmmToLlvm.Ppr.html#pprLlvmData"><span class="hs-identifier hs-var hs-var">pprLlvmData</span></a></span></span><span> </span><span id="local-6989586621681225545"><span class="annot"><span class="annottext">LlvmOpts
+</span><a href="#local-6989586621681225545"><span class="hs-identifier hs-var">opts</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621681225544"><span class="annot"><span class="annottext">[LMGlobal]
+</span><a href="#local-6989586621681225544"><span class="hs-identifier hs-var">globals</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681225543"><span class="annot"><span class="annottext">[LlvmType]
+</span><a href="#local-6989586621681225543"><span class="hs-identifier hs-var">types</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-34"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681225542"><span class="annot"><span class="annottext">ppLlvmTys :: LlvmType -&gt; SDoc
+</span><a href="#local-6989586621681225542"><span class="hs-identifier hs-var hs-var">ppLlvmTys</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Llvm.Types.html#LMAlias"><span class="hs-identifier hs-type">LMAlias</span></a></span><span>    </span><span id="local-6989586621681225540"><span class="annot"><span class="annottext">LlvmAlias
+</span><a href="#local-6989586621681225540"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LlvmAlias -&gt; SDoc
+</span><a href="GHC.Llvm.Ppr.html#ppLlvmAlias"><span class="hs-identifier hs-var">ppLlvmAlias</span></a></span><span> </span><span class="annot"><span class="annottext">LlvmAlias
+</span><a href="#local-6989586621681225540"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-35"></span><span>        </span><span class="annot"><a href="#local-6989586621681225542"><span class="hs-identifier hs-var">ppLlvmTys</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Llvm.Types.html#LMFunction"><span class="hs-identifier hs-type">LMFunction</span></a></span><span> </span><span id="local-6989586621681225537"><span class="annot"><span class="annottext">LlvmFunctionDecl
+</span><a href="#local-6989586621681225537"><span class="hs-identifier hs-var">f</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LlvmFunctionDecl -&gt; SDoc
+</span><a href="GHC.Llvm.Ppr.html#ppLlvmFunctionDecl"><span class="hs-identifier hs-var">ppLlvmFunctionDecl</span></a></span><span> </span><span class="annot"><span class="annottext">LlvmFunctionDecl
+</span><a href="#local-6989586621681225537"><span class="hs-identifier hs-var">f</span></a></span><span>
+</span><span id="line-36"></span><span>        </span><span class="annot"><a href="#local-6989586621681225542"><span class="hs-identifier hs-var">ppLlvmTys</span></a></span><span> </span><span id="local-6989586621681225535"><span class="annot"><span class="annottext">LlvmType
+</span><a href="#local-6989586621681225535"><span class="hs-identifier hs-var">_other</span></a></span></span><span>         </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SDoc
+</span><a href="GHC.Utils.Outputable.html#empty"><span class="hs-identifier hs-var">empty</span></a></span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span>        </span><span id="local-6989586621681225533"><span class="annot"><span class="annottext">types' :: SDoc
+</span><a href="#local-6989586621681225533"><span class="hs-identifier hs-var hs-var">types'</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[SDoc] -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#vcat"><span class="hs-identifier hs-var">vcat</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#map"><span class="hs-identifier hs-var">map</span></a></span><span> </span><span class="annot"><span class="annottext">LlvmType -&gt; SDoc
+</span><a href="#local-6989586621681225542"><span class="hs-identifier hs-var">ppLlvmTys</span></a></span><span> </span><span class="annot"><span class="annottext">[LlvmType]
+</span><a href="#local-6989586621681225543"><span class="hs-identifier hs-var">types</span></a></span><span>
+</span><span id="line-39"></span><span>        </span><span id="local-6989586621681225531"><span class="annot"><span class="annottext">globals' :: SDoc
+</span><a href="#local-6989586621681225531"><span class="hs-identifier hs-var hs-var">globals'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LlvmOpts -&gt; [LMGlobal] -&gt; SDoc
+</span><a href="GHC.Llvm.Ppr.html#ppLlvmGlobals"><span class="hs-identifier hs-var">ppLlvmGlobals</span></a></span><span> </span><span class="annot"><span class="annottext">LlvmOpts
+</span><a href="#local-6989586621681225545"><span class="hs-identifier hs-var">opts</span></a></span><span> </span><span class="annot"><span class="annottext">[LMGlobal]
+</span><a href="#local-6989586621681225544"><span class="hs-identifier hs-var">globals</span></a></span><span>
+</span><span id="line-40"></span><span>    </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">SDoc
+</span><a href="#local-6989586621681225533"><span class="hs-identifier hs-var">types'</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#%24%2B%24"><span class="hs-operator hs-var">$+$</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc
+</span><a href="#local-6989586621681225531"><span class="hs-identifier hs-var">globals'</span></a></span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- | Pretty print LLVM code</span><span>
+</span><span id="line-44"></span><span class="annot"><a href="GHC.CmmToLlvm.Ppr.html#pprLlvmCmmDecl"><span class="hs-identifier hs-type">pprLlvmCmmDecl</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.CmmToLlvm.Base.html#LlvmCmmDecl"><span class="hs-identifier hs-type">LlvmCmmDecl</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.CmmToLlvm.Base.html#LlvmM"><span class="hs-identifier hs-type">LlvmM</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Utils.Outputable.html#SDoc"><span class="hs-identifier hs-type">SDoc</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Llvm.Types.html#LlvmVar"><span class="hs-identifier hs-type">LlvmVar</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-45"></span><span id="pprLlvmCmmDecl"><span class="annot"><span class="annottext">pprLlvmCmmDecl :: LlvmCmmDecl -&gt; LlvmM (SDoc, [LlvmVar])
+</span><a href="GHC.CmmToLlvm.Ppr.html#pprLlvmCmmDecl"><span class="hs-identifier hs-var hs-var">pprLlvmCmmDecl</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Cmm.html#CmmData"><span class="hs-identifier hs-type">CmmData</span></a></span><span> </span><span class="annot"><span class="annottext">Section
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681225527"><span class="annot"><span class="annottext">[LlvmData]
+</span><a href="#local-6989586621681225527"><span class="hs-identifier hs-var">lmdata</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-46"></span><span>  </span><span id="local-6989586621681225526"><span class="annot"><span class="annottext">LlvmOpts
+</span><a href="#local-6989586621681225526"><span class="hs-identifier hs-var">opts</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">LlvmM LlvmOpts
+</span><a href="GHC.CmmToLlvm.Base.html#getLlvmOpts"><span class="hs-identifier hs-var">getLlvmOpts</span></a></span><span>
+</span><span id="line-47"></span><span>  </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#return"><span class="hs-identifier hs-var">return</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[SDoc] -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#vcat"><span class="hs-identifier hs-var">vcat</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#map"><span class="hs-identifier hs-var">map</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">LlvmOpts -&gt; LlvmData -&gt; SDoc
+</span><a href="GHC.CmmToLlvm.Ppr.html#pprLlvmData"><span class="hs-identifier hs-var">pprLlvmData</span></a></span><span> </span><span class="annot"><span class="annottext">LlvmOpts
+</span><a href="#local-6989586621681225526"><span class="hs-identifier hs-var">opts</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[LlvmData]
+</span><a href="#local-6989586621681225527"><span class="hs-identifier hs-var">lmdata</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span class="annot"><a href="GHC.CmmToLlvm.Ppr.html#pprLlvmCmmDecl"><span class="hs-identifier hs-var">pprLlvmCmmDecl</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Cmm.html#CmmProc"><span class="hs-identifier hs-type">CmmProc</span></a></span><span> </span><span id="local-6989586621681225523"><span class="annot"><span class="annottext">Maybe RawCmmStatics
+</span><a href="#local-6989586621681225523"><span class="hs-identifier hs-var">mb_info</span></a></span></span><span> </span><span id="local-6989586621681225522"><span class="annot"><span class="annottext">CLabel
+</span><a href="#local-6989586621681225522"><span class="hs-identifier hs-var">entry_lbl</span></a></span></span><span> </span><span id="local-6989586621681225521"><span class="annot"><span class="annottext">[GlobalReg]
+</span><a href="#local-6989586621681225521"><span class="hs-identifier hs-var">live</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Cmm.html#ListGraph"><span class="hs-identifier hs-type">ListGraph</span></a></span><span> </span><span id="local-6989586621681225519"><span class="annot"><span class="annottext">[GenBasicBlock LlvmStatement]
+</span><a href="#local-6989586621681225519"><span class="hs-identifier hs-var">blks</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-50"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span> </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681225518"><span class="annot"><span class="annottext">lbl :: CLabel
+</span><a href="#local-6989586621681225518"><span class="hs-identifier hs-var hs-var">lbl</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Maybe RawCmmStatics
+</span><a href="#local-6989586621681225523"><span class="hs-identifier hs-var">mb_info</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-51"></span><span>                     </span><span class="annot"><span class="annottext">Maybe RawCmmStatics
+</span><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Nothing"><span class="hs-identifier hs-var">Nothing</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">CLabel
+</span><a href="#local-6989586621681225522"><span class="hs-identifier hs-var">entry_lbl</span></a></span><span>
+</span><span id="line-52"></span><span>                     </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Just"><span class="hs-identifier hs-type">Just</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Cmm.html#CmmStaticsRaw"><span class="hs-identifier hs-type">CmmStaticsRaw</span></a></span><span> </span><span id="local-6989586621681225516"><span class="annot"><span class="annottext">CLabel
+</span><a href="#local-6989586621681225516"><span class="hs-identifier hs-var">info_lbl</span></a></span></span><span> </span><span class="annot"><span class="annottext">[CmmStatic]
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">CLabel
+</span><a href="#local-6989586621681225516"><span class="hs-identifier hs-var">info_lbl</span></a></span><span>
+</span><span id="line-53"></span><span>           </span><span id="local-6989586621681225515"><span class="annot"><span class="annottext">link :: LlvmLinkageType
+</span><a href="#local-6989586621681225515"><span class="hs-identifier hs-var hs-var">link</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">CLabel -&gt; Bool
+</span><a href="GHC.Cmm.CLabel.html#externallyVisibleCLabel"><span class="hs-identifier hs-var">externallyVisibleCLabel</span></a></span><span> </span><span class="annot"><span class="annottext">CLabel
+</span><a href="#local-6989586621681225518"><span class="hs-identifier hs-var">lbl</span></a></span><span>
+</span><span id="line-54"></span><span>                      </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">LlvmLinkageType
+</span><a href="GHC.Llvm.Types.html#ExternallyVisible"><span class="hs-identifier hs-var">ExternallyVisible</span></a></span><span>
+</span><span id="line-55"></span><span>                      </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">LlvmLinkageType
+</span><a href="GHC.Llvm.Types.html#Internal"><span class="hs-identifier hs-var">Internal</span></a></span><span>
+</span><span id="line-56"></span><span>           </span><span id="local-6989586621681225511"><span class="annot"><span class="annottext">lmblocks :: [LlvmBlock]
+</span><a href="#local-6989586621681225511"><span class="hs-identifier hs-var hs-var">lmblocks</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#map"><span class="hs-identifier hs-var">map</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="GHC.Cmm.html#BasicBlock"><span class="hs-identifier hs-type">BasicBlock</span></a></span><span> </span><span id="local-6989586621681225509"><span class="annot"><span class="annottext">BlockId
+</span><a href="#local-6989586621681225509"><span class="hs-identifier hs-var">id</span></a></span></span><span> </span><span id="local-6989586621681225508"><span class="annot"><span class="annottext">[LlvmStatement]
+</span><a href="#local-6989586621681225508"><span class="hs-identifier hs-var">stmts</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-57"></span><span>                                </span><span class="annot"><span class="annottext">LlvmBlockId -&gt; [LlvmStatement] -&gt; LlvmBlock
+</span><a href="GHC.Llvm.Syntax.html#LlvmBlock"><span class="hs-identifier hs-var">LlvmBlock</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Uniquable a =&gt; a -&gt; LlvmBlockId
+</span><a href="GHC.Types.Unique.html#getUnique"><span class="hs-identifier hs-var">getUnique</span></a></span><span> </span><span class="annot"><span class="annottext">BlockId
+</span><a href="#local-6989586621681225509"><span class="hs-identifier hs-var">id</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[LlvmStatement]
+</span><a href="#local-6989586621681225508"><span class="hs-identifier hs-var">stmts</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[GenBasicBlock LlvmStatement]
+</span><a href="#local-6989586621681225519"><span class="hs-identifier hs-var">blks</span></a></span><span>
+</span><span id="line-58"></span><span>
+</span><span id="line-59"></span><span>       </span><span id="local-6989586621681225505"><span class="annot"><span class="annottext">LlvmFunctionDecl
+</span><a href="#local-6989586621681225505"><span class="hs-identifier hs-var">funDec</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[GlobalReg] -&gt; CLabel -&gt; LlvmLinkageType -&gt; LlvmM LlvmFunctionDecl
+</span><a href="GHC.CmmToLlvm.Base.html#llvmFunSig"><span class="hs-identifier hs-var">llvmFunSig</span></a></span><span> </span><span class="annot"><span class="annottext">[GlobalReg]
+</span><a href="#local-6989586621681225521"><span class="hs-identifier hs-var">live</span></a></span><span> </span><span class="annot"><span class="annottext">CLabel
+</span><a href="#local-6989586621681225518"><span class="hs-identifier hs-var">lbl</span></a></span><span> </span><span class="annot"><span class="annottext">LlvmLinkageType
+</span><a href="#local-6989586621681225515"><span class="hs-identifier hs-var">link</span></a></span><span>
+</span><span id="line-60"></span><span>       </span><span id="local-6989586621681225503"><span class="annot"><span class="annottext">DynFlags
+</span><a href="#local-6989586621681225503"><span class="hs-identifier hs-var">dflags</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *). HasDynFlags m =&gt; m DynFlags
+</span><a href="GHC.Driver.Session.html#getDynFlags"><span class="hs-identifier hs-var">getDynFlags</span></a></span><span>
+</span><span id="line-61"></span><span>       </span><span id="local-6989586621681225501"><span class="annot"><span class="annottext">LlvmOpts
+</span><a href="#local-6989586621681225501"><span class="hs-identifier hs-var">opts</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">LlvmM LlvmOpts
+</span><a href="GHC.CmmToLlvm.Base.html#getLlvmOpts"><span class="hs-identifier hs-var">getLlvmOpts</span></a></span><span>
+</span><span id="line-62"></span><span>       </span><span id="local-6989586621681225500"><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621681225500"><span class="hs-identifier hs-var">platform</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">LlvmM Platform
+</span><a href="GHC.CmmToLlvm.Base.html#getPlatform"><span class="hs-identifier hs-var">getPlatform</span></a></span><span>
+</span><span id="line-63"></span><span>       </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681225498"><span class="annot"><span class="annottext">buildArg :: LlvmVar -&gt; FastString
+</span><a href="#local-6989586621681225498"><span class="hs-identifier hs-var hs-var">buildArg</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; FastString
+</span><a href="GHC.Data.FastString.html#fsLit"><span class="hs-identifier hs-var">fsLit</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#."><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">DynFlags -&gt; SDoc -&gt; String
+</span><a href="GHC.Driver.Ppr.html#showSDoc"><span class="hs-identifier hs-var">showSDoc</span></a></span><span> </span><span class="annot"><span class="annottext">DynFlags
+</span><a href="#local-6989586621681225503"><span class="hs-identifier hs-var">dflags</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#."><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">LlvmOpts -&gt; LlvmVar -&gt; SDoc
+</span><a href="GHC.Llvm.Ppr.html#ppPlainName"><span class="hs-identifier hs-var">ppPlainName</span></a></span><span> </span><span class="annot"><span class="annottext">LlvmOpts
+</span><a href="#local-6989586621681225501"><span class="hs-identifier hs-var">opts</span></a></span><span>
+</span><span id="line-64"></span><span>           </span><span id="local-6989586621681225493"><span class="annot"><span class="annottext">funArgs :: [FastString]
+</span><a href="#local-6989586621681225493"><span class="hs-identifier hs-var hs-var">funArgs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#map"><span class="hs-identifier hs-var">map</span></a></span><span> </span><span class="annot"><span class="annottext">LlvmVar -&gt; FastString
+</span><a href="#local-6989586621681225498"><span class="hs-identifier hs-var">buildArg</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Platform -&gt; [GlobalReg] -&gt; [LlvmVar]
+</span><a href="GHC.CmmToLlvm.Base.html#llvmFunArgs"><span class="hs-identifier hs-var">llvmFunArgs</span></a></span><span> </span><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621681225500"><span class="hs-identifier hs-var">platform</span></a></span><span> </span><span class="annot"><span class="annottext">[GlobalReg]
+</span><a href="#local-6989586621681225521"><span class="hs-identifier hs-var">live</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-65"></span><span>           </span><span id="local-6989586621681225491"><span class="annot"><span class="annottext">funSect :: LMSection
+</span><a href="#local-6989586621681225491"><span class="hs-identifier hs-var hs-var">funSect</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LlvmOpts -&gt; FastString -&gt; LMSection
+</span><a href="GHC.CmmToLlvm.Base.html#llvmFunSection"><span class="hs-identifier hs-var">llvmFunSection</span></a></span><span> </span><span class="annot"><span class="annottext">LlvmOpts
+</span><a href="#local-6989586621681225501"><span class="hs-identifier hs-var">opts</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">LlvmFunctionDecl -&gt; FastString
+</span><a href="GHC.Llvm.Types.html#decName"><span class="hs-identifier hs-var">decName</span></a></span><span> </span><span class="annot"><span class="annottext">LlvmFunctionDecl
+</span><a href="#local-6989586621681225505"><span class="hs-identifier hs-var">funDec</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span>       </span><span class="hs-comment">-- generate the info table</span><span>
+</span><span id="line-68"></span><span>       </span><span id="local-6989586621681225488"><span class="annot"><span class="annottext">Maybe LlvmStatic
+</span><a href="#local-6989586621681225488"><span class="hs-identifier hs-var">prefix</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Maybe RawCmmStatics
+</span><a href="#local-6989586621681225523"><span class="hs-identifier hs-var">mb_info</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-69"></span><span>                     </span><span class="annot"><span class="annottext">Maybe RawCmmStatics
+</span><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Nothing"><span class="hs-identifier hs-var">Nothing</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#return"><span class="hs-identifier hs-var">return</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Nothing"><span class="hs-identifier hs-var">Nothing</span></a></span><span>
+</span><span id="line-70"></span><span>                     </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Just"><span class="hs-identifier hs-type">Just</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Cmm.html#CmmStaticsRaw"><span class="hs-identifier hs-type">CmmStaticsRaw</span></a></span><span> </span><span class="annot"><span class="annottext">CLabel
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681225487"><span class="annot"><span class="annottext">[CmmStatic]
+</span><a href="#local-6989586621681225487"><span class="hs-identifier hs-var">statics</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-71"></span><span>                       </span><span id="local-6989586621681225486"><span class="annot"><span class="annottext">[LlvmStatic]
+</span><a href="#local-6989586621681225486"><span class="hs-identifier hs-var">infoStatics</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Traversable t, Monad m) =&gt;
+(a -&gt; m b) -&gt; t a -&gt; m (t b)
+</span><a href="../../base-4.16.4.0/src/Data-Traversable.html#mapM"><span class="hs-identifier hs-var">mapM</span></a></span><span> </span><span class="annot"><span class="annottext">CmmStatic -&gt; LlvmM LlvmStatic
+</span><a href="GHC.CmmToLlvm.Data.html#genData"><span class="hs-identifier hs-var">genData</span></a></span><span> </span><span class="annot"><span class="annottext">[CmmStatic]
+</span><a href="#local-6989586621681225487"><span class="hs-identifier hs-var">statics</span></a></span><span>
+</span><span id="line-72"></span><span>                       </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681225483"><span class="annot"><span class="annottext">infoTy :: LlvmType
+</span><a href="#local-6989586621681225483"><span class="hs-identifier hs-var hs-var">infoTy</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[LlvmType] -&gt; LlvmType
+</span><a href="GHC.Llvm.Types.html#LMStruct"><span class="hs-identifier hs-var">LMStruct</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#map"><span class="hs-identifier hs-var">map</span></a></span><span> </span><span class="annot"><span class="annottext">LlvmStatic -&gt; LlvmType
+</span><a href="GHC.Llvm.Types.html#getStatType"><span class="hs-identifier hs-var">getStatType</span></a></span><span> </span><span class="annot"><span class="annottext">[LlvmStatic]
+</span><a href="#local-6989586621681225486"><span class="hs-identifier hs-var">infoStatics</span></a></span><span>
+</span><span id="line-73"></span><span>                       </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#return"><span class="hs-identifier hs-var">return</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Just"><span class="hs-identifier hs-var">Just</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">[LlvmStatic] -&gt; LlvmType -&gt; LlvmStatic
+</span><a href="GHC.Llvm.Types.html#LMStaticStruc"><span class="hs-identifier hs-var">LMStaticStruc</span></a></span><span> </span><span class="annot"><span class="annottext">[LlvmStatic]
+</span><a href="#local-6989586621681225486"><span class="hs-identifier hs-var">infoStatics</span></a></span><span> </span><span class="annot"><span class="annottext">LlvmType
+</span><a href="#local-6989586621681225483"><span class="hs-identifier hs-var">infoTy</span></a></span><span>
+</span><span id="line-74"></span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span><span>       </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681225479"><span class="annot"><span class="annottext">fun :: LlvmFunction
+</span><a href="#local-6989586621681225479"><span class="hs-identifier hs-var hs-var">fun</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LlvmFunctionDecl
+-&gt; [FastString]
+-&gt; [LlvmFuncAttr]
+-&gt; LMSection
+-&gt; Maybe LlvmStatic
+-&gt; [LlvmBlock]
+-&gt; LlvmFunction
+</span><a href="GHC.Llvm.Syntax.html#LlvmFunction"><span class="hs-identifier hs-var">LlvmFunction</span></a></span><span> </span><span class="annot"><span class="annottext">LlvmFunctionDecl
+</span><a href="#local-6989586621681225505"><span class="hs-identifier hs-var">funDec</span></a></span><span> </span><span class="annot"><span class="annottext">[FastString]
+</span><a href="#local-6989586621681225493"><span class="hs-identifier hs-var">funArgs</span></a></span><span> </span><span class="annot"><span class="annottext">[LlvmFuncAttr]
+</span><a href="GHC.CmmToLlvm.Base.html#llvmStdFunAttrs"><span class="hs-identifier hs-var">llvmStdFunAttrs</span></a></span><span> </span><span class="annot"><span class="annottext">LMSection
+</span><a href="#local-6989586621681225491"><span class="hs-identifier hs-var">funSect</span></a></span><span>
+</span><span id="line-77"></span><span>                              </span><span class="annot"><span class="annottext">Maybe LlvmStatic
+</span><a href="#local-6989586621681225488"><span class="hs-identifier hs-var">prefix</span></a></span><span> </span><span class="annot"><span class="annottext">[LlvmBlock]
+</span><a href="#local-6989586621681225511"><span class="hs-identifier hs-var">lmblocks</span></a></span><span>
+</span><span id="line-78"></span><span>           </span><span id="local-6989586621681225476"><span class="annot"><span class="annottext">name :: FastString
+</span><a href="#local-6989586621681225476"><span class="hs-identifier hs-var hs-var">name</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LlvmFunctionDecl -&gt; FastString
+</span><a href="GHC.Llvm.Types.html#decName"><span class="hs-identifier hs-var">decName</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">LlvmFunction -&gt; LlvmFunctionDecl
+</span><a href="GHC.Llvm.Syntax.html#funcDecl"><span class="hs-identifier hs-var">funcDecl</span></a></span><span> </span><span class="annot"><span class="annottext">LlvmFunction
+</span><a href="#local-6989586621681225479"><span class="hs-identifier hs-var">fun</span></a></span><span>
+</span><span id="line-79"></span><span>           </span><span id="local-6989586621681225474"><span class="annot"><span class="annottext">defName :: FastString
+</span><a href="#local-6989586621681225474"><span class="hs-identifier hs-var hs-var">defName</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FastString -&gt; FastString
+</span><a href="GHC.CmmToLlvm.Base.html#llvmDefLabel"><span class="hs-identifier hs-var">llvmDefLabel</span></a></span><span> </span><span class="annot"><span class="annottext">FastString
+</span><a href="#local-6989586621681225476"><span class="hs-identifier hs-var">name</span></a></span><span>
+</span><span id="line-80"></span><span>           </span><span id="local-6989586621681225472"><span class="annot"><span class="annottext">funcDecl' :: LlvmFunctionDecl
+</span><a href="#local-6989586621681225472"><span class="hs-identifier hs-var hs-var">funcDecl'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">LlvmFunction -&gt; LlvmFunctionDecl
+</span><a href="GHC.Llvm.Syntax.html#funcDecl"><span class="hs-identifier hs-var">funcDecl</span></a></span><span> </span><span class="annot"><span class="annottext">LlvmFunction
+</span><a href="#local-6989586621681225479"><span class="hs-identifier hs-var">fun</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">decName :: FastString
+</span><a href="GHC.Llvm.Types.html#decName"><span class="hs-identifier hs-var">decName</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FastString
+</span><a href="#local-6989586621681225474"><span class="hs-identifier hs-var">defName</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-81"></span><span>           </span><span id="local-6989586621681225471"><span class="annot"><span class="annottext">fun' :: LlvmFunction
+</span><a href="#local-6989586621681225471"><span class="hs-identifier hs-var hs-var">fun'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LlvmFunction
+</span><a href="#local-6989586621681225479"><span class="hs-identifier hs-var">fun</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">funcDecl :: LlvmFunctionDecl
+</span><a href="GHC.Llvm.Syntax.html#funcDecl"><span class="hs-identifier hs-var">funcDecl</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LlvmFunctionDecl
+</span><a href="#local-6989586621681225472"><span class="hs-identifier hs-var">funcDecl'</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-82"></span><span>           </span><span id="local-6989586621681225470"><span class="annot"><span class="annottext">funTy :: LlvmType
+</span><a href="#local-6989586621681225470"><span class="hs-identifier hs-var hs-var">funTy</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LlvmFunctionDecl -&gt; LlvmType
+</span><a href="GHC.Llvm.Types.html#LMFunction"><span class="hs-identifier hs-var">LMFunction</span></a></span><span> </span><span class="annot"><span class="annottext">LlvmFunctionDecl
+</span><a href="#local-6989586621681225472"><span class="hs-identifier hs-var">funcDecl'</span></a></span><span>
+</span><span id="line-83"></span><span>           </span><span id="local-6989586621681225469"><span class="annot"><span class="annottext">funVar :: LlvmVar
+</span><a href="#local-6989586621681225469"><span class="hs-identifier hs-var hs-var">funVar</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FastString
+-&gt; LlvmType
+-&gt; LlvmLinkageType
+-&gt; LMSection
+-&gt; LMAlign
+-&gt; LMConst
+-&gt; LlvmVar
+</span><a href="GHC.Llvm.Types.html#LMGlobalVar"><span class="hs-identifier hs-var">LMGlobalVar</span></a></span><span> </span><span class="annot"><span class="annottext">FastString
+</span><a href="#local-6989586621681225476"><span class="hs-identifier hs-var">name</span></a></span><span>
+</span><span id="line-84"></span><span>                                </span><span class="hs-special">(</span><span class="annot"><span class="annottext">LlvmType -&gt; LlvmType
+</span><a href="GHC.Llvm.Types.html#LMPointer"><span class="hs-identifier hs-var">LMPointer</span></a></span><span> </span><span class="annot"><span class="annottext">LlvmType
+</span><a href="#local-6989586621681225470"><span class="hs-identifier hs-var">funTy</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-85"></span><span>                                </span><span class="annot"><span class="annottext">LlvmLinkageType
+</span><a href="#local-6989586621681225515"><span class="hs-identifier hs-var">link</span></a></span><span>
+</span><span id="line-86"></span><span>                                </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Nothing"><span class="hs-identifier hs-var">Nothing</span></a></span><span>
+</span><span id="line-87"></span><span>                                </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Nothing"><span class="hs-identifier hs-var">Nothing</span></a></span><span>
+</span><span id="line-88"></span><span>                                </span><span class="annot"><span class="annottext">LMConst
+</span><a href="GHC.Llvm.Types.html#Alias"><span class="hs-identifier hs-var">Alias</span></a></span><span>
+</span><span id="line-89"></span><span>           </span><span id="local-6989586621681225465"><span class="annot"><span class="annottext">defVar :: LlvmVar
+</span><a href="#local-6989586621681225465"><span class="hs-identifier hs-var hs-var">defVar</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FastString
+-&gt; LlvmType
+-&gt; LlvmLinkageType
+-&gt; LMSection
+-&gt; LMAlign
+-&gt; LMConst
+-&gt; LlvmVar
+</span><a href="GHC.Llvm.Types.html#LMGlobalVar"><span class="hs-identifier hs-var">LMGlobalVar</span></a></span><span> </span><span class="annot"><span class="annottext">FastString
+</span><a href="#local-6989586621681225474"><span class="hs-identifier hs-var">defName</span></a></span><span>
+</span><span id="line-90"></span><span>                                </span><span class="hs-special">(</span><span class="annot"><span class="annottext">LlvmType -&gt; LlvmType
+</span><a href="GHC.Llvm.Types.html#LMPointer"><span class="hs-identifier hs-var">LMPointer</span></a></span><span> </span><span class="annot"><span class="annottext">LlvmType
+</span><a href="#local-6989586621681225470"><span class="hs-identifier hs-var">funTy</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-91"></span><span>                                </span><span class="hs-special">(</span><span class="annot"><span class="annottext">LlvmFunctionDecl -&gt; LlvmLinkageType
+</span><a href="GHC.Llvm.Types.html#funcLinkage"><span class="hs-identifier hs-var">funcLinkage</span></a></span><span> </span><span class="annot"><span class="annottext">LlvmFunctionDecl
+</span><a href="#local-6989586621681225472"><span class="hs-identifier hs-var">funcDecl'</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-92"></span><span>                                </span><span class="hs-special">(</span><span class="annot"><span class="annottext">LlvmFunction -&gt; LMSection
+</span><a href="GHC.Llvm.Syntax.html#funcSect"><span class="hs-identifier hs-var">funcSect</span></a></span><span> </span><span class="annot"><span class="annottext">LlvmFunction
+</span><a href="#local-6989586621681225479"><span class="hs-identifier hs-var">fun</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-93"></span><span>                                </span><span class="hs-special">(</span><span class="annot"><span class="annottext">LlvmFunctionDecl -&gt; LMAlign
+</span><a href="GHC.Llvm.Types.html#funcAlign"><span class="hs-identifier hs-var">funcAlign</span></a></span><span> </span><span class="annot"><span class="annottext">LlvmFunctionDecl
+</span><a href="#local-6989586621681225472"><span class="hs-identifier hs-var">funcDecl'</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-94"></span><span>                                </span><span class="annot"><span class="annottext">LMConst
+</span><a href="GHC.Llvm.Types.html#Alias"><span class="hs-identifier hs-var">Alias</span></a></span><span>
+</span><span id="line-95"></span><span>           </span><span id="local-6989586621681225461"><span class="annot"><span class="annottext">alias :: LMGlobal
+</span><a href="#local-6989586621681225461"><span class="hs-identifier hs-var hs-var">alias</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LlvmVar -&gt; Maybe LlvmStatic -&gt; LMGlobal
+</span><a href="GHC.Llvm.Types.html#LMGlobal"><span class="hs-identifier hs-var">LMGlobal</span></a></span><span> </span><span class="annot"><span class="annottext">LlvmVar
+</span><a href="#local-6989586621681225469"><span class="hs-identifier hs-var">funVar</span></a></span><span>
+</span><span id="line-96"></span><span>                            </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Just"><span class="hs-identifier hs-var">Just</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">LlvmStatic -&gt; LlvmType -&gt; LlvmStatic
+</span><a href="GHC.Llvm.Types.html#LMBitc"><span class="hs-identifier hs-var">LMBitc</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">LlvmVar -&gt; LlvmStatic
+</span><a href="GHC.Llvm.Types.html#LMStaticPointer"><span class="hs-identifier hs-var">LMStaticPointer</span></a></span><span> </span><span class="annot"><span class="annottext">LlvmVar
+</span><a href="#local-6989586621681225465"><span class="hs-identifier hs-var">defVar</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-97"></span><span>                                           </span><span class="annot"><span class="annottext">LlvmType
+</span><a href="GHC.Llvm.Types.html#i8Ptr"><span class="hs-identifier hs-var">i8Ptr</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-98"></span><span>
+</span><span id="line-99"></span><span>       </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#return"><span class="hs-identifier hs-var">return</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">LlvmOpts -&gt; LMGlobal -&gt; SDoc
+</span><a href="GHC.Llvm.Ppr.html#ppLlvmGlobal"><span class="hs-identifier hs-var">ppLlvmGlobal</span></a></span><span> </span><span class="annot"><span class="annottext">LlvmOpts
+</span><a href="#local-6989586621681225501"><span class="hs-identifier hs-var">opts</span></a></span><span> </span><span class="annot"><span class="annottext">LMGlobal
+</span><a href="#local-6989586621681225461"><span class="hs-identifier hs-var">alias</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#%24%2B%24"><span class="hs-operator hs-var">$+$</span></a></span><span> </span><span class="annot"><span class="annottext">LlvmOpts -&gt; LlvmFunction -&gt; SDoc
+</span><a href="GHC.Llvm.Ppr.html#ppLlvmFunction"><span class="hs-identifier hs-var">ppLlvmFunction</span></a></span><span> </span><span class="annot"><span class="annottext">LlvmOpts
+</span><a href="#local-6989586621681225501"><span class="hs-identifier hs-var">opts</span></a></span><span> </span><span class="annot"><span class="annottext">LlvmFunction
+</span><a href="#local-6989586621681225471"><span class="hs-identifier hs-var">fun'</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-100"></span><span>
+</span><span id="line-101"></span><span>
+</span><span id="line-102"></span><span class="hs-comment">-- | The section we are putting info tables and their entry code into, should</span><span>
+</span><span id="line-103"></span><span class="hs-comment">-- be unique since we process the assembly pattern matching this.</span><span>
+</span><span id="line-104"></span><span class="annot"><a href="GHC.CmmToLlvm.Ppr.html#infoSection"><span class="hs-identifier hs-type">infoSection</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Base.html#String"><span class="hs-identifier hs-type">String</span></a></span><span>
+</span><span id="line-105"></span><span id="infoSection"><span class="annot"><span class="annottext">infoSection :: String
+</span><a href="GHC.CmmToLlvm.Ppr.html#infoSection"><span class="hs-identifier hs-var hs-var">infoSection</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;X98A__STRIP,__me&quot;</span></span><span>
+</span><span id="line-106"></span></pre></body></html>

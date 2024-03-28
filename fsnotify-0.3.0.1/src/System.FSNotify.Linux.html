@@ -1,0 +1,606 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">--</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- Copyright (c) 2012 Mark Dittmer - http://www.markdittmer.org</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- Developed for a Google Summer of Code project - http://gsoc2012.markdittmer.org</span><span>
+</span><span id="line-4"></span><span class="hs-comment">--</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LANGUAGE CPP, DeriveDataTypeable, ScopedTypeVariables #-}</span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# OPTIONS_GHC -fno-warn-orphans #-}</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">System.FSNotify.Linux</span><span>
+</span><span id="line-9"></span><span>       </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="System.FSNotify.Listener.html#FileListener"><span class="hs-identifier">FileListener</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span>       </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FSNotify.Linux.html#NativeManager"><span class="hs-identifier">NativeManager</span></a></span><span>
+</span><span id="line-11"></span><span>       </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Concurrent.Chan</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Concurrent.MVar</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Exception</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">E</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">BS</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.IORef</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">atomicModifyIORef</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">readIORef</span></span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.String</span></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">T</span></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Time.Clock</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">UTCTime</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">getCurrentTime</span></span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Time.Clock.POSIX</span></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Typeable</span></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Foreign</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">F</span></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.IO.Encoding</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">getFileSystemEncoding</span></span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">FilePath</span></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Shelly</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">S</span></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="System.FSNotify.Listener.html"><span class="hs-identifier">System.FSNotify.Listener</span></a></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="System.FSNotify.Path.html"><span class="hs-identifier">System.FSNotify.Path</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.FSNotify.Path.html#findDirs"><span class="hs-identifier">findDirs</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FSNotify.Path.html#canonicalizeDirPath"><span class="hs-identifier">canonicalizeDirPath</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="System.FSNotify.Types.html"><span class="hs-identifier">System.FSNotify.Types</span></a></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.FilePath</span></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">System.INotify</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">INo</span></span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Posix.Files</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">getFileStatus</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">isDirectory</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">modificationTimeHiRes</span></span><span class="hs-special">)</span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">type</span><span> </span><span id="NativeManager"><span class="annot"><a href="System.FSNotify.Linux.html#NativeManager"><span class="hs-identifier hs-var">NativeManager</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">INo.INotify</span></span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">data</span><span> </span><span id="EventVarietyMismatchException"><span class="annot"><a href="System.FSNotify.Linux.html#EventVarietyMismatchException"><span class="hs-identifier hs-var">EventVarietyMismatchException</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="EventVarietyMismatchException"><span class="annot"><a href="System.FSNotify.Linux.html#EventVarietyMismatchException"><span class="hs-identifier hs-var">EventVarietyMismatchException</span></a></span></span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679054588"><span id="local-6989586621679054590"><span id="local-6989586621679054592"><span class="annot"><span class="annottext">Int -&gt; EventVarietyMismatchException -&gt; ShowS
+[EventVarietyMismatchException] -&gt; ShowS
+EventVarietyMismatchException -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [EventVarietyMismatchException] -&gt; ShowS
+$cshowList :: [EventVarietyMismatchException] -&gt; ShowS
+show :: EventVarietyMismatchException -&gt; String
+$cshow :: EventVarietyMismatchException -&gt; String
+showsPrec :: Int -&gt; EventVarietyMismatchException -&gt; ShowS
+$cshowsPrec :: Int -&gt; EventVarietyMismatchException -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Typeable</span></span><span class="hs-special">)</span><span>
+</span><span id="line-38"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679054577"><span id="local-6989586621679054579"><span id="local-6989586621679054581"><span class="annot"><span class="hs-identifier hs-type">Exception</span></span><span> </span><span class="annot"><a href="System.FSNotify.Linux.html#EventVarietyMismatchException"><span class="hs-identifier hs-type">EventVarietyMismatchException</span></a></span></span></span></span><span class="hs-cpp">
+
+#if MIN_VERSION_hinotify(0, 3, 10)
+</span><span class="annot"><a href="System.FSNotify.Linux.html#toRawFilePath"><span class="hs-identifier hs-type">toRawFilePath</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">BS.ByteString</span></span><span>
+</span><span id="line-42"></span><span id="toRawFilePath"><span class="annot"><span class="annottext">toRawFilePath :: String -&gt; IO ByteString
+</span><a href="System.FSNotify.Linux.html#toRawFilePath"><span class="hs-identifier hs-var hs-var">toRawFilePath</span></a></span></span><span> </span><span id="local-6989586621679054574"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679054574"><span class="hs-identifier hs-var">fp</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-43"></span><span>  </span><span id="local-6989586621679054573"><span class="annot"><span class="annottext">TextEncoding
+</span><a href="#local-6989586621679054573"><span class="hs-identifier hs-var">enc</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO TextEncoding
+</span><span class="hs-identifier hs-var">getFileSystemEncoding</span></span><span>
+</span><span id="line-44"></span><span>  </span><span class="annot"><span class="annottext">forall a. TextEncoding -&gt; String -&gt; (CString -&gt; IO a) -&gt; IO a
+</span><span class="hs-identifier hs-var">F.withCString</span></span><span> </span><span class="annot"><span class="annottext">TextEncoding
+</span><a href="#local-6989586621679054573"><span class="hs-identifier hs-var">enc</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679054574"><span class="hs-identifier hs-var">fp</span></a></span><span> </span><span class="annot"><span class="annottext">CString -&gt; IO ByteString
+</span><span class="hs-identifier hs-var">BS.packCString</span></span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span class="annot"><a href="System.FSNotify.Linux.html#fromRawFilePath"><span class="hs-identifier hs-type">fromRawFilePath</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">BS.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span>
+</span><span id="line-47"></span><span id="fromRawFilePath"><span class="annot"><span class="annottext">fromRawFilePath :: ByteString -&gt; IO String
+</span><a href="System.FSNotify.Linux.html#fromRawFilePath"><span class="hs-identifier hs-var hs-var">fromRawFilePath</span></a></span></span><span> </span><span id="local-6989586621679054569"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679054569"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-48"></span><span>  </span><span id="local-6989586621679054568"><span class="annot"><span class="annottext">TextEncoding
+</span><a href="#local-6989586621679054568"><span class="hs-identifier hs-var">enc</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO TextEncoding
+</span><span class="hs-identifier hs-var">getFileSystemEncoding</span></span><span>
+</span><span id="line-49"></span><span>  </span><span class="annot"><span class="annottext">forall a. ByteString -&gt; (CString -&gt; IO a) -&gt; IO a
+</span><span class="hs-identifier hs-var">BS.useAsCString</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679054569"><span class="hs-identifier hs-var">bs</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TextEncoding -&gt; CString -&gt; IO String
+</span><span class="hs-identifier hs-var">F.peekCString</span></span><span> </span><span class="annot"><span class="annottext">TextEncoding
+</span><a href="#local-6989586621679054568"><span class="hs-identifier hs-var">enc</span></a></span><span class="hs-special">)</span><span class="hs-cpp">
+#else
+</span><span class="hs-identifier">toRawFilePath</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">return</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-identifier">id</span><span>
+</span><span id="line-52"></span><span class="hs-identifier">fromRawFilePath</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">return</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-identifier">id</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-55"></span><span class="annot"><a href="System.FSNotify.Linux.html#fsnEvents"><span class="hs-identifier hs-type">fsnEvents</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">UTCTime</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">INo.Event</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="System.FSNotify.Types.html#Event"><span class="hs-identifier hs-type">Event</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-56"></span><span id="fsnEvents"><span class="annot"><span class="annottext">fsnEvents :: String -&gt; UTCTime -&gt; Event -&gt; IO [Event]
+</span><a href="System.FSNotify.Linux.html#fsnEvents"><span class="hs-identifier hs-var hs-var">fsnEvents</span></a></span></span><span> </span><span id="local-6989586621679054564"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679054564"><span class="hs-identifier hs-var">basePath</span></a></span></span><span> </span><span id="local-6989586621679054563"><span class="annot"><span class="annottext">UTCTime
+</span><a href="#local-6989586621679054563"><span class="hs-identifier hs-var">timestamp</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">INo.Attributes</span></span><span> </span><span id="local-6989586621679054561"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679054561"><span class="hs-identifier hs-var">isDir</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679054560"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679054560"><span class="hs-identifier hs-var">raw</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; IO String
+</span><a href="System.FSNotify.Linux.html#fromRawFilePath"><span class="hs-identifier hs-var">fromRawFilePath</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679054560"><span class="hs-identifier hs-var">raw</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679054559"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679054559"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">String -&gt; UTCTime -&gt; Bool -&gt; Event
+</span><a href="System.FSNotify.Types.html#Modified"><span class="hs-identifier hs-var">Modified</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679054564"><span class="hs-identifier hs-var">basePath</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-operator hs-var">&lt;/&gt;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679054559"><span class="hs-identifier hs-var">name</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">UTCTime
+</span><a href="#local-6989586621679054563"><span class="hs-identifier hs-var">timestamp</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679054561"><span class="hs-identifier hs-var">isDir</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-57"></span><span class="annot"><a href="System.FSNotify.Linux.html#fsnEvents"><span class="hs-identifier hs-var">fsnEvents</span></a></span><span> </span><span id="local-6989586621679054556"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679054556"><span class="hs-identifier hs-var">basePath</span></a></span></span><span> </span><span id="local-6989586621679054555"><span class="annot"><span class="annottext">UTCTime
+</span><a href="#local-6989586621679054555"><span class="hs-identifier hs-var">timestamp</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">INo.Modified</span></span><span> </span><span id="local-6989586621679054553"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679054553"><span class="hs-identifier hs-var">isDir</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679054552"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679054552"><span class="hs-identifier hs-var">raw</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; IO String
+</span><a href="System.FSNotify.Linux.html#fromRawFilePath"><span class="hs-identifier hs-var">fromRawFilePath</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679054552"><span class="hs-identifier hs-var">raw</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679054551"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679054551"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">String -&gt; UTCTime -&gt; Bool -&gt; Event
+</span><a href="System.FSNotify.Types.html#Modified"><span class="hs-identifier hs-var">Modified</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679054556"><span class="hs-identifier hs-var">basePath</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-operator hs-var">&lt;/&gt;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679054551"><span class="hs-identifier hs-var">name</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">UTCTime
+</span><a href="#local-6989586621679054555"><span class="hs-identifier hs-var">timestamp</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679054553"><span class="hs-identifier hs-var">isDir</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-58"></span><span class="annot"><a href="System.FSNotify.Linux.html#fsnEvents"><span class="hs-identifier hs-var">fsnEvents</span></a></span><span> </span><span id="local-6989586621679054550"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679054550"><span class="hs-identifier hs-var">basePath</span></a></span></span><span> </span><span id="local-6989586621679054549"><span class="annot"><span class="annottext">UTCTime
+</span><a href="#local-6989586621679054549"><span class="hs-identifier hs-var">timestamp</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">INo.Created</span></span><span> </span><span id="local-6989586621679054547"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679054547"><span class="hs-identifier hs-var">isDir</span></a></span></span><span> </span><span id="local-6989586621679054546"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679054546"><span class="hs-identifier hs-var">raw</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; IO String
+</span><a href="System.FSNotify.Linux.html#fromRawFilePath"><span class="hs-identifier hs-var">fromRawFilePath</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679054546"><span class="hs-identifier hs-var">raw</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679054545"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679054545"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">String -&gt; UTCTime -&gt; Bool -&gt; Event
+</span><a href="System.FSNotify.Types.html#Added"><span class="hs-identifier hs-var">Added</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679054550"><span class="hs-identifier hs-var">basePath</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-operator hs-var">&lt;/&gt;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679054545"><span class="hs-identifier hs-var">name</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">UTCTime
+</span><a href="#local-6989586621679054549"><span class="hs-identifier hs-var">timestamp</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679054547"><span class="hs-identifier hs-var">isDir</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-59"></span><span class="annot"><a href="System.FSNotify.Linux.html#fsnEvents"><span class="hs-identifier hs-var">fsnEvents</span></a></span><span> </span><span id="local-6989586621679054543"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679054543"><span class="hs-identifier hs-var">basePath</span></a></span></span><span> </span><span id="local-6989586621679054542"><span class="annot"><span class="annottext">UTCTime
+</span><a href="#local-6989586621679054542"><span class="hs-identifier hs-var">timestamp</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">INo.MovedOut</span></span><span> </span><span id="local-6989586621679054540"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679054540"><span class="hs-identifier hs-var">isDir</span></a></span></span><span> </span><span id="local-6989586621679054539"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679054539"><span class="hs-identifier hs-var">raw</span></a></span></span><span> </span><span id="local-6989586621679054538"><span class="annot"><span class="annottext">Cookie
+</span><a href="#local-6989586621679054538"><span class="hs-identifier hs-var">_cookie</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; IO String
+</span><a href="System.FSNotify.Linux.html#fromRawFilePath"><span class="hs-identifier hs-var">fromRawFilePath</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679054539"><span class="hs-identifier hs-var">raw</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679054537"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679054537"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">String -&gt; UTCTime -&gt; Bool -&gt; Event
+</span><a href="System.FSNotify.Types.html#Removed"><span class="hs-identifier hs-var">Removed</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679054543"><span class="hs-identifier hs-var">basePath</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-operator hs-var">&lt;/&gt;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679054537"><span class="hs-identifier hs-var">name</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">UTCTime
+</span><a href="#local-6989586621679054542"><span class="hs-identifier hs-var">timestamp</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679054540"><span class="hs-identifier hs-var">isDir</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-60"></span><span class="annot"><a href="System.FSNotify.Linux.html#fsnEvents"><span class="hs-identifier hs-var">fsnEvents</span></a></span><span> </span><span id="local-6989586621679054535"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679054535"><span class="hs-identifier hs-var">basePath</span></a></span></span><span> </span><span id="local-6989586621679054534"><span class="annot"><span class="annottext">UTCTime
+</span><a href="#local-6989586621679054534"><span class="hs-identifier hs-var">timestamp</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">INo.MovedIn</span></span><span> </span><span id="local-6989586621679054532"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679054532"><span class="hs-identifier hs-var">isDir</span></a></span></span><span> </span><span id="local-6989586621679054531"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679054531"><span class="hs-identifier hs-var">raw</span></a></span></span><span> </span><span id="local-6989586621679054530"><span class="annot"><span class="annottext">Cookie
+</span><a href="#local-6989586621679054530"><span class="hs-identifier hs-var">_cookie</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; IO String
+</span><a href="System.FSNotify.Linux.html#fromRawFilePath"><span class="hs-identifier hs-var">fromRawFilePath</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679054531"><span class="hs-identifier hs-var">raw</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679054529"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679054529"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">String -&gt; UTCTime -&gt; Bool -&gt; Event
+</span><a href="System.FSNotify.Types.html#Added"><span class="hs-identifier hs-var">Added</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679054535"><span class="hs-identifier hs-var">basePath</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-operator hs-var">&lt;/&gt;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679054529"><span class="hs-identifier hs-var">name</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">UTCTime
+</span><a href="#local-6989586621679054534"><span class="hs-identifier hs-var">timestamp</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679054532"><span class="hs-identifier hs-var">isDir</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-61"></span><span class="annot"><a href="System.FSNotify.Linux.html#fsnEvents"><span class="hs-identifier hs-var">fsnEvents</span></a></span><span> </span><span id="local-6989586621679054528"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679054528"><span class="hs-identifier hs-var">basePath</span></a></span></span><span> </span><span id="local-6989586621679054527"><span class="annot"><span class="annottext">UTCTime
+</span><a href="#local-6989586621679054527"><span class="hs-identifier hs-var">timestamp</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">INo.Deleted</span></span><span> </span><span id="local-6989586621679054525"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679054525"><span class="hs-identifier hs-var">isDir</span></a></span></span><span> </span><span id="local-6989586621679054524"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679054524"><span class="hs-identifier hs-var">raw</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; IO String
+</span><a href="System.FSNotify.Linux.html#fromRawFilePath"><span class="hs-identifier hs-var">fromRawFilePath</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679054524"><span class="hs-identifier hs-var">raw</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679054523"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679054523"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">String -&gt; UTCTime -&gt; Bool -&gt; Event
+</span><a href="System.FSNotify.Types.html#Removed"><span class="hs-identifier hs-var">Removed</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679054528"><span class="hs-identifier hs-var">basePath</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-operator hs-var">&lt;/&gt;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679054523"><span class="hs-identifier hs-var">name</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">UTCTime
+</span><a href="#local-6989586621679054527"><span class="hs-identifier hs-var">timestamp</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679054525"><span class="hs-identifier hs-var">isDir</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-62"></span><span class="annot"><a href="System.FSNotify.Linux.html#fsnEvents"><span class="hs-identifier hs-var">fsnEvents</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">UTCTime
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Event
+</span><span class="hs-identifier hs-var">INo.Ignored</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-63"></span><span class="annot"><a href="System.FSNotify.Linux.html#fsnEvents"><span class="hs-identifier hs-var">fsnEvents</span></a></span><span> </span><span id="local-6989586621679054521"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679054521"><span class="hs-identifier hs-var">basePath</span></a></span></span><span> </span><span id="local-6989586621679054520"><span class="annot"><span class="annottext">UTCTime
+</span><a href="#local-6989586621679054520"><span class="hs-identifier hs-var">timestamp</span></a></span></span><span> </span><span id="local-6989586621679054519"><span class="annot"><span class="annottext">Event
+</span><a href="#local-6989586621679054519"><span class="hs-identifier hs-var">inoEvent</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">String -&gt; UTCTime -&gt; String -&gt; Event
+</span><a href="System.FSNotify.Types.html#Unknown"><span class="hs-identifier hs-var">Unknown</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679054521"><span class="hs-identifier hs-var">basePath</span></a></span><span> </span><span class="annot"><span class="annottext">UTCTime
+</span><a href="#local-6989586621679054520"><span class="hs-identifier hs-var">timestamp</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Event
+</span><a href="#local-6989586621679054519"><span class="hs-identifier hs-var">inoEvent</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-64"></span><span>
+</span><span id="line-65"></span><span class="annot"><a href="System.FSNotify.Linux.html#handleInoEvent"><span class="hs-identifier hs-type">handleInoEvent</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.FSNotify.Types.html#ActionPredicate"><span class="hs-identifier hs-type">ActionPredicate</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="System.FSNotify.Types.html#EventChannel"><span class="hs-identifier hs-type">EventChannel</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="System.FSNotify.Types.html#DebouncePayload"><span class="hs-identifier hs-type">DebouncePayload</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">INo.Event</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-66"></span><span id="handleInoEvent"><span class="annot"><span class="annottext">handleInoEvent :: ActionPredicate
+-&gt; EventChannel -&gt; String -&gt; DebouncePayload -&gt; Event -&gt; IO ()
+</span><a href="System.FSNotify.Linux.html#handleInoEvent"><span class="hs-identifier hs-var hs-var">handleInoEvent</span></a></span></span><span> </span><span id="local-6989586621679054515"><span class="annot"><span class="annottext">ActionPredicate
+</span><a href="#local-6989586621679054515"><span class="hs-identifier hs-var">actPred</span></a></span></span><span> </span><span id="local-6989586621679054514"><span class="annot"><span class="annottext">EventChannel
+</span><a href="#local-6989586621679054514"><span class="hs-identifier hs-var">chan</span></a></span></span><span> </span><span id="local-6989586621679054513"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679054513"><span class="hs-identifier hs-var">basePath</span></a></span></span><span> </span><span id="local-6989586621679054512"><span class="annot"><span class="annottext">DebouncePayload
+</span><a href="#local-6989586621679054512"><span class="hs-identifier hs-var">dbp</span></a></span></span><span> </span><span id="local-6989586621679054511"><span class="annot"><span class="annottext">Event
+</span><a href="#local-6989586621679054511"><span class="hs-identifier hs-var">inoEvent</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-67"></span><span>  </span><span id="local-6989586621679054510"><span class="annot"><span class="annottext">UTCTime
+</span><a href="#local-6989586621679054510"><span class="hs-identifier hs-var">currentTime</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO UTCTime
+</span><span class="hs-identifier hs-var">getCurrentTime</span></span><span>
+</span><span id="line-68"></span><span>  </span><span id="local-6989586621679054509"><span class="annot"><span class="annottext">[Event]
+</span><a href="#local-6989586621679054509"><span class="hs-identifier hs-var">events</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">String -&gt; UTCTime -&gt; Event -&gt; IO [Event]
+</span><a href="System.FSNotify.Linux.html#fsnEvents"><span class="hs-identifier hs-var">fsnEvents</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679054513"><span class="hs-identifier hs-var">basePath</span></a></span><span> </span><span class="annot"><span class="annottext">UTCTime
+</span><a href="#local-6989586621679054510"><span class="hs-identifier hs-var">currentTime</span></a></span><span> </span><span class="annot"><span class="annottext">Event
+</span><a href="#local-6989586621679054511"><span class="hs-identifier hs-var">inoEvent</span></a></span><span>
+</span><span id="line-69"></span><span>  </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Foldable t, Monad m) =&gt;
+(a -&gt; m b) -&gt; t a -&gt; m ()
+</span><span class="hs-identifier hs-var">mapM_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ActionPredicate
+-&gt; EventChannel -&gt; DebouncePayload -&gt; Event -&gt; IO ()
+</span><a href="System.FSNotify.Linux.html#handleEvent"><span class="hs-identifier hs-var">handleEvent</span></a></span><span> </span><span class="annot"><span class="annottext">ActionPredicate
+</span><a href="#local-6989586621679054515"><span class="hs-identifier hs-var">actPred</span></a></span><span> </span><span class="annot"><span class="annottext">EventChannel
+</span><a href="#local-6989586621679054514"><span class="hs-identifier hs-var">chan</span></a></span><span> </span><span class="annot"><span class="annottext">DebouncePayload
+</span><a href="#local-6989586621679054512"><span class="hs-identifier hs-var">dbp</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Event]
+</span><a href="#local-6989586621679054509"><span class="hs-identifier hs-var">events</span></a></span><span>
+</span><span id="line-70"></span><span>
+</span><span id="line-71"></span><span class="annot"><a href="System.FSNotify.Linux.html#handleEvent"><span class="hs-identifier hs-type">handleEvent</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.FSNotify.Types.html#ActionPredicate"><span class="hs-identifier hs-type">ActionPredicate</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="System.FSNotify.Types.html#EventChannel"><span class="hs-identifier hs-type">EventChannel</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="System.FSNotify.Types.html#DebouncePayload"><span class="hs-identifier hs-type">DebouncePayload</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="System.FSNotify.Types.html#Event"><span class="hs-identifier hs-type">Event</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-72"></span><span id="handleEvent"><span class="annot"><span class="annottext">handleEvent :: ActionPredicate
+-&gt; EventChannel -&gt; DebouncePayload -&gt; Event -&gt; IO ()
+</span><a href="System.FSNotify.Linux.html#handleEvent"><span class="hs-identifier hs-var hs-var">handleEvent</span></a></span></span><span> </span><span id="local-6989586621679054506"><span class="annot"><span class="annottext">ActionPredicate
+</span><a href="#local-6989586621679054506"><span class="hs-identifier hs-var">actPred</span></a></span></span><span> </span><span id="local-6989586621679054505"><span class="annot"><span class="annottext">EventChannel
+</span><a href="#local-6989586621679054505"><span class="hs-identifier hs-var">chan</span></a></span></span><span> </span><span id="local-6989586621679054504"><span class="annot"><span class="annottext">DebouncePayload
+</span><a href="#local-6989586621679054504"><span class="hs-identifier hs-var">dbp</span></a></span></span><span> </span><span id="local-6989586621679054503"><span class="annot"><span class="annottext">Event
+</span><a href="#local-6989586621679054503"><span class="hs-identifier hs-var">event</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-73"></span><span>  </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *). Applicative f =&gt; Bool -&gt; f () -&gt; f ()
+</span><span class="hs-identifier hs-var">when</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ActionPredicate
+</span><a href="#local-6989586621679054506"><span class="hs-identifier hs-var">actPred</span></a></span><span> </span><span class="annot"><span class="annottext">Event
+</span><a href="#local-6989586621679054503"><span class="hs-identifier hs-var">event</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">DebouncePayload
+</span><a href="#local-6989586621679054504"><span class="hs-identifier hs-var">dbp</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-74"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.FSNotify.Types.html#DebounceData"><span class="hs-identifier hs-type">DebounceData</span></a></span><span> </span><span id="local-6989586621679054500"><span class="annot"><span class="annottext">NominalDiffTime
+</span><a href="#local-6989586621679054500"><span class="hs-identifier hs-var">epsilon</span></a></span></span><span> </span><span id="local-6989586621679054499"><span class="annot"><span class="annottext">IOEvent
+</span><a href="#local-6989586621679054499"><span class="hs-identifier hs-var">ior</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-75"></span><span>      </span><span id="local-6989586621679054498"><span class="annot"><span class="annottext">Event
+</span><a href="#local-6989586621679054498"><span class="hs-identifier hs-var">lastEvent</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a. IORef a -&gt; IO a
+</span><span class="hs-identifier hs-var">readIORef</span></span><span> </span><span class="annot"><span class="annottext">IOEvent
+</span><a href="#local-6989586621679054499"><span class="hs-identifier hs-var">ior</span></a></span><span>
+</span><span id="line-76"></span><span>      </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *). Applicative f =&gt; Bool -&gt; f () -&gt; f ()
+</span><span class="hs-identifier hs-var">unless</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">NominalDiffTime -&gt; Event -&gt; ActionPredicate
+</span><a href="System.FSNotify.Listener.html#debounce"><span class="hs-identifier hs-var">debounce</span></a></span><span> </span><span class="annot"><span class="annottext">NominalDiffTime
+</span><a href="#local-6989586621679054500"><span class="hs-identifier hs-var">epsilon</span></a></span><span> </span><span class="annot"><span class="annottext">Event
+</span><a href="#local-6989586621679054498"><span class="hs-identifier hs-var">lastEvent</span></a></span><span> </span><span class="annot"><span class="annottext">Event
+</span><a href="#local-6989586621679054503"><span class="hs-identifier hs-var">event</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621679054495"><span class="hs-identifier hs-var">writeToChan</span></a></span><span>
+</span><span id="line-77"></span><span>      </span><span class="annot"><span class="annottext">forall a b. IORef a -&gt; (a -&gt; (a, b)) -&gt; IO b
+</span><span class="hs-identifier hs-var">atomicModifyIORef</span></span><span> </span><span class="annot"><span class="annottext">IOEvent
+</span><a href="#local-6989586621679054499"><span class="hs-identifier hs-var">ior</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Event
+</span><a href="#local-6989586621679054503"><span class="hs-identifier hs-var">event</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-78"></span><span>    </span><span class="annot"><span class="annottext">DebouncePayload
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621679054495"><span class="hs-identifier hs-var">writeToChan</span></a></span><span>
+</span><span id="line-79"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-80"></span><span>    </span><span id="local-6989586621679054495"><span class="annot"><span class="annottext">writeToChan :: IO ()
+</span><a href="#local-6989586621679054495"><span class="hs-identifier hs-var hs-var">writeToChan</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Chan a -&gt; a -&gt; IO ()
+</span><span class="hs-identifier hs-var">writeChan</span></span><span> </span><span class="annot"><span class="annottext">EventChannel
+</span><a href="#local-6989586621679054505"><span class="hs-identifier hs-var">chan</span></a></span><span> </span><span class="annot"><span class="annottext">Event
+</span><a href="#local-6989586621679054503"><span class="hs-identifier hs-var">event</span></a></span><span>
+</span><span id="line-81"></span><span>
+</span><span id="line-82"></span><span class="annot"><a href="System.FSNotify.Linux.html#varieties"><span class="hs-identifier hs-type">varieties</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">INo.EventVariety</span></span><span class="hs-special">]</span><span>
+</span><span id="line-83"></span><span id="varieties"><span class="annot"><span class="annottext">varieties :: [EventVariety]
+</span><a href="System.FSNotify.Linux.html#varieties"><span class="hs-identifier hs-var hs-var">varieties</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">EventVariety
+</span><span class="hs-identifier hs-var">INo.Create</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">EventVariety
+</span><span class="hs-identifier hs-var">INo.Delete</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">EventVariety
+</span><span class="hs-identifier hs-var">INo.MoveIn</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">EventVariety
+</span><span class="hs-identifier hs-var">INo.MoveOut</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">EventVariety
+</span><span class="hs-identifier hs-var">INo.Attrib</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">EventVariety
+</span><span class="hs-identifier hs-var">INo.Modify</span></span><span class="hs-special">]</span><span>
+</span><span id="line-84"></span><span>
+</span><span id="line-85"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="System.FSNotify.Listener.html#FileListener"><span class="hs-identifier hs-type">FileListener</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">INo.INotify</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-86"></span><span>  </span><span id="local-6989586621679054473"><span class="annot"><span class="annottext">initSession :: IO (Maybe INotify)
+</span><a href="System.FSNotify.Listener.html#initSession"><span class="hs-identifier hs-var hs-var hs-var hs-var">initSession</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall e a. Exception e =&gt; IO a -&gt; (e -&gt; IO a) -&gt; IO a
+</span><span class="hs-identifier hs-var">E.catch</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">IO INotify
+</span><span class="hs-identifier hs-var">INo.initINotify</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><span class="annottext">IOException
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IOException</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">)</span><span>
+</span><span id="line-87"></span><span>
+</span><span id="line-88"></span><span>  </span><span id="local-6989586621679054469"><span class="annot"><span class="annottext">killSession :: INotify -&gt; IO ()
+</span><a href="System.FSNotify.Listener.html#killSession"><span class="hs-identifier hs-var hs-var hs-var hs-var">killSession</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">INotify -&gt; IO ()
+</span><span class="hs-identifier hs-var">INo.killINotify</span></span><span>
+</span><span id="line-89"></span><span>
+</span><span id="line-90"></span><span>  </span><span id="local-6989586621679054461"><span class="annot"><span class="annottext">listen :: WatchConfig
+-&gt; INotify
+-&gt; String
+-&gt; ActionPredicate
+-&gt; EventChannel
+-&gt; IO (IO ())
+</span><a href="System.FSNotify.Listener.html#listen"><span class="hs-identifier hs-var hs-var hs-var hs-var">listen</span></a></span></span><span> </span><span id="local-6989586621679054459"><span class="annot"><span class="annottext">WatchConfig
+</span><a href="#local-6989586621679054459"><span class="hs-identifier hs-var">conf</span></a></span></span><span> </span><span id="local-6989586621679054458"><span class="annot"><span class="annottext">INotify
+</span><a href="#local-6989586621679054458"><span class="hs-identifier hs-var">iNotify</span></a></span></span><span> </span><span id="local-6989586621679054457"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679054457"><span class="hs-identifier hs-var">path</span></a></span></span><span> </span><span id="local-6989586621679054456"><span class="annot"><span class="annottext">ActionPredicate
+</span><a href="#local-6989586621679054456"><span class="hs-identifier hs-var">actPred</span></a></span></span><span> </span><span id="local-6989586621679054455"><span class="annot"><span class="annottext">EventChannel
+</span><a href="#local-6989586621679054455"><span class="hs-identifier hs-var">chan</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-91"></span><span>    </span><span id="local-6989586621679054454"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679054454"><span class="hs-identifier hs-var">path'</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">String -&gt; IO String
+</span><a href="System.FSNotify.Path.html#canonicalizeDirPath"><span class="hs-identifier hs-var">canonicalizeDirPath</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679054457"><span class="hs-identifier hs-var">path</span></a></span><span>
+</span><span id="line-92"></span><span>    </span><span id="local-6989586621679054453"><span class="annot"><span class="annottext">DebouncePayload
+</span><a href="#local-6989586621679054453"><span class="hs-identifier hs-var">dbp</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Debounce -&gt; IO DebouncePayload
+</span><a href="System.FSNotify.Listener.html#newDebouncePayload"><span class="hs-identifier hs-var">newDebouncePayload</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">WatchConfig -&gt; Debounce
+</span><a href="System.FSNotify.Types.html#confDebounce"><span class="hs-identifier hs-var">confDebounce</span></a></span><span> </span><span class="annot"><span class="annottext">WatchConfig
+</span><a href="#local-6989586621679054459"><span class="hs-identifier hs-var">conf</span></a></span><span>
+</span><span id="line-93"></span><span>    </span><span id="local-6989586621679054450"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679054450"><span class="hs-identifier hs-var">rawPath</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">String -&gt; IO ByteString
+</span><a href="System.FSNotify.Linux.html#toRawFilePath"><span class="hs-identifier hs-var">toRawFilePath</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679054454"><span class="hs-identifier hs-var">path'</span></a></span><span>
+</span><span id="line-94"></span><span>    </span><span id="local-6989586621679054449"><span class="annot"><span class="annottext">WatchDescriptor
+</span><a href="#local-6989586621679054449"><span class="hs-identifier hs-var">wd</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">INotify
+-&gt; [EventVariety]
+-&gt; ByteString
+-&gt; (Event -&gt; IO ())
+-&gt; IO WatchDescriptor
+</span><span class="hs-identifier hs-var">INo.addWatch</span></span><span> </span><span class="annot"><span class="annottext">INotify
+</span><a href="#local-6989586621679054458"><span class="hs-identifier hs-var">iNotify</span></a></span><span> </span><span class="annot"><span class="annottext">[EventVariety]
+</span><a href="System.FSNotify.Linux.html#varieties"><span class="hs-identifier hs-var">varieties</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679054450"><span class="hs-identifier hs-var">rawPath</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; DebouncePayload -&gt; Event -&gt; IO ()
+</span><a href="#local-6989586621679054447"><span class="hs-identifier hs-var">handler</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679054454"><span class="hs-identifier hs-var">path'</span></a></span><span> </span><span class="annot"><span class="annottext">DebouncePayload
+</span><a href="#local-6989586621679054453"><span class="hs-identifier hs-var">dbp</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-95"></span><span>    </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">WatchDescriptor -&gt; IO ()
+</span><span class="hs-identifier hs-var">INo.removeWatch</span></span><span> </span><span class="annot"><span class="annottext">WatchDescriptor
+</span><a href="#local-6989586621679054449"><span class="hs-identifier hs-var">wd</span></a></span><span>
+</span><span id="line-96"></span><span>    </span><span class="hs-keyword">where</span><span>
+</span><span id="line-97"></span><span>      </span><span class="annot"><a href="#local-6989586621679054447"><span class="hs-identifier hs-type">handler</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="System.FSNotify.Types.html#DebouncePayload"><span class="hs-identifier hs-type">DebouncePayload</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">INo.Event</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-98"></span><span>      </span><span id="local-6989586621679054447"><span class="annot"><span class="annottext">handler :: String -&gt; DebouncePayload -&gt; Event -&gt; IO ()
+</span><a href="#local-6989586621679054447"><span class="hs-identifier hs-var hs-var">handler</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ActionPredicate
+-&gt; EventChannel -&gt; String -&gt; DebouncePayload -&gt; Event -&gt; IO ()
+</span><a href="System.FSNotify.Linux.html#handleInoEvent"><span class="hs-identifier hs-var">handleInoEvent</span></a></span><span> </span><span class="annot"><span class="annottext">ActionPredicate
+</span><a href="#local-6989586621679054456"><span class="hs-identifier hs-var">actPred</span></a></span><span> </span><span class="annot"><span class="annottext">EventChannel
+</span><a href="#local-6989586621679054455"><span class="hs-identifier hs-var">chan</span></a></span><span>
+</span><span id="line-99"></span><span>
+</span><span id="line-100"></span><span>  </span><span id="local-6989586621679054412"><span class="annot"><span class="annottext">listenRecursive :: WatchConfig
+-&gt; INotify
+-&gt; String
+-&gt; ActionPredicate
+-&gt; EventChannel
+-&gt; IO (IO ())
+</span><a href="System.FSNotify.Listener.html#listenRecursive"><span class="hs-identifier hs-var hs-var hs-var hs-var">listenRecursive</span></a></span></span><span> </span><span id="local-6989586621679054410"><span class="annot"><span class="annottext">WatchConfig
+</span><a href="#local-6989586621679054410"><span class="hs-identifier hs-var">conf</span></a></span></span><span> </span><span id="local-6989586621679054409"><span class="annot"><span class="annottext">INotify
+</span><a href="#local-6989586621679054409"><span class="hs-identifier hs-var">iNotify</span></a></span></span><span> </span><span id="local-6989586621679054408"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679054408"><span class="hs-identifier hs-var">initialPath</span></a></span></span><span> </span><span id="local-6989586621679054407"><span class="annot"><span class="annottext">ActionPredicate
+</span><a href="#local-6989586621679054407"><span class="hs-identifier hs-var">actPred</span></a></span></span><span> </span><span id="local-6989586621679054406"><span class="annot"><span class="annottext">EventChannel
+</span><a href="#local-6989586621679054406"><span class="hs-identifier hs-var">chan</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-101"></span><span>    </span><span class="hs-comment">-- wdVar stores the list of created watch descriptors. We use it to</span><span>
+</span><span id="line-102"></span><span>    </span><span class="hs-comment">-- cancel the whole recursive listening task.</span><span>
+</span><span id="line-103"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-104"></span><span>    </span><span class="hs-comment">-- To avoid a race condition (when a new watch is added right after</span><span>
+</span><span id="line-105"></span><span>    </span><span class="hs-comment">-- we've stopped listening), we replace the MVar contents with Nothing</span><span>
+</span><span id="line-106"></span><span>    </span><span class="hs-comment">-- to signify that the listening task is cancelled, and no new watches</span><span>
+</span><span id="line-107"></span><span>    </span><span class="hs-comment">-- should be added.</span><span>
+</span><span id="line-108"></span><span>    </span><span id="local-6989586621679054405"><span class="annot"><span class="annottext">MVar (Maybe [WatchDescriptor])
+</span><a href="#local-6989586621679054405"><span class="hs-identifier hs-var">wdVar</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; IO (MVar a)
+</span><span class="hs-identifier hs-var">newMVar</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-109"></span><span>
+</span><span id="line-110"></span><span>    </span><span class="hs-keyword">let</span><span>
+</span><span id="line-111"></span><span>      </span><span id="local-6989586621679054392"><span class="annot"><span class="annottext">stopListening :: IO ()
+</span><a href="#local-6989586621679054392"><span class="hs-identifier hs-var hs-var">stopListening</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-112"></span><span>        </span><span class="annot"><span class="annottext">forall a. MVar a -&gt; (a -&gt; IO a) -&gt; IO ()
+</span><span class="hs-identifier hs-var">modifyMVar_</span></span><span> </span><span class="annot"><span class="annottext">MVar (Maybe [WatchDescriptor])
+</span><a href="#local-6989586621679054405"><span class="hs-identifier hs-var">wdVar</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679054390"><span class="annot"><span class="annottext">Maybe [WatchDescriptor]
+</span><a href="#local-6989586621679054390"><span class="hs-identifier hs-var">mbWds</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-113"></span><span>          </span><span class="annot"><span class="annottext">forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><span class="hs-identifier hs-var">maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Foldable t, Monad m) =&gt;
+(a -&gt; m b) -&gt; t a -&gt; m ()
+</span><span class="hs-identifier hs-var">mapM_</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679054388"><span class="annot"><span class="annottext">WatchDescriptor
+</span><a href="#local-6989586621679054388"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall e a. Exception e =&gt; IO a -&gt; (e -&gt; IO a) -&gt; IO a
+</span><span class="hs-identifier hs-var">catch</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">WatchDescriptor -&gt; IO ()
+</span><span class="hs-identifier hs-var">INo.removeWatch</span></span><span> </span><span class="annot"><span class="annottext">WatchDescriptor
+</span><a href="#local-6989586621679054388"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><span class="annottext">SomeException
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">SomeException</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; IO ()
+</span><span class="hs-identifier hs-var">putStrLn</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Error removing watch: &quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a. Monoid a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`mappend`</span></span><span> </span><span class="annot"><span class="annottext">forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">WatchDescriptor
+</span><a href="#local-6989586621679054388"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe [WatchDescriptor]
+</span><a href="#local-6989586621679054390"><span class="hs-identifier hs-var">mbWds</span></a></span><span>
+</span><span id="line-114"></span><span>          </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-115"></span><span>
+</span><span id="line-116"></span><span>    </span><span class="annot"><span class="annottext">String -&gt; MVar (Maybe [WatchDescriptor]) -&gt; IO ()
+</span><a href="#local-6989586621679054386"><span class="hs-identifier hs-var">listenRec</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679054408"><span class="hs-identifier hs-var">initialPath</span></a></span><span> </span><span class="annot"><span class="annottext">MVar (Maybe [WatchDescriptor])
+</span><a href="#local-6989586621679054405"><span class="hs-identifier hs-var">wdVar</span></a></span><span>
+</span><span id="line-117"></span><span>
+</span><span id="line-118"></span><span>    </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621679054392"><span class="hs-identifier hs-var">stopListening</span></a></span><span>
+</span><span id="line-119"></span><span>
+</span><span id="line-120"></span><span>    </span><span class="hs-keyword">where</span><span>
+</span><span id="line-121"></span><span>      </span><span class="annot"><a href="#local-6989586621679054386"><span class="hs-identifier hs-type">listenRec</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MVar</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">INo.WatchDescriptor</span></span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-122"></span><span>      </span><span id="local-6989586621679054386"><span class="annot"><span class="annottext">listenRec :: String -&gt; MVar (Maybe [WatchDescriptor]) -&gt; IO ()
+</span><a href="#local-6989586621679054386"><span class="hs-identifier hs-var hs-var">listenRec</span></a></span></span><span> </span><span id="local-6989586621679054385"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679054385"><span class="hs-identifier hs-var">path</span></a></span></span><span> </span><span id="local-6989586621679054384"><span class="annot"><span class="annottext">MVar (Maybe [WatchDescriptor])
+</span><a href="#local-6989586621679054384"><span class="hs-identifier hs-var">wdVar</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-123"></span><span>        </span><span id="local-6989586621679054383"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679054383"><span class="hs-identifier hs-var">path'</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">String -&gt; IO String
+</span><a href="System.FSNotify.Path.html#canonicalizeDirPath"><span class="hs-identifier hs-var">canonicalizeDirPath</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679054385"><span class="hs-identifier hs-var">path</span></a></span><span>
+</span><span id="line-124"></span><span>        </span><span id="local-6989586621679054382"><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621679054382"><span class="hs-identifier hs-var">paths</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; String -&gt; IO [String]
+</span><a href="System.FSNotify.Path.html#findDirs"><span class="hs-identifier hs-var">findDirs</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679054383"><span class="hs-identifier hs-var">path'</span></a></span><span>
+</span><span id="line-125"></span><span>
+</span><span id="line-126"></span><span>        </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Foldable t, Monad m) =&gt;
+(a -&gt; m b) -&gt; t a -&gt; m ()
+</span><span class="hs-identifier hs-var">mapM_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">MVar (Maybe [WatchDescriptor]) -&gt; String -&gt; IO ()
+</span><a href="#local-6989586621679054381"><span class="hs-identifier hs-var">pathHandler</span></a></span><span> </span><span class="annot"><span class="annottext">MVar (Maybe [WatchDescriptor])
+</span><a href="#local-6989586621679054384"><span class="hs-identifier hs-var">wdVar</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679054383"><span class="hs-identifier hs-var">path'</span></a></span><span class="annot"><span class="annottext">forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621679054382"><span class="hs-identifier hs-var">paths</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-127"></span><span>
+</span><span id="line-128"></span><span>      </span><span class="annot"><a href="#local-6989586621679054381"><span class="hs-identifier hs-type">pathHandler</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MVar</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">INo.WatchDescriptor</span></span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-129"></span><span>      </span><span id="local-6989586621679054381"><span class="annot"><span class="annottext">pathHandler :: MVar (Maybe [WatchDescriptor]) -&gt; String -&gt; IO ()
+</span><a href="#local-6989586621679054381"><span class="hs-identifier hs-var hs-var">pathHandler</span></a></span></span><span> </span><span id="local-6989586621679054380"><span class="annot"><span class="annottext">MVar (Maybe [WatchDescriptor])
+</span><a href="#local-6989586621679054380"><span class="hs-identifier hs-var">wdVar</span></a></span></span><span> </span><span id="local-6989586621679054379"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679054379"><span class="hs-identifier hs-var">filePath</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-130"></span><span>        </span><span id="local-6989586621679054378"><span class="annot"><span class="annottext">DebouncePayload
+</span><a href="#local-6989586621679054378"><span class="hs-identifier hs-var">dbp</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Debounce -&gt; IO DebouncePayload
+</span><a href="System.FSNotify.Listener.html#newDebouncePayload"><span class="hs-identifier hs-var">newDebouncePayload</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">WatchConfig -&gt; Debounce
+</span><a href="System.FSNotify.Types.html#confDebounce"><span class="hs-identifier hs-var">confDebounce</span></a></span><span> </span><span class="annot"><span class="annottext">WatchConfig
+</span><a href="#local-6989586621679054410"><span class="hs-identifier hs-var">conf</span></a></span><span>
+</span><span id="line-131"></span><span>        </span><span id="local-6989586621679054377"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679054377"><span class="hs-identifier hs-var">rawFilePath</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">String -&gt; IO ByteString
+</span><a href="System.FSNotify.Linux.html#toRawFilePath"><span class="hs-identifier hs-var">toRawFilePath</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679054379"><span class="hs-identifier hs-var">filePath</span></a></span><span>
+</span><span id="line-132"></span><span>        </span><span class="annot"><span class="annottext">forall a. MVar a -&gt; (a -&gt; IO a) -&gt; IO ()
+</span><span class="hs-identifier hs-var">modifyMVar_</span></span><span> </span><span class="annot"><span class="annottext">MVar (Maybe [WatchDescriptor])
+</span><a href="#local-6989586621679054380"><span class="hs-identifier hs-var">wdVar</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679054376"><span class="annot"><span class="annottext">Maybe [WatchDescriptor]
+</span><a href="#local-6989586621679054376"><span class="hs-identifier hs-var">mbWds</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-133"></span><span>          </span><span class="hs-comment">-- Atomically add a watch and record its descriptor. Also, check</span><span>
+</span><span id="line-134"></span><span>          </span><span class="hs-comment">-- if the listening task is cancelled, in which case do nothing.</span><span>
+</span><span id="line-135"></span><span>          </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Maybe [WatchDescriptor]
+</span><a href="#local-6989586621679054376"><span class="hs-identifier hs-var">mbWds</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-136"></span><span>            </span><span class="annot"><span class="annottext">Maybe [WatchDescriptor]
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Maybe [WatchDescriptor]
+</span><a href="#local-6989586621679054376"><span class="hs-identifier hs-var">mbWds</span></a></span><span>
+</span><span id="line-137"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679054375"><span class="annot"><span class="annottext">[WatchDescriptor]
+</span><a href="#local-6989586621679054375"><span class="hs-identifier hs-var">wds</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-138"></span><span>              </span><span id="local-6989586621679054374"><span class="annot"><span class="annottext">WatchDescriptor
+</span><a href="#local-6989586621679054374"><span class="hs-identifier hs-var">wd</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">INotify
+-&gt; [EventVariety]
+-&gt; ByteString
+-&gt; (Event -&gt; IO ())
+-&gt; IO WatchDescriptor
+</span><span class="hs-identifier hs-var">INo.addWatch</span></span><span> </span><span class="annot"><span class="annottext">INotify
+</span><a href="#local-6989586621679054409"><span class="hs-identifier hs-var">iNotify</span></a></span><span> </span><span class="annot"><span class="annottext">[EventVariety]
+</span><a href="System.FSNotify.Linux.html#varieties"><span class="hs-identifier hs-var">varieties</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679054377"><span class="hs-identifier hs-var">rawFilePath</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; DebouncePayload -&gt; Event -&gt; IO ()
+</span><a href="#local-6989586621679054373"><span class="hs-identifier hs-var">handler</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679054379"><span class="hs-identifier hs-var">filePath</span></a></span><span> </span><span class="annot"><span class="annottext">DebouncePayload
+</span><a href="#local-6989586621679054378"><span class="hs-identifier hs-var">dbp</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-139"></span><span>              </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">WatchDescriptor
+</span><a href="#local-6989586621679054374"><span class="hs-identifier hs-var">wd</span></a></span><span class="annot"><span class="annottext">forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span class="annot"><span class="annottext">[WatchDescriptor]
+</span><a href="#local-6989586621679054375"><span class="hs-identifier hs-var">wds</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-140"></span><span>        </span><span class="hs-keyword">where</span><span>
+</span><span id="line-141"></span><span>          </span><span class="annot"><a href="#local-6989586621679054373"><span class="hs-identifier hs-type">handler</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="System.FSNotify.Types.html#DebouncePayload"><span class="hs-identifier hs-type">DebouncePayload</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">INo.Event</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-142"></span><span>          </span><span id="local-6989586621679054373"><span class="annot"><span class="annottext">handler :: String -&gt; DebouncePayload -&gt; Event -&gt; IO ()
+</span><a href="#local-6989586621679054373"><span class="hs-identifier hs-var hs-var">handler</span></a></span></span><span> </span><span id="local-6989586621679054372"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679054372"><span class="hs-identifier hs-var">baseDir</span></a></span></span><span> </span><span id="local-6989586621679054371"><span class="annot"><span class="annottext">DebouncePayload
+</span><a href="#local-6989586621679054371"><span class="hs-identifier hs-var">dbp</span></a></span></span><span> </span><span id="local-6989586621679054370"><span class="annot"><span class="annottext">Event
+</span><a href="#local-6989586621679054370"><span class="hs-identifier hs-var">event</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-143"></span><span>            </span><span class="hs-comment">-- When a new directory is created, add recursive inotify watches to it</span><span>
+</span><span id="line-144"></span><span>            </span><span class="hs-comment">-- TODO: there's a race condition here; if there are files present in the directory before</span><span>
+</span><span id="line-145"></span><span>            </span><span class="hs-comment">-- we add the watches, we'll miss them. The right thing to do would be to ls the directory</span><span>
+</span><span id="line-146"></span><span>            </span><span class="hs-comment">-- and trigger Added events for everything we find there</span><span>
+</span><span id="line-147"></span><span>            </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Event
+</span><a href="#local-6989586621679054370"><span class="hs-identifier hs-var">event</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-148"></span><span>              </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">INo.Created</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span> </span><span id="local-6989586621679054369"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679054369"><span class="hs-identifier hs-var">rawDirPath</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-149"></span><span>                </span><span id="local-6989586621679054368"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679054368"><span class="hs-identifier hs-var">dirPath</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; IO String
+</span><a href="System.FSNotify.Linux.html#fromRawFilePath"><span class="hs-identifier hs-var">fromRawFilePath</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679054369"><span class="hs-identifier hs-var">rawDirPath</span></a></span><span>
+</span><span id="line-150"></span><span>                </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679054367"><span class="annot"><span class="annottext">newDir :: String
+</span><a href="#local-6989586621679054367"><span class="hs-identifier hs-var hs-var">newDir</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679054372"><span class="hs-identifier hs-var">baseDir</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-operator hs-var">&lt;/&gt;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679054368"><span class="hs-identifier hs-var">dirPath</span></a></span><span>
+</span><span id="line-151"></span><span>                </span><span id="local-6989586621679054366"><span class="annot"><span class="annottext">NominalDiffTime
+</span><a href="#local-6989586621679054366"><span class="hs-identifier hs-var">timestampBeforeAddingWatch</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO NominalDiffTime
+</span><span class="hs-identifier hs-var">getPOSIXTime</span></span><span>
+</span><span id="line-152"></span><span>                </span><span class="annot"><span class="annottext">String -&gt; MVar (Maybe [WatchDescriptor]) -&gt; IO ()
+</span><a href="#local-6989586621679054386"><span class="hs-identifier hs-var">listenRec</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679054367"><span class="hs-identifier hs-var">newDir</span></a></span><span> </span><span class="annot"><span class="annottext">MVar (Maybe [WatchDescriptor])
+</span><a href="#local-6989586621679054380"><span class="hs-identifier hs-var">wdVar</span></a></span><span>
+</span><span id="line-153"></span><span>
+</span><span id="line-154"></span><span>                </span><span class="hs-comment">-- Find all files/folders that might have been created *after* the timestamp, and hence might have been</span><span>
+</span><span id="line-155"></span><span>                </span><span class="hs-comment">-- missed by the watch</span><span>
+</span><span id="line-156"></span><span>                </span><span class="hs-comment">-- TODO: there's a chance of this generating double events, fix</span><span>
+</span><span id="line-157"></span><span>                </span><span id="local-6989586621679054364"><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621679054364"><span class="hs-identifier hs-var">files</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. MonadIO m =&gt; Sh a -&gt; m a
+</span><span class="hs-identifier hs-var">S.shelly</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Sh [String]
+</span><span class="hs-identifier hs-var">S.find</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. IsString a =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">fromString</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679054367"><span class="hs-identifier hs-var">newDir</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-158"></span><span>                </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Foldable t, Monad m) =&gt;
+t a -&gt; (a -&gt; m b) -&gt; m ()
+</span><span class="hs-identifier hs-var">forM_</span></span><span> </span><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621679054364"><span class="hs-identifier hs-var">files</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679054360"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679054360"><span class="hs-identifier hs-var">file</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-159"></span><span>                  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679054359"><span class="annot"><span class="annottext">newPath :: String
+</span><a href="#local-6989586621679054359"><span class="hs-identifier hs-var hs-var">newPath</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; String
+</span><span class="hs-identifier hs-var">T.unpack</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Text
+</span><span class="hs-identifier hs-var">S.toTextIgnore</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679054360"><span class="hs-identifier hs-var">file</span></a></span><span>
+</span><span id="line-160"></span><span>                  </span><span id="local-6989586621679054356"><span class="annot"><span class="annottext">FileStatus
+</span><a href="#local-6989586621679054356"><span class="hs-identifier hs-var">fileStatus</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">String -&gt; IO FileStatus
+</span><span class="hs-identifier hs-var">getFileStatus</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679054359"><span class="hs-identifier hs-var">newPath</span></a></span><span>
+</span><span id="line-161"></span><span>                  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679054355"><span class="annot"><span class="annottext">modTime :: NominalDiffTime
+</span><a href="#local-6989586621679054355"><span class="hs-identifier hs-var hs-var">modTime</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FileStatus -&gt; NominalDiffTime
+</span><span class="hs-identifier hs-var">modificationTimeHiRes</span></span><span> </span><span class="annot"><span class="annottext">FileStatus
+</span><a href="#local-6989586621679054356"><span class="hs-identifier hs-var">fileStatus</span></a></span><span>
+</span><span id="line-162"></span><span>                  </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *). Applicative f =&gt; Bool -&gt; f () -&gt; f ()
+</span><span class="hs-identifier hs-var">when</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">NominalDiffTime
+</span><a href="#local-6989586621679054355"><span class="hs-identifier hs-var">modTime</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">NominalDiffTime
+</span><a href="#local-6989586621679054366"><span class="hs-identifier hs-var">timestampBeforeAddingWatch</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-163"></span><span>                    </span><span class="annot"><span class="annottext">ActionPredicate
+-&gt; EventChannel -&gt; DebouncePayload -&gt; Event -&gt; IO ()
+</span><a href="System.FSNotify.Linux.html#handleEvent"><span class="hs-identifier hs-var">handleEvent</span></a></span><span> </span><span class="annot"><span class="annottext">ActionPredicate
+</span><a href="#local-6989586621679054407"><span class="hs-identifier hs-var">actPred</span></a></span><span> </span><span class="annot"><span class="annottext">EventChannel
+</span><a href="#local-6989586621679054406"><span class="hs-identifier hs-var">chan</span></a></span><span> </span><span class="annot"><span class="annottext">DebouncePayload
+</span><a href="#local-6989586621679054371"><span class="hs-identifier hs-var">dbp</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; UTCTime -&gt; Bool -&gt; Event
+</span><a href="System.FSNotify.Types.html#Added"><span class="hs-identifier hs-var">Added</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679054367"><span class="hs-identifier hs-var">newDir</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-operator hs-var">&lt;/&gt;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679054359"><span class="hs-identifier hs-var">newPath</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">NominalDiffTime -&gt; UTCTime
+</span><span class="hs-identifier hs-var">posixSecondsToUTCTime</span></span><span> </span><span class="annot"><span class="annottext">NominalDiffTime
+</span><a href="#local-6989586621679054366"><span class="hs-identifier hs-var">timestampBeforeAddingWatch</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FileStatus -&gt; Bool
+</span><span class="hs-identifier hs-var">isDirectory</span></span><span> </span><span class="annot"><span class="annottext">FileStatus
+</span><a href="#local-6989586621679054356"><span class="hs-identifier hs-var">fileStatus</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-164"></span><span>
+</span><span id="line-165"></span><span>              </span><span class="annot"><span class="annottext">Event
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-166"></span><span>
+</span><span id="line-167"></span><span>            </span><span class="hs-comment">-- Remove watch when this directory is removed</span><span>
+</span><span id="line-168"></span><span>            </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Event
+</span><a href="#local-6989586621679054370"><span class="hs-identifier hs-var">event</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-169"></span><span>              </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Event
+</span><span class="hs-identifier hs-var">INo.DeletedSelf</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-170"></span><span>                </span><span class="hs-comment">-- putStrLn &quot;Watched file/folder was deleted! TODO: remove watch.&quot;</span><span>
+</span><span id="line-171"></span><span>                </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-172"></span><span>              </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Event
+</span><span class="hs-identifier hs-var">INo.Ignored</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-173"></span><span>                </span><span class="hs-comment">-- putStrLn &quot;Watched file/folder was ignored, which possibly means it was deleted. TODO: remove watch.&quot;</span><span>
+</span><span id="line-174"></span><span>                </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-175"></span><span>              </span><span class="annot"><span class="annottext">Event
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-176"></span><span>
+</span><span id="line-177"></span><span>            </span><span class="hs-comment">-- Forward all events, including directory create</span><span>
+</span><span id="line-178"></span><span>            </span><span class="annot"><span class="annottext">ActionPredicate
+-&gt; EventChannel -&gt; String -&gt; DebouncePayload -&gt; Event -&gt; IO ()
+</span><a href="System.FSNotify.Linux.html#handleInoEvent"><span class="hs-identifier hs-var">handleInoEvent</span></a></span><span> </span><span class="annot"><span class="annottext">ActionPredicate
+</span><a href="#local-6989586621679054407"><span class="hs-identifier hs-var">actPred</span></a></span><span> </span><span class="annot"><span class="annottext">EventChannel
+</span><a href="#local-6989586621679054406"><span class="hs-identifier hs-var">chan</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679054372"><span class="hs-identifier hs-var">baseDir</span></a></span><span> </span><span class="annot"><span class="annottext">DebouncePayload
+</span><a href="#local-6989586621679054371"><span class="hs-identifier hs-var">dbp</span></a></span><span> </span><span class="annot"><span class="annottext">Event
+</span><a href="#local-6989586621679054370"><span class="hs-identifier hs-var">event</span></a></span><span>
+</span><span id="line-179"></span><span>
+</span><span id="line-180"></span><span>  </span><span id="local-6989586621679054351"><span class="annot"><span class="annottext">usesPolling :: INotify -&gt; Bool
+</span><a href="System.FSNotify.Listener.html#usesPolling"><span class="hs-identifier hs-var hs-var hs-var hs-var">usesPolling</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-181"></span></pre></body></html>

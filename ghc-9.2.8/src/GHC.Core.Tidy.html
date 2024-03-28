@@ -1,0 +1,778 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">{-
+(c) The University of Glasgow 2006
+(c) The AQUA Project, Glasgow University, 1996-1998
+
+
+This module contains &quot;tidying&quot; code for *nested* expressions, bindings, rules.
+The code for *top-level* bindings is in GHC.Iface.Tidy.
+-}</span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-11"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-incomplete-record-updates #-}</span><span>
+</span><span id="line-12"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">GHC.Core.Tidy</span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-13"></span><span>        </span><span class="annot"><a href="GHC.Core.Tidy.html#tidyExpr"><span class="hs-identifier">tidyExpr</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Core.Tidy.html#tidyRules"><span class="hs-identifier">tidyRules</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Core.Tidy.html#tidyUnfolding"><span class="hs-identifier">tidyUnfolding</span></a></span><span>
+</span><span id="line-14"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span class="hs-cpp">
+
+#include &quot;HsVersions.h&quot;
+</span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Prelude.html"><span class="hs-identifier">GHC.Prelude</span></a></span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Core.html"><span class="hs-identifier">GHC.Core</span></a></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Core.Seq.html"><span class="hs-identifier">GHC.Core.Seq</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Core.Seq.html#seqUnfolding"><span class="hs-identifier">seqUnfolding</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Id.html"><span class="hs-identifier">GHC.Types.Id</span></a></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Id.Info.html"><span class="hs-identifier">GHC.Types.Id.Info</span></a></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Demand.html"><span class="hs-identifier">GHC.Types.Demand</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Types.Demand.html#zapDmdEnvSig"><span class="hs-identifier">zapDmdEnvSig</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Core.Type.html"><span class="hs-identifier">GHC.Core.Type</span></a></span><span>     </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Core.TyCo.Tidy.html#tidyType"><span class="hs-identifier">tidyType</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Core.TyCo.Tidy.html#tidyVarBndr"><span class="hs-identifier">tidyVarBndr</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.html"><span class="hs-identifier">GHC.Core.Coercion</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Core.TyCo.Tidy.html#tidyCo"><span class="hs-identifier">tidyCo</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Var.html"><span class="hs-identifier">GHC.Types.Var</span></a></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Var.Env.html"><span class="hs-identifier">GHC.Types.Var.Env</span></a></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Unique.html"><span class="hs-identifier">GHC.Types.Unique</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.Unique.html#getUnique"><span class="hs-identifier">getUnique</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Unique.FM.html"><span class="hs-identifier">GHC.Types.Unique.FM</span></a></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Name.html"><span class="hs-identifier">GHC.Types.Name</span></a></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.Name.html#tidyNameOcc"><span class="hs-identifier">tidyNameOcc</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.SrcLoc.html"><span class="hs-identifier">GHC.Types.SrcLoc</span></a></span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Tickish.html"><span class="hs-identifier">GHC.Types.Tickish</span></a></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Data.Maybe.html"><span class="hs-identifier">GHC.Data.Maybe</span></a></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Data-List.html#"><span class="hs-identifier">Data.List</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../base-4.16.4.0/src/Data-Traversable.html#mapAccumL"><span class="hs-identifier">mapAccumL</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="hs-comment">{-
+************************************************************************
+*                                                                      *
+\subsection{Tidying expressions, rules}
+*                                                                      *
+************************************************************************
+-}</span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span class="annot"><a href="GHC.Core.Tidy.html#tidyBind"><span class="hs-identifier hs-type">tidyBind</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Types.Var.Env.html#TidyEnv"><span class="hs-identifier hs-type">TidyEnv</span></a></span><span>
+</span><span id="line-46"></span><span>         </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.html#CoreBind"><span class="hs-identifier hs-type">CoreBind</span></a></span><span>
+</span><span id="line-47"></span><span>         </span><span class="hs-glyph">-&gt;</span><span>  </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.Var.Env.html#TidyEnv"><span class="hs-identifier hs-type">TidyEnv</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Core.html#CoreBind"><span class="hs-identifier hs-type">CoreBind</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span id="tidyBind"><span class="annot"><span class="annottext">tidyBind :: TidyEnv -&gt; CoreBind -&gt; (TidyEnv, CoreBind)
+</span><a href="GHC.Core.Tidy.html#tidyBind"><span class="hs-identifier hs-var hs-var">tidyBind</span></a></span></span><span> </span><span id="local-6989586621681167959"><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167959"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Core.html#NonRec"><span class="hs-identifier hs-type">NonRec</span></a></span><span> </span><span id="local-6989586621681167957"><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621681167957"><span class="hs-identifier hs-var">bndr</span></a></span></span><span> </span><span id="local-6989586621681167956"><span class="annot"><span class="annottext">Expr Id
+</span><a href="#local-6989586621681167956"><span class="hs-identifier hs-var">rhs</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-50"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TidyEnv -&gt; TidyEnv -&gt; Id -&gt; (TidyEnv, Id)
+</span><a href="GHC.Core.Tidy.html#tidyLetBndr"><span class="hs-identifier hs-var">tidyLetBndr</span></a></span><span> </span><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167959"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167959"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621681167957"><span class="hs-identifier hs-var">bndr</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><a href="GHC.Core.Tidy.html#%3D%3A"><span class="hs-operator hs-var">=:</span></a></span><span> </span><span class="hs-glyph">\</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681167953"><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167953"><span class="hs-identifier hs-var">env'</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681167952"><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621681167952"><span class="hs-identifier hs-var">bndr'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-51"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167953"><span class="hs-identifier hs-var">env'</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall b. b -&gt; Expr b -&gt; Bind b
+</span><a href="GHC.Core.html#NonRec"><span class="hs-identifier hs-var">NonRec</span></a></span><span> </span><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621681167952"><span class="hs-identifier hs-var">bndr'</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TidyEnv -&gt; Expr Id -&gt; Expr Id
+</span><a href="GHC.Core.Tidy.html#tidyExpr"><span class="hs-identifier hs-var">tidyExpr</span></a></span><span> </span><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167953"><span class="hs-identifier hs-var">env'</span></a></span><span> </span><span class="annot"><span class="annottext">Expr Id
+</span><a href="#local-6989586621681167956"><span class="hs-identifier hs-var">rhs</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-52"></span><span>
+</span><span id="line-53"></span><span class="annot"><a href="GHC.Core.Tidy.html#tidyBind"><span class="hs-identifier hs-var">tidyBind</span></a></span><span> </span><span id="local-6989586621681167951"><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167951"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Core.html#Rec"><span class="hs-identifier hs-type">Rec</span></a></span><span> </span><span id="local-6989586621681167949"><span class="annot"><span class="annottext">[(Id, Expr Id)]
+</span><a href="#local-6989586621681167949"><span class="hs-identifier hs-var">prs</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-54"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">let</span><span>
+</span><span id="line-55"></span><span>       </span><span class="hs-special">(</span><span id="local-6989586621681167948"><span class="annot"><span class="annottext">[Id]
+</span><a href="#local-6989586621681167948"><span class="hs-identifier hs-var">bndrs</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681167947"><span class="annot"><span class="annottext">[Expr Id]
+</span><a href="#local-6989586621681167947"><span class="hs-identifier hs-var">rhss</span></a></span></span><span class="hs-special">)</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. [(a, b)] -&gt; ([a], [b])
+</span><a href="../../base-4.16.4.0/src/GHC-List.html#unzip"><span class="hs-identifier hs-var">unzip</span></a></span><span> </span><span class="annot"><span class="annottext">[(Id, Expr Id)]
+</span><a href="#local-6989586621681167949"><span class="hs-identifier hs-var">prs</span></a></span><span>
+</span><span id="line-56"></span><span>       </span><span class="hs-special">(</span><span id="local-6989586621681167945"><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167945"><span class="hs-identifier hs-var">env'</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681167944"><span class="annot"><span class="annottext">[Id]
+</span><a href="#local-6989586621681167944"><span class="hs-identifier hs-var">bndrs'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) s a b.
+Traversable t =&gt;
+(s -&gt; a -&gt; (s, b)) -&gt; s -&gt; t a -&gt; (s, t b)
+</span><a href="../../base-4.16.4.0/src/Data-Traversable.html#mapAccumL"><span class="hs-identifier hs-var">mapAccumL</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TidyEnv -&gt; TidyEnv -&gt; Id -&gt; (TidyEnv, Id)
+</span><a href="GHC.Core.Tidy.html#tidyLetBndr"><span class="hs-identifier hs-var">tidyLetBndr</span></a></span><span> </span><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167945"><span class="hs-identifier hs-var">env'</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167951"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="annot"><span class="annottext">[Id]
+</span><a href="#local-6989586621681167948"><span class="hs-identifier hs-var">bndrs</span></a></span><span>
+</span><span id="line-57"></span><span>    </span><span class="hs-keyword">in</span><span>
+</span><span id="line-58"></span><span>    </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#map"><span class="hs-identifier hs-var">map</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TidyEnv -&gt; Expr Id -&gt; Expr Id
+</span><a href="GHC.Core.Tidy.html#tidyExpr"><span class="hs-identifier hs-var">tidyExpr</span></a></span><span> </span><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167945"><span class="hs-identifier hs-var">env'</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Expr Id]
+</span><a href="#local-6989586621681167947"><span class="hs-identifier hs-var">rhss</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><a href="GHC.Core.Tidy.html#%3D%3A"><span class="hs-operator hs-var">=:</span></a></span><span> </span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621681167943"><span class="annot"><span class="annottext">[Expr Id]
+</span><a href="#local-6989586621681167943"><span class="hs-identifier hs-var">rhss'</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-59"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167945"><span class="hs-identifier hs-var">env'</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall b. [(b, Expr b)] -&gt; Bind b
+</span><a href="GHC.Core.html#Rec"><span class="hs-identifier hs-var">Rec</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. [a] -&gt; [b] -&gt; [(a, b)]
+</span><a href="../../base-4.16.4.0/src/GHC-List.html#zip"><span class="hs-identifier hs-var">zip</span></a></span><span> </span><span class="annot"><span class="annottext">[Id]
+</span><a href="#local-6989586621681167944"><span class="hs-identifier hs-var">bndrs'</span></a></span><span> </span><span class="annot"><span class="annottext">[Expr Id]
+</span><a href="#local-6989586621681167943"><span class="hs-identifier hs-var">rhss'</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-60"></span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span><span class="hs-comment">------------  Expressions  --------------</span><span>
+</span><span id="line-63"></span><span class="annot"><a href="GHC.Core.Tidy.html#tidyExpr"><span class="hs-identifier hs-type">tidyExpr</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Types.Var.Env.html#TidyEnv"><span class="hs-identifier hs-type">TidyEnv</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.html#CoreExpr"><span class="hs-identifier hs-type">CoreExpr</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.html#CoreExpr"><span class="hs-identifier hs-type">CoreExpr</span></a></span><span>
+</span><span id="line-64"></span><span id="tidyExpr"><span class="annot"><span class="annottext">tidyExpr :: TidyEnv -&gt; Expr Id -&gt; Expr Id
+</span><a href="GHC.Core.Tidy.html#tidyExpr"><span class="hs-identifier hs-var hs-var">tidyExpr</span></a></span></span><span> </span><span id="local-6989586621681167941"><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167941"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Core.html#Var"><span class="hs-identifier hs-type">Var</span></a></span><span> </span><span id="local-6989586621681167939"><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621681167939"><span class="hs-identifier hs-var">v</span></a></span></span><span class="hs-special">)</span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall b. Id -&gt; Expr b
+</span><a href="GHC.Core.html#Var"><span class="hs-identifier hs-var">Var</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TidyEnv -&gt; Id -&gt; Id
+</span><a href="GHC.Core.Tidy.html#tidyVarOcc"><span class="hs-identifier hs-var">tidyVarOcc</span></a></span><span> </span><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167941"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621681167939"><span class="hs-identifier hs-var">v</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-65"></span><span class="annot"><a href="GHC.Core.Tidy.html#tidyExpr"><span class="hs-identifier hs-var">tidyExpr</span></a></span><span> </span><span id="local-6989586621681167937"><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167937"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Core.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span> </span><span id="local-6989586621681167935"><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621681167935"><span class="hs-identifier hs-var">ty</span></a></span></span><span class="hs-special">)</span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall b. Type -&gt; Expr b
+</span><a href="GHC.Core.html#Type"><span class="hs-identifier hs-var">Type</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TidyEnv -&gt; Type -&gt; Type
+</span><a href="GHC.Core.TyCo.Tidy.html#tidyType"><span class="hs-identifier hs-var">tidyType</span></a></span><span> </span><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167937"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621681167935"><span class="hs-identifier hs-var">ty</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-66"></span><span class="annot"><a href="GHC.Core.Tidy.html#tidyExpr"><span class="hs-identifier hs-var">tidyExpr</span></a></span><span> </span><span id="local-6989586621681167934"><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167934"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Core.html#Coercion"><span class="hs-identifier hs-type">Coercion</span></a></span><span> </span><span id="local-6989586621681167932"><span class="annot"><span class="annottext">Coercion
+</span><a href="#local-6989586621681167932"><span class="hs-identifier hs-var">co</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall b. Coercion -&gt; Expr b
+</span><a href="GHC.Core.html#Coercion"><span class="hs-identifier hs-var">Coercion</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TidyEnv -&gt; Coercion -&gt; Coercion
+</span><a href="GHC.Core.TyCo.Tidy.html#tidyCo"><span class="hs-identifier hs-var">tidyCo</span></a></span><span> </span><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167934"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="annot"><span class="annottext">Coercion
+</span><a href="#local-6989586621681167932"><span class="hs-identifier hs-var">co</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-67"></span><span class="annot"><a href="GHC.Core.Tidy.html#tidyExpr"><span class="hs-identifier hs-var">tidyExpr</span></a></span><span> </span><span class="annot"><span class="annottext">TidyEnv
+</span><span class="hs-identifier">_</span></span><span>   </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Core.html#Lit"><span class="hs-identifier hs-type">Lit</span></a></span><span> </span><span id="local-6989586621681167930"><span class="annot"><span class="annottext">Literal
+</span><a href="#local-6989586621681167930"><span class="hs-identifier hs-var">lit</span></a></span></span><span class="hs-special">)</span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall b. Literal -&gt; Expr b
+</span><a href="GHC.Core.html#Lit"><span class="hs-identifier hs-var">Lit</span></a></span><span> </span><span class="annot"><span class="annottext">Literal
+</span><a href="#local-6989586621681167930"><span class="hs-identifier hs-var">lit</span></a></span><span>
+</span><span id="line-68"></span><span class="annot"><a href="GHC.Core.Tidy.html#tidyExpr"><span class="hs-identifier hs-var">tidyExpr</span></a></span><span> </span><span id="local-6989586621681167929"><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167929"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Core.html#App"><span class="hs-identifier hs-type">App</span></a></span><span> </span><span id="local-6989586621681167927"><span class="annot"><span class="annottext">Expr Id
+</span><a href="#local-6989586621681167927"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621681167926"><span class="annot"><span class="annottext">Expr Id
+</span><a href="#local-6989586621681167926"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall b. Expr b -&gt; Expr b -&gt; Expr b
+</span><a href="GHC.Core.html#App"><span class="hs-identifier hs-var">App</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TidyEnv -&gt; Expr Id -&gt; Expr Id
+</span><a href="GHC.Core.Tidy.html#tidyExpr"><span class="hs-identifier hs-var">tidyExpr</span></a></span><span> </span><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167929"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="annot"><span class="annottext">Expr Id
+</span><a href="#local-6989586621681167927"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TidyEnv -&gt; Expr Id -&gt; Expr Id
+</span><a href="GHC.Core.Tidy.html#tidyExpr"><span class="hs-identifier hs-var">tidyExpr</span></a></span><span> </span><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167929"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="annot"><span class="annottext">Expr Id
+</span><a href="#local-6989586621681167926"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-69"></span><span class="annot"><a href="GHC.Core.Tidy.html#tidyExpr"><span class="hs-identifier hs-var">tidyExpr</span></a></span><span> </span><span id="local-6989586621681167925"><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167925"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Core.html#Tick"><span class="hs-identifier hs-type">Tick</span></a></span><span> </span><span id="local-6989586621681167923"><span class="annot"><span class="annottext">CoreTickish
+</span><a href="#local-6989586621681167923"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span id="local-6989586621681167922"><span class="annot"><span class="annottext">Expr Id
+</span><a href="#local-6989586621681167922"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-special">)</span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall b. CoreTickish -&gt; Expr b -&gt; Expr b
+</span><a href="GHC.Core.html#Tick"><span class="hs-identifier hs-var">Tick</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TidyEnv -&gt; CoreTickish -&gt; CoreTickish
+</span><a href="GHC.Core.Tidy.html#tidyTickish"><span class="hs-identifier hs-var">tidyTickish</span></a></span><span> </span><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167925"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="annot"><span class="annottext">CoreTickish
+</span><a href="#local-6989586621681167923"><span class="hs-identifier hs-var">t</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TidyEnv -&gt; Expr Id -&gt; Expr Id
+</span><a href="GHC.Core.Tidy.html#tidyExpr"><span class="hs-identifier hs-var">tidyExpr</span></a></span><span> </span><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167925"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="annot"><span class="annottext">Expr Id
+</span><a href="#local-6989586621681167922"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-70"></span><span class="annot"><a href="GHC.Core.Tidy.html#tidyExpr"><span class="hs-identifier hs-var">tidyExpr</span></a></span><span> </span><span id="local-6989586621681167920"><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167920"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Core.html#Cast"><span class="hs-identifier hs-type">Cast</span></a></span><span> </span><span id="local-6989586621681167918"><span class="annot"><span class="annottext">Expr Id
+</span><a href="#local-6989586621681167918"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span id="local-6989586621681167917"><span class="annot"><span class="annottext">Coercion
+</span><a href="#local-6989586621681167917"><span class="hs-identifier hs-var">co</span></a></span></span><span class="hs-special">)</span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall b. Expr b -&gt; Coercion -&gt; Expr b
+</span><a href="GHC.Core.html#Cast"><span class="hs-identifier hs-var">Cast</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TidyEnv -&gt; Expr Id -&gt; Expr Id
+</span><a href="GHC.Core.Tidy.html#tidyExpr"><span class="hs-identifier hs-var">tidyExpr</span></a></span><span> </span><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167920"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="annot"><span class="annottext">Expr Id
+</span><a href="#local-6989586621681167918"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TidyEnv -&gt; Coercion -&gt; Coercion
+</span><a href="GHC.Core.TyCo.Tidy.html#tidyCo"><span class="hs-identifier hs-var">tidyCo</span></a></span><span> </span><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167920"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="annot"><span class="annottext">Coercion
+</span><a href="#local-6989586621681167917"><span class="hs-identifier hs-var">co</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-71"></span><span>
+</span><span id="line-72"></span><span class="annot"><a href="GHC.Core.Tidy.html#tidyExpr"><span class="hs-identifier hs-var">tidyExpr</span></a></span><span> </span><span id="local-6989586621681167916"><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167916"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Core.html#Let"><span class="hs-identifier hs-type">Let</span></a></span><span> </span><span id="local-6989586621681167914"><span class="annot"><span class="annottext">CoreBind
+</span><a href="#local-6989586621681167914"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span id="local-6989586621681167913"><span class="annot"><span class="annottext">Expr Id
+</span><a href="#local-6989586621681167913"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-73"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TidyEnv -&gt; CoreBind -&gt; (TidyEnv, CoreBind)
+</span><a href="GHC.Core.Tidy.html#tidyBind"><span class="hs-identifier hs-var">tidyBind</span></a></span><span> </span><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167916"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="annot"><span class="annottext">CoreBind
+</span><a href="#local-6989586621681167914"><span class="hs-identifier hs-var">b</span></a></span><span>      </span><span class="annot"><span class="annottext">forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><a href="GHC.Core.Tidy.html#%3D%3A"><span class="hs-operator hs-var">=:</span></a></span><span> </span><span class="hs-glyph">\</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681167912"><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167912"><span class="hs-identifier hs-var">env'</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681167911"><span class="annot"><span class="annottext">CoreBind
+</span><a href="#local-6989586621681167911"><span class="hs-identifier hs-var">b'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-74"></span><span>    </span><span class="annot"><span class="annottext">forall b. Bind b -&gt; Expr b -&gt; Expr b
+</span><a href="GHC.Core.html#Let"><span class="hs-identifier hs-var">Let</span></a></span><span> </span><span class="annot"><span class="annottext">CoreBind
+</span><a href="#local-6989586621681167911"><span class="hs-identifier hs-var">b'</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TidyEnv -&gt; Expr Id -&gt; Expr Id
+</span><a href="GHC.Core.Tidy.html#tidyExpr"><span class="hs-identifier hs-var">tidyExpr</span></a></span><span> </span><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167912"><span class="hs-identifier hs-var">env'</span></a></span><span> </span><span class="annot"><span class="annottext">Expr Id
+</span><a href="#local-6989586621681167913"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span><span class="annot"><a href="GHC.Core.Tidy.html#tidyExpr"><span class="hs-identifier hs-var">tidyExpr</span></a></span><span> </span><span id="local-6989586621681167910"><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167910"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Core.html#Case"><span class="hs-identifier hs-type">Case</span></a></span><span> </span><span id="local-6989586621681167908"><span class="annot"><span class="annottext">Expr Id
+</span><a href="#local-6989586621681167908"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span id="local-6989586621681167907"><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621681167907"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span id="local-6989586621681167906"><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621681167906"><span class="hs-identifier hs-var">ty</span></a></span></span><span> </span><span id="local-6989586621681167905"><span class="annot"><span class="annottext">[Alt Id]
+</span><a href="#local-6989586621681167905"><span class="hs-identifier hs-var">alts</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-77"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TidyEnv -&gt; Id -&gt; (TidyEnv, Id)
+</span><a href="GHC.Core.Tidy.html#tidyBndr"><span class="hs-identifier hs-var">tidyBndr</span></a></span><span> </span><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167910"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621681167907"><span class="hs-identifier hs-var">b</span></a></span><span>  </span><span class="annot"><span class="annottext">forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><a href="GHC.Core.Tidy.html#%3D%3A"><span class="hs-operator hs-var">=:</span></a></span><span> </span><span class="hs-glyph">\</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681167903"><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167903"><span class="hs-identifier hs-var">env'</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681167902"><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621681167902"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-78"></span><span>    </span><span class="annot"><span class="annottext">forall b. Expr b -&gt; b -&gt; Type -&gt; [Alt b] -&gt; Expr b
+</span><a href="GHC.Core.html#Case"><span class="hs-identifier hs-var">Case</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TidyEnv -&gt; Expr Id -&gt; Expr Id
+</span><a href="GHC.Core.Tidy.html#tidyExpr"><span class="hs-identifier hs-var">tidyExpr</span></a></span><span> </span><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167910"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="annot"><span class="annottext">Expr Id
+</span><a href="#local-6989586621681167908"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621681167902"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TidyEnv -&gt; Type -&gt; Type
+</span><a href="GHC.Core.TyCo.Tidy.html#tidyType"><span class="hs-identifier hs-var">tidyType</span></a></span><span> </span><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167910"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621681167906"><span class="hs-identifier hs-var">ty</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-79"></span><span>         </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#map"><span class="hs-identifier hs-var">map</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TidyEnv -&gt; Alt Id -&gt; Alt Id
+</span><a href="GHC.Core.Tidy.html#tidyAlt"><span class="hs-identifier hs-var">tidyAlt</span></a></span><span> </span><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167903"><span class="hs-identifier hs-var">env'</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Alt Id]
+</span><a href="#local-6989586621681167905"><span class="hs-identifier hs-var">alts</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-80"></span><span>
+</span><span id="line-81"></span><span class="annot"><a href="GHC.Core.Tidy.html#tidyExpr"><span class="hs-identifier hs-var">tidyExpr</span></a></span><span> </span><span id="local-6989586621681167900"><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167900"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Core.html#Lam"><span class="hs-identifier hs-type">Lam</span></a></span><span> </span><span id="local-6989586621681167898"><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621681167898"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span id="local-6989586621681167897"><span class="annot"><span class="annottext">Expr Id
+</span><a href="#local-6989586621681167897"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-82"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TidyEnv -&gt; Id -&gt; (TidyEnv, Id)
+</span><a href="GHC.Core.Tidy.html#tidyBndr"><span class="hs-identifier hs-var">tidyBndr</span></a></span><span> </span><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167900"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621681167898"><span class="hs-identifier hs-var">b</span></a></span><span>      </span><span class="annot"><span class="annottext">forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><a href="GHC.Core.Tidy.html#%3D%3A"><span class="hs-operator hs-var">=:</span></a></span><span> </span><span class="hs-glyph">\</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681167896"><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167896"><span class="hs-identifier hs-var">env'</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681167895"><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621681167895"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-83"></span><span>    </span><span class="annot"><span class="annottext">forall b. b -&gt; Expr b -&gt; Expr b
+</span><a href="GHC.Core.html#Lam"><span class="hs-identifier hs-var">Lam</span></a></span><span> </span><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621681167895"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TidyEnv -&gt; Expr Id -&gt; Expr Id
+</span><a href="GHC.Core.Tidy.html#tidyExpr"><span class="hs-identifier hs-var">tidyExpr</span></a></span><span> </span><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167896"><span class="hs-identifier hs-var">env'</span></a></span><span> </span><span class="annot"><span class="annottext">Expr Id
+</span><a href="#local-6989586621681167897"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-84"></span><span>
+</span><span id="line-85"></span><span class="hs-comment">------------  Case alternatives  --------------</span><span>
+</span><span id="line-86"></span><span class="annot"><a href="GHC.Core.Tidy.html#tidyAlt"><span class="hs-identifier hs-type">tidyAlt</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Types.Var.Env.html#TidyEnv"><span class="hs-identifier hs-type">TidyEnv</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.html#CoreAlt"><span class="hs-identifier hs-type">CoreAlt</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.html#CoreAlt"><span class="hs-identifier hs-type">CoreAlt</span></a></span><span>
+</span><span id="line-87"></span><span id="tidyAlt"><span class="annot"><span class="annottext">tidyAlt :: TidyEnv -&gt; Alt Id -&gt; Alt Id
+</span><a href="GHC.Core.Tidy.html#tidyAlt"><span class="hs-identifier hs-var hs-var">tidyAlt</span></a></span></span><span> </span><span id="local-6989586621681167893"><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167893"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Core.html#Alt"><span class="hs-identifier hs-type">Alt</span></a></span><span> </span><span id="local-6989586621681167891"><span class="annot"><span class="annottext">AltCon
+</span><a href="#local-6989586621681167891"><span class="hs-identifier hs-var">con</span></a></span></span><span> </span><span id="local-6989586621681167890"><span class="annot"><span class="annottext">[Id]
+</span><a href="#local-6989586621681167890"><span class="hs-identifier hs-var">vs</span></a></span></span><span> </span><span id="local-6989586621681167889"><span class="annot"><span class="annottext">Expr Id
+</span><a href="#local-6989586621681167889"><span class="hs-identifier hs-var">rhs</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-88"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TidyEnv -&gt; [Id] -&gt; (TidyEnv, [Id])
+</span><a href="GHC.Core.Tidy.html#tidyBndrs"><span class="hs-identifier hs-var">tidyBndrs</span></a></span><span> </span><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167893"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="annot"><span class="annottext">[Id]
+</span><a href="#local-6989586621681167890"><span class="hs-identifier hs-var">vs</span></a></span><span>    </span><span class="annot"><span class="annottext">forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><a href="GHC.Core.Tidy.html#%3D%3A"><span class="hs-operator hs-var">=:</span></a></span><span> </span><span class="hs-glyph">\</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681167887"><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167887"><span class="hs-identifier hs-var">env'</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681167886"><span class="annot"><span class="annottext">[Id]
+</span><a href="#local-6989586621681167886"><span class="hs-identifier hs-var">vs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-89"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall b. AltCon -&gt; [b] -&gt; Expr b -&gt; Alt b
+</span><a href="GHC.Core.html#Alt"><span class="hs-identifier hs-var">Alt</span></a></span><span> </span><span class="annot"><span class="annottext">AltCon
+</span><a href="#local-6989586621681167891"><span class="hs-identifier hs-var">con</span></a></span><span> </span><span class="annot"><span class="annottext">[Id]
+</span><a href="#local-6989586621681167886"><span class="hs-identifier hs-var">vs</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TidyEnv -&gt; Expr Id -&gt; Expr Id
+</span><a href="GHC.Core.Tidy.html#tidyExpr"><span class="hs-identifier hs-var">tidyExpr</span></a></span><span> </span><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167887"><span class="hs-identifier hs-var">env'</span></a></span><span> </span><span class="annot"><span class="annottext">Expr Id
+</span><a href="#local-6989586621681167889"><span class="hs-identifier hs-var">rhs</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-90"></span><span>
+</span><span id="line-91"></span><span class="hs-comment">------------  Tickish  --------------</span><span>
+</span><span id="line-92"></span><span class="annot"><a href="GHC.Core.Tidy.html#tidyTickish"><span class="hs-identifier hs-type">tidyTickish</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Types.Var.Env.html#TidyEnv"><span class="hs-identifier hs-type">TidyEnv</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Types.Tickish.html#CoreTickish"><span class="hs-identifier hs-type">CoreTickish</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Types.Tickish.html#CoreTickish"><span class="hs-identifier hs-type">CoreTickish</span></a></span><span>
+</span><span id="line-93"></span><span id="tidyTickish"><span class="annot"><span class="annottext">tidyTickish :: TidyEnv -&gt; CoreTickish -&gt; CoreTickish
+</span><a href="GHC.Core.Tidy.html#tidyTickish"><span class="hs-identifier hs-var hs-var">tidyTickish</span></a></span></span><span> </span><span id="local-6989586621681167885"><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167885"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.Tickish.html#Breakpoint"><span class="hs-identifier hs-type">Breakpoint</span></a></span><span> </span><span id="local-6989586621681167883"><span class="annot"><span class="annottext">XBreakpoint 'TickishPassCore
+</span><a href="#local-6989586621681167883"><span class="hs-identifier hs-var">ext</span></a></span></span><span> </span><span id="local-6989586621681167882"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681167882"><span class="hs-identifier hs-var">ix</span></a></span></span><span> </span><span id="local-6989586621681167881"><span class="annot"><span class="annottext">[XTickishId 'TickishPassCore]
+</span><a href="#local-6989586621681167881"><span class="hs-identifier hs-var">ids</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-94"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (pass :: TickishPass).
+XBreakpoint pass -&gt; Int -&gt; [XTickishId pass] -&gt; GenTickish pass
+</span><a href="GHC.Types.Tickish.html#Breakpoint"><span class="hs-identifier hs-var">Breakpoint</span></a></span><span> </span><span class="annot"><span class="annottext">XBreakpoint 'TickishPassCore
+</span><a href="#local-6989586621681167883"><span class="hs-identifier hs-var">ext</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681167882"><span class="hs-identifier hs-var">ix</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#map"><span class="hs-identifier hs-var">map</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TidyEnv -&gt; Id -&gt; Id
+</span><a href="GHC.Core.Tidy.html#tidyVarOcc"><span class="hs-identifier hs-var">tidyVarOcc</span></a></span><span> </span><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167885"><span class="hs-identifier hs-var">env</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[XTickishId 'TickishPassCore]
+</span><a href="#local-6989586621681167881"><span class="hs-identifier hs-var">ids</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-95"></span><span class="annot"><a href="GHC.Core.Tidy.html#tidyTickish"><span class="hs-identifier hs-var">tidyTickish</span></a></span><span> </span><span class="annot"><span class="annottext">TidyEnv
+</span><span class="hs-identifier">_</span></span><span>   </span><span id="local-6989586621681167880"><span class="annot"><span class="annottext">CoreTickish
+</span><a href="#local-6989586621681167880"><span class="hs-identifier hs-var">other_tickish</span></a></span></span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CoreTickish
+</span><a href="#local-6989586621681167880"><span class="hs-identifier hs-var">other_tickish</span></a></span><span>
+</span><span id="line-96"></span><span>
+</span><span id="line-97"></span><span class="hs-comment">------------  Rules  --------------</span><span>
+</span><span id="line-98"></span><span class="annot"><a href="GHC.Core.Tidy.html#tidyRules"><span class="hs-identifier hs-type">tidyRules</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Types.Var.Env.html#TidyEnv"><span class="hs-identifier hs-type">TidyEnv</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Core.html#CoreRule"><span class="hs-identifier hs-type">CoreRule</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Core.html#CoreRule"><span class="hs-identifier hs-type">CoreRule</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-99"></span><span id="tidyRules"><span class="annot"><span class="annottext">tidyRules :: TidyEnv -&gt; [CoreRule] -&gt; [CoreRule]
+</span><a href="GHC.Core.Tidy.html#tidyRules"><span class="hs-identifier hs-var hs-var">tidyRules</span></a></span></span><span> </span><span class="annot"><span class="annottext">TidyEnv
+</span><span class="hs-identifier">_</span></span><span>   </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-100"></span><span class="annot"><a href="GHC.Core.Tidy.html#tidyRules"><span class="hs-identifier hs-var">tidyRules</span></a></span><span> </span><span id="local-6989586621681167879"><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167879"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621681167878"><span class="annot"><span class="annottext">CoreRule
+</span><a href="#local-6989586621681167878"><span class="hs-identifier hs-var">rule</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621681167877"><span class="annot"><span class="annottext">[CoreRule]
+</span><a href="#local-6989586621681167877"><span class="hs-identifier hs-var">rules</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-101"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TidyEnv -&gt; CoreRule -&gt; CoreRule
+</span><a href="GHC.Core.Tidy.html#tidyRule"><span class="hs-identifier hs-var">tidyRule</span></a></span><span> </span><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167879"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="annot"><span class="annottext">CoreRule
+</span><a href="#local-6989586621681167878"><span class="hs-identifier hs-var">rule</span></a></span><span>           </span><span class="annot"><span class="annottext">forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><a href="GHC.Core.Tidy.html#%3D%3A"><span class="hs-operator hs-var">=:</span></a></span><span> </span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621681167875"><span class="annot"><span class="annottext">CoreRule
+</span><a href="#local-6989586621681167875"><span class="hs-identifier hs-var">rule</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-102"></span><span>    </span><span class="annot"><span class="annottext">TidyEnv -&gt; [CoreRule] -&gt; [CoreRule]
+</span><a href="GHC.Core.Tidy.html#tidyRules"><span class="hs-identifier hs-var">tidyRules</span></a></span><span> </span><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167879"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="annot"><span class="annottext">[CoreRule]
+</span><a href="#local-6989586621681167877"><span class="hs-identifier hs-var">rules</span></a></span><span>         </span><span class="annot"><span class="annottext">forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><a href="GHC.Core.Tidy.html#%3D%3A"><span class="hs-operator hs-var">=:</span></a></span><span> </span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621681167874"><span class="annot"><span class="annottext">[CoreRule]
+</span><a href="#local-6989586621681167874"><span class="hs-identifier hs-var">rules</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-103"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CoreRule
+</span><a href="#local-6989586621681167875"><span class="hs-identifier hs-var">rule</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[CoreRule]
+</span><a href="#local-6989586621681167874"><span class="hs-identifier hs-var">rules</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-104"></span><span>
+</span><span id="line-105"></span><span class="annot"><a href="GHC.Core.Tidy.html#tidyRule"><span class="hs-identifier hs-type">tidyRule</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Types.Var.Env.html#TidyEnv"><span class="hs-identifier hs-type">TidyEnv</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.html#CoreRule"><span class="hs-identifier hs-type">CoreRule</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.html#CoreRule"><span class="hs-identifier hs-type">CoreRule</span></a></span><span>
+</span><span id="line-106"></span><span id="tidyRule"><span class="annot"><span class="annottext">tidyRule :: TidyEnv -&gt; CoreRule -&gt; CoreRule
+</span><a href="GHC.Core.Tidy.html#tidyRule"><span class="hs-identifier hs-var hs-var">tidyRule</span></a></span></span><span> </span><span class="annot"><span class="annottext">TidyEnv
+</span><span class="hs-identifier">_</span></span><span>   </span><span id="local-6989586621681167873"><span class="annot"><span class="annottext">rule :: CoreRule
+</span><a href="#local-6989586621681167873"><span class="hs-identifier hs-var">rule</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="GHC.Core.html#BuiltinRule"><span class="hs-identifier hs-type">BuiltinRule</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CoreRule
+</span><a href="#local-6989586621681167873"><span class="hs-identifier hs-var">rule</span></a></span><span>
+</span><span id="line-107"></span><span class="annot"><a href="GHC.Core.Tidy.html#tidyRule"><span class="hs-identifier hs-var">tidyRule</span></a></span><span> </span><span id="local-6989586621681167871"><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167871"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span id="local-6989586621681167870"><span class="annot"><span class="annottext">rule :: CoreRule
+</span><a href="#local-6989586621681167870"><span class="hs-identifier hs-var">rule</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="GHC.Core.html#Rule"><span class="hs-identifier hs-type">Rule</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">ru_bndrs :: CoreRule -&gt; [Id]
+</span><a href="GHC.Core.html#ru_bndrs"><span class="hs-identifier hs-var">ru_bndrs</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621681167867"><span class="annot"><span class="annottext">[Id]
+</span><a href="#local-6989586621681167867"><span class="hs-identifier hs-var">bndrs</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ru_args :: CoreRule -&gt; [Expr Id]
+</span><a href="GHC.Core.html#ru_args"><span class="hs-identifier hs-var">ru_args</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621681167865"><span class="annot"><span class="annottext">[Expr Id]
+</span><a href="#local-6989586621681167865"><span class="hs-identifier hs-var">args</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ru_rhs :: CoreRule -&gt; Expr Id
+</span><a href="GHC.Core.html#ru_rhs"><span class="hs-identifier hs-var">ru_rhs</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621681167863"><span class="annot"><span class="annottext">Expr Id
+</span><a href="#local-6989586621681167863"><span class="hs-identifier hs-var">rhs</span></a></span></span><span class="hs-special">,</span><span>
+</span><span id="line-108"></span><span>                          </span><span class="annot"><span class="annottext">ru_fn :: CoreRule -&gt; Name
+</span><a href="GHC.Core.html#ru_fn"><span class="hs-identifier hs-var">ru_fn</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621681167861"><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621681167861"><span class="hs-identifier hs-var">fn</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ru_rough :: CoreRule -&gt; [Maybe Name]
+</span><a href="GHC.Core.html#ru_rough"><span class="hs-identifier hs-var">ru_rough</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621681167859"><span class="annot"><span class="annottext">[Maybe Name]
+</span><a href="#local-6989586621681167859"><span class="hs-identifier hs-var">mb_ns</span></a></span></span><span> </span><span class="hs-special">}</span><span class="hs-special">)</span><span>
+</span><span id="line-109"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TidyEnv -&gt; [Id] -&gt; (TidyEnv, [Id])
+</span><a href="GHC.Core.Tidy.html#tidyBndrs"><span class="hs-identifier hs-var">tidyBndrs</span></a></span><span> </span><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167871"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="annot"><span class="annottext">[Id]
+</span><a href="#local-6989586621681167867"><span class="hs-identifier hs-var">bndrs</span></a></span><span>         </span><span class="annot"><span class="annottext">forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><a href="GHC.Core.Tidy.html#%3D%3A"><span class="hs-operator hs-var">=:</span></a></span><span> </span><span class="hs-glyph">\</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681167858"><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167858"><span class="hs-identifier hs-var">env'</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681167857"><span class="annot"><span class="annottext">[Id]
+</span><a href="#local-6989586621681167857"><span class="hs-identifier hs-var">bndrs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-110"></span><span>    </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#map"><span class="hs-identifier hs-var">map</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TidyEnv -&gt; Expr Id -&gt; Expr Id
+</span><a href="GHC.Core.Tidy.html#tidyExpr"><span class="hs-identifier hs-var">tidyExpr</span></a></span><span> </span><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167858"><span class="hs-identifier hs-var">env'</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Expr Id]
+</span><a href="#local-6989586621681167865"><span class="hs-identifier hs-var">args</span></a></span><span>    </span><span class="annot"><span class="annottext">forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><a href="GHC.Core.Tidy.html#%3D%3A"><span class="hs-operator hs-var">=:</span></a></span><span> </span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621681167856"><span class="annot"><span class="annottext">[Expr Id]
+</span><a href="#local-6989586621681167856"><span class="hs-identifier hs-var">args</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-111"></span><span>    </span><span class="annot"><span class="annottext">CoreRule
+</span><a href="#local-6989586621681167870"><span class="hs-identifier hs-var">rule</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">ru_bndrs :: [Id]
+</span><a href="GHC.Core.html#ru_bndrs"><span class="hs-identifier hs-var">ru_bndrs</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Id]
+</span><a href="#local-6989586621681167857"><span class="hs-identifier hs-var">bndrs</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ru_args :: [Expr Id]
+</span><a href="GHC.Core.html#ru_args"><span class="hs-identifier hs-var">ru_args</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Expr Id]
+</span><a href="#local-6989586621681167856"><span class="hs-identifier hs-var">args</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-112"></span><span>           </span><span class="annot"><span class="annottext">ru_rhs :: Expr Id
+</span><a href="GHC.Core.html#ru_rhs"><span class="hs-identifier hs-var">ru_rhs</span></a></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TidyEnv -&gt; Expr Id -&gt; Expr Id
+</span><a href="GHC.Core.Tidy.html#tidyExpr"><span class="hs-identifier hs-var">tidyExpr</span></a></span><span> </span><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167858"><span class="hs-identifier hs-var">env'</span></a></span><span> </span><span class="annot"><span class="annottext">Expr Id
+</span><a href="#local-6989586621681167863"><span class="hs-identifier hs-var">rhs</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-113"></span><span>           </span><span class="annot"><span class="annottext">ru_fn :: Name
+</span><a href="GHC.Core.html#ru_fn"><span class="hs-identifier hs-var">ru_fn</span></a></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TidyEnv -&gt; Name -&gt; Name
+</span><a href="GHC.Core.Tidy.html#tidyNameOcc"><span class="hs-identifier hs-var">tidyNameOcc</span></a></span><span> </span><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167871"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621681167861"><span class="hs-identifier hs-var">fn</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-114"></span><span>           </span><span class="annot"><span class="annottext">ru_rough :: [Maybe Name]
+</span><a href="GHC.Core.html#ru_rough"><span class="hs-identifier hs-var">ru_rough</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#map"><span class="hs-identifier hs-var">map</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#fmap"><span class="hs-identifier hs-var">fmap</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TidyEnv -&gt; Name -&gt; Name
+</span><a href="GHC.Core.Tidy.html#tidyNameOcc"><span class="hs-identifier hs-var">tidyNameOcc</span></a></span><span> </span><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167858"><span class="hs-identifier hs-var">env'</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Maybe Name]
+</span><a href="#local-6989586621681167859"><span class="hs-identifier hs-var">mb_ns</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-115"></span><span>
+</span><span id="line-116"></span><span class="hs-comment">{-
+************************************************************************
+*                                                                      *
+\subsection{Tidying non-top-level binders}
+*                                                                      *
+************************************************************************
+-}</span><span>
+</span><span id="line-123"></span><span>
+</span><span id="line-124"></span><span class="annot"><a href="GHC.Core.Tidy.html#tidyNameOcc"><span class="hs-identifier hs-type">tidyNameOcc</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Types.Var.Env.html#TidyEnv"><span class="hs-identifier hs-type">TidyEnv</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Types.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Types.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span>
+</span><span id="line-125"></span><span class="hs-comment">-- In rules and instances, we have Names, and we must tidy them too</span><span>
+</span><span id="line-126"></span><span class="hs-comment">-- Fortunately, we can lookup in the VarEnv with a name</span><span>
+</span><span id="line-127"></span><span id="tidyNameOcc"><span class="annot"><span class="annottext">tidyNameOcc :: TidyEnv -&gt; Name -&gt; Name
+</span><a href="GHC.Core.Tidy.html#tidyNameOcc"><span class="hs-identifier hs-var hs-var">tidyNameOcc</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TidyOccEnv
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681167854"><span class="annot"><span class="annottext">VarEnv Id
+</span><a href="#local-6989586621681167854"><span class="hs-identifier hs-var">var_env</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621681167853"><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621681167853"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">forall key elt. UniqFM key elt -&gt; Unique -&gt; Maybe elt
+</span><a href="GHC.Types.Unique.FM.html#lookupUFM_Directly"><span class="hs-identifier hs-var">lookupUFM_Directly</span></a></span><span> </span><span class="annot"><span class="annottext">VarEnv Id
+</span><a href="#local-6989586621681167854"><span class="hs-identifier hs-var">var_env</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Uniquable a =&gt; a -&gt; Unique
+</span><a href="GHC.Types.Unique.html#getUnique"><span class="hs-identifier hs-var">getUnique</span></a></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621681167853"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-128"></span><span>                                </span><span class="annot"><span class="annottext">Maybe Id
+</span><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Nothing"><span class="hs-identifier hs-var">Nothing</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621681167853"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-129"></span><span>                                </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Just"><span class="hs-identifier hs-type">Just</span></a></span><span> </span><span id="local-6989586621681167851"><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621681167851"><span class="hs-identifier hs-var">v</span></a></span></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Id -&gt; Name
+</span><a href="GHC.Types.Id.html#idName"><span class="hs-identifier hs-var">idName</span></a></span><span> </span><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621681167851"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-130"></span><span>
+</span><span id="line-131"></span><span class="annot"><a href="GHC.Core.Tidy.html#tidyVarOcc"><span class="hs-identifier hs-type">tidyVarOcc</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Types.Var.Env.html#TidyEnv"><span class="hs-identifier hs-type">TidyEnv</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Types.Var.html#Var"><span class="hs-identifier hs-type">Var</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Types.Var.html#Var"><span class="hs-identifier hs-type">Var</span></a></span><span>
+</span><span id="line-132"></span><span id="tidyVarOcc"><span class="annot"><span class="annottext">tidyVarOcc :: TidyEnv -&gt; Id -&gt; Id
+</span><a href="GHC.Core.Tidy.html#tidyVarOcc"><span class="hs-identifier hs-var hs-var">tidyVarOcc</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TidyOccEnv
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681167848"><span class="annot"><span class="annottext">VarEnv Id
+</span><a href="#local-6989586621681167848"><span class="hs-identifier hs-var">var_env</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621681167847"><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621681167847"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. VarEnv a -&gt; Id -&gt; Maybe a
+</span><a href="GHC.Types.Var.Env.html#lookupVarEnv"><span class="hs-identifier hs-var">lookupVarEnv</span></a></span><span> </span><span class="annot"><span class="annottext">VarEnv Id
+</span><a href="#local-6989586621681167848"><span class="hs-identifier hs-var">var_env</span></a></span><span> </span><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621681167847"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a -&gt; a -&gt; a
+</span><a href="GHC.Data.Maybe.html#orElse"><span class="hs-operator hs-var">`orElse`</span></a></span><span> </span><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621681167847"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-133"></span><span>
+</span><span id="line-134"></span><span class="hs-comment">-- tidyBndr is used for lambda and case binders</span><span>
+</span><span id="line-135"></span><span class="annot"><a href="GHC.Core.Tidy.html#tidyBndr"><span class="hs-identifier hs-type">tidyBndr</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Types.Var.Env.html#TidyEnv"><span class="hs-identifier hs-type">TidyEnv</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Types.Var.html#Var"><span class="hs-identifier hs-type">Var</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.Var.Env.html#TidyEnv"><span class="hs-identifier hs-type">TidyEnv</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Types.Var.html#Var"><span class="hs-identifier hs-type">Var</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-136"></span><span id="tidyBndr"><span class="annot"><span class="annottext">tidyBndr :: TidyEnv -&gt; Id -&gt; (TidyEnv, Id)
+</span><a href="GHC.Core.Tidy.html#tidyBndr"><span class="hs-identifier hs-var hs-var">tidyBndr</span></a></span></span><span> </span><span id="local-6989586621681167844"><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167844"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span id="local-6989586621681167843"><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621681167843"><span class="hs-identifier hs-var">var</span></a></span></span><span>
+</span><span id="line-137"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Id -&gt; Bool
+</span><a href="GHC.Types.Var.html#isTyCoVar"><span class="hs-identifier hs-var">isTyCoVar</span></a></span><span> </span><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621681167843"><span class="hs-identifier hs-var">var</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TidyEnv -&gt; Id -&gt; (TidyEnv, Id)
+</span><a href="GHC.Core.TyCo.Tidy.html#tidyVarBndr"><span class="hs-identifier hs-var">tidyVarBndr</span></a></span><span> </span><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167844"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621681167843"><span class="hs-identifier hs-var">var</span></a></span><span>
+</span><span id="line-138"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#otherwise"><span class="hs-identifier hs-var">otherwise</span></a></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TidyEnv -&gt; Id -&gt; (TidyEnv, Id)
+</span><a href="GHC.Core.Tidy.html#tidyIdBndr"><span class="hs-identifier hs-var">tidyIdBndr</span></a></span><span> </span><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167844"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621681167843"><span class="hs-identifier hs-var">var</span></a></span><span>
+</span><span id="line-139"></span><span>
+</span><span id="line-140"></span><span class="annot"><a href="GHC.Core.Tidy.html#tidyBndrs"><span class="hs-identifier hs-type">tidyBndrs</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Types.Var.Env.html#TidyEnv"><span class="hs-identifier hs-type">TidyEnv</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Types.Var.html#Var"><span class="hs-identifier hs-type">Var</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.Var.Env.html#TidyEnv"><span class="hs-identifier hs-type">TidyEnv</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Types.Var.html#Var"><span class="hs-identifier hs-type">Var</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-141"></span><span id="tidyBndrs"><span class="annot"><span class="annottext">tidyBndrs :: TidyEnv -&gt; [Id] -&gt; (TidyEnv, [Id])
+</span><a href="GHC.Core.Tidy.html#tidyBndrs"><span class="hs-identifier hs-var hs-var">tidyBndrs</span></a></span></span><span> </span><span id="local-6989586621681167840"><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167840"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span id="local-6989586621681167839"><span class="annot"><span class="annottext">[Id]
+</span><a href="#local-6989586621681167839"><span class="hs-identifier hs-var">vars</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) s a b.
+Traversable t =&gt;
+(s -&gt; a -&gt; (s, b)) -&gt; s -&gt; t a -&gt; (s, t b)
+</span><a href="../../base-4.16.4.0/src/Data-Traversable.html#mapAccumL"><span class="hs-identifier hs-var">mapAccumL</span></a></span><span> </span><span class="annot"><span class="annottext">TidyEnv -&gt; Id -&gt; (TidyEnv, Id)
+</span><a href="GHC.Core.Tidy.html#tidyBndr"><span class="hs-identifier hs-var">tidyBndr</span></a></span><span> </span><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167840"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="annot"><span class="annottext">[Id]
+</span><a href="#local-6989586621681167839"><span class="hs-identifier hs-var">vars</span></a></span><span>
+</span><span id="line-142"></span><span>
+</span><span id="line-143"></span><span class="hs-comment">-- Non-top-level variables, not covars</span><span>
+</span><span id="line-144"></span><span class="annot"><a href="GHC.Core.Tidy.html#tidyIdBndr"><span class="hs-identifier hs-type">tidyIdBndr</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Types.Var.Env.html#TidyEnv"><span class="hs-identifier hs-type">TidyEnv</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Types.Var.html#Id"><span class="hs-identifier hs-type">Id</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.Var.Env.html#TidyEnv"><span class="hs-identifier hs-type">TidyEnv</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Types.Var.html#Id"><span class="hs-identifier hs-type">Id</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-145"></span><span id="tidyIdBndr"><span class="annot"><span class="annottext">tidyIdBndr :: TidyEnv -&gt; Id -&gt; (TidyEnv, Id)
+</span><a href="GHC.Core.Tidy.html#tidyIdBndr"><span class="hs-identifier hs-var hs-var">tidyIdBndr</span></a></span></span><span> </span><span id="local-6989586621681167838"><span class="annot"><span class="annottext">env :: TidyEnv
+</span><a href="#local-6989586621681167838"><span class="hs-identifier hs-var">env</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span id="local-6989586621681167837"><span class="annot"><span class="annottext">TidyOccEnv
+</span><a href="#local-6989586621681167837"><span class="hs-identifier hs-var">tidy_env</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681167836"><span class="annot"><span class="annottext">VarEnv Id
+</span><a href="#local-6989586621681167836"><span class="hs-identifier hs-var">var_env</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621681167835"><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621681167835"><span class="hs-identifier hs-var">id</span></a></span></span><span>
+</span><span id="line-146"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-comment">-- Do this pattern match strictly, otherwise we end up holding on to</span><span>
+</span><span id="line-147"></span><span>    </span><span class="hs-comment">-- stuff in the OccName.</span><span>
+</span><span id="line-148"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">TidyOccEnv -&gt; OccName -&gt; (TidyOccEnv, OccName)
+</span><a href="GHC.Types.Name.Occurrence.html#tidyOccName"><span class="hs-identifier hs-var">tidyOccName</span></a></span><span> </span><span class="annot"><span class="annottext">TidyOccEnv
+</span><a href="#local-6989586621681167837"><span class="hs-identifier hs-var">tidy_env</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. NamedThing a =&gt; a -&gt; OccName
+</span><a href="GHC.Types.Name.html#getOccName"><span class="hs-identifier hs-var">getOccName</span></a></span><span> </span><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621681167835"><span class="hs-identifier hs-var">id</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span> </span><span class="hs-special">{</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681167832"><span class="annot"><span class="annottext">TidyOccEnv
+</span><a href="#local-6989586621681167832"><span class="hs-identifier hs-var">tidy_env'</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681167831"><span class="annot"><span class="annottext">OccName
+</span><a href="#local-6989586621681167831"><span class="hs-identifier hs-var">occ'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-149"></span><span>    </span><span class="hs-keyword">let</span><span>
+</span><span id="line-150"></span><span>        </span><span class="hs-comment">-- Give the Id a fresh print-name, *and* rename its type</span><span>
+</span><span id="line-151"></span><span>        </span><span class="hs-comment">-- The SrcLoc isn't important now,</span><span>
+</span><span id="line-152"></span><span>        </span><span class="hs-comment">-- though we could extract it from the Id</span><span>
+</span><span id="line-153"></span><span>        </span><span class="hs-comment">--</span><span>
+</span><span id="line-154"></span><span>        </span><span id="local-6989586621681167830"><span class="annot"><span class="annottext">ty' :: Type
+</span><a href="#local-6989586621681167830"><span class="hs-identifier hs-var hs-var">ty'</span></a></span></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TidyEnv -&gt; Type -&gt; Type
+</span><a href="GHC.Core.TyCo.Tidy.html#tidyType"><span class="hs-identifier hs-var">tidyType</span></a></span><span> </span><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167838"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Id -&gt; Type
+</span><a href="GHC.Types.Id.html#idType"><span class="hs-identifier hs-var">idType</span></a></span><span> </span><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621681167835"><span class="hs-identifier hs-var">id</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-155"></span><span>        </span><span id="local-6989586621681167828"><span class="annot"><span class="annottext">mult' :: Type
+</span><a href="#local-6989586621681167828"><span class="hs-identifier hs-var hs-var">mult'</span></a></span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TidyEnv -&gt; Type -&gt; Type
+</span><a href="GHC.Core.TyCo.Tidy.html#tidyType"><span class="hs-identifier hs-var">tidyType</span></a></span><span> </span><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167838"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Id -&gt; Type
+</span><a href="GHC.Types.Id.html#idMult"><span class="hs-identifier hs-var">idMult</span></a></span><span> </span><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621681167835"><span class="hs-identifier hs-var">id</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-156"></span><span>        </span><span id="local-6989586621681167826"><span class="annot"><span class="annottext">name' :: Name
+</span><a href="#local-6989586621681167826"><span class="hs-identifier hs-var hs-var">name'</span></a></span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Unique -&gt; OccName -&gt; SrcSpan -&gt; Name
+</span><a href="GHC.Types.Name.html#mkInternalName"><span class="hs-identifier hs-var">mkInternalName</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Id -&gt; Unique
+</span><a href="GHC.Types.Id.html#idUnique"><span class="hs-identifier hs-var">idUnique</span></a></span><span> </span><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621681167835"><span class="hs-identifier hs-var">id</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">OccName
+</span><a href="#local-6989586621681167831"><span class="hs-identifier hs-var">occ'</span></a></span><span> </span><span class="annot"><span class="annottext">SrcSpan
+</span><a href="GHC.Types.SrcLoc.html#noSrcSpan"><span class="hs-identifier hs-var">noSrcSpan</span></a></span><span>
+</span><span id="line-157"></span><span>        </span><span id="local-6989586621681167822"><span class="annot"><span class="annottext">id' :: Id
+</span><a href="#local-6989586621681167822"><span class="hs-identifier hs-var hs-var">id'</span></a></span></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HasDebugCallStack =&gt; Name -&gt; Type -&gt; Type -&gt; IdInfo -&gt; Id
+</span><a href="GHC.Types.Id.html#mkLocalIdWithInfo"><span class="hs-identifier hs-var">mkLocalIdWithInfo</span></a></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621681167826"><span class="hs-identifier hs-var">name'</span></a></span><span> </span><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621681167828"><span class="hs-identifier hs-var">mult'</span></a></span><span> </span><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621681167830"><span class="hs-identifier hs-var">ty'</span></a></span><span> </span><span class="annot"><span class="annottext">IdInfo
+</span><a href="#local-6989586621681167820"><span class="hs-identifier hs-var">new_info</span></a></span><span>
+</span><span id="line-158"></span><span>        </span><span id="local-6989586621681167819"><span class="annot"><span class="annottext">var_env' :: VarEnv Id
+</span><a href="#local-6989586621681167819"><span class="hs-identifier hs-var hs-var">var_env'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. VarEnv a -&gt; Id -&gt; a -&gt; VarEnv a
+</span><a href="GHC.Types.Var.Env.html#extendVarEnv"><span class="hs-identifier hs-var">extendVarEnv</span></a></span><span> </span><span class="annot"><span class="annottext">VarEnv Id
+</span><a href="#local-6989586621681167836"><span class="hs-identifier hs-var">var_env</span></a></span><span> </span><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621681167835"><span class="hs-identifier hs-var">id</span></a></span><span> </span><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621681167822"><span class="hs-identifier hs-var">id'</span></a></span><span>
+</span><span id="line-159"></span><span>
+</span><span id="line-160"></span><span>        </span><span class="hs-comment">-- Note [Tidy IdInfo]</span><span>
+</span><span id="line-161"></span><span>        </span><span id="local-6989586621681167820"><span class="annot"><span class="annottext">new_info :: IdInfo
+</span><a href="#local-6989586621681167820"><span class="hs-identifier hs-var hs-var">new_info</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IdInfo
+</span><a href="GHC.Types.Id.Info.html#vanillaIdInfo"><span class="hs-identifier hs-var">vanillaIdInfo</span></a></span><span> </span><span class="annot"><span class="annottext">IdInfo -&gt; OccInfo -&gt; IdInfo
+</span><a href="GHC.Types.Id.Info.html#setOccInfo"><span class="hs-operator hs-var">`setOccInfo`</span></a></span><span> </span><span class="annot"><span class="annottext">IdInfo -&gt; OccInfo
+</span><a href="GHC.Types.Id.Info.html#occInfo"><span class="hs-identifier hs-var">occInfo</span></a></span><span> </span><span class="annot"><span class="annottext">IdInfo
+</span><a href="#local-6989586621681167814"><span class="hs-identifier hs-var">old_info</span></a></span><span>
+</span><span id="line-162"></span><span>                                 </span><span class="annot"><span class="annottext">IdInfo -&gt; Unfolding -&gt; IdInfo
+</span><a href="GHC.Types.Id.Info.html#setUnfoldingInfo"><span class="hs-operator hs-var">`setUnfoldingInfo`</span></a></span><span> </span><span class="annot"><span class="annottext">Unfolding
+</span><a href="#local-6989586621681167812"><span class="hs-identifier hs-var">new_unf</span></a></span><span>
+</span><span id="line-163"></span><span>                                  </span><span class="hs-comment">-- see Note [Preserve OneShotInfo]</span><span>
+</span><span id="line-164"></span><span>                                 </span><span class="annot"><span class="annottext">IdInfo -&gt; OneShotInfo -&gt; IdInfo
+</span><a href="GHC.Types.Id.Info.html#setOneShotInfo"><span class="hs-operator hs-var">`setOneShotInfo`</span></a></span><span> </span><span class="annot"><span class="annottext">IdInfo -&gt; OneShotInfo
+</span><a href="GHC.Types.Id.Info.html#oneShotInfo"><span class="hs-identifier hs-var">oneShotInfo</span></a></span><span> </span><span class="annot"><span class="annottext">IdInfo
+</span><a href="#local-6989586621681167814"><span class="hs-identifier hs-var">old_info</span></a></span><span>
+</span><span id="line-165"></span><span>        </span><span id="local-6989586621681167814"><span class="annot"><span class="annottext">old_info :: IdInfo
+</span><a href="#local-6989586621681167814"><span class="hs-identifier hs-var hs-var">old_info</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HasDebugCallStack =&gt; Id -&gt; IdInfo
+</span><a href="GHC.Types.Var.html#idInfo"><span class="hs-identifier hs-var">idInfo</span></a></span><span> </span><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621681167835"><span class="hs-identifier hs-var">id</span></a></span><span>
+</span><span id="line-166"></span><span>        </span><span id="local-6989586621681167808"><span class="annot"><span class="annottext">old_unf :: Unfolding
+</span><a href="#local-6989586621681167808"><span class="hs-identifier hs-var hs-var">old_unf</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IdInfo -&gt; Unfolding
+</span><a href="GHC.Types.Id.Info.html#unfoldingInfo"><span class="hs-identifier hs-var">unfoldingInfo</span></a></span><span> </span><span class="annot"><span class="annottext">IdInfo
+</span><a href="#local-6989586621681167814"><span class="hs-identifier hs-var">old_info</span></a></span><span>
+</span><span id="line-167"></span><span>        </span><span id="local-6989586621681167812"><span class="annot"><span class="annottext">new_unf :: Unfolding
+</span><a href="#local-6989586621681167812"><span class="hs-identifier hs-var hs-var">new_unf</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Unfolding -&gt; Unfolding
+</span><a href="GHC.Types.Id.Info.html#zapUnfolding"><span class="hs-identifier hs-var">zapUnfolding</span></a></span><span> </span><span class="annot"><span class="annottext">Unfolding
+</span><a href="#local-6989586621681167808"><span class="hs-identifier hs-var">old_unf</span></a></span><span>  </span><span class="hs-comment">-- See Note [Preserve evaluatedness]</span><span>
+</span><span id="line-168"></span><span>    </span><span class="hs-keyword">in</span><span>
+</span><span id="line-169"></span><span>    </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">TidyOccEnv
+</span><a href="#local-6989586621681167832"><span class="hs-identifier hs-var">tidy_env'</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">VarEnv Id
+</span><a href="#local-6989586621681167819"><span class="hs-identifier hs-var">var_env'</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621681167822"><span class="hs-identifier hs-var">id'</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-170"></span><span>   </span><span class="hs-special">}</span><span>
+</span><span id="line-171"></span><span>
+</span><span id="line-172"></span><span class="annot"><a href="GHC.Core.Tidy.html#tidyLetBndr"><span class="hs-identifier hs-type">tidyLetBndr</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Types.Var.Env.html#TidyEnv"><span class="hs-identifier hs-type">TidyEnv</span></a></span><span>         </span><span class="hs-comment">-- Knot-tied version for unfoldings</span><span>
+</span><span id="line-173"></span><span>            </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Types.Var.Env.html#TidyEnv"><span class="hs-identifier hs-type">TidyEnv</span></a></span><span>         </span><span class="hs-comment">-- The one to extend</span><span>
+</span><span id="line-174"></span><span>            </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Types.Var.html#Id"><span class="hs-identifier hs-type">Id</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.Var.Env.html#TidyEnv"><span class="hs-identifier hs-type">TidyEnv</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Types.Var.html#Id"><span class="hs-identifier hs-type">Id</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-175"></span><span class="hs-comment">-- Used for local (non-top-level) let(rec)s</span><span>
+</span><span id="line-176"></span><span class="hs-comment">-- Just like tidyIdBndr above, but with more IdInfo</span><span>
+</span><span id="line-177"></span><span id="tidyLetBndr"><span class="annot"><span class="annottext">tidyLetBndr :: TidyEnv -&gt; TidyEnv -&gt; Id -&gt; (TidyEnv, Id)
+</span><a href="GHC.Core.Tidy.html#tidyLetBndr"><span class="hs-identifier hs-var hs-var">tidyLetBndr</span></a></span></span><span> </span><span id="local-6989586621681167805"><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167805"><span class="hs-identifier hs-var">rec_tidy_env</span></a></span></span><span> </span><span id="local-6989586621681167804"><span class="annot"><span class="annottext">env :: TidyEnv
+</span><a href="#local-6989586621681167804"><span class="hs-identifier hs-var">env</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span id="local-6989586621681167803"><span class="annot"><span class="annottext">TidyOccEnv
+</span><a href="#local-6989586621681167803"><span class="hs-identifier hs-var">tidy_env</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681167802"><span class="annot"><span class="annottext">VarEnv Id
+</span><a href="#local-6989586621681167802"><span class="hs-identifier hs-var">var_env</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621681167801"><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621681167801"><span class="hs-identifier hs-var">id</span></a></span></span><span>
+</span><span id="line-178"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">TidyOccEnv -&gt; OccName -&gt; (TidyOccEnv, OccName)
+</span><a href="GHC.Types.Name.Occurrence.html#tidyOccName"><span class="hs-identifier hs-var">tidyOccName</span></a></span><span> </span><span class="annot"><span class="annottext">TidyOccEnv
+</span><a href="#local-6989586621681167803"><span class="hs-identifier hs-var">tidy_env</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. NamedThing a =&gt; a -&gt; OccName
+</span><a href="GHC.Types.Name.html#getOccName"><span class="hs-identifier hs-var">getOccName</span></a></span><span> </span><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621681167801"><span class="hs-identifier hs-var">id</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span> </span><span class="hs-special">{</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681167800"><span class="annot"><span class="annottext">TidyOccEnv
+</span><a href="#local-6989586621681167800"><span class="hs-identifier hs-var">tidy_env'</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681167799"><span class="annot"><span class="annottext">OccName
+</span><a href="#local-6989586621681167799"><span class="hs-identifier hs-var">occ'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-179"></span><span>    </span><span class="hs-keyword">let</span><span>
+</span><span id="line-180"></span><span>        </span><span id="local-6989586621681167798"><span class="annot"><span class="annottext">ty' :: Type
+</span><a href="#local-6989586621681167798"><span class="hs-identifier hs-var hs-var">ty'</span></a></span></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TidyEnv -&gt; Type -&gt; Type
+</span><a href="GHC.Core.TyCo.Tidy.html#tidyType"><span class="hs-identifier hs-var">tidyType</span></a></span><span> </span><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167804"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Id -&gt; Type
+</span><a href="GHC.Types.Id.html#idType"><span class="hs-identifier hs-var">idType</span></a></span><span> </span><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621681167801"><span class="hs-identifier hs-var">id</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-181"></span><span>        </span><span id="local-6989586621681167797"><span class="annot"><span class="annottext">mult' :: Type
+</span><a href="#local-6989586621681167797"><span class="hs-identifier hs-var hs-var">mult'</span></a></span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TidyEnv -&gt; Type -&gt; Type
+</span><a href="GHC.Core.TyCo.Tidy.html#tidyType"><span class="hs-identifier hs-var">tidyType</span></a></span><span> </span><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167804"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Id -&gt; Type
+</span><a href="GHC.Types.Id.html#idMult"><span class="hs-identifier hs-var">idMult</span></a></span><span> </span><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621681167801"><span class="hs-identifier hs-var">id</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-182"></span><span>        </span><span id="local-6989586621681167796"><span class="annot"><span class="annottext">name' :: Name
+</span><a href="#local-6989586621681167796"><span class="hs-identifier hs-var hs-var">name'</span></a></span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Unique -&gt; OccName -&gt; SrcSpan -&gt; Name
+</span><a href="GHC.Types.Name.html#mkInternalName"><span class="hs-identifier hs-var">mkInternalName</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Id -&gt; Unique
+</span><a href="GHC.Types.Id.html#idUnique"><span class="hs-identifier hs-var">idUnique</span></a></span><span> </span><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621681167801"><span class="hs-identifier hs-var">id</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">OccName
+</span><a href="#local-6989586621681167799"><span class="hs-identifier hs-var">occ'</span></a></span><span> </span><span class="annot"><span class="annottext">SrcSpan
+</span><a href="GHC.Types.SrcLoc.html#noSrcSpan"><span class="hs-identifier hs-var">noSrcSpan</span></a></span><span>
+</span><span id="line-183"></span><span>        </span><span id="local-6989586621681167795"><span class="annot"><span class="annottext">details :: IdDetails
+</span><a href="#local-6989586621681167795"><span class="hs-identifier hs-var hs-var">details</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Id -&gt; IdDetails
+</span><a href="GHC.Types.Var.html#idDetails"><span class="hs-identifier hs-var">idDetails</span></a></span><span> </span><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621681167801"><span class="hs-identifier hs-var">id</span></a></span><span>
+</span><span id="line-184"></span><span>        </span><span id="local-6989586621681167793"><span class="annot"><span class="annottext">id' :: Id
+</span><a href="#local-6989586621681167793"><span class="hs-identifier hs-var hs-var">id'</span></a></span></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IdDetails -&gt; Name -&gt; Type -&gt; Type -&gt; IdInfo -&gt; Id
+</span><a href="GHC.Types.Var.html#mkLocalVar"><span class="hs-identifier hs-var">mkLocalVar</span></a></span><span> </span><span class="annot"><span class="annottext">IdDetails
+</span><a href="#local-6989586621681167795"><span class="hs-identifier hs-var">details</span></a></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621681167796"><span class="hs-identifier hs-var">name'</span></a></span><span> </span><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621681167797"><span class="hs-identifier hs-var">mult'</span></a></span><span> </span><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621681167798"><span class="hs-identifier hs-var">ty'</span></a></span><span> </span><span class="annot"><span class="annottext">IdInfo
+</span><a href="#local-6989586621681167791"><span class="hs-identifier hs-var">new_info</span></a></span><span>
+</span><span id="line-185"></span><span>        </span><span id="local-6989586621681167790"><span class="annot"><span class="annottext">var_env' :: VarEnv Id
+</span><a href="#local-6989586621681167790"><span class="hs-identifier hs-var hs-var">var_env'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. VarEnv a -&gt; Id -&gt; a -&gt; VarEnv a
+</span><a href="GHC.Types.Var.Env.html#extendVarEnv"><span class="hs-identifier hs-var">extendVarEnv</span></a></span><span> </span><span class="annot"><span class="annottext">VarEnv Id
+</span><a href="#local-6989586621681167802"><span class="hs-identifier hs-var">var_env</span></a></span><span> </span><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621681167801"><span class="hs-identifier hs-var">id</span></a></span><span> </span><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621681167793"><span class="hs-identifier hs-var">id'</span></a></span><span>
+</span><span id="line-186"></span><span>
+</span><span id="line-187"></span><span>        </span><span class="hs-comment">-- Note [Tidy IdInfo]</span><span>
+</span><span id="line-188"></span><span>        </span><span class="hs-comment">-- We need to keep around any interesting strictness and</span><span>
+</span><span id="line-189"></span><span>        </span><span class="hs-comment">-- demand info because later on we may need to use it when</span><span>
+</span><span id="line-190"></span><span>        </span><span class="hs-comment">-- converting to A-normal form.</span><span>
+</span><span id="line-191"></span><span>        </span><span class="hs-comment">-- eg.</span><span>
+</span><span id="line-192"></span><span>        </span><span class="hs-comment">--      f (g x),  where f is strict in its argument, will be converted</span><span>
+</span><span id="line-193"></span><span>        </span><span class="hs-comment">--      into  case (g x) of z -&gt; f z  by CorePrep, but only if f still</span><span>
+</span><span id="line-194"></span><span>        </span><span class="hs-comment">--      has its strictness info.</span><span>
+</span><span id="line-195"></span><span>        </span><span class="hs-comment">--</span><span>
+</span><span id="line-196"></span><span>        </span><span class="hs-comment">-- Similarly for the demand info - on a let binder, this tells</span><span>
+</span><span id="line-197"></span><span>        </span><span class="hs-comment">-- CorePrep to turn the let into a case.</span><span>
+</span><span id="line-198"></span><span>        </span><span class="hs-comment">-- But: Remove the usage demand here</span><span>
+</span><span id="line-199"></span><span>        </span><span class="hs-comment">--      (See Note [Zapping DmdEnv after Demand Analyzer] in GHC.Core.Opt.WorkWrap)</span><span>
+</span><span id="line-200"></span><span>        </span><span class="hs-comment">--</span><span>
+</span><span id="line-201"></span><span>        </span><span class="hs-comment">-- Similarly arity info for eta expansion in CorePrep</span><span>
+</span><span id="line-202"></span><span>        </span><span class="hs-comment">-- Don't attempt to recompute arity here; this is just tidying!</span><span>
+</span><span id="line-203"></span><span>        </span><span class="hs-comment">-- Trying to do so led to #17294</span><span>
+</span><span id="line-204"></span><span>        </span><span class="hs-comment">--</span><span>
+</span><span id="line-205"></span><span>        </span><span class="hs-comment">-- Set inline-prag info so that we preserve it across</span><span>
+</span><span id="line-206"></span><span>        </span><span class="hs-comment">-- separate compilation boundaries</span><span>
+</span><span id="line-207"></span><span>        </span><span id="local-6989586621681167789"><span class="annot"><span class="annottext">old_info :: IdInfo
+</span><a href="#local-6989586621681167789"><span class="hs-identifier hs-var hs-var">old_info</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HasDebugCallStack =&gt; Id -&gt; IdInfo
+</span><a href="GHC.Types.Var.html#idInfo"><span class="hs-identifier hs-var">idInfo</span></a></span><span> </span><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621681167801"><span class="hs-identifier hs-var">id</span></a></span><span>
+</span><span id="line-208"></span><span>        </span><span id="local-6989586621681167791"><span class="annot"><span class="annottext">new_info :: IdInfo
+</span><a href="#local-6989586621681167791"><span class="hs-identifier hs-var hs-var">new_info</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IdInfo
+</span><a href="GHC.Types.Id.Info.html#vanillaIdInfo"><span class="hs-identifier hs-var">vanillaIdInfo</span></a></span><span>
+</span><span id="line-209"></span><span>                    </span><span class="annot"><span class="annottext">IdInfo -&gt; OccInfo -&gt; IdInfo
+</span><a href="GHC.Types.Id.Info.html#setOccInfo"><span class="hs-operator hs-var">`setOccInfo`</span></a></span><span>        </span><span class="annot"><span class="annottext">IdInfo -&gt; OccInfo
+</span><a href="GHC.Types.Id.Info.html#occInfo"><span class="hs-identifier hs-var">occInfo</span></a></span><span> </span><span class="annot"><span class="annottext">IdInfo
+</span><a href="#local-6989586621681167789"><span class="hs-identifier hs-var">old_info</span></a></span><span>
+</span><span id="line-210"></span><span>                    </span><span class="annot"><span class="annottext">IdInfo -&gt; Int -&gt; IdInfo
+</span><a href="GHC.Types.Id.Info.html#setArityInfo"><span class="hs-operator hs-var">`setArityInfo`</span></a></span><span>      </span><span class="annot"><span class="annottext">IdInfo -&gt; Int
+</span><a href="GHC.Types.Id.Info.html#arityInfo"><span class="hs-identifier hs-var">arityInfo</span></a></span><span> </span><span class="annot"><span class="annottext">IdInfo
+</span><a href="#local-6989586621681167789"><span class="hs-identifier hs-var">old_info</span></a></span><span>
+</span><span id="line-211"></span><span>                    </span><span class="annot"><span class="annottext">IdInfo -&gt; StrictSig -&gt; IdInfo
+</span><a href="GHC.Types.Id.Info.html#setStrictnessInfo"><span class="hs-operator hs-var">`setStrictnessInfo`</span></a></span><span> </span><span class="annot"><span class="annottext">StrictSig -&gt; StrictSig
+</span><a href="GHC.Types.Demand.html#zapDmdEnvSig"><span class="hs-identifier hs-var">zapDmdEnvSig</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IdInfo -&gt; StrictSig
+</span><a href="GHC.Types.Id.Info.html#strictnessInfo"><span class="hs-identifier hs-var">strictnessInfo</span></a></span><span> </span><span class="annot"><span class="annottext">IdInfo
+</span><a href="#local-6989586621681167789"><span class="hs-identifier hs-var">old_info</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-212"></span><span>                    </span><span class="annot"><span class="annottext">IdInfo -&gt; Demand -&gt; IdInfo
+</span><a href="GHC.Types.Id.Info.html#setDemandInfo"><span class="hs-operator hs-var">`setDemandInfo`</span></a></span><span>     </span><span class="annot"><span class="annottext">IdInfo -&gt; Demand
+</span><a href="GHC.Types.Id.Info.html#demandInfo"><span class="hs-identifier hs-var">demandInfo</span></a></span><span> </span><span class="annot"><span class="annottext">IdInfo
+</span><a href="#local-6989586621681167789"><span class="hs-identifier hs-var">old_info</span></a></span><span>
+</span><span id="line-213"></span><span>                    </span><span class="annot"><span class="annottext">IdInfo -&gt; InlinePragma -&gt; IdInfo
+</span><a href="GHC.Types.Id.Info.html#setInlinePragInfo"><span class="hs-operator hs-var">`setInlinePragInfo`</span></a></span><span> </span><span class="annot"><span class="annottext">IdInfo -&gt; InlinePragma
+</span><a href="GHC.Types.Id.Info.html#inlinePragInfo"><span class="hs-identifier hs-var">inlinePragInfo</span></a></span><span> </span><span class="annot"><span class="annottext">IdInfo
+</span><a href="#local-6989586621681167789"><span class="hs-identifier hs-var">old_info</span></a></span><span>
+</span><span id="line-214"></span><span>                    </span><span class="annot"><span class="annottext">IdInfo -&gt; Unfolding -&gt; IdInfo
+</span><a href="GHC.Types.Id.Info.html#setUnfoldingInfo"><span class="hs-operator hs-var">`setUnfoldingInfo`</span></a></span><span>  </span><span class="annot"><span class="annottext">Unfolding
+</span><a href="#local-6989586621681167780"><span class="hs-identifier hs-var">new_unf</span></a></span><span>
+</span><span id="line-215"></span><span>
+</span><span id="line-216"></span><span>        </span><span id="local-6989586621681167779"><span class="annot"><span class="annottext">old_unf :: Unfolding
+</span><a href="#local-6989586621681167779"><span class="hs-identifier hs-var hs-var">old_unf</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IdInfo -&gt; Unfolding
+</span><a href="GHC.Types.Id.Info.html#unfoldingInfo"><span class="hs-identifier hs-var">unfoldingInfo</span></a></span><span> </span><span class="annot"><span class="annottext">IdInfo
+</span><a href="#local-6989586621681167789"><span class="hs-identifier hs-var">old_info</span></a></span><span>
+</span><span id="line-217"></span><span>        </span><span id="local-6989586621681167780"><span class="annot"><span class="annottext">new_unf :: Unfolding
+</span><a href="#local-6989586621681167780"><span class="hs-identifier hs-var hs-var">new_unf</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Unfolding -&gt; Bool
+</span><a href="GHC.Core.html#isStableUnfolding"><span class="hs-identifier hs-var">isStableUnfolding</span></a></span><span> </span><span class="annot"><span class="annottext">Unfolding
+</span><a href="#local-6989586621681167779"><span class="hs-identifier hs-var">old_unf</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TidyEnv -&gt; Unfolding -&gt; Unfolding -&gt; Unfolding
+</span><a href="GHC.Core.Tidy.html#tidyUnfolding"><span class="hs-identifier hs-var">tidyUnfolding</span></a></span><span> </span><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167805"><span class="hs-identifier hs-var">rec_tidy_env</span></a></span><span> </span><span class="annot"><span class="annottext">Unfolding
+</span><a href="#local-6989586621681167779"><span class="hs-identifier hs-var">old_unf</span></a></span><span> </span><span class="annot"><span class="annottext">Unfolding
+</span><a href="#local-6989586621681167779"><span class="hs-identifier hs-var">old_unf</span></a></span><span>
+</span><span id="line-218"></span><span>                </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#otherwise"><span class="hs-identifier hs-var">otherwise</span></a></span><span>                 </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Unfolding -&gt; Unfolding
+</span><a href="GHC.Types.Id.Info.html#zapUnfolding"><span class="hs-identifier hs-var">zapUnfolding</span></a></span><span> </span><span class="annot"><span class="annottext">Unfolding
+</span><a href="#local-6989586621681167779"><span class="hs-identifier hs-var">old_unf</span></a></span><span>
+</span><span id="line-219"></span><span>                                              </span><span class="hs-comment">-- See Note [Preserve evaluatedness]</span><span>
+</span><span id="line-220"></span><span>
+</span><span id="line-221"></span><span>    </span><span class="hs-keyword">in</span><span>
+</span><span id="line-222"></span><span>    </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">TidyOccEnv
+</span><a href="#local-6989586621681167800"><span class="hs-identifier hs-var">tidy_env'</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">VarEnv Id
+</span><a href="#local-6989586621681167790"><span class="hs-identifier hs-var">var_env'</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621681167793"><span class="hs-identifier hs-var">id'</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-223"></span><span>
+</span><span id="line-224"></span><span class="hs-comment">------------ Unfolding  --------------</span><span>
+</span><span id="line-225"></span><span class="annot"><a href="GHC.Core.Tidy.html#tidyUnfolding"><span class="hs-identifier hs-type">tidyUnfolding</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Types.Var.Env.html#TidyEnv"><span class="hs-identifier hs-type">TidyEnv</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.html#Unfolding"><span class="hs-identifier hs-type">Unfolding</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.html#Unfolding"><span class="hs-identifier hs-type">Unfolding</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.html#Unfolding"><span class="hs-identifier hs-type">Unfolding</span></a></span><span>
+</span><span id="line-226"></span><span id="tidyUnfolding"><span class="annot"><span class="annottext">tidyUnfolding :: TidyEnv -&gt; Unfolding -&gt; Unfolding -&gt; Unfolding
+</span><a href="GHC.Core.Tidy.html#tidyUnfolding"><span class="hs-identifier hs-var hs-var">tidyUnfolding</span></a></span></span><span> </span><span id="local-6989586621681167777"><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167777"><span class="hs-identifier hs-var">tidy_env</span></a></span></span><span> </span><span id="local-6989586621681167776"><span class="annot"><span class="annottext">df :: Unfolding
+</span><a href="#local-6989586621681167776"><span class="hs-identifier hs-var">df</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="GHC.Core.html#DFunUnfolding"><span class="hs-identifier hs-type">DFunUnfolding</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">df_bndrs :: Unfolding -&gt; [Id]
+</span><a href="GHC.Core.html#df_bndrs"><span class="hs-identifier hs-var">df_bndrs</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621681167773"><span class="annot"><span class="annottext">[Id]
+</span><a href="#local-6989586621681167773"><span class="hs-identifier hs-var">bndrs</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">df_args :: Unfolding -&gt; [Expr Id]
+</span><a href="GHC.Core.html#df_args"><span class="hs-identifier hs-var">df_args</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621681167771"><span class="annot"><span class="annottext">[Expr Id]
+</span><a href="#local-6989586621681167771"><span class="hs-identifier hs-var">args</span></a></span></span><span> </span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Unfolding
+</span><span class="hs-identifier">_</span></span><span>
+</span><span id="line-227"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Unfolding
+</span><a href="#local-6989586621681167776"><span class="hs-identifier hs-var">df</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">df_bndrs :: [Id]
+</span><a href="GHC.Core.html#df_bndrs"><span class="hs-identifier hs-var">df_bndrs</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Id]
+</span><a href="#local-6989586621681167770"><span class="hs-identifier hs-var">bndrs'</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">df_args :: [Expr Id]
+</span><a href="GHC.Core.html#df_args"><span class="hs-identifier hs-var">df_args</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#map"><span class="hs-identifier hs-var">map</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TidyEnv -&gt; Expr Id -&gt; Expr Id
+</span><a href="GHC.Core.Tidy.html#tidyExpr"><span class="hs-identifier hs-var">tidyExpr</span></a></span><span> </span><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167769"><span class="hs-identifier hs-var">tidy_env'</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Expr Id]
+</span><a href="#local-6989586621681167771"><span class="hs-identifier hs-var">args</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-228"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-229"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621681167769"><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167769"><span class="hs-identifier hs-var">tidy_env'</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681167770"><span class="annot"><span class="annottext">[Id]
+</span><a href="#local-6989586621681167770"><span class="hs-identifier hs-var">bndrs'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TidyEnv -&gt; [Id] -&gt; (TidyEnv, [Id])
+</span><a href="GHC.Core.Tidy.html#tidyBndrs"><span class="hs-identifier hs-var">tidyBndrs</span></a></span><span> </span><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167777"><span class="hs-identifier hs-var">tidy_env</span></a></span><span> </span><span class="annot"><span class="annottext">[Id]
+</span><a href="#local-6989586621681167773"><span class="hs-identifier hs-var">bndrs</span></a></span><span>
+</span><span id="line-230"></span><span>
+</span><span id="line-231"></span><span class="annot"><a href="GHC.Core.Tidy.html#tidyUnfolding"><span class="hs-identifier hs-var">tidyUnfolding</span></a></span><span> </span><span id="local-6989586621681167768"><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167768"><span class="hs-identifier hs-var">tidy_env</span></a></span></span><span>
+</span><span id="line-232"></span><span>              </span><span id="local-6989586621681167767"><span class="annot"><span class="annottext">unf :: Unfolding
+</span><a href="#local-6989586621681167767"><span class="hs-identifier hs-var">unf</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="GHC.Core.html#CoreUnfolding"><span class="hs-identifier hs-type">CoreUnfolding</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">uf_tmpl :: Unfolding -&gt; Expr Id
+</span><a href="GHC.Core.html#uf_tmpl"><span class="hs-identifier hs-var">uf_tmpl</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621681167764"><span class="annot"><span class="annottext">Expr Id
+</span><a href="#local-6989586621681167764"><span class="hs-identifier hs-var">unf_rhs</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">uf_src :: Unfolding -&gt; UnfoldingSource
+</span><a href="GHC.Core.html#uf_src"><span class="hs-identifier hs-var">uf_src</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621681167762"><span class="annot"><span class="annottext">UnfoldingSource
+</span><a href="#local-6989586621681167762"><span class="hs-identifier hs-var">src</span></a></span></span><span> </span><span class="hs-special">}</span><span class="hs-special">)</span><span>
+</span><span id="line-233"></span><span>              </span><span id="local-6989586621681167761"><span class="annot"><span class="annottext">Unfolding
+</span><a href="#local-6989586621681167761"><span class="hs-identifier hs-var">unf_from_rhs</span></a></span></span><span>
+</span><span id="line-234"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">UnfoldingSource -&gt; Bool
+</span><a href="GHC.Core.html#isStableSource"><span class="hs-identifier hs-var">isStableSource</span></a></span><span> </span><span class="annot"><span class="annottext">UnfoldingSource
+</span><a href="#local-6989586621681167762"><span class="hs-identifier hs-var">src</span></a></span><span>
+</span><span id="line-235"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Unfolding -&gt; Unfolding
+</span><a href="#local-6989586621681167759"><span class="hs-identifier hs-var">seqIt</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">Unfolding
+</span><a href="#local-6989586621681167767"><span class="hs-identifier hs-var">unf</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">uf_tmpl :: Expr Id
+</span><a href="GHC.Core.html#uf_tmpl"><span class="hs-identifier hs-var">uf_tmpl</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TidyEnv -&gt; Expr Id -&gt; Expr Id
+</span><a href="GHC.Core.Tidy.html#tidyExpr"><span class="hs-identifier hs-var">tidyExpr</span></a></span><span> </span><span class="annot"><span class="annottext">TidyEnv
+</span><a href="#local-6989586621681167768"><span class="hs-identifier hs-var">tidy_env</span></a></span><span> </span><span class="annot"><span class="annottext">Expr Id
+</span><a href="#local-6989586621681167764"><span class="hs-identifier hs-var">unf_rhs</span></a></span><span> </span><span class="hs-special">}</span><span>    </span><span class="hs-comment">-- Preserves OccInfo</span><span>
+</span><span id="line-236"></span><span>    </span><span class="hs-comment">-- This seqIt avoids a space leak: otherwise the uf_is_value,</span><span>
+</span><span id="line-237"></span><span>    </span><span class="hs-comment">-- uf_is_conlike, ... fields may retain a reference to the</span><span>
+</span><span id="line-238"></span><span>    </span><span class="hs-comment">-- pre-tidied expression forever (GHC.CoreToIface doesn't look at them)</span><span>
+</span><span id="line-239"></span><span>
+</span><span id="line-240"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#otherwise"><span class="hs-identifier hs-var">otherwise</span></a></span><span>
+</span><span id="line-241"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Unfolding
+</span><a href="#local-6989586621681167761"><span class="hs-identifier hs-var">unf_from_rhs</span></a></span><span>
+</span><span id="line-242"></span><span>  </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621681167759"><span class="annot"><span class="annottext">seqIt :: Unfolding -&gt; Unfolding
+</span><a href="#local-6989586621681167759"><span class="hs-identifier hs-var hs-var">seqIt</span></a></span></span><span> </span><span id="local-6989586621681167758"><span class="annot"><span class="annottext">Unfolding
+</span><a href="#local-6989586621681167758"><span class="hs-identifier hs-var">unf</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Unfolding -&gt; ()
+</span><a href="GHC.Core.Seq.html#seqUnfolding"><span class="hs-identifier hs-var">seqUnfolding</span></a></span><span> </span><span class="annot"><span class="annottext">Unfolding
+</span><a href="#local-6989586621681167758"><span class="hs-identifier hs-var">unf</span></a></span><span> </span><span class="annot"><span class="annottext">seq :: forall a b. a -&gt; b -&gt; b
+</span><span class="hs-operator hs-type">`seq`</span></span><span> </span><span class="annot"><span class="annottext">Unfolding
+</span><a href="#local-6989586621681167758"><span class="hs-identifier hs-var">unf</span></a></span><span>
+</span><span id="line-243"></span><span class="annot"><a href="GHC.Core.Tidy.html#tidyUnfolding"><span class="hs-identifier hs-var">tidyUnfolding</span></a></span><span> </span><span class="annot"><span class="annottext">TidyEnv
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681167757"><span class="annot"><span class="annottext">Unfolding
+</span><a href="#local-6989586621681167757"><span class="hs-identifier hs-var">unf</span></a></span></span><span> </span><span class="annot"><span class="annottext">Unfolding
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Unfolding
+</span><a href="#local-6989586621681167757"><span class="hs-identifier hs-var">unf</span></a></span><span>     </span><span class="hs-comment">-- NoUnfolding or OtherCon</span><span>
+</span><span id="line-244"></span><span>
+</span><span id="line-245"></span><span class="hs-comment">{-
+Note [Tidy IdInfo]
+~~~~~~~~~~~~~~~~~~
+All nested Ids now have the same IdInfo, namely vanillaIdInfo, which
+should save some space; except that we preserve occurrence info for
+two reasons:
+
+  (a) To make printing tidy core nicer
+
+  (b) Because we tidy RULES and InlineRules, which may then propagate
+      via --make into the compilation of the next module, and we want
+      the benefit of that occurrence analysis when we use the rule or
+      or inline the function.  In particular, it's vital not to lose
+      loop-breaker info, else we get an infinite inlining loop
+
+Note that tidyLetBndr puts more IdInfo back.
+
+Note [Preserve evaluatedness]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Consider
+  data T = MkT !Bool
+  ....(case v of MkT y -&gt;
+       let z# = case y of
+                  True -&gt; 1#
+                  False -&gt; 2#
+       in ...)
+
+The z# binding is ok because the RHS is ok-for-speculation,
+but Lint will complain unless it can *see* that.  So we
+preserve the evaluated-ness on 'y' in tidyBndr.
+
+(Another alternative would be to tidy unboxed lets into cases,
+but that seems more indirect and surprising.)
+
+Note [Preserve OneShotInfo]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+We keep the OneShotInfo because we want it to propagate into the interface.
+Not all OneShotInfo is determined by a compiler analysis; some is added by a
+call of GHC.Exts.oneShot, which is then discarded before the end of the
+optimisation pipeline, leaving only the OneShotInfo on the lambda. Hence we
+must preserve this info in inlinings. See Note [The oneShot function] in GHC.Types.Id.Make.
+
+This applies to lambda binders only, hence it is stored in IfaceLamBndr.
+-}</span><span>
+</span><span id="line-289"></span><span>
+</span><span id="line-290"></span><span id="local-6989586621681168045"><span id="local-6989586621681168046"><span class="annot"><a href="GHC.Core.Tidy.html#%3D%3A"><span class="hs-operator hs-type">(=:)</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621681168046"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621681168046"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681168045"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681168045"><span class="hs-identifier hs-type">b</span></a></span></span></span><span>
+</span><span id="line-291"></span><span id="local-6989586621681167756"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681167756"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span id="%3D%3A"><span class="annot"><span class="annottext">=: :: forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><a href="GHC.Core.Tidy.html#%3D%3A"><span class="hs-operator hs-var hs-var">=:</span></a></span></span><span> </span><span id="local-6989586621681167755"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621681167755"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681167756"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">seq :: forall a b. a -&gt; b -&gt; b
+</span><span class="hs-operator hs-type">`seq`</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621681167755"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681167756"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-292"></span></pre></body></html>

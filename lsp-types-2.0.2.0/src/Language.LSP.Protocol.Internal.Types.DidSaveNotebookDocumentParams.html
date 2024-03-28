@@ -1,0 +1,161 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- THIS IS A GENERATED FILE, DO NOT EDIT</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-imports #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-matches #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-deprecations #-}</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.DidSaveNotebookDocumentParams</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Hashable</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html"><span class="hs-identifier">Language.LSP.Protocol.Utils.Misc</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prettyprinter</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Aeson.html"><span class="hs-identifier">Data.Row.Aeson</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Hashable.html"><span class="hs-identifier">Data.Row.Hashable</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Hashable</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.NotebookDocumentIdentifier.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.NotebookDocumentIdentifier</span></a></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html"><span class="hs-identifier">Language.LSP.Protocol.Types.Common</span></a></span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-comment">{-|
+The params sent in a save notebook document notification.
+
+@since 3.17.0
+-}</span><span>
+</span><span id="line-24"></span><span id="local-6989586621682203089"><span id="local-6989586621682203090"></span></span><span class="hs-keyword">data</span><span> </span><span id="DidSaveNotebookDocumentParams"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.DidSaveNotebookDocumentParams.html#DidSaveNotebookDocumentParams"><span class="hs-identifier hs-var">DidSaveNotebookDocumentParams</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="DidSaveNotebookDocumentParams"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.DidSaveNotebookDocumentParams.html#DidSaveNotebookDocumentParams"><span class="hs-identifier hs-var">DidSaveNotebookDocumentParams</span></a></span></span><span> </span><span>
+</span><span id="line-25"></span><span>  </span><span class="hs-special">{</span><span> </span><span class="hs-comment">{-|
+  The notebook document that got saved.
+  -}</span><span>
+</span><span id="line-28"></span><span>  </span><span id="%24sel%3A_notebookDocument%3ADidSaveNotebookDocumentParams"><span class="annot"><span class="annottext">DidSaveNotebookDocumentParams -&gt; NotebookDocumentIdentifier
+</span><a href="Language.LSP.Protocol.Internal.Types.DidSaveNotebookDocumentParams.html#%24sel%3A_notebookDocument%3ADidSaveNotebookDocumentParams"><span class="hs-identifier hs-var hs-var">_notebookDocument</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.NotebookDocumentIdentifier.html#NotebookDocumentIdentifier"><span class="hs-identifier hs-type">Language.LSP.Protocol.Internal.Types.NotebookDocumentIdentifier.NotebookDocumentIdentifier</span></a></span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682203077"><span id="local-6989586621682203079"><span id="local-6989586621682203085"><span class="annot"><span class="annottext">Int -&gt; DidSaveNotebookDocumentParams -&gt; ShowS
+[DidSaveNotebookDocumentParams] -&gt; ShowS
+DidSaveNotebookDocumentParams -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [DidSaveNotebookDocumentParams] -&gt; ShowS
+$cshowList :: [DidSaveNotebookDocumentParams] -&gt; ShowS
+show :: DidSaveNotebookDocumentParams -&gt; String
+$cshow :: DidSaveNotebookDocumentParams -&gt; String
+showsPrec :: Int -&gt; DidSaveNotebookDocumentParams -&gt; ShowS
+$cshowsPrec :: Int -&gt; DidSaveNotebookDocumentParams -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682203070"><span id="local-6989586621682203074"><span class="annot"><span class="annottext">DidSaveNotebookDocumentParams
+-&gt; DidSaveNotebookDocumentParams -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: DidSaveNotebookDocumentParams
+-&gt; DidSaveNotebookDocumentParams -&gt; Bool
+$c/= :: DidSaveNotebookDocumentParams
+-&gt; DidSaveNotebookDocumentParams -&gt; Bool
+== :: DidSaveNotebookDocumentParams
+-&gt; DidSaveNotebookDocumentParams -&gt; Bool
+$c== :: DidSaveNotebookDocumentParams
+-&gt; DidSaveNotebookDocumentParams -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682203047"><span id="local-6989586621682203049"><span id="local-6989586621682203052"><span id="local-6989586621682203055"><span id="local-6989586621682203058"><span id="local-6989586621682203061"><span id="local-6989586621682203065"><span class="annot"><span class="annottext">Eq DidSaveNotebookDocumentParams
+DidSaveNotebookDocumentParams
+-&gt; DidSaveNotebookDocumentParams -&gt; Bool
+DidSaveNotebookDocumentParams
+-&gt; DidSaveNotebookDocumentParams -&gt; Ordering
+DidSaveNotebookDocumentParams
+-&gt; DidSaveNotebookDocumentParams -&gt; DidSaveNotebookDocumentParams
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: DidSaveNotebookDocumentParams
+-&gt; DidSaveNotebookDocumentParams -&gt; DidSaveNotebookDocumentParams
+$cmin :: DidSaveNotebookDocumentParams
+-&gt; DidSaveNotebookDocumentParams -&gt; DidSaveNotebookDocumentParams
+max :: DidSaveNotebookDocumentParams
+-&gt; DidSaveNotebookDocumentParams -&gt; DidSaveNotebookDocumentParams
+$cmax :: DidSaveNotebookDocumentParams
+-&gt; DidSaveNotebookDocumentParams -&gt; DidSaveNotebookDocumentParams
+&gt;= :: DidSaveNotebookDocumentParams
+-&gt; DidSaveNotebookDocumentParams -&gt; Bool
+$c&gt;= :: DidSaveNotebookDocumentParams
+-&gt; DidSaveNotebookDocumentParams -&gt; Bool
+&gt; :: DidSaveNotebookDocumentParams
+-&gt; DidSaveNotebookDocumentParams -&gt; Bool
+$c&gt; :: DidSaveNotebookDocumentParams
+-&gt; DidSaveNotebookDocumentParams -&gt; Bool
+&lt;= :: DidSaveNotebookDocumentParams
+-&gt; DidSaveNotebookDocumentParams -&gt; Bool
+$c&lt;= :: DidSaveNotebookDocumentParams
+-&gt; DidSaveNotebookDocumentParams -&gt; Bool
+&lt; :: DidSaveNotebookDocumentParams
+-&gt; DidSaveNotebookDocumentParams -&gt; Bool
+$c&lt; :: DidSaveNotebookDocumentParams
+-&gt; DidSaveNotebookDocumentParams -&gt; Bool
+compare :: DidSaveNotebookDocumentParams
+-&gt; DidSaveNotebookDocumentParams -&gt; Ordering
+$ccompare :: DidSaveNotebookDocumentParams
+-&gt; DidSaveNotebookDocumentParams -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall x.
+Rep DidSaveNotebookDocumentParams x
+-&gt; DidSaveNotebookDocumentParams
+forall x.
+DidSaveNotebookDocumentParams
+-&gt; Rep DidSaveNotebookDocumentParams x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cto :: forall x.
+Rep DidSaveNotebookDocumentParams x
+-&gt; DidSaveNotebookDocumentParams
+$cfrom :: forall x.
+DidSaveNotebookDocumentParams
+-&gt; Rep DidSaveNotebookDocumentParams x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">anyclass</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682203041"><span class="annot"><span class="annottext">DidSaveNotebookDocumentParams -&gt; ()
+forall a. (a -&gt; ()) -&gt; NFData a
+rnf :: DidSaveNotebookDocumentParams -&gt; ()
+$crnf :: DidSaveNotebookDocumentParams -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682203034"><span id="local-6989586621682203036"><span class="annot"><span class="annottext">Eq DidSaveNotebookDocumentParams
+Int -&gt; DidSaveNotebookDocumentParams -&gt; Int
+DidSaveNotebookDocumentParams -&gt; Int
+forall a. Eq a -&gt; (Int -&gt; a -&gt; Int) -&gt; (a -&gt; Int) -&gt; Hashable a
+hash :: DidSaveNotebookDocumentParams -&gt; Int
+$chash :: DidSaveNotebookDocumentParams -&gt; Int
+hashWithSalt :: Int -&gt; DidSaveNotebookDocumentParams -&gt; Int
+$chashWithSalt :: Int -&gt; DidSaveNotebookDocumentParams -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Hashable</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621682203025"><span id="local-6989586621682203031"><span class="annot"><span class="annottext">forall ann. [DidSaveNotebookDocumentParams] -&gt; Doc ann
+forall ann. DidSaveNotebookDocumentParams -&gt; Doc ann
+forall a.
+(forall ann. a -&gt; Doc ann)
+-&gt; (forall ann. [a] -&gt; Doc ann) -&gt; Pretty a
+prettyList :: forall ann. [DidSaveNotebookDocumentParams] -&gt; Doc ann
+$cprettyList :: forall ann. [DidSaveNotebookDocumentParams] -&gt; Doc ann
+pretty :: forall ann. DidSaveNotebookDocumentParams -&gt; Doc ann
+$cpretty :: forall ann. DidSaveNotebookDocumentParams -&gt; Doc ann
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Pretty</span></span></span></span><span> </span><span class="hs-keyword">via</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html#ViaJSON"><span class="hs-identifier hs-type">ViaJSON</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.DidSaveNotebookDocumentParams.html#DidSaveNotebookDocumentParams"><span class="hs-identifier hs-type">DidSaveNotebookDocumentParams</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682203013"><span id="local-6989586621682203015"><span id="local-6989586621682203017"><span class="annot"><span class="hs-identifier hs-type">Aeson.ToJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.DidSaveNotebookDocumentParams.html#DidSaveNotebookDocumentParams"><span class="hs-identifier hs-type">DidSaveNotebookDocumentParams</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-35"></span><span>  </span><span id="local-6989586621682203003"><span class="annot"><span class="annottext">toJSON :: DidSaveNotebookDocumentParams -&gt; Value
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">toJSON</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.DidSaveNotebookDocumentParams.html#DidSaveNotebookDocumentParams"><span class="hs-identifier hs-type">DidSaveNotebookDocumentParams</span></a></span><span> </span><span id="local-6989586621682203001"><span class="annot"><span class="annottext">NotebookDocumentIdentifier
+</span><a href="#local-6989586621682203001"><span class="hs-identifier hs-var">arg0</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">Aeson.object</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">concat</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>  </span><span class="hs-special">[</span><span class="hs-special">[</span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;notebookDocument&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall kv v. (KeyValue kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">Aeson..=</span></span><span> </span><span class="annot"><span class="annottext">NotebookDocumentIdentifier
+</span><a href="#local-6989586621682203001"><span class="hs-identifier hs-var">arg0</span></a></span><span class="hs-special">]</span><span class="hs-special">]</span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682202995"><span class="annot"><span class="hs-identifier hs-type">Aeson.FromJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.DidSaveNotebookDocumentParams.html#DidSaveNotebookDocumentParams"><span class="hs-identifier hs-type">DidSaveNotebookDocumentParams</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-38"></span><span>  </span><span id="local-6989586621682202988"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser DidSaveNotebookDocumentParams
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">Aeson.withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;DidSaveNotebookDocumentParams&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621682202985"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682202985"><span class="hs-identifier hs-var">arg</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">NotebookDocumentIdentifier -&gt; DidSaveNotebookDocumentParams
+</span><a href="Language.LSP.Protocol.Internal.Types.DidSaveNotebookDocumentParams.html#DidSaveNotebookDocumentParams"><span class="hs-identifier hs-var">DidSaveNotebookDocumentParams</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682202985"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">Aeson..:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;notebookDocument&quot;</span></span><span>
+</span><span id="line-39"></span></pre></body></html>

@@ -1,0 +1,542 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE TypeOperators #-}</span><span class="hs-cpp">
+
+#if __GLASGOW_HASKELL__ &gt;= 702
+</span><span class="hs-pragma">{-# LANGUAGE Trustworthy #-}</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ &gt;= 708
+</span><span class="hs-pragma">{-# LANGUAGE EmptyCase #-}</span><span class="hs-cpp">
+#endif
+</span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- Module      :  Data.Functor.Extend</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- Copyright   :  (C) 2011-2015 Edward Kmett</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- License     :  BSD-style (see the file LICENSE)</span><span>
+</span><span id="line-16"></span><span class="hs-comment">--</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- Maintainer  :  Edward Kmett &lt;ekmett@gmail.com&gt;</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- Stability   :  provisional</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- Portability :  portable</span><span>
+</span><span id="line-20"></span><span class="hs-comment">--</span><span>
+</span><span id="line-21"></span><span class="hs-comment">----------------------------------------------------------------------------</span><span>
+</span><span id="line-22"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Data.Functor.Extend</span><span>
+</span><span id="line-23"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-comment">-- * Extendable Functors</span></span><span>
+</span><span id="line-24"></span><span>    </span><span class="annot"><span class="hs-comment">-- $definition</span></span><span>
+</span><span id="line-25"></span><span>    </span><span class="annot"><a href="Data.Functor.Extend.html#Extend"><span class="hs-identifier">Extend</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">id</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-operator">(.)</span></span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Category</span></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Trans.Identity</span></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Functor.Identity</span></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Functor.Sum</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Functor</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Sum</span></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.List</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">tails</span></span><span class="hs-special">)</span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.List.NonEmpty</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">NonEmpty</span></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">toList</span></span><span class="hs-special">)</span><span class="hs-cpp">
+
+#ifdef MIN_VERSION_containers
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Sequence</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Seq</span></span><span class="hs-special">)</span><span>
+</span><span id="line-38"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Sequence</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Seq</span></span><span>
+</span><span id="line-39"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Tree</span></span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+
+#ifdef MIN_VERSION_comonad
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Comonad.Trans.Env</span></span><span>
+</span><span id="line-45"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Comonad.Trans.Store</span></span><span>
+</span><span id="line-46"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Comonad.Trans.Traced</span></span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#ifdef MIN_VERSION_tagged
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Tagged</span></span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#if defined(MIN_VERSION_tagged) || MIN_VERSION_base(4,7,0)
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Proxy</span></span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#ifdef MIN_VERSION_generic_deriving
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Generics.Deriving.Base</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">Generics</span><span class="hs-cpp">
+#else
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Generics</span></span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-63"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Orphans</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-64"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Monoid</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Monoid</span></span><span>
+</span><span id="line-65"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Semigroup</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Semigroup</span></span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span class="hs-keyword">class</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="annot"><a href="#local-6989586621679093170"><span class="hs-identifier hs-type">w</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span id="Extend"><span class="annot"><a href="Data.Functor.Extend.html#Extend"><span class="hs-identifier hs-var">Extend</span></a></span></span><span> </span><span id="local-6989586621679093170"><span class="annot"><a href="#local-6989586621679093170"><span class="hs-identifier hs-type">w</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-68"></span><span>  </span><span class="hs-comment">-- |</span><span>
+</span><span id="line-69"></span><span>  </span><span class="hs-comment">-- &gt; duplicated = extended id</span><span>
+</span><span id="line-70"></span><span>  </span><span class="hs-comment">-- &gt; fmap (fmap f) . duplicated = duplicated . fmap f</span><span>
+</span><span id="line-71"></span><span>  </span><span id="duplicated"><span class="annot"><a href="Data.Functor.Extend.html#duplicated"><span class="hs-identifier hs-type">duplicated</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span id="local-6989586621679093156"><span class="annot"><a href="#local-6989586621679093170"><span class="hs-identifier hs-type">w</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679093156"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679093170"><span class="hs-identifier hs-type">w</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679093170"><span class="hs-identifier hs-type">w</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679093156"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-72"></span><span>  </span><span class="hs-comment">-- |</span><span>
+</span><span id="line-73"></span><span>  </span><span class="hs-comment">-- &gt; extended f  = fmap f . duplicated</span><span>
+</span><span id="line-74"></span><span>  </span><span id="extended"><span class="annot"><a href="Data.Functor.Extend.html#extended"><span class="hs-identifier hs-type">extended</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span id="local-6989586621679093168"><span id="local-6989586621679093169"><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679093170"><span class="hs-identifier hs-type">w</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679093169"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679093168"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679093170"><span class="hs-identifier hs-type">w</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679093169"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679093170"><span class="hs-identifier hs-type">w</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679093168"><span class="hs-identifier hs-type">b</span></a></span></span></span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span><span>  </span><span id="local-6989586621679092900"><span class="annot"><a href="Data.Functor.Extend.html#extended"><span class="hs-identifier hs-var hs-var">extended</span></a></span><span> </span><span id="local-6989586621679092894"><span class="annot"><span class="annottext">w a -&gt; b
+</span><a href="#local-6989586621679092894"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">w a -&gt; b
+</span><a href="#local-6989586621679092894"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">forall {k} (cat :: k -&gt; k -&gt; *) (b :: k) (c :: k) (a :: k).
+Category cat =&gt;
+cat b c -&gt; cat a b -&gt; cat a c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall (w :: * -&gt; *) a. Extend w =&gt; w a -&gt; w (w a)
+</span><a href="Data.Functor.Extend.html#duplicated"><span class="hs-identifier hs-var">duplicated</span></a></span></span><span>
+</span><span id="line-77"></span><span>  </span><span id="local-6989586621679092892"><span class="annot"><a href="Data.Functor.Extend.html#duplicated"><span class="hs-identifier hs-var hs-var">duplicated</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (w :: * -&gt; *) a b. Extend w =&gt; (w a -&gt; b) -&gt; w a -&gt; w b
+</span><a href="Data.Functor.Extend.html#extended"><span class="hs-identifier hs-var">extended</span></a></span><span> </span><span class="annot"><span class="annottext">forall {k} (cat :: k -&gt; k -&gt; *) (a :: k). Category cat =&gt; cat a a
+</span><span class="hs-identifier hs-var">id</span></span></span><span class="hs-cpp">
+
+#if __GLASGOW_HASKELL__ &gt;= 708
+</span><span>  </span><span class="hs-pragma">{-# MINIMAL</span><span> </span><span class="annot"><a href="Data.Functor.Extend.html#duplicated"><span class="hs-pragma hs-type">duplicated</span></a></span><span> </span><span class="hs-pragma">|</span><span> </span><span class="annot"><a href="Data.Functor.Extend.html#extended"><span class="hs-pragma hs-type">extended</span></a></span><span> </span><span class="hs-pragma">#-}</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-83"></span><span class="hs-comment">-- * Extends for Prelude types:</span><span>
+</span><span id="line-84"></span><span class="hs-comment">--</span><span>
+</span><span id="line-85"></span><span class="hs-comment">-- Instances: While Data.Functor.Extend.Instances would be symmetric</span><span>
+</span><span id="line-86"></span><span class="hs-comment">-- to the definition of Control.Monad.Instances in base, the reason</span><span>
+</span><span id="line-87"></span><span class="hs-comment">-- the latter exists is because of Haskell 98 specifying the types</span><span>
+</span><span id="line-88"></span><span class="hs-comment">-- @'Either' a@, @((,)m)@ and @((-&gt;)e)@ and the class Monad without</span><span>
+</span><span id="line-89"></span><span class="hs-comment">-- having the foresight to require or allow instances between them.</span><span>
+</span><span id="line-90"></span><span class="hs-comment">--</span><span>
+</span><span id="line-91"></span><span class="hs-comment">-- Here Haskell 98 says nothing about Extend, so we can include the</span><span>
+</span><span id="line-92"></span><span class="hs-comment">-- instances directly avoiding the wart of orphan instances.</span><span>
+</span><span id="line-93"></span><span>
+</span><span id="line-94"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679092883"><span class="annot"><a href="Data.Functor.Extend.html#Extend"><span class="hs-identifier hs-type">Extend</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-95"></span><span>  </span><span id="local-6989586621679092880"><span class="annot"><span class="annottext">duplicated :: forall a. [a] -&gt; [[a]]
+</span><a href="#local-6989586621679092880"><span class="hs-identifier hs-var hs-var hs-var hs-var">duplicated</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">init</span></span><span> </span><span class="annot"><span class="annottext">forall {k} (cat :: k -&gt; k -&gt; *) (b :: k) (c :: k) (a :: k).
+Category cat =&gt;
+cat b c -&gt; cat a b -&gt; cat a c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [[a]]
+</span><span class="hs-identifier hs-var">tails</span></span><span class="hs-cpp">
+
+#ifdef MIN_VERSION_tagged
+</span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679092873"><span id="local-6989586621679093150"><span class="annot"><a href="Data.Functor.Extend.html#Extend"><span class="hs-identifier hs-type">Extend</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Tagged</span></span><span> </span><span class="annot"><a href="#local-6989586621679093150"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-99"></span><span>  </span><span id="local-6989586621679092872"><span class="annot"><span class="annottext">duplicated :: forall a. Tagged a a -&gt; Tagged a (Tagged a a)
+</span><a href="#local-6989586621679092872"><span class="hs-identifier hs-var hs-var hs-var hs-var">duplicated</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {k} (s :: k) b. b -&gt; Tagged s b
+</span><span class="hs-identifier hs-var">Tagged</span></span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#if defined(MIN_VERSION_tagged) || MIN_VERSION_base(4,7,0)
+</span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Functor.Extend.html#Extend"><span class="hs-identifier hs-type">Extend</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Proxy</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-104"></span><span>  </span><span id="local-6989586621679092864"><span class="annot"><span class="annottext">duplicated :: forall a. Proxy a -&gt; Proxy (Proxy a)
+</span><a href="#local-6989586621679092864"><span class="hs-identifier hs-var hs-var hs-var hs-var">duplicated</span></a></span></span><span> </span><span class="annot"><span class="annottext">Proxy a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span>
+</span><span id="line-105"></span><span>  </span><span id="local-6989586621679092862"><span class="annot"><span class="annottext">extended :: forall a b. (Proxy a -&gt; b) -&gt; Proxy a -&gt; Proxy b
+</span><a href="#local-6989586621679092862"><span class="hs-identifier hs-var hs-var hs-var hs-var">extended</span></a></span></span><span> </span><span class="annot"><span class="annottext">Proxy a -&gt; b
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Proxy a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-108"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679092856"><span class="annot"><a href="Data.Functor.Extend.html#Extend"><span class="hs-identifier hs-type">Extend</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-109"></span><span>  </span><span id="local-6989586621679092855"><span class="annot"><span class="annottext">duplicated :: forall a. Maybe a -&gt; Maybe (Maybe a)
+</span><a href="#local-6989586621679092855"><span class="hs-identifier hs-var hs-var hs-var hs-var">duplicated</span></a></span></span><span> </span><span class="annot"><span class="annottext">Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-110"></span><span>  </span><span class="annot"><a href="Data.Functor.Extend.html#duplicated"><span class="hs-identifier hs-var">duplicated</span></a></span><span> </span><span id="local-6989586621679092854"><span class="annot"><span class="annottext">Maybe a
+</span><a href="#local-6989586621679092854"><span class="hs-identifier hs-var">j</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Maybe a
+</span><a href="#local-6989586621679092854"><span class="hs-identifier hs-var">j</span></a></span><span>
+</span><span id="line-111"></span><span>
+</span><span id="line-112"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679092848"><span id="local-6989586621679093138"><span class="annot"><a href="Data.Functor.Extend.html#Extend"><span class="hs-identifier hs-type">Extend</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="#local-6989586621679093138"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-113"></span><span>  </span><span id="local-6989586621679092847"><span class="annot"><span class="annottext">duplicated :: forall a. Either a a -&gt; Either a (Either a a)
+</span><a href="#local-6989586621679092847"><span class="hs-identifier hs-var hs-var hs-var hs-var">duplicated</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span id="local-6989586621679092846"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679092846"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679092846"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-114"></span><span>  </span><span class="annot"><a href="Data.Functor.Extend.html#duplicated"><span class="hs-identifier hs-var">duplicated</span></a></span><span> </span><span id="local-6989586621679092845"><span class="annot"><span class="annottext">Either a a
+</span><a href="#local-6989586621679092845"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">Either a a
+</span><a href="#local-6989586621679092845"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-115"></span><span>
+</span><span id="line-116"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679092839"><span id="local-6989586621679093134"><span class="annot"><a href="Data.Functor.Extend.html#Extend"><span class="hs-identifier hs-type">Extend</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-special">,</span><span class="hs-special">)</span><span class="annot"><a href="#local-6989586621679093134"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-117"></span><span>  </span><span id="local-6989586621679092838"><span class="annot"><span class="annottext">duplicated :: forall a. (e, a) -&gt; (e, (e, a))
+</span><a href="#local-6989586621679092838"><span class="hs-identifier hs-var hs-var hs-var hs-var">duplicated</span></a></span></span><span> </span><span id="local-6989586621679092837"><span class="annot"><span class="annottext">(e, a)
+</span><a href="#local-6989586621679092837"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. (a, b) -&gt; a
+</span><span class="hs-identifier hs-var">fst</span></span><span> </span><span class="annot"><span class="annottext">(e, a)
+</span><a href="#local-6989586621679092837"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">(e, a)
+</span><a href="#local-6989586621679092837"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-118"></span><span>
+</span><span id="line-119"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679092831"><span id="local-6989586621679093129"><span class="annot"><span class="hs-identifier hs-type">Semigroup</span></span><span> </span><span class="annot"><a href="#local-6989586621679093129"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Functor.Extend.html#Extend"><span class="hs-identifier hs-type">Extend</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-glyph">-&gt;</span><span class="hs-special">)</span><span class="annot"><a href="#local-6989586621679093129"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-120"></span><span>  </span><span id="local-6989586621679092828"><span class="annot"><span class="annottext">duplicated :: forall a. (m -&gt; a) -&gt; m -&gt; (m -&gt; a)
+</span><a href="#local-6989586621679092828"><span class="hs-identifier hs-var hs-var hs-var hs-var">duplicated</span></a></span></span><span> </span><span id="local-6989586621679092827"><span class="annot"><span class="annottext">m -&gt; a
+</span><a href="#local-6989586621679092827"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679092826"><span class="annot"><span class="annottext">m
+</span><a href="#local-6989586621679092826"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m -&gt; a
+</span><a href="#local-6989586621679092827"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">forall {k} (cat :: k -&gt; k -&gt; *) (b :: k) (c :: k) (a :: k).
+Category cat =&gt;
+cat b c -&gt; cat a b -&gt; cat a c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">(&lt;&gt;)</span></span><span> </span><span class="annot"><span class="annottext">m
+</span><a href="#local-6989586621679092826"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-cpp">
+
+#ifdef MIN_VERSION_containers
+</span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679092820"><span class="annot"><a href="Data.Functor.Extend.html#Extend"><span class="hs-identifier hs-type">Extend</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Seq</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-124"></span><span>  </span><span id="local-6989586621679092819"><span class="annot"><span class="annottext">duplicated :: forall a. Seq a -&gt; Seq (Seq a)
+</span><a href="#local-6989586621679092819"><span class="hs-identifier hs-var hs-var hs-var hs-var">duplicated</span></a></span></span><span> </span><span id="local-6989586621679092818"><span class="annot"><span class="annottext">Seq a
+</span><a href="#local-6989586621679092818"><span class="hs-identifier hs-var">l</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Int -&gt; Seq a -&gt; Seq a
+</span><span class="hs-identifier hs-var">Seq.take</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Seq a -&gt; Int
+</span><span class="hs-identifier hs-var">Seq.length</span></span><span> </span><span class="annot"><span class="annottext">Seq a
+</span><a href="#local-6989586621679092818"><span class="hs-identifier hs-var">l</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Seq a -&gt; Seq (Seq a)
+</span><span class="hs-identifier hs-var">Seq.tails</span></span><span> </span><span class="annot"><span class="annottext">Seq a
+</span><a href="#local-6989586621679092818"><span class="hs-identifier hs-var">l</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-125"></span><span>
+</span><span id="line-126"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679092809"><span class="annot"><a href="Data.Functor.Extend.html#Extend"><span class="hs-identifier hs-type">Extend</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Tree</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-127"></span><span>  </span><span id="local-6989586621679092807"><span class="annot"><span class="annottext">duplicated :: forall a. Tree a -&gt; Tree (Tree a)
+</span><a href="#local-6989586621679092807"><span class="hs-identifier hs-var hs-var hs-var hs-var">duplicated</span></a></span></span><span> </span><span id="local-6989586621679092806"><span class="annot"><span class="annottext">w :: Tree a
+</span><a href="#local-6989586621679092806"><span class="hs-identifier hs-var">w</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Node</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679092804"><span class="annot"><span class="annottext">[Tree a]
+</span><a href="#local-6989586621679092804"><span class="hs-keyword hs-var">as</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; [Tree a] -&gt; Tree a
+</span><span class="hs-identifier hs-var">Node</span></span><span> </span><span class="annot"><span class="annottext">Tree a
+</span><a href="#local-6989586621679092806"><span class="hs-identifier hs-var">w</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">forall (w :: * -&gt; *) a. Extend w =&gt; w a -&gt; w (w a)
+</span><a href="Data.Functor.Extend.html#duplicated"><span class="hs-identifier hs-var">duplicated</span></a></span><span> </span><span class="annot"><span class="annottext">[Tree a]
+</span><a href="#local-6989586621679092804"><span class="hs-keyword hs-var">as</span></a></span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#ifdef MIN_VERSION_comonad
+</span><span class="hs-comment">{-
+instance (Extend f, Extend g) =&gt; Extend (Coproduct f g) where
+  extended f = Coproduct . coproduct
+    (Left . extended (f . Coproduct . Left))
+    (Right . extended (f . Coproduct . Right))
+-}</span><span>
+</span><span id="line-137"></span><span>
+</span><span id="line-138"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679092798"><span id="local-6989586621679093116"><span id="local-6989586621679093117"><span class="annot"><a href="Data.Functor.Extend.html#Extend"><span class="hs-identifier hs-type">Extend</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679093117"><span class="hs-identifier hs-type">w</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Functor.Extend.html#Extend"><span class="hs-identifier hs-type">Extend</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">EnvT</span></span><span> </span><span class="annot"><a href="#local-6989586621679093116"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679093117"><span class="hs-identifier hs-type">w</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-139"></span><span>  </span><span id="local-6989586621679092796"><span class="annot"><span class="annottext">duplicated :: forall a. EnvT e w a -&gt; EnvT e w (EnvT e w a)
+</span><a href="#local-6989586621679092796"><span class="hs-identifier hs-var hs-var hs-var hs-var">duplicated</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">EnvT</span></span><span> </span><span id="local-6989586621679092794"><span class="annot"><span class="annottext">e
+</span><a href="#local-6989586621679092794"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span id="local-6989586621679092793"><span class="annot"><span class="annottext">w a
+</span><a href="#local-6989586621679092793"><span class="hs-identifier hs-var">wa</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall e (w :: * -&gt; *) a. e -&gt; w a -&gt; EnvT e w a
+</span><span class="hs-identifier hs-var">EnvT</span></span><span> </span><span class="annot"><span class="annottext">e
+</span><a href="#local-6989586621679092794"><span class="hs-identifier hs-var">e</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (w :: * -&gt; *) a b. Extend w =&gt; (w a -&gt; b) -&gt; w a -&gt; w b
+</span><a href="Data.Functor.Extend.html#extended"><span class="hs-identifier hs-var">extended</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall e (w :: * -&gt; *) a. e -&gt; w a -&gt; EnvT e w a
+</span><span class="hs-identifier hs-var">EnvT</span></span><span> </span><span class="annot"><span class="annottext">e
+</span><a href="#local-6989586621679092794"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">w a
+</span><a href="#local-6989586621679092793"><span class="hs-identifier hs-var">wa</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-140"></span><span>
+</span><span id="line-141"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679093105"><span id="local-6989586621679093106"><span class="annot"><a href="Data.Functor.Extend.html#Extend"><span class="hs-identifier hs-type">Extend</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679093106"><span class="hs-identifier hs-type">w</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Functor.Extend.html#Extend"><span class="hs-identifier hs-type">Extend</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">StoreT</span></span><span> </span><span class="annot"><a href="#local-6989586621679093105"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679093106"><span class="hs-identifier hs-type">w</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-142"></span><span>  </span><span id="local-6989586621679092783"><span class="annot"><span class="annottext">duplicated :: forall a. StoreT s w a -&gt; StoreT s w (StoreT s w a)
+</span><a href="#local-6989586621679092783"><span class="hs-identifier hs-var hs-var hs-var hs-var">duplicated</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">StoreT</span></span><span> </span><span id="local-6989586621679092781"><span class="annot"><span class="annottext">w (s -&gt; a)
+</span><a href="#local-6989586621679092781"><span class="hs-identifier hs-var">wf</span></a></span></span><span> </span><span id="local-6989586621679092780"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679092780"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall s (w :: * -&gt; *) a. w (s -&gt; a) -&gt; s -&gt; StoreT s w a
+</span><span class="hs-identifier hs-var">StoreT</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (w :: * -&gt; *) a b. Extend w =&gt; (w a -&gt; b) -&gt; w a -&gt; w b
+</span><a href="Data.Functor.Extend.html#extended"><span class="hs-identifier hs-var">extended</span></a></span><span> </span><span class="annot"><span class="annottext">forall s (w :: * -&gt; *) a. w (s -&gt; a) -&gt; s -&gt; StoreT s w a
+</span><span class="hs-identifier hs-var">StoreT</span></span><span> </span><span class="annot"><span class="annottext">w (s -&gt; a)
+</span><a href="#local-6989586621679092781"><span class="hs-identifier hs-var">wf</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679092780"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-143"></span><span>  </span><span id="local-6989586621679092778"><span class="annot"><span class="annottext">extended :: forall a b. (StoreT s w a -&gt; b) -&gt; StoreT s w a -&gt; StoreT s w b
+</span><a href="#local-6989586621679092778"><span class="hs-identifier hs-var hs-var hs-var hs-var">extended</span></a></span></span><span> </span><span id="local-6989586621679092777"><span class="annot"><span class="annottext">StoreT s w a -&gt; b
+</span><a href="#local-6989586621679092777"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">StoreT</span></span><span> </span><span id="local-6989586621679092776"><span class="annot"><span class="annottext">w (s -&gt; a)
+</span><a href="#local-6989586621679092776"><span class="hs-identifier hs-var">wf</span></a></span></span><span> </span><span id="local-6989586621679092775"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679092775"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall s (w :: * -&gt; *) a. w (s -&gt; a) -&gt; s -&gt; StoreT s w a
+</span><span class="hs-identifier hs-var">StoreT</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (w :: * -&gt; *) a b. Extend w =&gt; (w a -&gt; b) -&gt; w a -&gt; w b
+</span><a href="Data.Functor.Extend.html#extended"><span class="hs-identifier hs-var">extended</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679092774"><span class="annot"><span class="annottext">w (s -&gt; a)
+</span><a href="#local-6989586621679092774"><span class="hs-identifier hs-var">wf'</span></a></span></span><span> </span><span id="local-6989586621679092773"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679092773"><span class="hs-identifier hs-var">s'</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">StoreT s w a -&gt; b
+</span><a href="#local-6989586621679092777"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall s (w :: * -&gt; *) a. w (s -&gt; a) -&gt; s -&gt; StoreT s w a
+</span><span class="hs-identifier hs-var">StoreT</span></span><span> </span><span class="annot"><span class="annottext">w (s -&gt; a)
+</span><a href="#local-6989586621679092774"><span class="hs-identifier hs-var">wf'</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679092773"><span class="hs-identifier hs-var">s'</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">w (s -&gt; a)
+</span><a href="#local-6989586621679092776"><span class="hs-identifier hs-var">wf</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679092775"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-144"></span><span>
+</span><span id="line-145"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679092768"><span id="local-6989586621679093095"><span id="local-6989586621679093096"><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Extend.html#Extend"><span class="hs-identifier hs-type">Extend</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679093096"><span class="hs-identifier hs-type">w</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Semigroup</span></span><span> </span><span class="annot"><a href="#local-6989586621679093095"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Functor.Extend.html#Extend"><span class="hs-identifier hs-type">Extend</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">TracedT</span></span><span> </span><span class="annot"><a href="#local-6989586621679093095"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679093096"><span class="hs-identifier hs-type">w</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-146"></span><span>  </span><span id="local-6989586621679092760"><span class="annot"><span class="annottext">extended :: forall a b. (TracedT m w a -&gt; b) -&gt; TracedT m w a -&gt; TracedT m w b
+</span><a href="#local-6989586621679092760"><span class="hs-identifier hs-var hs-var hs-var hs-var">extended</span></a></span></span><span> </span><span id="local-6989586621679092759"><span class="annot"><span class="annottext">TracedT m w a -&gt; b
+</span><a href="#local-6989586621679092759"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall m (w :: * -&gt; *) a. w (m -&gt; a) -&gt; TracedT m w a
+</span><span class="hs-identifier hs-var">TracedT</span></span><span> </span><span class="annot"><span class="annottext">forall {k} (cat :: k -&gt; k -&gt; *) (b :: k) (c :: k) (a :: k).
+Category cat =&gt;
+cat b c -&gt; cat a b -&gt; cat a c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall (w :: * -&gt; *) a b. Extend w =&gt; (w a -&gt; b) -&gt; w a -&gt; w b
+</span><a href="Data.Functor.Extend.html#extended"><span class="hs-identifier hs-var">extended</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679092757"><span class="annot"><span class="annottext">w (m -&gt; a)
+</span><a href="#local-6989586621679092757"><span class="hs-identifier hs-var">wf</span></a></span></span><span> </span><span id="local-6989586621679092756"><span class="annot"><span class="annottext">m
+</span><a href="#local-6989586621679092756"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">TracedT m w a -&gt; b
+</span><a href="#local-6989586621679092759"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall m (w :: * -&gt; *) a. w (m -&gt; a) -&gt; TracedT m w a
+</span><span class="hs-identifier hs-var">TracedT</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall {k} (cat :: k -&gt; k -&gt; *) (b :: k) (c :: k) (a :: k).
+Category cat =&gt;
+cat b c -&gt; cat a b -&gt; cat a c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">(&lt;&gt;)</span></span><span> </span><span class="annot"><span class="annottext">m
+</span><a href="#local-6989586621679092756"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">w (m -&gt; a)
+</span><a href="#local-6989586621679092757"><span class="hs-identifier hs-var">wf</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall {k} (cat :: k -&gt; k -&gt; *) (b :: k) (c :: k) (a :: k).
+Category cat =&gt;
+cat b c -&gt; cat a b -&gt; cat a c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall m (w :: * -&gt; *) a. TracedT m w a -&gt; w (m -&gt; a)
+</span><span class="hs-identifier hs-var">runTracedT</span></span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-149"></span><span class="hs-comment">-- I can't fix the world</span><span>
+</span><span id="line-150"></span><span class="hs-comment">-- instance (Monoid m, Extend n) =&gt; Extend (ReaderT m n)</span><span>
+</span><span id="line-151"></span><span class="hs-comment">--   duplicate f m = f . mappend m</span><span>
+</span><span id="line-152"></span><span>
+</span><span id="line-153"></span><span class="hs-comment">-- * Extends for types from 'transformers'.</span><span>
+</span><span id="line-154"></span><span class="hs-comment">--</span><span>
+</span><span id="line-155"></span><span class="hs-comment">-- This isn't really a transformer, so i have no compunction about including the instance here.</span><span>
+</span><span id="line-156"></span><span class="hs-comment">--</span><span>
+</span><span id="line-157"></span><span class="hs-comment">-- TODO: Petition to move Data.Functor.Identity into base</span><span>
+</span><span id="line-158"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679092749"><span class="annot"><a href="Data.Functor.Extend.html#Extend"><span class="hs-identifier hs-type">Extend</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Identity</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-159"></span><span>  </span><span id="local-6989586621679092748"><span class="annot"><span class="annottext">duplicated :: forall a. Identity a -&gt; Identity (Identity a)
+</span><a href="#local-6989586621679092748"><span class="hs-identifier hs-var hs-var hs-var hs-var">duplicated</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Identity a
+</span><span class="hs-identifier hs-var">Identity</span></span><span>
+</span><span id="line-160"></span><span>
+</span><span id="line-161"></span><span class="hs-comment">-- Provided to avoid an orphan instance. Not proposed to standardize.</span><span>
+</span><span id="line-162"></span><span class="hs-comment">-- If Extend moved to base, consider moving instance into transformers?</span><span>
+</span><span id="line-163"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679092742"><span id="local-6989586621679093084"><span class="annot"><a href="Data.Functor.Extend.html#Extend"><span class="hs-identifier hs-type">Extend</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679093084"><span class="hs-identifier hs-type">w</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Functor.Extend.html#Extend"><span class="hs-identifier hs-type">Extend</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IdentityT</span></span><span> </span><span class="annot"><a href="#local-6989586621679093084"><span class="hs-identifier hs-type">w</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-164"></span><span>  </span><span id="local-6989586621679092738"><span class="annot"><span class="annottext">extended :: forall a b. (IdentityT w a -&gt; b) -&gt; IdentityT w a -&gt; IdentityT w b
+</span><a href="#local-6989586621679092738"><span class="hs-identifier hs-var hs-var hs-var hs-var">extended</span></a></span></span><span> </span><span id="local-6989586621679092737"><span class="annot"><span class="annottext">IdentityT w a -&gt; b
+</span><a href="#local-6989586621679092737"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IdentityT</span></span><span> </span><span id="local-6989586621679092735"><span class="annot"><span class="annottext">w a
+</span><a href="#local-6989586621679092735"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {k} (f :: k -&gt; *) (a :: k). f a -&gt; IdentityT f a
+</span><span class="hs-identifier hs-var">IdentityT</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (w :: * -&gt; *) a b. Extend w =&gt; (w a -&gt; b) -&gt; w a -&gt; w b
+</span><a href="Data.Functor.Extend.html#extended"><span class="hs-identifier hs-var">extended</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IdentityT w a -&gt; b
+</span><a href="#local-6989586621679092737"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">forall {k} (cat :: k -&gt; k -&gt; *) (b :: k) (c :: k) (a :: k).
+Category cat =&gt;
+cat b c -&gt; cat a b -&gt; cat a c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall {k} (f :: k -&gt; *) (a :: k). f a -&gt; IdentityT f a
+</span><span class="hs-identifier hs-var">IdentityT</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">w a
+</span><a href="#local-6989586621679092735"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-165"></span><span>
+</span><span id="line-166"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679092730"><span class="annot"><a href="Data.Functor.Extend.html#Extend"><span class="hs-identifier hs-type">Extend</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">NonEmpty</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-167"></span><span>  </span><span id="local-6989586621679092727"><span class="annot"><span class="annottext">extended :: forall a b. (NonEmpty a -&gt; b) -&gt; NonEmpty a -&gt; NonEmpty b
+</span><a href="#local-6989586621679092727"><span class="hs-identifier hs-var hs-var hs-var hs-var">extended</span></a></span></span><span> </span><span id="local-6989586621679092726"><span class="annot"><span class="annottext">NonEmpty a -&gt; b
+</span><a href="#local-6989586621679092726"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679092725"><span class="annot"><span class="annottext">w :: NonEmpty a
+</span><a href="#local-6989586621679092725"><span class="hs-identifier hs-var">w</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="hs-glyph">~</span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">:|</span></span><span> </span><span id="local-6989586621679092724"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679092724"><span class="hs-identifier hs-var">aas</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-168"></span><span>    </span><span class="annot"><span class="annottext">NonEmpty a -&gt; b
+</span><a href="#local-6989586621679092726"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">NonEmpty a
+</span><a href="#local-6989586621679092725"><span class="hs-identifier hs-var">w</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; [a] -&gt; NonEmpty a
+</span><span class="hs-operator hs-var">:|</span></span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679092724"><span class="hs-identifier hs-var">aas</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-169"></span><span>      </span><span class="hs-special">[</span><span class="hs-special">]</span><span>     </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-170"></span><span>      </span><span class="hs-special">(</span><span id="local-6989586621679092723"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679092723"><span class="hs-identifier hs-var">a</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679092722"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679092722"><span class="hs-keyword hs-var">as</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. NonEmpty a -&gt; [a]
+</span><span class="hs-identifier hs-var">toList</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (w :: * -&gt; *) a b. Extend w =&gt; (w a -&gt; b) -&gt; w a -&gt; w b
+</span><a href="Data.Functor.Extend.html#extended"><span class="hs-identifier hs-var">extended</span></a></span><span> </span><span class="annot"><span class="annottext">NonEmpty a -&gt; b
+</span><a href="#local-6989586621679092726"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679092723"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; [a] -&gt; NonEmpty a
+</span><span class="hs-operator hs-var">:|</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679092722"><span class="hs-keyword hs-var">as</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-171"></span><span>
+</span><span id="line-172"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679092717"><span id="local-6989586621679093072"><span id="local-6989586621679093073"><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Extend.html#Extend"><span class="hs-identifier hs-type">Extend</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679093073"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Functor.Extend.html#Extend"><span class="hs-identifier hs-type">Extend</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679093072"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Functor.Extend.html#Extend"><span class="hs-identifier hs-type">Extend</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Functor.Sum</span></span><span> </span><span class="annot"><a href="#local-6989586621679093073"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679093072"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-173"></span><span>  </span><span id="local-6989586621679092711"><span class="annot"><span class="annottext">extended :: forall a b. (Sum f g a -&gt; b) -&gt; Sum f g a -&gt; Sum f g b
+</span><a href="#local-6989586621679092711"><span class="hs-identifier hs-var hs-var hs-var hs-var">extended</span></a></span></span><span> </span><span id="local-6989586621679092710"><span class="annot"><span class="annottext">Sum f g a -&gt; b
+</span><a href="#local-6989586621679092710"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">InL</span></span><span> </span><span id="local-6989586621679092708"><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679092708"><span class="hs-identifier hs-var">l</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {k} (f :: k -&gt; *) (g :: k -&gt; *) (a :: k). f a -&gt; Sum f g a
+</span><span class="hs-identifier hs-var">InL</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (w :: * -&gt; *) a b. Extend w =&gt; (w a -&gt; b) -&gt; w a -&gt; w b
+</span><a href="Data.Functor.Extend.html#extended"><span class="hs-identifier hs-var">extended</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Sum f g a -&gt; b
+</span><a href="#local-6989586621679092710"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">forall {k} (cat :: k -&gt; k -&gt; *) (b :: k) (c :: k) (a :: k).
+Category cat =&gt;
+cat b c -&gt; cat a b -&gt; cat a c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall {k} (f :: k -&gt; *) (g :: k -&gt; *) (a :: k). f a -&gt; Sum f g a
+</span><span class="hs-identifier hs-var">InL</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679092708"><span class="hs-identifier hs-var">l</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-174"></span><span>  </span><span class="annot"><a href="Data.Functor.Extend.html#extended"><span class="hs-identifier hs-var">extended</span></a></span><span> </span><span id="local-6989586621679092707"><span class="annot"><span class="annottext">Sum f g a -&gt; b
+</span><a href="#local-6989586621679092707"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">InR</span></span><span> </span><span id="local-6989586621679092705"><span class="annot"><span class="annottext">g a
+</span><a href="#local-6989586621679092705"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {k} (f :: k -&gt; *) (g :: k -&gt; *) (a :: k). g a -&gt; Sum f g a
+</span><span class="hs-identifier hs-var">InR</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (w :: * -&gt; *) a b. Extend w =&gt; (w a -&gt; b) -&gt; w a -&gt; w b
+</span><a href="Data.Functor.Extend.html#extended"><span class="hs-identifier hs-var">extended</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Sum f g a -&gt; b
+</span><a href="#local-6989586621679092707"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">forall {k} (cat :: k -&gt; k -&gt; *) (b :: k) (c :: k) (a :: k).
+Category cat =&gt;
+cat b c -&gt; cat a b -&gt; cat a c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall {k} (f :: k -&gt; *) (g :: k -&gt; *) (a :: k). g a -&gt; Sum f g a
+</span><span class="hs-identifier hs-var">InR</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">g a
+</span><a href="#local-6989586621679092705"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-175"></span><span>
+</span><span id="line-176"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679092700"><span id="local-6989586621679093062"><span id="local-6989586621679093063"><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Extend.html#Extend"><span class="hs-identifier hs-type">Extend</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679093063"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Functor.Extend.html#Extend"><span class="hs-identifier hs-type">Extend</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679093062"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Functor.Extend.html#Extend"><span class="hs-identifier hs-type">Extend</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679093063"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">:+:</span></span><span> </span><span class="annot"><a href="#local-6989586621679093062"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-177"></span><span>  </span><span id="local-6989586621679092694"><span class="annot"><span class="annottext">extended :: forall a b. ((:+:) f g a -&gt; b) -&gt; (:+:) f g a -&gt; (:+:) f g b
+</span><a href="#local-6989586621679092694"><span class="hs-identifier hs-var hs-var hs-var hs-var">extended</span></a></span></span><span> </span><span id="local-6989586621679092693"><span class="annot"><span class="annottext">(:+:) f g a -&gt; b
+</span><a href="#local-6989586621679092693"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">L1</span></span><span> </span><span id="local-6989586621679092691"><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679092691"><span class="hs-identifier hs-var">l</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall k (f :: k -&gt; *) (g :: k -&gt; *) (p :: k). f p -&gt; (:+:) f g p
+</span><span class="hs-identifier hs-var">L1</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (w :: * -&gt; *) a b. Extend w =&gt; (w a -&gt; b) -&gt; w a -&gt; w b
+</span><a href="Data.Functor.Extend.html#extended"><span class="hs-identifier hs-var">extended</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(:+:) f g a -&gt; b
+</span><a href="#local-6989586621679092693"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">forall {k} (cat :: k -&gt; k -&gt; *) (b :: k) (c :: k) (a :: k).
+Category cat =&gt;
+cat b c -&gt; cat a b -&gt; cat a c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall k (f :: k -&gt; *) (g :: k -&gt; *) (p :: k). f p -&gt; (:+:) f g p
+</span><span class="hs-identifier hs-var">L1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679092691"><span class="hs-identifier hs-var">l</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-178"></span><span>  </span><span class="annot"><a href="Data.Functor.Extend.html#extended"><span class="hs-identifier hs-var">extended</span></a></span><span> </span><span id="local-6989586621679092690"><span class="annot"><span class="annottext">(:+:) f g a -&gt; b
+</span><a href="#local-6989586621679092690"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">R1</span></span><span> </span><span id="local-6989586621679092688"><span class="annot"><span class="annottext">g a
+</span><a href="#local-6989586621679092688"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall k (f :: k -&gt; *) (g :: k -&gt; *) (p :: k). g p -&gt; (:+:) f g p
+</span><span class="hs-identifier hs-var">R1</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (w :: * -&gt; *) a b. Extend w =&gt; (w a -&gt; b) -&gt; w a -&gt; w b
+</span><a href="Data.Functor.Extend.html#extended"><span class="hs-identifier hs-var">extended</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(:+:) f g a -&gt; b
+</span><a href="#local-6989586621679092690"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">forall {k} (cat :: k -&gt; k -&gt; *) (b :: k) (c :: k) (a :: k).
+Category cat =&gt;
+cat b c -&gt; cat a b -&gt; cat a c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall k (f :: k -&gt; *) (g :: k -&gt; *) (p :: k). g p -&gt; (:+:) f g p
+</span><span class="hs-identifier hs-var">R1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">g a
+</span><a href="#local-6989586621679092688"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-179"></span><span>
+</span><span id="line-180"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679092683"><span class="annot"><a href="Data.Functor.Extend.html#Extend"><span class="hs-identifier hs-type">Extend</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Generics.U1</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-181"></span><span>  </span><span id="local-6989586621679092681"><span class="annot"><span class="annottext">extended :: forall a b. (U1 a -&gt; b) -&gt; U1 a -&gt; U1 b
+</span><a href="#local-6989586621679092681"><span class="hs-identifier hs-var hs-var hs-var hs-var">extended</span></a></span></span><span> </span><span class="annot"><span class="annottext">U1 a -&gt; b
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">U1 a
+</span><span class="hs-identifier hs-var">U1</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall k (p :: k). U1 p
+</span><span class="hs-identifier hs-var">U1</span></span><span>
+</span><span id="line-182"></span><span>
+</span><span id="line-183"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679092675"><span class="annot"><a href="Data.Functor.Extend.html#Extend"><span class="hs-identifier hs-type">Extend</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Generics.V1</span></span></span><span> </span><span class="hs-keyword">where</span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ &gt;= 708
+</span><span>  </span><span id="local-6989586621679092673"><span class="annot"><span class="annottext">extended :: forall a b. (V1 a -&gt; b) -&gt; V1 a -&gt; V1 b
+</span><a href="#local-6989586621679092673"><span class="hs-identifier hs-var hs-var hs-var hs-var">extended</span></a></span></span><span> </span><span class="annot"><span class="annottext">V1 a -&gt; b
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679092672"><span class="annot"><span class="annottext">V1 a
+</span><a href="#local-6989586621679092672"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">V1 a
+</span><a href="#local-6989586621679092672"><span class="hs-identifier hs-var">e</span></a></span><span> </span><span class="hs-keyword">of</span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-cpp">
+#else
+</span><span>  </span><span class="hs-identifier">extended</span><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-identifier">e</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">seq</span><span> </span><span class="hs-identifier">e</span><span> </span><span class="hs-identifier">undefined</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-190"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679092667"><span id="local-6989586621679093043"><span id="local-6989586621679093044"><span id="local-6989586621679093045"><span class="annot"><a href="Data.Functor.Extend.html#Extend"><span class="hs-identifier hs-type">Extend</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679093045"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Functor.Extend.html#Extend"><span class="hs-identifier hs-type">Extend</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Generics.M1</span></span><span> </span><span class="annot"><a href="#local-6989586621679093044"><span class="hs-identifier hs-type">i</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679093043"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679093045"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-191"></span><span>  </span><span id="local-6989586621679092661"><span class="annot"><span class="annottext">extended :: forall a b. (M1 i t f a -&gt; b) -&gt; M1 i t f a -&gt; M1 i t f b
+</span><a href="#local-6989586621679092661"><span class="hs-identifier hs-var hs-var hs-var hs-var">extended</span></a></span></span><span> </span><span id="local-6989586621679092660"><span class="annot"><span class="annottext">M1 i t f a -&gt; b
+</span><a href="#local-6989586621679092660"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall k i (c :: Meta) (f :: k -&gt; *) (p :: k). f p -&gt; M1 i c f p
+</span><span class="hs-identifier hs-var">M1</span></span><span> </span><span class="annot"><span class="annottext">forall {k} (cat :: k -&gt; k -&gt; *) (b :: k) (c :: k) (a :: k).
+Category cat =&gt;
+cat b c -&gt; cat a b -&gt; cat a c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall (w :: * -&gt; *) a b. Extend w =&gt; (w a -&gt; b) -&gt; w a -&gt; w b
+</span><a href="Data.Functor.Extend.html#extended"><span class="hs-identifier hs-var">extended</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">M1 i t f a -&gt; b
+</span><a href="#local-6989586621679092660"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">forall {k} (cat :: k -&gt; k -&gt; *) (b :: k) (c :: k) (a :: k).
+Category cat =&gt;
+cat b c -&gt; cat a b -&gt; cat a c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall k i (c :: Meta) (f :: k -&gt; *) (p :: k). f p -&gt; M1 i c f p
+</span><span class="hs-identifier hs-var">M1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall {k} (cat :: k -&gt; k -&gt; *) (b :: k) (c :: k) (a :: k).
+Category cat =&gt;
+cat b c -&gt; cat a b -&gt; cat a c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall k i (c :: Meta) (f :: k -&gt; *) (p :: k). M1 i c f p -&gt; f p
+</span><span class="hs-identifier hs-var">unM1</span></span><span>
+</span><span id="line-192"></span><span>
+</span><span id="line-193"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679092653"><span class="annot"><a href="Data.Functor.Extend.html#Extend"><span class="hs-identifier hs-type">Extend</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Par1</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-194"></span><span>  </span><span id="local-6989586621679092651"><span class="annot"><span class="annottext">extended :: forall a b. (Par1 a -&gt; b) -&gt; Par1 a -&gt; Par1 b
+</span><a href="#local-6989586621679092651"><span class="hs-identifier hs-var hs-var hs-var hs-var">extended</span></a></span></span><span> </span><span id="local-6989586621679092650"><span class="annot"><span class="annottext">Par1 a -&gt; b
+</span><a href="#local-6989586621679092650"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679092649"><span class="annot"><span class="annottext">w :: Par1 a
+</span><a href="#local-6989586621679092649"><span class="hs-identifier hs-var">w</span></a></span></span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">Par1</span></span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall p. p -&gt; Par1 p
+</span><span class="hs-identifier hs-var">Par1</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Par1 a -&gt; b
+</span><a href="#local-6989586621679092650"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">Par1 a
+</span><a href="#local-6989586621679092649"><span class="hs-identifier hs-var">w</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-195"></span><span>
+</span><span id="line-196"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679092643"><span id="local-6989586621679093026"><span class="annot"><a href="Data.Functor.Extend.html#Extend"><span class="hs-identifier hs-type">Extend</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679093026"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Functor.Extend.html#Extend"><span class="hs-identifier hs-type">Extend</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Rec1</span></span><span> </span><span class="annot"><a href="#local-6989586621679093026"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-197"></span><span>  </span><span id="local-6989586621679092637"><span class="annot"><span class="annottext">extended :: forall a b. (Rec1 f a -&gt; b) -&gt; Rec1 f a -&gt; Rec1 f b
+</span><a href="#local-6989586621679092637"><span class="hs-identifier hs-var hs-var hs-var hs-var">extended</span></a></span></span><span> </span><span id="local-6989586621679092636"><span class="annot"><span class="annottext">Rec1 f a -&gt; b
+</span><a href="#local-6989586621679092636"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall k (f :: k -&gt; *) (p :: k). f p -&gt; Rec1 f p
+</span><span class="hs-identifier hs-var">Rec1</span></span><span> </span><span class="annot"><span class="annottext">forall {k} (cat :: k -&gt; k -&gt; *) (b :: k) (c :: k) (a :: k).
+Category cat =&gt;
+cat b c -&gt; cat a b -&gt; cat a c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall (w :: * -&gt; *) a b. Extend w =&gt; (w a -&gt; b) -&gt; w a -&gt; w b
+</span><a href="Data.Functor.Extend.html#extended"><span class="hs-identifier hs-var">extended</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Rec1 f a -&gt; b
+</span><a href="#local-6989586621679092636"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">forall {k} (cat :: k -&gt; k -&gt; *) (b :: k) (c :: k) (a :: k).
+Category cat =&gt;
+cat b c -&gt; cat a b -&gt; cat a c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall k (f :: k -&gt; *) (p :: k). f p -&gt; Rec1 f p
+</span><span class="hs-identifier hs-var">Rec1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall {k} (cat :: k -&gt; k -&gt; *) (b :: k) (c :: k) (a :: k).
+Category cat =&gt;
+cat b c -&gt; cat a b -&gt; cat a c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall k (f :: k -&gt; *) (p :: k). Rec1 f p -&gt; f p
+</span><span class="hs-identifier hs-var">unRec1</span></span><span>
+</span><span id="line-198"></span><span>
+</span><span id="line-199"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679092629"><span class="annot"><a href="Data.Functor.Extend.html#Extend"><span class="hs-identifier hs-type">Extend</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monoid.Sum</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-200"></span><span>  </span><span id="local-6989586621679092627"><span class="annot"><span class="annottext">extended :: forall a b. (Sum a -&gt; b) -&gt; Sum a -&gt; Sum b
+</span><a href="#local-6989586621679092627"><span class="hs-identifier hs-var hs-var hs-var hs-var">extended</span></a></span></span><span> </span><span id="local-6989586621679092626"><span class="annot"><span class="annottext">Sum a -&gt; b
+</span><a href="#local-6989586621679092626"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679092625"><span class="annot"><span class="annottext">w :: Sum a
+</span><a href="#local-6989586621679092625"><span class="hs-identifier hs-var">w</span></a></span></span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">Monoid.Sum</span></span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Sum a
+</span><span class="hs-identifier hs-var">Monoid.Sum</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Sum a -&gt; b
+</span><a href="#local-6989586621679092626"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">Sum a
+</span><a href="#local-6989586621679092625"><span class="hs-identifier hs-var">w</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-201"></span><span>
+</span><span id="line-202"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679092619"><span class="annot"><a href="Data.Functor.Extend.html#Extend"><span class="hs-identifier hs-type">Extend</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monoid.Product</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-203"></span><span>  </span><span id="local-6989586621679092617"><span class="annot"><span class="annottext">extended :: forall a b. (Product a -&gt; b) -&gt; Product a -&gt; Product b
+</span><a href="#local-6989586621679092617"><span class="hs-identifier hs-var hs-var hs-var hs-var">extended</span></a></span></span><span> </span><span id="local-6989586621679092616"><span class="annot"><span class="annottext">Product a -&gt; b
+</span><a href="#local-6989586621679092616"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679092615"><span class="annot"><span class="annottext">w :: Product a
+</span><a href="#local-6989586621679092615"><span class="hs-identifier hs-var">w</span></a></span></span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">Monoid.Product</span></span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Product a
+</span><span class="hs-identifier hs-var">Monoid.Product</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Product a -&gt; b
+</span><a href="#local-6989586621679092616"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">Product a
+</span><a href="#local-6989586621679092615"><span class="hs-identifier hs-var">w</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-204"></span><span>
+</span><span id="line-205"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679092609"><span class="annot"><a href="Data.Functor.Extend.html#Extend"><span class="hs-identifier hs-type">Extend</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monoid.Dual</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-206"></span><span>  </span><span id="local-6989586621679092607"><span class="annot"><span class="annottext">extended :: forall a b. (Dual a -&gt; b) -&gt; Dual a -&gt; Dual b
+</span><a href="#local-6989586621679092607"><span class="hs-identifier hs-var hs-var hs-var hs-var">extended</span></a></span></span><span> </span><span id="local-6989586621679092606"><span class="annot"><span class="annottext">Dual a -&gt; b
+</span><a href="#local-6989586621679092606"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679092605"><span class="annot"><span class="annottext">w :: Dual a
+</span><a href="#local-6989586621679092605"><span class="hs-identifier hs-var">w</span></a></span></span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">Monoid.Dual</span></span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Dual a
+</span><span class="hs-identifier hs-var">Monoid.Dual</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Dual a -&gt; b
+</span><a href="#local-6989586621679092606"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">Dual a
+</span><a href="#local-6989586621679092605"><span class="hs-identifier hs-var">w</span></a></span><span class="hs-special">)</span><span class="hs-cpp">
+
+#if MIN_VERSION_base(4,8,0)
+</span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679092599"><span id="local-6989586621679093007"><span class="annot"><a href="Data.Functor.Extend.html#Extend"><span class="hs-identifier hs-type">Extend</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679093007"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Functor.Extend.html#Extend"><span class="hs-identifier hs-type">Extend</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Monoid.Alt</span></span><span> </span><span class="annot"><a href="#local-6989586621679093007"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-210"></span><span>  </span><span id="local-6989586621679092593"><span class="annot"><span class="annottext">extended :: forall a b. (Alt f a -&gt; b) -&gt; Alt f a -&gt; Alt f b
+</span><a href="#local-6989586621679092593"><span class="hs-identifier hs-var hs-var hs-var hs-var">extended</span></a></span></span><span> </span><span id="local-6989586621679092592"><span class="annot"><span class="annottext">Alt f a -&gt; b
+</span><a href="#local-6989586621679092592"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall {k} (f :: k -&gt; *) (a :: k). f a -&gt; Alt f a
+</span><span class="hs-identifier hs-var">Monoid.Alt</span></span><span> </span><span class="annot"><span class="annottext">forall {k} (cat :: k -&gt; k -&gt; *) (b :: k) (c :: k) (a :: k).
+Category cat =&gt;
+cat b c -&gt; cat a b -&gt; cat a c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall (w :: * -&gt; *) a b. Extend w =&gt; (w a -&gt; b) -&gt; w a -&gt; w b
+</span><a href="Data.Functor.Extend.html#extended"><span class="hs-identifier hs-var">extended</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Alt f a -&gt; b
+</span><a href="#local-6989586621679092592"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">forall {k} (cat :: k -&gt; k -&gt; *) (b :: k) (c :: k) (a :: k).
+Category cat =&gt;
+cat b c -&gt; cat a b -&gt; cat a c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall {k} (f :: k -&gt; *) (a :: k). f a -&gt; Alt f a
+</span><span class="hs-identifier hs-var">Monoid.Alt</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall {k} (cat :: k -&gt; k -&gt; *) (b :: k) (c :: k) (a :: k).
+Category cat =&gt;
+cat b c -&gt; cat a b -&gt; cat a c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall {k} (f :: k -&gt; *) (a :: k). Alt f a -&gt; f a
+</span><span class="hs-identifier hs-var">Monoid.getAlt</span></span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-213"></span><span class="hs-comment">-- in GHC 8.6 we'll have to deal with Apply f =&gt; Apply (Ap f) the same way</span><span>
+</span><span id="line-214"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679092585"><span class="annot"><a href="Data.Functor.Extend.html#Extend"><span class="hs-identifier hs-type">Extend</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Semigroup.First</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-215"></span><span>  </span><span id="local-6989586621679092583"><span class="annot"><span class="annottext">extended :: forall a b. (First a -&gt; b) -&gt; First a -&gt; First b
+</span><a href="#local-6989586621679092583"><span class="hs-identifier hs-var hs-var hs-var hs-var">extended</span></a></span></span><span> </span><span id="local-6989586621679092582"><span class="annot"><span class="annottext">First a -&gt; b
+</span><a href="#local-6989586621679092582"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679092581"><span class="annot"><span class="annottext">w :: First a
+</span><a href="#local-6989586621679092581"><span class="hs-identifier hs-var">w</span></a></span></span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">Semigroup.First</span></span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; First a
+</span><span class="hs-identifier hs-var">Semigroup.First</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">First a -&gt; b
+</span><a href="#local-6989586621679092582"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">First a
+</span><a href="#local-6989586621679092581"><span class="hs-identifier hs-var">w</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-216"></span><span>
+</span><span id="line-217"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679092575"><span class="annot"><a href="Data.Functor.Extend.html#Extend"><span class="hs-identifier hs-type">Extend</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Semigroup.Last</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-218"></span><span>  </span><span id="local-6989586621679092573"><span class="annot"><span class="annottext">extended :: forall a b. (Last a -&gt; b) -&gt; Last a -&gt; Last b
+</span><a href="#local-6989586621679092573"><span class="hs-identifier hs-var hs-var hs-var hs-var">extended</span></a></span></span><span> </span><span id="local-6989586621679092572"><span class="annot"><span class="annottext">Last a -&gt; b
+</span><a href="#local-6989586621679092572"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679092571"><span class="annot"><span class="annottext">w :: Last a
+</span><a href="#local-6989586621679092571"><span class="hs-identifier hs-var">w</span></a></span></span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">Semigroup.Last</span></span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Last a
+</span><span class="hs-identifier hs-var">Semigroup.Last</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Last a -&gt; b
+</span><a href="#local-6989586621679092572"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">Last a
+</span><a href="#local-6989586621679092571"><span class="hs-identifier hs-var">w</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-219"></span><span>
+</span><span id="line-220"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679092565"><span class="annot"><a href="Data.Functor.Extend.html#Extend"><span class="hs-identifier hs-type">Extend</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Semigroup.Min</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-221"></span><span>  </span><span id="local-6989586621679092563"><span class="annot"><span class="annottext">extended :: forall a b. (Min a -&gt; b) -&gt; Min a -&gt; Min b
+</span><a href="#local-6989586621679092563"><span class="hs-identifier hs-var hs-var hs-var hs-var">extended</span></a></span></span><span> </span><span id="local-6989586621679092562"><span class="annot"><span class="annottext">Min a -&gt; b
+</span><a href="#local-6989586621679092562"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679092561"><span class="annot"><span class="annottext">w :: Min a
+</span><a href="#local-6989586621679092561"><span class="hs-identifier hs-var">w</span></a></span></span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">Semigroup.Min</span></span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Min a
+</span><span class="hs-identifier hs-var">Semigroup.Min</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Min a -&gt; b
+</span><a href="#local-6989586621679092562"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">Min a
+</span><a href="#local-6989586621679092561"><span class="hs-identifier hs-var">w</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-222"></span><span>
+</span><span id="line-223"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679092555"><span class="annot"><a href="Data.Functor.Extend.html#Extend"><span class="hs-identifier hs-type">Extend</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Semigroup.Max</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-224"></span><span>  </span><span id="local-6989586621679092553"><span class="annot"><span class="annottext">extended :: forall a b. (Max a -&gt; b) -&gt; Max a -&gt; Max b
+</span><a href="#local-6989586621679092553"><span class="hs-identifier hs-var hs-var hs-var hs-var">extended</span></a></span></span><span> </span><span id="local-6989586621679092552"><span class="annot"><span class="annottext">Max a -&gt; b
+</span><a href="#local-6989586621679092552"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679092551"><span class="annot"><span class="annottext">w :: Max a
+</span><a href="#local-6989586621679092551"><span class="hs-identifier hs-var">w</span></a></span></span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">Semigroup.Max</span></span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Max a
+</span><span class="hs-identifier hs-var">Semigroup.Max</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Max a -&gt; b
+</span><a href="#local-6989586621679092552"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">Max a
+</span><a href="#local-6989586621679092551"><span class="hs-identifier hs-var">w</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-225"></span><span>
+</span><span id="line-226"></span><span class="hs-comment">-- $definition</span><span>
+</span><span id="line-227"></span><span class="hs-comment">-- There are two ways to define an 'Extend' instance:</span><span>
+</span><span id="line-228"></span><span class="hs-comment">--</span><span>
+</span><span id="line-229"></span><span class="hs-comment">-- I. Provide definitions for 'extended'</span><span>
+</span><span id="line-230"></span><span class="hs-comment">-- satisfying this law:</span><span>
+</span><span id="line-231"></span><span class="hs-comment">--</span><span>
+</span><span id="line-232"></span><span class="hs-comment">-- &gt; extended f . extended g = extended (f . extended g)</span><span>
+</span><span id="line-233"></span><span class="hs-comment">--</span><span>
+</span><span id="line-234"></span><span class="hs-comment">-- II. Alternately, you may choose to provide definitions for 'duplicated'</span><span>
+</span><span id="line-235"></span><span class="hs-comment">-- satisfying this law:</span><span>
+</span><span id="line-236"></span><span class="hs-comment">--</span><span>
+</span><span id="line-237"></span><span class="hs-comment">-- &gt; duplicated . duplicated = fmap duplicated . duplicated</span><span>
+</span><span id="line-238"></span><span class="hs-comment">--</span><span>
+</span><span id="line-239"></span><span class="hs-comment">-- You may of course, choose to define both 'duplicated' /and/ 'extended'.</span><span>
+</span><span id="line-240"></span><span class="hs-comment">-- In that case you must also satisfy these laws:</span><span>
+</span><span id="line-241"></span><span class="hs-comment">--</span><span>
+</span><span id="line-242"></span><span class="hs-comment">-- &gt; extended f = fmap f . duplicated</span><span>
+</span><span id="line-243"></span><span class="hs-comment">-- &gt; duplicated = extended id</span><span>
+</span><span id="line-244"></span><span class="hs-comment">--</span><span>
+</span><span id="line-245"></span><span class="hs-comment">-- These are the default definitions of 'extended' and 'duplicated'.</span><span>
+</span><span id="line-246"></span></pre></body></html>

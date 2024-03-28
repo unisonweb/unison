@@ -1,0 +1,94 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span id="local-6989586621679219985"><span id="local-6989586621679219986"></span></span><span class="hs-pragma">{-# LANGUAGE DeriveGeneric #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Unison.ConstructorType</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Prelude</span></span><span>
+</span><span id="line-6"></span><span>
+</span><span id="line-7"></span><span id="local-6989586621679219983"><span id="local-6989586621679219984"></span></span><span class="hs-keyword">data</span><span> </span><span id="ConstructorType"><span class="annot"><a href="Unison.ConstructorType.html#ConstructorType"><span class="hs-identifier hs-var">ConstructorType</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Data"><span class="annot"><a href="Unison.ConstructorType.html#Data"><span class="hs-identifier hs-var">Data</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="Effect"><span class="annot"><a href="Unison.ConstructorType.html#Effect"><span class="hs-identifier hs-var">Effect</span></a></span></span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679219977"><span id="local-6989586621679219979"><span class="annot"><span class="annottext">ConstructorType -&gt; ConstructorType -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: ConstructorType -&gt; ConstructorType -&gt; Bool
+$c/= :: ConstructorType -&gt; ConstructorType -&gt; Bool
+== :: ConstructorType -&gt; ConstructorType -&gt; Bool
+$c== :: ConstructorType -&gt; ConstructorType -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679219957"><span id="local-6989586621679219959"><span id="local-6989586621679219962"><span id="local-6989586621679219965"><span id="local-6989586621679219968"><span id="local-6989586621679219970"><span id="local-6989586621679219972"><span class="annot"><span class="annottext">Eq ConstructorType
+ConstructorType -&gt; ConstructorType -&gt; Bool
+ConstructorType -&gt; ConstructorType -&gt; Ordering
+ConstructorType -&gt; ConstructorType -&gt; ConstructorType
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: ConstructorType -&gt; ConstructorType -&gt; ConstructorType
+$cmin :: ConstructorType -&gt; ConstructorType -&gt; ConstructorType
+max :: ConstructorType -&gt; ConstructorType -&gt; ConstructorType
+$cmax :: ConstructorType -&gt; ConstructorType -&gt; ConstructorType
+&gt;= :: ConstructorType -&gt; ConstructorType -&gt; Bool
+$c&gt;= :: ConstructorType -&gt; ConstructorType -&gt; Bool
+&gt; :: ConstructorType -&gt; ConstructorType -&gt; Bool
+$c&gt; :: ConstructorType -&gt; ConstructorType -&gt; Bool
+&lt;= :: ConstructorType -&gt; ConstructorType -&gt; Bool
+$c&lt;= :: ConstructorType -&gt; ConstructorType -&gt; Bool
+&lt; :: ConstructorType -&gt; ConstructorType -&gt; Bool
+$c&lt; :: ConstructorType -&gt; ConstructorType -&gt; Bool
+compare :: ConstructorType -&gt; ConstructorType -&gt; Ordering
+$ccompare :: ConstructorType -&gt; ConstructorType -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679219950"><span id="local-6989586621679219952"><span id="local-6989586621679219954"><span class="annot"><span class="annottext">Int -&gt; ConstructorType -&gt; ShowS
+[ConstructorType] -&gt; ShowS
+ConstructorType -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [ConstructorType] -&gt; ShowS
+$cshowList :: [ConstructorType] -&gt; ShowS
+show :: ConstructorType -&gt; String
+$cshow :: ConstructorType -&gt; String
+showsPrec :: Int -&gt; ConstructorType -&gt; ShowS
+$cshowsPrec :: Int -&gt; ConstructorType -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679219907"><span id="local-6989586621679219909"><span id="local-6989586621679219913"><span id="local-6989586621679219917"><span id="local-6989586621679219919"><span id="local-6989586621679219933"><span id="local-6989586621679219939"><span id="local-6989586621679219947"><span class="annot"><span class="annottext">Int -&gt; ConstructorType
+ConstructorType -&gt; Int
+ConstructorType -&gt; [ConstructorType]
+ConstructorType -&gt; ConstructorType
+ConstructorType -&gt; ConstructorType -&gt; [ConstructorType]
+ConstructorType
+-&gt; ConstructorType -&gt; ConstructorType -&gt; [ConstructorType]
+forall a.
+(a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (Int -&gt; a)
+-&gt; (a -&gt; Int)
+-&gt; (a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; a -&gt; [a])
+-&gt; Enum a
+enumFromThenTo :: ConstructorType
+-&gt; ConstructorType -&gt; ConstructorType -&gt; [ConstructorType]
+$cenumFromThenTo :: ConstructorType
+-&gt; ConstructorType -&gt; ConstructorType -&gt; [ConstructorType]
+enumFromTo :: ConstructorType -&gt; ConstructorType -&gt; [ConstructorType]
+$cenumFromTo :: ConstructorType -&gt; ConstructorType -&gt; [ConstructorType]
+enumFromThen :: ConstructorType -&gt; ConstructorType -&gt; [ConstructorType]
+$cenumFromThen :: ConstructorType -&gt; ConstructorType -&gt; [ConstructorType]
+enumFrom :: ConstructorType -&gt; [ConstructorType]
+$cenumFrom :: ConstructorType -&gt; [ConstructorType]
+fromEnum :: ConstructorType -&gt; Int
+$cfromEnum :: ConstructorType -&gt; Int
+toEnum :: Int -&gt; ConstructorType
+$ctoEnum :: Int -&gt; ConstructorType
+pred :: ConstructorType -&gt; ConstructorType
+$cpred :: ConstructorType -&gt; ConstructorType
+succ :: ConstructorType -&gt; ConstructorType
+$csucc :: ConstructorType -&gt; ConstructorType
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Enum</span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall x. Rep ConstructorType x -&gt; ConstructorType
+forall x. ConstructorType -&gt; Rep ConstructorType x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cto :: forall x. Rep ConstructorType x -&gt; ConstructorType
+$cfrom :: forall x. ConstructorType -&gt; Rep ConstructorType x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-8"></span></pre></body></html>

@@ -1,0 +1,425 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE BangPatterns              #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE ExistentialQuantification #-}</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- Module    : Numeric.Series</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Copyright : (c) 2016 Alexey Khudyakov</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- License   : BSD3</span><span>
+</span><span id="line-7"></span><span class="hs-comment">--</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- Maintainer  : alexey.skladnoy@gmail.com, bos@serpentine.com</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- Stability   : experimental</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- Portability : portable</span><span>
+</span><span id="line-11"></span><span class="hs-comment">--</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- Functions for working with infinite sequences. In particular</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- summation of series and evaluation of continued fractions.</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Numeric.Series</span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-15"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Data type for infinite sequences.</span></span><span>
+</span><span id="line-16"></span><span>    </span><span class="annot"><a href="Numeric.Series.html#Sequence"><span class="hs-identifier">Sequence</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Constructors</span></span><span>
+</span><span id="line-18"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Numeric.Series.html#enumSequenceFrom"><span class="hs-identifier">enumSequenceFrom</span></a></span><span>
+</span><span id="line-19"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Numeric.Series.html#enumSequenceFromStep"><span class="hs-identifier">enumSequenceFromStep</span></a></span><span>
+</span><span id="line-20"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Numeric.Series.html#scanSequence"><span class="hs-identifier">scanSequence</span></a></span><span>
+</span><span id="line-21"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Summation of series</span></span><span>
+</span><span id="line-22"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Numeric.Series.html#sumSeries"><span class="hs-identifier">sumSeries</span></a></span><span>
+</span><span id="line-23"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Numeric.Series.html#sumPowerSeries"><span class="hs-identifier">sumPowerSeries</span></a></span><span>
+</span><span id="line-24"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Numeric.Series.html#sequenceToList"><span class="hs-identifier">sequenceToList</span></a></span><span>
+</span><span id="line-25"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Evaluation of continued fractions</span></span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Numeric.Series.html#evalContFractionB"><span class="hs-identifier">evalContFractionB</span></a></span><span>
+</span><span id="line-27"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Applicative</span></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.List</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">unfoldr</span></span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Numeric.MathFunctions.Constants.html"><span class="hs-identifier">Numeric.MathFunctions.Constants</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Numeric.MathFunctions.Constants.html#m_epsilon"><span class="hs-identifier">m_epsilon</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- | Infinite series. It's represented as opaque state and step</span><span>
+</span><span id="line-38"></span><span class="hs-comment">--   function.</span><span>
+</span><span id="line-39"></span><span class="hs-keyword">data</span><span> </span><span id="Sequence"><span class="annot"><a href="Numeric.Series.html#Sequence"><span class="hs-identifier hs-var">Sequence</span></a></span></span><span> </span><span id="local-6989586621679068594"><span class="annot"><a href="#local-6989586621679068594"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679068524"><span class="annot"><a href="#local-6989586621679068524"><span class="hs-identifier hs-type">s</span></a></span></span><span class="hs-operator">.</span><span> </span><span id="Sequence"><span class="annot"><a href="Numeric.Series.html#Sequence"><span class="hs-identifier hs-var">Sequence</span></a></span></span><span> </span><span class="annot"><a href="#local-6989586621679068524"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679068524"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679068594"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span class="annot"><a href="#local-6989586621679068524"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679068520"><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="annot"><a href="Numeric.Series.html#Sequence"><span class="hs-identifier hs-type">Sequence</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-42"></span><span>  </span><span id="local-6989586621679068518"><span class="annot"><span class="annottext">fmap :: forall a b. (a -&gt; b) -&gt; Sequence a -&gt; Sequence b
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">fmap</span></span></span><span> </span><span id="local-6989586621679068517"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679068517"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Numeric.Series.html#Sequence"><span class="hs-identifier hs-type">Sequence</span></a></span><span> </span><span id="local-6989586621679068516"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679068516"><span class="hs-identifier hs-var">s0</span></a></span></span><span> </span><span id="local-6989586621679068515"><span class="annot"><span class="annottext">s -&gt; (a, s)
+</span><a href="#local-6989586621679068515"><span class="hs-identifier hs-var">step</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a s. s -&gt; (s -&gt; (a, s)) -&gt; Sequence a
+</span><a href="Numeric.Series.html#Sequence"><span class="hs-identifier hs-var">Sequence</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679068516"><span class="hs-identifier hs-var">s0</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679068514"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679068514"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679068513"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679068513"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679068512"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679068512"><span class="hs-identifier hs-var">s'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">s -&gt; (a, s)
+</span><a href="#local-6989586621679068515"><span class="hs-identifier hs-var">step</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679068514"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="hs-keyword">in</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679068517"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679068513"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679068512"><span class="hs-identifier hs-var">s'</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-43"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">fmap</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679068502"><span id="local-6989586621679068504"><span id="local-6989586621679068506"><span class="annot"><span class="hs-identifier hs-type">Applicative</span></span><span> </span><span class="annot"><a href="Numeric.Series.html#Sequence"><span class="hs-identifier hs-type">Sequence</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-46"></span><span>  </span><span id="local-6989586621679068500"><span class="annot"><span class="annottext">pure :: forall a. a -&gt; Sequence a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">pure</span></span></span><span> </span><span id="local-6989586621679068499"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679068499"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a s. s -&gt; (s -&gt; (a, s)) -&gt; Sequence a
+</span><a href="Numeric.Series.html#Sequence"><span class="hs-identifier hs-var">Sequence</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679068499"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-47"></span><span>  </span><span class="annot"><a href="Numeric.Series.html#Sequence"><span class="hs-identifier hs-type">Sequence</span></a></span><span> </span><span id="local-6989586621679068498"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679068498"><span class="hs-identifier hs-var">sA</span></a></span></span><span> </span><span id="local-6989586621679068497"><span class="annot"><span class="annottext">s -&gt; (a -&gt; b, s)
+</span><a href="#local-6989586621679068497"><span class="hs-identifier hs-var">fA</span></a></span></span><span> </span><span id="local-6989586621679068496"><span class="annot"><span class="annottext">&lt;*&gt; :: forall a b. Sequence (a -&gt; b) -&gt; Sequence a -&gt; Sequence b
+</span><span class="hs-operator hs-var hs-var hs-var hs-var">&lt;*&gt;</span></span></span><span> </span><span class="annot"><a href="Numeric.Series.html#Sequence"><span class="hs-identifier hs-type">Sequence</span></a></span><span> </span><span id="local-6989586621679068495"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679068495"><span class="hs-identifier hs-var">sB</span></a></span></span><span> </span><span id="local-6989586621679068494"><span class="annot"><span class="annottext">s -&gt; (a, s)
+</span><a href="#local-6989586621679068494"><span class="hs-identifier hs-var">fB</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a s. s -&gt; (s -&gt; (a, s)) -&gt; Sequence a
+</span><a href="Numeric.Series.html#Sequence"><span class="hs-identifier hs-var">Sequence</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679068498"><span class="hs-identifier hs-var">sA</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679068495"><span class="hs-identifier hs-var">sB</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="hs-glyph">!</span><span id="local-6989586621679068493"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679068493"><span class="hs-identifier hs-var">sa</span></a></span></span><span class="hs-special">,</span><span class="hs-glyph">!</span><span id="local-6989586621679068492"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679068492"><span class="hs-identifier hs-var">sb</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-48"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679068491"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679068491"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679068490"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679068490"><span class="hs-identifier hs-var">sa'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">s -&gt; (a -&gt; b, s)
+</span><a href="#local-6989586621679068497"><span class="hs-identifier hs-var">fA</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679068493"><span class="hs-identifier hs-var">sa</span></a></span><span>
+</span><span id="line-49"></span><span>        </span><span class="hs-special">(</span><span id="local-6989586621679068489"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679068489"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679068488"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679068488"><span class="hs-identifier hs-var">sb'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">s -&gt; (a, s)
+</span><a href="#local-6989586621679068494"><span class="hs-identifier hs-var">fB</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679068492"><span class="hs-identifier hs-var">sb</span></a></span><span>
+</span><span id="line-50"></span><span>    </span><span class="hs-keyword">in</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679068491"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679068489"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679068490"><span class="hs-identifier hs-var">sa'</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679068488"><span class="hs-identifier hs-var">sb'</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-51"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">pure</span></span><span>  </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-52"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="hs-pragma">(</span><span class="hs-pragma">&lt;*&gt;</span><span class="hs-pragma">)</span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-53"></span><span>
+</span><span id="line-54"></span><span class="hs-comment">-- | Elementwise operations with sequences</span><span>
+</span><span id="line-55"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679068483"><span id="local-6989586621679068573"><span class="annot"><span class="hs-identifier hs-type">Num</span></span><span> </span><span class="annot"><a href="#local-6989586621679068573"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Num</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Numeric.Series.html#Sequence"><span class="hs-identifier hs-type">Sequence</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679068573"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-56"></span><span>  </span><span id="local-6989586621679068476"><span class="annot"><span class="annottext">+ :: Sequence a -&gt; Sequence a -&gt; Sequence a
+</span><span class="hs-operator hs-var hs-var hs-var hs-var">(+)</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b c.
+Applicative f =&gt;
+(a -&gt; b -&gt; c) -&gt; f a -&gt; f b -&gt; f c
+</span><span class="hs-identifier hs-var">liftA2</span></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">(+)</span></span><span>
+</span><span id="line-57"></span><span>  </span><span id="local-6989586621679068471"><span class="annot"><span class="annottext">* :: Sequence a -&gt; Sequence a -&gt; Sequence a
+</span><span class="hs-operator hs-var hs-var hs-var hs-var">(*)</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b c.
+Applicative f =&gt;
+(a -&gt; b -&gt; c) -&gt; f a -&gt; f b -&gt; f c
+</span><span class="hs-identifier hs-var">liftA2</span></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">(*)</span></span><span>
+</span><span id="line-58"></span><span>  </span><span id="local-6989586621679068467"><span class="hs-special">(</span><span class="hs-glyph">-</span><span class="hs-special">)</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b c.
+Applicative f =&gt;
+(a -&gt; b -&gt; c) -&gt; f a -&gt; f b -&gt; f c
+</span><span class="hs-identifier hs-var">liftA2</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">-</span><span class="hs-special">)</span><span>
+</span><span id="line-59"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="hs-pragma">(</span><span class="hs-pragma">+</span><span class="hs-pragma">)</span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-60"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="hs-pragma">(</span><span class="hs-pragma">*</span><span class="hs-pragma">)</span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-61"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="hs-pragma">(</span><span class="hs-pragma">-</span><span class="hs-pragma">)</span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-62"></span><span>  </span><span id="local-6989586621679068464"><span class="annot"><span class="annottext">abs :: Sequence a -&gt; Sequence a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">abs</span></span></span><span>         </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">abs</span></span><span>
+</span><span id="line-63"></span><span>  </span><span id="local-6989586621679068460"><span class="annot"><span class="annottext">signum :: Sequence a -&gt; Sequence a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">signum</span></span></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">signum</span></span><span>
+</span><span id="line-64"></span><span>  </span><span id="local-6989586621679068456"><span class="annot"><span class="annottext">fromInteger :: Integer -&gt; Sequence a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">fromInteger</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; Integer -&gt; a
+</span><span class="hs-identifier hs-var">fromInteger</span></span><span>
+</span><span id="line-65"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">abs</span></span><span>         </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-66"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">signum</span></span><span>      </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-67"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">fromInteger</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-68"></span><span>
+</span><span id="line-69"></span><span class="hs-comment">-- | Elementwise operations with sequences</span><span>
+</span><span id="line-70"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679068567"><span class="annot"><span class="hs-identifier hs-type">Fractional</span></span><span> </span><span class="annot"><a href="#local-6989586621679068567"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Fractional</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Numeric.Series.html#Sequence"><span class="hs-identifier hs-type">Sequence</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679068567"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-71"></span><span>  </span><span id="local-6989586621679068442"><span class="annot"><span class="annottext">/ :: Sequence a -&gt; Sequence a -&gt; Sequence a
+</span><span class="hs-operator hs-var hs-var hs-var hs-var">(/)</span></span></span><span>          </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b c.
+Applicative f =&gt;
+(a -&gt; b -&gt; c) -&gt; f a -&gt; f b -&gt; f c
+</span><span class="hs-identifier hs-var">liftA2</span></span><span> </span><span class="annot"><span class="annottext">forall a. Fractional a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">(/)</span></span><span>
+</span><span id="line-72"></span><span>  </span><span id="local-6989586621679068438"><span class="annot"><span class="annottext">recip :: Sequence a -&gt; Sequence a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">recip</span></span></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">forall a. Fractional a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">recip</span></span><span>
+</span><span id="line-73"></span><span>  </span><span id="local-6989586621679068434"><span class="annot"><span class="annottext">fromRational :: Rational -&gt; Sequence a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">fromRational</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall a. Fractional a =&gt; Rational -&gt; a
+</span><span class="hs-identifier hs-var">fromRational</span></span><span>
+</span><span id="line-74"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="hs-pragma">(</span><span class="hs-pragma">/</span><span class="hs-pragma">)</span><span>          </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-75"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">recip</span></span><span>        </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-76"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">fromRational</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-77"></span><span>
+</span><span id="line-78"></span><span>
+</span><span id="line-79"></span><span>
+</span><span id="line-80"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-81"></span><span class="hs-comment">-- Constructors</span><span>
+</span><span id="line-82"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-83"></span><span>
+</span><span id="line-84"></span><span class="hs-comment">-- | @enumSequenceFrom x@ generate sequence:</span><span>
+</span><span id="line-85"></span><span class="hs-comment">--</span><span>
+</span><span id="line-86"></span><span class="hs-comment">-- \[ a_n = x + n \]</span><span>
+</span><span id="line-87"></span><span id="local-6989586621679068566"><span class="annot"><a href="Numeric.Series.html#enumSequenceFrom"><span class="hs-identifier hs-type">enumSequenceFrom</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Num</span></span><span> </span><span class="annot"><a href="#local-6989586621679068566"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679068566"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Numeric.Series.html#Sequence"><span class="hs-identifier hs-type">Sequence</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679068566"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-88"></span><span id="enumSequenceFrom"><span class="annot"><span class="annottext">enumSequenceFrom :: forall a. Num a =&gt; a -&gt; Sequence a
+</span><a href="Numeric.Series.html#enumSequenceFrom"><span class="hs-identifier hs-var hs-var">enumSequenceFrom</span></a></span></span><span> </span><span id="local-6989586621679068430"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679068430"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a s. s -&gt; (s -&gt; (a, s)) -&gt; Sequence a
+</span><a href="Numeric.Series.html#Sequence"><span class="hs-identifier hs-var">Sequence</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679068430"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679068429"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679068429"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679068429"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679068429"><span class="hs-identifier hs-var">n</span></a></span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-89"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Numeric.Series.html#enumSequenceFrom"><span class="hs-pragma hs-type">enumSequenceFrom</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-90"></span><span>
+</span><span id="line-91"></span><span class="hs-comment">-- | @enumSequenceFromStep x d@ generate sequence:</span><span>
+</span><span id="line-92"></span><span class="hs-comment">--</span><span>
+</span><span id="line-93"></span><span class="hs-comment">-- \[ a_n = x + nd \]</span><span>
+</span><span id="line-94"></span><span id="local-6989586621679068564"><span class="annot"><a href="Numeric.Series.html#enumSequenceFromStep"><span class="hs-identifier hs-type">enumSequenceFromStep</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Num</span></span><span> </span><span class="annot"><a href="#local-6989586621679068564"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679068564"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679068564"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Numeric.Series.html#Sequence"><span class="hs-identifier hs-type">Sequence</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679068564"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-95"></span><span id="enumSequenceFromStep"><span class="annot"><span class="annottext">enumSequenceFromStep :: forall a. Num a =&gt; a -&gt; a -&gt; Sequence a
+</span><a href="Numeric.Series.html#enumSequenceFromStep"><span class="hs-identifier hs-var hs-var">enumSequenceFromStep</span></a></span></span><span> </span><span id="local-6989586621679068426"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679068426"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621679068425"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679068425"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a s. s -&gt; (s -&gt; (a, s)) -&gt; Sequence a
+</span><a href="Numeric.Series.html#Sequence"><span class="hs-identifier hs-var">Sequence</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679068426"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679068424"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679068424"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679068424"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679068424"><span class="hs-identifier hs-var">i</span></a></span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679068425"><span class="hs-identifier hs-var">d</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-96"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Numeric.Series.html#enumSequenceFromStep"><span class="hs-pragma hs-type">enumSequenceFromStep</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-97"></span><span>
+</span><span id="line-98"></span><span class="hs-comment">-- | Analog of 'scanl' for sequence.</span><span>
+</span><span id="line-99"></span><span id="local-6989586621679068561"><span id="local-6989586621679068562"><span class="annot"><a href="Numeric.Series.html#scanSequence"><span class="hs-identifier hs-type">scanSequence</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679068562"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679068561"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679068562"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679068562"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Numeric.Series.html#Sequence"><span class="hs-identifier hs-type">Sequence</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679068561"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Numeric.Series.html#Sequence"><span class="hs-identifier hs-type">Sequence</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679068562"><span class="hs-identifier hs-type">b</span></a></span></span></span><span>
+</span><span id="line-100"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Numeric.Series.html#scanSequence"><span class="hs-pragma hs-type">scanSequence</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-101"></span><span id="scanSequence"><span class="annot"><span class="annottext">scanSequence :: forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; Sequence a -&gt; Sequence b
+</span><a href="Numeric.Series.html#scanSequence"><span class="hs-identifier hs-var hs-var">scanSequence</span></a></span></span><span> </span><span id="local-6989586621679068423"><span class="annot"><span class="annottext">b -&gt; a -&gt; b
+</span><a href="#local-6989586621679068423"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679068422"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679068422"><span class="hs-identifier hs-var">b0</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Numeric.Series.html#Sequence"><span class="hs-identifier hs-type">Sequence</span></a></span><span> </span><span id="local-6989586621679068421"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679068421"><span class="hs-identifier hs-var">s0</span></a></span></span><span> </span><span id="local-6989586621679068420"><span class="annot"><span class="annottext">s -&gt; (a, s)
+</span><a href="#local-6989586621679068420"><span class="hs-identifier hs-var">step</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a s. s -&gt; (s -&gt; (a, s)) -&gt; Sequence a
+</span><a href="Numeric.Series.html#Sequence"><span class="hs-identifier hs-var">Sequence</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679068422"><span class="hs-identifier hs-var">b0</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679068421"><span class="hs-identifier hs-var">s0</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-special">(</span><span id="local-6989586621679068419"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679068419"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679068418"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679068418"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-102"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679068417"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679068417"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679068416"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679068416"><span class="hs-identifier hs-var">s'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">s -&gt; (a, s)
+</span><a href="#local-6989586621679068420"><span class="hs-identifier hs-var">step</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679068418"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-103"></span><span>      </span><span id="local-6989586621679068415"><span class="annot"><span class="annottext">b' :: b
+</span><a href="#local-6989586621679068415"><span class="hs-identifier hs-var hs-var">b'</span></a></span></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">b -&gt; a -&gt; b
+</span><a href="#local-6989586621679068423"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679068419"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679068417"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-104"></span><span>  </span><span class="hs-keyword">in</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679068419"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">,</span><span class="hs-special">(</span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679068415"><span class="hs-identifier hs-var">b'</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679068416"><span class="hs-identifier hs-var">s'</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-105"></span><span>
+</span><span id="line-106"></span><span>
+</span><span id="line-107"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-108"></span><span class="hs-comment">-- Evaluation of series</span><span>
+</span><span id="line-109"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-110"></span><span>
+</span><span id="line-111"></span><span class="hs-comment">-- | Calculate sum of series</span><span>
+</span><span id="line-112"></span><span class="hs-comment">--</span><span>
+</span><span id="line-113"></span><span class="hs-comment">-- \[ \sum_{i=0}^\infty a_i \]</span><span>
+</span><span id="line-114"></span><span class="hs-comment">--</span><span>
+</span><span id="line-115"></span><span class="hs-comment">-- Summation is stopped when</span><span>
+</span><span id="line-116"></span><span class="hs-comment">--</span><span>
+</span><span id="line-117"></span><span class="hs-comment">-- \[ a_{n+1} &lt; \varepsilon\sum_{i=0}^n a_i \]</span><span>
+</span><span id="line-118"></span><span class="hs-comment">--</span><span>
+</span><span id="line-119"></span><span class="hs-comment">-- where &#949; is machine precision ('m_epsilon')</span><span>
+</span><span id="line-120"></span><span class="annot"><a href="Numeric.Series.html#sumSeries"><span class="hs-identifier hs-type">sumSeries</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Numeric.Series.html#Sequence"><span class="hs-identifier hs-type">Sequence</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span>
+</span><span id="line-121"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Numeric.Series.html#sumSeries"><span class="hs-pragma hs-type">sumSeries</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-122"></span><span id="sumSeries"><span class="annot"><span class="annottext">sumSeries :: Sequence Double -&gt; Double
+</span><a href="Numeric.Series.html#sumSeries"><span class="hs-identifier hs-var hs-var">sumSeries</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Numeric.Series.html#Sequence"><span class="hs-identifier hs-type">Sequence</span></a></span><span> </span><span id="local-6989586621679068414"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679068414"><span class="hs-identifier hs-var">sInit</span></a></span></span><span> </span><span id="local-6989586621679068413"><span class="annot"><span class="annottext">s -&gt; (Double, s)
+</span><a href="#local-6989586621679068413"><span class="hs-identifier hs-var">step</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-123"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double -&gt; s -&gt; Double
+</span><a href="#local-6989586621679068412"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679068411"><span class="hs-identifier hs-var">x0</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679068410"><span class="hs-identifier hs-var">s0</span></a></span><span>
+</span><span id="line-124"></span><span>  </span><span class="hs-keyword">where</span><span> </span><span>
+</span><span id="line-125"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621679068411"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679068411"><span class="hs-identifier hs-var">x0</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679068410"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679068410"><span class="hs-identifier hs-var">s0</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">s -&gt; (Double, s)
+</span><a href="#local-6989586621679068413"><span class="hs-identifier hs-var">step</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679068414"><span class="hs-identifier hs-var">sInit</span></a></span><span>
+</span><span id="line-126"></span><span>    </span><span id="local-6989586621679068412"><span class="annot"><span class="annottext">go :: Double -&gt; s -&gt; Double
+</span><a href="#local-6989586621679068412"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span id="local-6989586621679068404"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679068404"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679068403"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679068403"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">abs</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679068402"><span class="hs-identifier hs-var">d</span></a></span><span class="annot"><span class="annottext">forall a. Fractional a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">/</span></span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679068404"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="Numeric.MathFunctions.Constants.html#m_epsilon"><span class="hs-identifier hs-var">m_epsilon</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double -&gt; s -&gt; Double
+</span><a href="#local-6989586621679068412"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679068401"><span class="hs-identifier hs-var">x'</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679068400"><span class="hs-identifier hs-var">s'</span></a></span><span>
+</span><span id="line-127"></span><span>           </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>              </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679068401"><span class="hs-identifier hs-var">x'</span></a></span><span>
+</span><span id="line-128"></span><span>      </span><span class="hs-keyword">where</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679068402"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679068402"><span class="hs-identifier hs-var">d</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679068400"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679068400"><span class="hs-identifier hs-var">s'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">s -&gt; (Double, s)
+</span><a href="#local-6989586621679068413"><span class="hs-identifier hs-var">step</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679068403"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-129"></span><span>            </span><span id="local-6989586621679068401"><span class="annot"><span class="annottext">x' :: Double
+</span><a href="#local-6989586621679068401"><span class="hs-identifier hs-var hs-var">x'</span></a></span></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679068404"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679068402"><span class="hs-identifier hs-var">d</span></a></span><span>
+</span><span id="line-130"></span><span>
+</span><span id="line-131"></span><span class="hs-comment">-- | Calculate sum of series</span><span>
+</span><span id="line-132"></span><span class="hs-comment">--</span><span>
+</span><span id="line-133"></span><span class="hs-comment">-- \[ \sum_{i=0}^\infty x^ia_i \]</span><span>
+</span><span id="line-134"></span><span class="hs-comment">--</span><span>
+</span><span id="line-135"></span><span class="hs-comment">-- Calculation is stopped when next value in series is less than</span><span>
+</span><span id="line-136"></span><span class="hs-comment">-- &#949;&#183;sum.</span><span>
+</span><span id="line-137"></span><span class="annot"><a href="Numeric.Series.html#sumPowerSeries"><span class="hs-identifier hs-type">sumPowerSeries</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Numeric.Series.html#Sequence"><span class="hs-identifier hs-type">Sequence</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span>
+</span><span id="line-138"></span><span id="sumPowerSeries"><span class="annot"><span class="annottext">sumPowerSeries :: Double -&gt; Sequence Double -&gt; Double
+</span><a href="Numeric.Series.html#sumPowerSeries"><span class="hs-identifier hs-var hs-var">sumPowerSeries</span></a></span></span><span> </span><span id="local-6989586621679068398"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679068398"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679068397"><span class="annot"><span class="annottext">Sequence Double
+</span><a href="#local-6989586621679068397"><span class="hs-identifier hs-var">ser</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Sequence Double -&gt; Double
+</span><a href="Numeric.Series.html#sumSeries"><span class="hs-identifier hs-var">sumSeries</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b c.
+Applicative f =&gt;
+(a -&gt; b -&gt; c) -&gt; f a -&gt; f b -&gt; f c
+</span><span class="hs-identifier hs-var">liftA2</span></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">(*)</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; Sequence a -&gt; Sequence b
+</span><a href="Numeric.Series.html#scanSequence"><span class="hs-identifier hs-var">scanSequence</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">(*)</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679068398"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Sequence Double
+</span><a href="#local-6989586621679068397"><span class="hs-identifier hs-var">ser</span></a></span><span>
+</span><span id="line-139"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Numeric.Series.html#sumPowerSeries"><span class="hs-pragma hs-type">sumPowerSeries</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-140"></span><span>
+</span><span id="line-141"></span><span class="hs-comment">-- | Convert series to infinite list</span><span>
+</span><span id="line-142"></span><span id="local-6989586621679068555"><span class="annot"><a href="Numeric.Series.html#sequenceToList"><span class="hs-identifier hs-type">sequenceToList</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Numeric.Series.html#Sequence"><span class="hs-identifier hs-type">Sequence</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679068555"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679068555"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span></span><span>
+</span><span id="line-143"></span><span id="sequenceToList"><span class="annot"><span class="annottext">sequenceToList :: forall a. Sequence a -&gt; [a]
+</span><a href="Numeric.Series.html#sequenceToList"><span class="hs-identifier hs-var hs-var">sequenceToList</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Numeric.Series.html#Sequence"><span class="hs-identifier hs-type">Sequence</span></a></span><span> </span><span id="local-6989586621679068396"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679068396"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span id="local-6989586621679068395"><span class="annot"><span class="annottext">s -&gt; (a, s)
+</span><a href="#local-6989586621679068395"><span class="hs-identifier hs-var">f</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall b a. (b -&gt; Maybe (a, b)) -&gt; b -&gt; [a]
+</span><span class="hs-identifier hs-var">unfoldr</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">s -&gt; (a, s)
+</span><a href="#local-6989586621679068395"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679068396"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-144"></span><span>
+</span><span id="line-145"></span><span>
+</span><span id="line-146"></span><span>
+</span><span id="line-147"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-148"></span><span class="hs-comment">-- Evaluation of continued fractions</span><span>
+</span><span id="line-149"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-150"></span><span>
+</span><span id="line-151"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-152"></span><span class="hs-comment">-- Evaluate continued fraction using modified Lentz algorithm.</span><span>
+</span><span id="line-153"></span><span class="hs-comment">-- Sequence contain pairs (a[i],b[i]) which form following expression:</span><span>
+</span><span id="line-154"></span><span class="hs-comment">--</span><span>
+</span><span id="line-155"></span><span class="hs-comment">-- \[</span><span>
+</span><span id="line-156"></span><span class="hs-comment">-- b_0 + \frac{a_1}{b_1+\frac{a_2}{b_2+\frac{a_3}{b_3 + \cdots}}}</span><span>
+</span><span id="line-157"></span><span class="hs-comment">-- \]</span><span>
+</span><span id="line-158"></span><span class="hs-comment">--</span><span>
+</span><span id="line-159"></span><span class="hs-comment">-- Modified Lentz algorithm is described in Numerical recipes 5.2</span><span>
+</span><span id="line-160"></span><span class="hs-comment">-- &quot;Evaluation of Continued Fractions&quot;</span><span>
+</span><span id="line-161"></span><span class="annot"><a href="Numeric.Series.html#evalContFractionB"><span class="hs-identifier hs-type">evalContFractionB</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Numeric.Series.html#Sequence"><span class="hs-identifier hs-type">Sequence</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span>
+</span><span id="line-162"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Numeric.Series.html#evalContFractionB"><span class="hs-pragma hs-type">evalContFractionB</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-163"></span><span id="evalContFractionB"><span class="annot"><span class="annottext">evalContFractionB :: Sequence (Double, Double) -&gt; Double
+</span><a href="Numeric.Series.html#evalContFractionB"><span class="hs-identifier hs-var hs-var">evalContFractionB</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Numeric.Series.html#Sequence"><span class="hs-identifier hs-type">Sequence</span></a></span><span> </span><span id="local-6989586621679068394"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679068394"><span class="hs-identifier hs-var">sInit</span></a></span></span><span> </span><span id="local-6989586621679068393"><span class="annot"><span class="annottext">s -&gt; ((Double, Double), s)
+</span><a href="#local-6989586621679068393"><span class="hs-identifier hs-var">step</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-164"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span id="local-6989586621679068392"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679068392"><span class="hs-identifier hs-var">b0</span></a></span></span><span class="hs-special">)</span><span class="hs-special">,</span><span id="local-6989586621679068391"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679068391"><span class="hs-identifier hs-var">s0</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">s -&gt; ((Double, Double), s)
+</span><a href="#local-6989586621679068393"><span class="hs-identifier hs-var">step</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679068394"><span class="hs-identifier hs-var">sInit</span></a></span><span>
+</span><span id="line-165"></span><span>        </span><span id="local-6989586621679068390"><span class="annot"><span class="annottext">f0 :: Double
+</span><a href="#local-6989586621679068390"><span class="hs-identifier hs-var hs-var">f0</span></a></span></span><span>          </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double
+</span><a href="#local-6989586621679068389"><span class="hs-identifier hs-var">maskZero</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679068392"><span class="hs-identifier hs-var">b0</span></a></span><span>
+</span><span id="line-166"></span><span>    </span><span class="hs-keyword">in</span><span>  </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double -&gt; s -&gt; Double
+</span><a href="#local-6989586621679068388"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679068390"><span class="hs-identifier hs-var">f0</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679068390"><span class="hs-identifier hs-var">f0</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679068391"><span class="hs-identifier hs-var">s0</span></a></span><span>
+</span><span id="line-167"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-168"></span><span>    </span><span id="local-6989586621679068386"><span class="annot"><span class="annottext">tiny :: Double
+</span><a href="#local-6989586621679068386"><span class="hs-identifier hs-var hs-var">tiny</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">1e-60</span></span><span>
+</span><span id="line-169"></span><span>    </span><span id="local-6989586621679068389"><span class="annot"><span class="annottext">maskZero :: Double -&gt; Double
+</span><a href="#local-6989586621679068389"><span class="hs-identifier hs-var hs-var">maskZero</span></a></span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679068386"><span class="hs-identifier hs-var">tiny</span></a></span><span>
+</span><span id="line-170"></span><span>    </span><span class="annot"><a href="#local-6989586621679068389"><span class="hs-identifier hs-var">maskZero</span></a></span><span> </span><span id="local-6989586621679068382"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679068382"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679068382"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-171"></span><span>    </span><span>
+</span><span id="line-172"></span><span>    </span><span id="local-6989586621679068388"><span class="annot"><span class="annottext">go :: Double -&gt; Double -&gt; Double -&gt; s -&gt; Double
+</span><a href="#local-6989586621679068388"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span id="local-6989586621679068377"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679068377"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679068376"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679068376"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span id="local-6989586621679068375"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679068375"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span id="local-6989586621679068374"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679068374"><span class="hs-identifier hs-var">s</span></a></span></span><span>
+</span><span id="line-173"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">abs</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679068373"><span class="hs-identifier hs-var">delta</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="Numeric.MathFunctions.Constants.html#m_epsilon"><span class="hs-identifier hs-var">m_epsilon</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double -&gt; s -&gt; Double
+</span><a href="#local-6989586621679068388"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679068372"><span class="hs-identifier hs-var">f'</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679068371"><span class="hs-identifier hs-var">c'</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679068370"><span class="hs-identifier hs-var">d'</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679068369"><span class="hs-identifier hs-var">s'</span></a></span><span>
+</span><span id="line-174"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>                    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679068372"><span class="hs-identifier hs-var">f'</span></a></span><span>
+</span><span id="line-175"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-176"></span><span>          </span><span class="hs-special">(</span><span class="hs-special">(</span><span id="local-6989586621679068368"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679068368"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679068367"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679068367"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span class="hs-special">,</span><span id="local-6989586621679068369"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679068369"><span class="hs-identifier hs-var">s'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">s -&gt; ((Double, Double), s)
+</span><a href="#local-6989586621679068393"><span class="hs-identifier hs-var">step</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679068374"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-177"></span><span>          </span><span id="local-6989586621679068370"><span class="annot"><span class="annottext">d' :: Double
+</span><a href="#local-6989586621679068370"><span class="hs-identifier hs-var hs-var">d'</span></a></span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Fractional a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">recip</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double
+</span><a href="#local-6989586621679068389"><span class="hs-identifier hs-var">maskZero</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679068367"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679068368"><span class="hs-identifier hs-var">a</span></a></span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679068375"><span class="hs-identifier hs-var">d</span></a></span><span>
+</span><span id="line-178"></span><span>          </span><span id="local-6989586621679068371"><span class="annot"><span class="annottext">c' :: Double
+</span><a href="#local-6989586621679068371"><span class="hs-identifier hs-var hs-var">c'</span></a></span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double
+</span><a href="#local-6989586621679068389"><span class="hs-identifier hs-var">maskZero</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679068367"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679068368"><span class="hs-identifier hs-var">a</span></a></span><span class="annot"><span class="annottext">forall a. Fractional a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">/</span></span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679068376"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span>
+</span><span id="line-179"></span><span>          </span><span id="local-6989586621679068373"><span class="annot"><span class="annottext">delta :: Double
+</span><a href="#local-6989586621679068373"><span class="hs-identifier hs-var hs-var">delta</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679068371"><span class="hs-identifier hs-var">c'</span></a></span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679068370"><span class="hs-identifier hs-var">d'</span></a></span><span>
+</span><span id="line-180"></span><span>          </span><span id="local-6989586621679068372"><span class="annot"><span class="annottext">f' :: Double
+</span><a href="#local-6989586621679068372"><span class="hs-identifier hs-var hs-var">f'</span></a></span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679068377"><span class="hs-identifier hs-var">f</span></a></span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679068373"><span class="hs-identifier hs-var">delta</span></a></span><span>
+</span><span id="line-181"></span></pre></body></html>

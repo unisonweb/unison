@@ -1,0 +1,308 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">U.Codebase.HashTags</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Hash</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Hash</span></span><span class="hs-special">)</span><span>
+</span><span id="line-4"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Hash32</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Hash32</span></span><span class="hs-special">)</span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Prelude</span></span><span>
+</span><span id="line-6"></span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- | Represents a hash of a type or term component</span><span>
+</span><span id="line-8"></span><span class="hs-keyword">newtype</span><span> </span><span id="ComponentHash"><span class="annot"><a href="U.Codebase.HashTags.html#ComponentHash"><span class="hs-identifier hs-var">ComponentHash</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="ComponentHash"><span class="annot"><a href="U.Codebase.HashTags.html#ComponentHash"><span class="hs-identifier hs-var">ComponentHash</span></a></span></span><span> </span><span class="hs-special">{</span><span id="unComponentHash"><span class="annot"><span class="annottext">ComponentHash -&gt; Hash
+</span><a href="U.Codebase.HashTags.html#unComponentHash"><span class="hs-identifier hs-var hs-var">unComponentHash</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Hash</span></span><span class="hs-special">}</span><span>
+</span><span id="line-9"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679124247"><span id="local-6989586621679124251"><span class="annot"><span class="annottext">ComponentHash -&gt; ComponentHash -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: ComponentHash -&gt; ComponentHash -&gt; Bool
+$c/= :: ComponentHash -&gt; ComponentHash -&gt; Bool
+== :: ComponentHash -&gt; ComponentHash -&gt; Bool
+$c== :: ComponentHash -&gt; ComponentHash -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679124224"><span id="local-6989586621679124226"><span id="local-6989586621679124229"><span id="local-6989586621679124232"><span id="local-6989586621679124235"><span id="local-6989586621679124238"><span id="local-6989586621679124242"><span class="annot"><span class="annottext">Eq ComponentHash
+ComponentHash -&gt; ComponentHash -&gt; Bool
+ComponentHash -&gt; ComponentHash -&gt; Ordering
+ComponentHash -&gt; ComponentHash -&gt; ComponentHash
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: ComponentHash -&gt; ComponentHash -&gt; ComponentHash
+$cmin :: ComponentHash -&gt; ComponentHash -&gt; ComponentHash
+max :: ComponentHash -&gt; ComponentHash -&gt; ComponentHash
+$cmax :: ComponentHash -&gt; ComponentHash -&gt; ComponentHash
+&gt;= :: ComponentHash -&gt; ComponentHash -&gt; Bool
+$c&gt;= :: ComponentHash -&gt; ComponentHash -&gt; Bool
+&gt; :: ComponentHash -&gt; ComponentHash -&gt; Bool
+$c&gt; :: ComponentHash -&gt; ComponentHash -&gt; Bool
+&lt;= :: ComponentHash -&gt; ComponentHash -&gt; Bool
+$c&lt;= :: ComponentHash -&gt; ComponentHash -&gt; Bool
+&lt; :: ComponentHash -&gt; ComponentHash -&gt; Bool
+$c&lt; :: ComponentHash -&gt; ComponentHash -&gt; Bool
+compare :: ComponentHash -&gt; ComponentHash -&gt; Ordering
+$ccompare :: ComponentHash -&gt; ComponentHash -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">newtype</span><span> </span><span id="BranchHash"><span class="annot"><a href="U.Codebase.HashTags.html#BranchHash"><span class="hs-identifier hs-var">BranchHash</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="BranchHash"><span class="annot"><a href="U.Codebase.HashTags.html#BranchHash"><span class="hs-identifier hs-var">BranchHash</span></a></span></span><span> </span><span class="hs-special">{</span><span id="unBranchHash"><span class="annot"><span class="annottext">BranchHash -&gt; Hash
+</span><a href="U.Codebase.HashTags.html#unBranchHash"><span class="hs-identifier hs-var hs-var">unBranchHash</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Hash</span></span><span class="hs-special">}</span><span>
+</span><span id="line-12"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679124216"><span id="local-6989586621679124219"><span class="annot"><span class="annottext">BranchHash -&gt; BranchHash -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: BranchHash -&gt; BranchHash -&gt; Bool
+$c/= :: BranchHash -&gt; BranchHash -&gt; Bool
+== :: BranchHash -&gt; BranchHash -&gt; Bool
+$c== :: BranchHash -&gt; BranchHash -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679124195"><span id="local-6989586621679124197"><span id="local-6989586621679124200"><span id="local-6989586621679124203"><span id="local-6989586621679124206"><span id="local-6989586621679124209"><span id="local-6989586621679124212"><span class="annot"><span class="annottext">Eq BranchHash
+BranchHash -&gt; BranchHash -&gt; Bool
+BranchHash -&gt; BranchHash -&gt; Ordering
+BranchHash -&gt; BranchHash -&gt; BranchHash
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: BranchHash -&gt; BranchHash -&gt; BranchHash
+$cmin :: BranchHash -&gt; BranchHash -&gt; BranchHash
+max :: BranchHash -&gt; BranchHash -&gt; BranchHash
+$cmax :: BranchHash -&gt; BranchHash -&gt; BranchHash
+&gt;= :: BranchHash -&gt; BranchHash -&gt; Bool
+$c&gt;= :: BranchHash -&gt; BranchHash -&gt; Bool
+&gt; :: BranchHash -&gt; BranchHash -&gt; Bool
+$c&gt; :: BranchHash -&gt; BranchHash -&gt; Bool
+&lt;= :: BranchHash -&gt; BranchHash -&gt; Bool
+$c&lt;= :: BranchHash -&gt; BranchHash -&gt; Bool
+&lt; :: BranchHash -&gt; BranchHash -&gt; Bool
+$c&lt; :: BranchHash -&gt; BranchHash -&gt; Bool
+compare :: BranchHash -&gt; BranchHash -&gt; Ordering
+$ccompare :: BranchHash -&gt; BranchHash -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- | Represents a hash of a causal containing values of the provided type.</span><span>
+</span><span id="line-15"></span><span class="hs-keyword">newtype</span><span> </span><span id="CausalHash"><span class="annot"><a href="U.Codebase.HashTags.html#CausalHash"><span class="hs-identifier hs-var">CausalHash</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="CausalHash"><span class="annot"><a href="U.Codebase.HashTags.html#CausalHash"><span class="hs-identifier hs-var">CausalHash</span></a></span></span><span> </span><span class="hs-special">{</span><span id="unCausalHash"><span class="annot"><span class="annottext">CausalHash -&gt; Hash
+</span><a href="U.Codebase.HashTags.html#unCausalHash"><span class="hs-identifier hs-var hs-var">unCausalHash</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Hash</span></span><span class="hs-special">}</span><span>
+</span><span id="line-16"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679124188"><span id="local-6989586621679124191"><span class="annot"><span class="annottext">CausalHash -&gt; CausalHash -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: CausalHash -&gt; CausalHash -&gt; Bool
+$c/= :: CausalHash -&gt; CausalHash -&gt; Bool
+== :: CausalHash -&gt; CausalHash -&gt; Bool
+$c== :: CausalHash -&gt; CausalHash -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679124167"><span id="local-6989586621679124169"><span id="local-6989586621679124172"><span id="local-6989586621679124175"><span id="local-6989586621679124178"><span id="local-6989586621679124181"><span id="local-6989586621679124184"><span class="annot"><span class="annottext">Eq CausalHash
+CausalHash -&gt; CausalHash -&gt; Bool
+CausalHash -&gt; CausalHash -&gt; Ordering
+CausalHash -&gt; CausalHash -&gt; CausalHash
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: CausalHash -&gt; CausalHash -&gt; CausalHash
+$cmin :: CausalHash -&gt; CausalHash -&gt; CausalHash
+max :: CausalHash -&gt; CausalHash -&gt; CausalHash
+$cmax :: CausalHash -&gt; CausalHash -&gt; CausalHash
+&gt;= :: CausalHash -&gt; CausalHash -&gt; Bool
+$c&gt;= :: CausalHash -&gt; CausalHash -&gt; Bool
+&gt; :: CausalHash -&gt; CausalHash -&gt; Bool
+$c&gt; :: CausalHash -&gt; CausalHash -&gt; Bool
+&lt;= :: CausalHash -&gt; CausalHash -&gt; Bool
+$c&lt;= :: CausalHash -&gt; CausalHash -&gt; Bool
+&lt; :: CausalHash -&gt; CausalHash -&gt; Bool
+$c&lt; :: CausalHash -&gt; CausalHash -&gt; Bool
+compare :: CausalHash -&gt; CausalHash -&gt; Ordering
+$ccompare :: CausalHash -&gt; CausalHash -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">newtype</span><span> </span><span id="PatchHash"><span class="annot"><a href="U.Codebase.HashTags.html#PatchHash"><span class="hs-identifier hs-var">PatchHash</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="PatchHash"><span class="annot"><a href="U.Codebase.HashTags.html#PatchHash"><span class="hs-identifier hs-var">PatchHash</span></a></span></span><span> </span><span class="hs-special">{</span><span id="unPatchHash"><span class="annot"><span class="annottext">PatchHash -&gt; Hash
+</span><a href="U.Codebase.HashTags.html#unPatchHash"><span class="hs-identifier hs-var hs-var">unPatchHash</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Hash</span></span><span class="hs-special">}</span><span>
+</span><span id="line-19"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679124160"><span id="local-6989586621679124163"><span class="annot"><span class="annottext">PatchHash -&gt; PatchHash -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: PatchHash -&gt; PatchHash -&gt; Bool
+$c/= :: PatchHash -&gt; PatchHash -&gt; Bool
+== :: PatchHash -&gt; PatchHash -&gt; Bool
+$c== :: PatchHash -&gt; PatchHash -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679124139"><span id="local-6989586621679124141"><span id="local-6989586621679124144"><span id="local-6989586621679124147"><span id="local-6989586621679124150"><span id="local-6989586621679124153"><span id="local-6989586621679124156"><span class="annot"><span class="annottext">Eq PatchHash
+PatchHash -&gt; PatchHash -&gt; Bool
+PatchHash -&gt; PatchHash -&gt; Ordering
+PatchHash -&gt; PatchHash -&gt; PatchHash
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: PatchHash -&gt; PatchHash -&gt; PatchHash
+$cmin :: PatchHash -&gt; PatchHash -&gt; PatchHash
+max :: PatchHash -&gt; PatchHash -&gt; PatchHash
+$cmax :: PatchHash -&gt; PatchHash -&gt; PatchHash
+&gt;= :: PatchHash -&gt; PatchHash -&gt; Bool
+$c&gt;= :: PatchHash -&gt; PatchHash -&gt; Bool
+&gt; :: PatchHash -&gt; PatchHash -&gt; Bool
+$c&gt; :: PatchHash -&gt; PatchHash -&gt; Bool
+&lt;= :: PatchHash -&gt; PatchHash -&gt; Bool
+$c&lt;= :: PatchHash -&gt; PatchHash -&gt; Bool
+&lt; :: PatchHash -&gt; PatchHash -&gt; Bool
+$c&lt; :: PatchHash -&gt; PatchHash -&gt; Bool
+compare :: PatchHash -&gt; PatchHash -&gt; Ordering
+$ccompare :: PatchHash -&gt; PatchHash -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679124134"><span id="local-6989586621679124137"><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="U.Codebase.HashTags.html#ComponentHash"><span class="hs-identifier hs-type">ComponentHash</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-22"></span><span>  </span><span id="local-6989586621679124126"><span class="annot"><span class="annottext">show :: ComponentHash -&gt; String
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">show</span></span></span><span> </span><span id="local-6989586621679124124"><span class="annot"><span class="annottext">ComponentHash
+</span><a href="#local-6989586621679124124"><span class="hs-identifier hs-var">h</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;ComponentHash (&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ComponentHash -&gt; Hash
+</span><a href="U.Codebase.HashTags.html#unComponentHash"><span class="hs-identifier hs-var">unComponentHash</span></a></span><span> </span><span class="annot"><span class="annottext">ComponentHash
+</span><a href="#local-6989586621679124124"><span class="hs-identifier hs-var">h</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;)&quot;</span></span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679124119"><span id="local-6989586621679124122"><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="U.Codebase.HashTags.html#BranchHash"><span class="hs-identifier hs-type">BranchHash</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-25"></span><span>  </span><span id="local-6989586621679124114"><span class="annot"><span class="annottext">show :: BranchHash -&gt; String
+</span><a href="#local-6989586621679124114"><span class="hs-identifier hs-var hs-var hs-var hs-var">show</span></a></span></span><span> </span><span id="local-6989586621679124113"><span class="annot"><span class="annottext">BranchHash
+</span><a href="#local-6989586621679124113"><span class="hs-identifier hs-var">h</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;BranchHash (&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">BranchHash -&gt; Hash
+</span><a href="U.Codebase.HashTags.html#unBranchHash"><span class="hs-identifier hs-var">unBranchHash</span></a></span><span> </span><span class="annot"><span class="annottext">BranchHash
+</span><a href="#local-6989586621679124113"><span class="hs-identifier hs-var">h</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;)&quot;</span></span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679124108"><span id="local-6989586621679124111"><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="U.Codebase.HashTags.html#CausalHash"><span class="hs-identifier hs-type">CausalHash</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-28"></span><span>  </span><span id="local-6989586621679124103"><span class="annot"><span class="annottext">show :: CausalHash -&gt; String
+</span><a href="#local-6989586621679124103"><span class="hs-identifier hs-var hs-var hs-var hs-var">show</span></a></span></span><span> </span><span id="local-6989586621679124102"><span class="annot"><span class="annottext">CausalHash
+</span><a href="#local-6989586621679124102"><span class="hs-identifier hs-var">h</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;CausalHash (&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CausalHash -&gt; Hash
+</span><a href="U.Codebase.HashTags.html#unCausalHash"><span class="hs-identifier hs-var">unCausalHash</span></a></span><span> </span><span class="annot"><span class="annottext">CausalHash
+</span><a href="#local-6989586621679124102"><span class="hs-identifier hs-var">h</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;)&quot;</span></span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679124097"><span id="local-6989586621679124100"><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="U.Codebase.HashTags.html#PatchHash"><span class="hs-identifier hs-type">PatchHash</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-31"></span><span>  </span><span id="local-6989586621679124092"><span class="annot"><span class="annottext">show :: PatchHash -&gt; String
+</span><a href="#local-6989586621679124092"><span class="hs-identifier hs-var hs-var hs-var hs-var">show</span></a></span></span><span> </span><span id="local-6989586621679124091"><span class="annot"><span class="annottext">PatchHash
+</span><a href="#local-6989586621679124091"><span class="hs-identifier hs-var">h</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;PatchHash (&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">PatchHash -&gt; Hash
+</span><a href="U.Codebase.HashTags.html#unPatchHash"><span class="hs-identifier hs-var">unPatchHash</span></a></span><span> </span><span class="annot"><span class="annottext">PatchHash
+</span><a href="#local-6989586621679124091"><span class="hs-identifier hs-var">h</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;)&quot;</span></span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">From</span></span><span> </span><span class="annot"><a href="U.Codebase.HashTags.html#ComponentHash"><span class="hs-identifier hs-type">ComponentHash</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-34"></span><span>  </span><span id="local-6989586621679124085"><span class="annot"><span class="annottext">from :: ComponentHash -&gt; Text
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">from</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall source target. From source target =&gt; source -&gt; target
+</span><span class="hs-identifier hs-var">from</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">Hash</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ComponentHash -&gt; Hash
+</span><a href="U.Codebase.HashTags.html#unComponentHash"><span class="hs-identifier hs-var">unComponentHash</span></a></span><span>
+</span><span id="line-35"></span><span>
+</span><span id="line-36"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">From</span></span><span> </span><span class="annot"><a href="U.Codebase.HashTags.html#BranchHash"><span class="hs-identifier hs-type">BranchHash</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-37"></span><span>  </span><span id="local-6989586621679124079"><span class="annot"><span class="annottext">from :: BranchHash -&gt; Text
+</span><a href="#local-6989586621679124079"><span class="hs-identifier hs-var hs-var hs-var hs-var">from</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall source target. From source target =&gt; source -&gt; target
+</span><span class="hs-identifier hs-var">from</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">Hash</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">BranchHash -&gt; Hash
+</span><a href="U.Codebase.HashTags.html#unBranchHash"><span class="hs-identifier hs-var">unBranchHash</span></a></span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">From</span></span><span> </span><span class="annot"><a href="U.Codebase.HashTags.html#CausalHash"><span class="hs-identifier hs-type">CausalHash</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-40"></span><span>  </span><span id="local-6989586621679124075"><span class="annot"><span class="annottext">from :: CausalHash -&gt; Text
+</span><a href="#local-6989586621679124075"><span class="hs-identifier hs-var hs-var hs-var hs-var">from</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall source target. From source target =&gt; source -&gt; target
+</span><span class="hs-identifier hs-var">from</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">Hash</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">CausalHash -&gt; Hash
+</span><a href="U.Codebase.HashTags.html#unCausalHash"><span class="hs-identifier hs-var">unCausalHash</span></a></span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">From</span></span><span> </span><span class="annot"><a href="U.Codebase.HashTags.html#PatchHash"><span class="hs-identifier hs-type">PatchHash</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-43"></span><span>  </span><span id="local-6989586621679124071"><span class="annot"><span class="annottext">from :: PatchHash -&gt; Text
+</span><a href="#local-6989586621679124071"><span class="hs-identifier hs-var hs-var hs-var hs-var">from</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall source target. From source target =&gt; source -&gt; target
+</span><span class="hs-identifier hs-var">from</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">Hash</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">PatchHash -&gt; Hash
+</span><a href="U.Codebase.HashTags.html#unPatchHash"><span class="hs-identifier hs-var">unPatchHash</span></a></span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679124069"><span class="annot"><span class="hs-identifier hs-type">From</span></span><span> </span><span class="annot"><a href="U.Codebase.HashTags.html#ComponentHash"><span class="hs-identifier hs-type">ComponentHash</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Hash</span></span></span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679124067"><span class="annot"><span class="hs-identifier hs-type">From</span></span><span> </span><span class="annot"><a href="U.Codebase.HashTags.html#BranchHash"><span class="hs-identifier hs-type">BranchHash</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Hash</span></span></span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679124065"><span class="annot"><span class="hs-identifier hs-type">From</span></span><span> </span><span class="annot"><a href="U.Codebase.HashTags.html#CausalHash"><span class="hs-identifier hs-type">CausalHash</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Hash</span></span></span><span>
+</span><span id="line-50"></span><span>
+</span><span id="line-51"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679124063"><span class="annot"><span class="hs-identifier hs-type">From</span></span><span> </span><span class="annot"><a href="U.Codebase.HashTags.html#PatchHash"><span class="hs-identifier hs-type">PatchHash</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Hash</span></span></span><span>
+</span><span id="line-52"></span><span>
+</span><span id="line-53"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679124061"><span class="annot"><span class="hs-identifier hs-type">From</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Hash</span></span><span> </span><span class="annot"><a href="U.Codebase.HashTags.html#ComponentHash"><span class="hs-identifier hs-type">ComponentHash</span></a></span></span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679124059"><span class="annot"><span class="hs-identifier hs-type">From</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Hash</span></span><span> </span><span class="annot"><a href="U.Codebase.HashTags.html#BranchHash"><span class="hs-identifier hs-type">BranchHash</span></a></span></span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679124057"><span class="annot"><span class="hs-identifier hs-type">From</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Hash</span></span><span> </span><span class="annot"><a href="U.Codebase.HashTags.html#CausalHash"><span class="hs-identifier hs-type">CausalHash</span></a></span></span><span>
+</span><span id="line-58"></span><span>
+</span><span id="line-59"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679124055"><span class="annot"><span class="hs-identifier hs-type">From</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Hash</span></span><span> </span><span class="annot"><a href="U.Codebase.HashTags.html#PatchHash"><span class="hs-identifier hs-type">PatchHash</span></a></span></span><span>
+</span><span id="line-60"></span><span>
+</span><span id="line-61"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">From</span></span><span> </span><span class="annot"><a href="U.Codebase.HashTags.html#ComponentHash"><span class="hs-identifier hs-type">ComponentHash</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Hash32</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-62"></span><span>  </span><span id="local-6989586621679124050"><span class="annot"><span class="annottext">from :: ComponentHash -&gt; Hash32
+</span><a href="#local-6989586621679124050"><span class="hs-identifier hs-var hs-var hs-var hs-var">from</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall source target. From source target =&gt; source -&gt; target
+</span><span class="hs-identifier hs-var">from</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">Hash</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">Hash32</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ComponentHash -&gt; Hash
+</span><a href="U.Codebase.HashTags.html#unComponentHash"><span class="hs-identifier hs-var">unComponentHash</span></a></span><span>
+</span><span id="line-63"></span><span>
+</span><span id="line-64"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">From</span></span><span> </span><span class="annot"><a href="U.Codebase.HashTags.html#BranchHash"><span class="hs-identifier hs-type">BranchHash</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Hash32</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-65"></span><span>  </span><span id="local-6989586621679124046"><span class="annot"><span class="annottext">from :: BranchHash -&gt; Hash32
+</span><a href="#local-6989586621679124046"><span class="hs-identifier hs-var hs-var hs-var hs-var">from</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall source target. From source target =&gt; source -&gt; target
+</span><span class="hs-identifier hs-var">from</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">Hash</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">Hash32</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">BranchHash -&gt; Hash
+</span><a href="U.Codebase.HashTags.html#unBranchHash"><span class="hs-identifier hs-var">unBranchHash</span></a></span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">From</span></span><span> </span><span class="annot"><a href="U.Codebase.HashTags.html#CausalHash"><span class="hs-identifier hs-type">CausalHash</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Hash32</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-68"></span><span>  </span><span id="local-6989586621679124042"><span class="annot"><span class="annottext">from :: CausalHash -&gt; Hash32
+</span><a href="#local-6989586621679124042"><span class="hs-identifier hs-var hs-var hs-var hs-var">from</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall source target. From source target =&gt; source -&gt; target
+</span><span class="hs-identifier hs-var">from</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">Hash</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">Hash32</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">CausalHash -&gt; Hash
+</span><a href="U.Codebase.HashTags.html#unCausalHash"><span class="hs-identifier hs-var">unCausalHash</span></a></span><span>
+</span><span id="line-69"></span><span>
+</span><span id="line-70"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">From</span></span><span> </span><span class="annot"><a href="U.Codebase.HashTags.html#PatchHash"><span class="hs-identifier hs-type">PatchHash</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Hash32</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-71"></span><span>  </span><span id="local-6989586621679124038"><span class="annot"><span class="annottext">from :: PatchHash -&gt; Hash32
+</span><a href="#local-6989586621679124038"><span class="hs-identifier hs-var hs-var hs-var hs-var">from</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall source target. From source target =&gt; source -&gt; target
+</span><span class="hs-identifier hs-var">from</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">Hash</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">Hash32</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">PatchHash -&gt; Hash
+</span><a href="U.Codebase.HashTags.html#unPatchHash"><span class="hs-identifier hs-var">unPatchHash</span></a></span><span>
+</span><span id="line-72"></span><span>
+</span><span id="line-73"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">From</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Hash32</span></span><span> </span><span class="annot"><a href="U.Codebase.HashTags.html#ComponentHash"><span class="hs-identifier hs-type">ComponentHash</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-74"></span><span>  </span><span id="local-6989586621679124033"><span class="annot"><span class="annottext">from :: Hash32 -&gt; ComponentHash
+</span><a href="#local-6989586621679124033"><span class="hs-identifier hs-var hs-var hs-var hs-var">from</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Hash -&gt; ComponentHash
+</span><a href="U.Codebase.HashTags.html#ComponentHash"><span class="hs-identifier hs-var">ComponentHash</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall source target. From source target =&gt; source -&gt; target
+</span><span class="hs-identifier hs-var">from</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">Hash32</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">Hash</span></span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">From</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Hash32</span></span><span> </span><span class="annot"><a href="U.Codebase.HashTags.html#BranchHash"><span class="hs-identifier hs-type">BranchHash</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-77"></span><span>  </span><span id="local-6989586621679124029"><span class="annot"><span class="annottext">from :: Hash32 -&gt; BranchHash
+</span><a href="#local-6989586621679124029"><span class="hs-identifier hs-var hs-var hs-var hs-var">from</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Hash -&gt; BranchHash
+</span><a href="U.Codebase.HashTags.html#BranchHash"><span class="hs-identifier hs-var">BranchHash</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall source target. From source target =&gt; source -&gt; target
+</span><span class="hs-identifier hs-var">from</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">Hash32</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">Hash</span></span><span>
+</span><span id="line-78"></span><span>
+</span><span id="line-79"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">From</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Hash32</span></span><span> </span><span class="annot"><a href="U.Codebase.HashTags.html#CausalHash"><span class="hs-identifier hs-type">CausalHash</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-80"></span><span>  </span><span id="local-6989586621679124025"><span class="annot"><span class="annottext">from :: Hash32 -&gt; CausalHash
+</span><a href="#local-6989586621679124025"><span class="hs-identifier hs-var hs-var hs-var hs-var">from</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Hash -&gt; CausalHash
+</span><a href="U.Codebase.HashTags.html#CausalHash"><span class="hs-identifier hs-var">CausalHash</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall source target. From source target =&gt; source -&gt; target
+</span><span class="hs-identifier hs-var">from</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">Hash32</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">Hash</span></span><span>
+</span><span id="line-81"></span><span>
+</span><span id="line-82"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">From</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Hash32</span></span><span> </span><span class="annot"><a href="U.Codebase.HashTags.html#PatchHash"><span class="hs-identifier hs-type">PatchHash</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-83"></span><span>  </span><span id="local-6989586621679124021"><span class="annot"><span class="annottext">from :: Hash32 -&gt; PatchHash
+</span><a href="#local-6989586621679124021"><span class="hs-identifier hs-var hs-var hs-var hs-var">from</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Hash -&gt; PatchHash
+</span><a href="U.Codebase.HashTags.html#PatchHash"><span class="hs-identifier hs-var">PatchHash</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall source target. From source target =&gt; source -&gt; target
+</span><span class="hs-identifier hs-var">from</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">Hash32</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">Hash</span></span><span>
+</span><span id="line-84"></span></pre></body></html>

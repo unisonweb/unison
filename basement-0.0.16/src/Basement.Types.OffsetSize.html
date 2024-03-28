@@ -1,0 +1,856 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- |</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- Module      : Basement.Types.OffsetSize</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- License     : BSD-style</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- Maintainer  : Vincent Hanquez &lt;vincent@snarc.org&gt;</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Stability   : experimental</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- Portability : portable</span><span>
+</span><span id="line-7"></span><span class="hs-comment">--</span><span>
+</span><span id="line-8"></span><span class="hs-pragma">{-# LANGUAGE GeneralizedNewtypeDeriving #-}</span><span>
+</span><span id="line-9"></span><span class="hs-pragma">{-# LANGUAGE MagicHash                  #-}</span><span>
+</span><span id="line-10"></span><span class="hs-pragma">{-# LANGUAGE MultiParamTypeClasses      #-}</span><span>
+</span><span id="line-11"></span><span class="hs-pragma">{-# LANGUAGE CPP                        #-}</span><span>
+</span><span id="line-12"></span><span class="hs-pragma">{-# LANGUAGE ScopedTypeVariables        #-}</span><span>
+</span><span id="line-13"></span><span class="hs-pragma">{-# LANGUAGE TypeFamilies               #-}</span><span>
+</span><span id="line-14"></span><span class="hs-pragma">{-# LANGUAGE ConstraintKinds            #-}</span><span>
+</span><span id="line-15"></span><span class="hs-pragma">{-# OPTIONS_GHC -fno-prof-auto          #-}</span><span>
+</span><span id="line-16"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Basement.Types.OffsetSize</span><span>
+</span><span id="line-17"></span><span>    </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#FileSize"><span class="hs-identifier">FileSize</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier">Offset</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset8"><span class="hs-identifier">Offset8</span></a></span><span>
+</span><span id="line-20"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#sentinel"><span class="hs-identifier">sentinel</span></a></span><span>
+</span><span id="line-21"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#offsetOfE"><span class="hs-identifier">offsetOfE</span></a></span><span>
+</span><span id="line-22"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#offsetPlusE"><span class="hs-identifier">offsetPlusE</span></a></span><span>
+</span><span id="line-23"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#offsetMinusE"><span class="hs-identifier">offsetMinusE</span></a></span><span>
+</span><span id="line-24"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#offsetRecast"><span class="hs-identifier">offsetRecast</span></a></span><span>
+</span><span id="line-25"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#offsetCast"><span class="hs-identifier">offsetCast</span></a></span><span>
+</span><span id="line-26"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#offsetSub"><span class="hs-identifier">offsetSub</span></a></span><span>
+</span><span id="line-27"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#offsetShiftL"><span class="hs-identifier">offsetShiftL</span></a></span><span>
+</span><span id="line-28"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#offsetShiftR"><span class="hs-identifier">offsetShiftR</span></a></span><span>
+</span><span id="line-29"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#sizeCast"><span class="hs-identifier">sizeCast</span></a></span><span>
+</span><span id="line-30"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#sizeLastOffset"><span class="hs-identifier">sizeLastOffset</span></a></span><span>
+</span><span id="line-31"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#sizeAsOffset"><span class="hs-identifier">sizeAsOffset</span></a></span><span>
+</span><span id="line-32"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#sizeSub"><span class="hs-identifier">sizeSub</span></a></span><span>
+</span><span id="line-33"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#countOfRoundUp"><span class="hs-identifier">countOfRoundUp</span></a></span><span>
+</span><span id="line-34"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#offsetAsSize"><span class="hs-identifier">offsetAsSize</span></a></span><span>
+</span><span id="line-35"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#%2B."><span class="hs-operator">(+.)</span></a></span><span>
+</span><span id="line-36"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#.%3D%3D%23"><span class="hs-operator">(.==#)</span></a></span><span>
+</span><span id="line-37"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier">CountOf</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-38"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#sizeOfE"><span class="hs-identifier">sizeOfE</span></a></span><span>
+</span><span id="line-39"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#csizeOfOffset"><span class="hs-identifier">csizeOfOffset</span></a></span><span>
+</span><span id="line-40"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#csizeOfSize"><span class="hs-identifier">csizeOfSize</span></a></span><span>
+</span><span id="line-41"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#sizeOfCSSize"><span class="hs-identifier">sizeOfCSSize</span></a></span><span>
+</span><span id="line-42"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#sizeOfCSize"><span class="hs-identifier">sizeOfCSize</span></a></span><span>
+</span><span id="line-43"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#Countable"><span class="hs-identifier">Countable</span></a></span><span>
+</span><span id="line-44"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#Offsetable"><span class="hs-identifier">Offsetable</span></a></span><span>
+</span><span id="line-45"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#natValCountOf"><span class="hs-identifier">natValCountOf</span></a></span><span>
+</span><span id="line-46"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#natValOffset"><span class="hs-identifier">natValOffset</span></a></span><span>
+</span><span id="line-47"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span class="hs-cpp">
+
+#include &quot;MachDeps.h&quot;
+</span><span>
+</span><span id="line-51"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Types</span></span><span>
+</span><span id="line-52"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Word</span></span><span>
+</span><span id="line-53"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Int</span></span><span>
+</span><span id="line-54"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Prim</span></span><span>
+</span><span id="line-55"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Prim</span></span><span>
+</span><span id="line-56"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Posix.Types</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">CSsize</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-57"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Bits</span></span><span>
+</span><span id="line-58"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Basement.Compat.Base.html"><span class="hs-identifier">Basement.Compat.Base</span></a></span><span>
+</span><span id="line-59"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Basement.Compat.C.Types.html"><span class="hs-identifier">Basement.Compat.C.Types</span></a></span><span>
+</span><span id="line-60"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Basement.Compat.Semigroup.html"><span class="hs-identifier">Basement.Compat.Semigroup</span></a></span><span>
+</span><span id="line-61"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Proxy</span></span><span>
+</span><span id="line-62"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Basement.Numerical.Number.html"><span class="hs-identifier">Basement.Numerical.Number</span></a></span><span>
+</span><span id="line-63"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Basement.Numerical.Additive.html"><span class="hs-identifier">Basement.Numerical.Additive</span></a></span><span>
+</span><span id="line-64"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Basement.Numerical.Subtractive.html"><span class="hs-identifier">Basement.Numerical.Subtractive</span></a></span><span>
+</span><span id="line-65"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Basement.Numerical.Multiplicative.html"><span class="hs-identifier">Basement.Numerical.Multiplicative</span></a></span><span>
+</span><span id="line-66"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Basement.Numerical.Conversion.html"><span class="hs-identifier">Basement.Numerical.Conversion</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Numerical.Conversion.html#intToWord"><span class="hs-identifier">intToWord</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-67"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Basement.Nat.html"><span class="hs-identifier">Basement.Nat</span></a></span><span>
+</span><span id="line-68"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Basement.IntegralConv.html"><span class="hs-identifier">Basement.IntegralConv</span></a></span><span>
+</span><span id="line-69"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.List</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">foldl'</span></span><span class="hs-special">)</span><span>
+</span><span id="line-70"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span class="hs-cpp">
+
+#if WORD_SIZE_IN_BITS &lt; 64
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">GHC.IntWord64</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-76"></span><span class="hs-comment">-- | File size in bytes</span><span>
+</span><span id="line-77"></span><span class="hs-keyword">newtype</span><span> </span><span id="FileSize"><span class="annot"><a href="Basement.Types.OffsetSize.html#FileSize"><span class="hs-identifier hs-var">FileSize</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="FileSize"><span class="annot"><a href="Basement.Types.OffsetSize.html#FileSize"><span class="hs-identifier hs-var">FileSize</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span>
+</span><span id="line-78"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679152763"><span id="local-6989586621679152765"><span id="local-6989586621679152771"><span class="annot"><span class="annottext">Int -&gt; FileSize -&gt; ShowS
+[FileSize] -&gt; ShowS
+FileSize -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [FileSize] -&gt; ShowS
+$cshowList :: [FileSize] -&gt; ShowS
+show :: FileSize -&gt; String
+$cshow :: FileSize -&gt; String
+showsPrec :: Int -&gt; FileSize -&gt; ShowS
+$cshowsPrec :: Int -&gt; FileSize -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679152755"><span id="local-6989586621679152760"><span class="annot"><span class="annottext">FileSize -&gt; FileSize -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: FileSize -&gt; FileSize -&gt; Bool
+$c/= :: FileSize -&gt; FileSize -&gt; Bool
+== :: FileSize -&gt; FileSize -&gt; Bool
+$c== :: FileSize -&gt; FileSize -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679152722"><span id="local-6989586621679152726"><span id="local-6989586621679152730"><span id="local-6989586621679152734"><span id="local-6989586621679152738"><span id="local-6989586621679152742"><span id="local-6989586621679152747"><span class="annot"><span class="annottext">Eq FileSize
+FileSize -&gt; FileSize -&gt; Bool
+FileSize -&gt; FileSize -&gt; Ordering
+FileSize -&gt; FileSize -&gt; FileSize
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: FileSize -&gt; FileSize -&gt; FileSize
+$cmin :: FileSize -&gt; FileSize -&gt; FileSize
+max :: FileSize -&gt; FileSize -&gt; FileSize
+$cmax :: FileSize -&gt; FileSize -&gt; FileSize
+&gt;= :: FileSize -&gt; FileSize -&gt; Bool
+$c&gt;= :: FileSize -&gt; FileSize -&gt; Bool
+&gt; :: FileSize -&gt; FileSize -&gt; Bool
+$c&gt; :: FileSize -&gt; FileSize -&gt; Bool
+&lt;= :: FileSize -&gt; FileSize -&gt; Bool
+$c&lt;= :: FileSize -&gt; FileSize -&gt; Bool
+&lt; :: FileSize -&gt; FileSize -&gt; Bool
+$c&lt; :: FileSize -&gt; FileSize -&gt; Bool
+compare :: FileSize -&gt; FileSize -&gt; Ordering
+$ccompare :: FileSize -&gt; FileSize -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-79"></span><span>
+</span><span id="line-80"></span><span class="hs-comment">-- | Offset in bytes used for memory addressing (e.g. in a vector, string, ..)</span><span>
+</span><span id="line-81"></span><span class="hs-keyword">type</span><span> </span><span id="Offset8"><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset8"><span class="hs-identifier hs-var">Offset8</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-type">Offset</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span>
+</span><span id="line-82"></span><span>
+</span><span id="line-83"></span><span class="hs-comment">-- | Offset in a data structure consisting of elements of type 'ty'.</span><span>
+</span><span id="line-84"></span><span class="hs-comment">--</span><span>
+</span><span id="line-85"></span><span class="hs-comment">-- Int is a terrible backing type which is hard to get away from,</span><span>
+</span><span id="line-86"></span><span class="hs-comment">-- considering that GHC/Haskell are mostly using this for offset.</span><span>
+</span><span id="line-87"></span><span class="hs-comment">-- Trying to bring some sanity by a lightweight wrapping.</span><span>
+</span><span id="line-88"></span><span class="hs-keyword">newtype</span><span> </span><span id="Offset"><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-var">Offset</span></a></span></span><span> </span><span id="local-6989586621679152953"><span class="annot"><a href="#local-6989586621679152953"><span class="hs-identifier hs-type">ty</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Offset"><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-var">Offset</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-89"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679152708"><span id="local-6989586621679152710"><span id="local-6989586621679152715"><span class="annot"><span class="annottext">Int -&gt; Offset ty -&gt; ShowS
+forall ty. Int -&gt; Offset ty -&gt; ShowS
+forall ty. [Offset ty] -&gt; ShowS
+forall ty. Offset ty -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [Offset ty] -&gt; ShowS
+$cshowList :: forall ty. [Offset ty] -&gt; ShowS
+show :: Offset ty -&gt; String
+$cshow :: forall ty. Offset ty -&gt; String
+showsPrec :: Int -&gt; Offset ty -&gt; ShowS
+$cshowsPrec :: forall ty. Int -&gt; Offset ty -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679152701"><span id="local-6989586621679152706"><span class="annot"><span class="annottext">Offset ty -&gt; Offset ty -&gt; Bool
+forall ty. Offset ty -&gt; Offset ty -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: Offset ty -&gt; Offset ty -&gt; Bool
+$c/= :: forall ty. Offset ty -&gt; Offset ty -&gt; Bool
+== :: Offset ty -&gt; Offset ty -&gt; Bool
+$c== :: forall ty. Offset ty -&gt; Offset ty -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679152670"><span id="local-6989586621679152674"><span id="local-6989586621679152678"><span id="local-6989586621679152682"><span id="local-6989586621679152686"><span id="local-6989586621679152690"><span id="local-6989586621679152694"><span class="annot"><span class="annottext">Offset ty -&gt; Offset ty -&gt; Bool
+Offset ty -&gt; Offset ty -&gt; Ordering
+Offset ty -&gt; Offset ty -&gt; Offset ty
+forall ty. Eq (Offset ty)
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+forall ty. Offset ty -&gt; Offset ty -&gt; Bool
+forall ty. Offset ty -&gt; Offset ty -&gt; Ordering
+forall ty. Offset ty -&gt; Offset ty -&gt; Offset ty
+min :: Offset ty -&gt; Offset ty -&gt; Offset ty
+$cmin :: forall ty. Offset ty -&gt; Offset ty -&gt; Offset ty
+max :: Offset ty -&gt; Offset ty -&gt; Offset ty
+$cmax :: forall ty. Offset ty -&gt; Offset ty -&gt; Offset ty
+&gt;= :: Offset ty -&gt; Offset ty -&gt; Bool
+$c&gt;= :: forall ty. Offset ty -&gt; Offset ty -&gt; Bool
+&gt; :: Offset ty -&gt; Offset ty -&gt; Bool
+$c&gt; :: forall ty. Offset ty -&gt; Offset ty -&gt; Bool
+&lt;= :: Offset ty -&gt; Offset ty -&gt; Bool
+$c&lt;= :: forall ty. Offset ty -&gt; Offset ty -&gt; Bool
+&lt; :: Offset ty -&gt; Offset ty -&gt; Bool
+$c&lt; :: forall ty. Offset ty -&gt; Offset ty -&gt; Bool
+compare :: Offset ty -&gt; Offset ty -&gt; Ordering
+$ccompare :: forall ty. Offset ty -&gt; Offset ty -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679152636"><span id="local-6989586621679152640"><span id="local-6989586621679152644"><span id="local-6989586621679152648"><span id="local-6989586621679152652"><span id="local-6989586621679152656"><span id="local-6989586621679152660"><span id="local-6989586621679152665"><span class="annot"><span class="annottext">Int -&gt; Offset ty
+Offset ty -&gt; Int
+Offset ty -&gt; [Offset ty]
+Offset ty -&gt; Offset ty
+Offset ty -&gt; Offset ty -&gt; [Offset ty]
+Offset ty -&gt; Offset ty -&gt; Offset ty -&gt; [Offset ty]
+forall ty. Int -&gt; Offset ty
+forall ty. Offset ty -&gt; Int
+forall ty. Offset ty -&gt; [Offset ty]
+forall ty. Offset ty -&gt; Offset ty
+forall ty. Offset ty -&gt; Offset ty -&gt; [Offset ty]
+forall ty. Offset ty -&gt; Offset ty -&gt; Offset ty -&gt; [Offset ty]
+forall a.
+(a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (Int -&gt; a)
+-&gt; (a -&gt; Int)
+-&gt; (a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; a -&gt; [a])
+-&gt; Enum a
+enumFromThenTo :: Offset ty -&gt; Offset ty -&gt; Offset ty -&gt; [Offset ty]
+$cenumFromThenTo :: forall ty. Offset ty -&gt; Offset ty -&gt; Offset ty -&gt; [Offset ty]
+enumFromTo :: Offset ty -&gt; Offset ty -&gt; [Offset ty]
+$cenumFromTo :: forall ty. Offset ty -&gt; Offset ty -&gt; [Offset ty]
+enumFromThen :: Offset ty -&gt; Offset ty -&gt; [Offset ty]
+$cenumFromThen :: forall ty. Offset ty -&gt; Offset ty -&gt; [Offset ty]
+enumFrom :: Offset ty -&gt; [Offset ty]
+$cenumFrom :: forall ty. Offset ty -&gt; [Offset ty]
+fromEnum :: Offset ty -&gt; Int
+$cfromEnum :: forall ty. Offset ty -&gt; Int
+toEnum :: Int -&gt; Offset ty
+$ctoEnum :: forall ty. Int -&gt; Offset ty
+pred :: Offset ty -&gt; Offset ty
+$cpred :: forall ty. Offset ty -&gt; Offset ty
+succ :: Offset ty -&gt; Offset ty
+$csucc :: forall ty. Offset ty -&gt; Offset ty
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Enum</span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679152619"><span id="local-6989586621679152625"><span id="local-6989586621679152630"><span class="annot"><span class="annottext">Offset ty
+Offset ty -&gt; Offset ty -&gt; Offset ty
+forall ty. Offset ty
+forall a.
+a
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (forall n. IsNatural n =&gt; n -&gt; a -&gt; a)
+-&gt; Additive a
+forall n. IsNatural n =&gt; n -&gt; Offset ty -&gt; Offset ty
+forall ty. Offset ty -&gt; Offset ty -&gt; Offset ty
+forall ty n. IsNatural n =&gt; n -&gt; Offset ty -&gt; Offset ty
+scale :: forall n. IsNatural n =&gt; n -&gt; Offset ty -&gt; Offset ty
+$cscale :: forall ty n. IsNatural n =&gt; n -&gt; Offset ty -&gt; Offset ty
++ :: Offset ty -&gt; Offset ty -&gt; Offset ty
+$c+ :: forall ty. Offset ty -&gt; Offset ty -&gt; Offset ty
+azero :: Offset ty
+$cazero :: forall ty. Offset ty
+</span><a href="Basement.Numerical.Additive.html#C%3AAdditive"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Additive</span></a></span></span></span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier hs-type">Typeable</span></span><span class="hs-special">,</span><span id="local-6989586621679152611"><span class="annot"><span class="annottext">Integer -&gt; Offset ty
+forall ty. Integer -&gt; Offset ty
+forall a. (Integer -&gt; a) -&gt; Integral a
+fromInteger :: Integer -&gt; Offset ty
+$cfromInteger :: forall ty. Integer -&gt; Offset ty
+</span><a href="Basement.Compat.NumLiteral.html#C%3AIntegral"><span class="hs-identifier hs-var hs-var hs-var hs-var">Integral</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679152579"><span id="local-6989586621679152583"><span id="local-6989586621679152587"><span id="local-6989586621679152591"><span id="local-6989586621679152595"><span id="local-6989586621679152599"><span id="local-6989586621679152604"><span class="annot"><span class="annottext">Integer -&gt; Offset ty
+Offset ty -&gt; Offset ty
+Offset ty -&gt; Offset ty -&gt; Offset ty
+forall ty. Integer -&gt; Offset ty
+forall ty. Offset ty -&gt; Offset ty
+forall ty. Offset ty -&gt; Offset ty -&gt; Offset ty
+forall a.
+(a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (Integer -&gt; a)
+-&gt; Num a
+fromInteger :: Integer -&gt; Offset ty
+$cfromInteger :: forall ty. Integer -&gt; Offset ty
+signum :: Offset ty -&gt; Offset ty
+$csignum :: forall ty. Offset ty -&gt; Offset ty
+abs :: Offset ty -&gt; Offset ty
+$cabs :: forall ty. Offset ty -&gt; Offset ty
+negate :: Offset ty -&gt; Offset ty
+$cnegate :: forall ty. Offset ty -&gt; Offset ty
+* :: Offset ty -&gt; Offset ty -&gt; Offset ty
+$c* :: forall ty. Offset ty -&gt; Offset ty -&gt; Offset ty
+- :: Offset ty -&gt; Offset ty -&gt; Offset ty
+$c- :: forall ty. Offset ty -&gt; Offset ty -&gt; Offset ty
++ :: Offset ty -&gt; Offset ty -&gt; Offset ty
+$c+ :: forall ty. Offset ty -&gt; Offset ty -&gt; Offset ty
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Prelude.Num</span></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-90"></span><span>
+</span><span id="line-91"></span><span id="sentinel"><span class="annot"><span class="annottext">sentinel :: Offset ty
+</span><a href="Basement.Types.OffsetSize.html#sentinel"><span class="hs-identifier hs-var hs-var">sentinel</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall ty. Int -&gt; Offset ty
+</span><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-var">Offset</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">-</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span>
+</span><span id="line-92"></span><span>
+</span><span id="line-93"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679152933"><span class="annot"><a href="Basement.Numerical.Number.html#IsIntegral"><span class="hs-identifier hs-type">IsIntegral</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-type">Offset</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152933"><span class="hs-identifier hs-type">ty</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-94"></span><span>    </span><span id="local-6989586621679152560"><span class="annot"><span class="annottext">toInteger :: Offset ty -&gt; Integer
+</span><a href="Basement.Numerical.Number.html#toInteger"><span class="hs-identifier hs-var hs-var hs-var hs-var">toInteger</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-type">Offset</span></a></span><span> </span><span id="local-6989586621679152558"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152558"><span class="hs-identifier hs-var">i</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. IsIntegral a =&gt; a -&gt; Integer
+</span><a href="Basement.Numerical.Number.html#toInteger"><span class="hs-identifier hs-var">toInteger</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152558"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-95"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679152930"><span class="annot"><a href="Basement.Numerical.Number.html#IsNatural"><span class="hs-identifier hs-type">IsNatural</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-type">Offset</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152930"><span class="hs-identifier hs-type">ty</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-96"></span><span>    </span><span id="local-6989586621679152550"><span class="annot"><span class="annottext">toNatural :: Offset ty -&gt; Natural
+</span><a href="Basement.Numerical.Number.html#toNatural"><span class="hs-identifier hs-var hs-var hs-var hs-var">toNatural</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-type">Offset</span></a></span><span> </span><span id="local-6989586621679152548"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152548"><span class="hs-identifier hs-var">i</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. IsNatural a =&gt; a -&gt; Natural
+</span><a href="Basement.Numerical.Number.html#toNatural"><span class="hs-identifier hs-var">toNatural</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Word
+</span><a href="Basement.Numerical.Conversion.html#intToWord"><span class="hs-identifier hs-var">intToWord</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152548"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-97"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679152925"><span class="annot"><a href="Basement.Numerical.Subtractive.html#Subtractive"><span class="hs-identifier hs-type">Subtractive</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-type">Offset</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152925"><span class="hs-identifier hs-type">ty</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-98"></span><span>    </span><span class="hs-keyword">type</span><span> </span><span id="Difference"><span class="annot"><a href="Basement.Numerical.Subtractive.html#Difference"><span class="hs-identifier hs-var">Difference</span></a></span></span><span> </span><span id="local-6989586621679152925"><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-type">Offset</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152925"><span class="hs-identifier hs-type">ty</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152925"><span class="hs-identifier hs-type">ty</span></a></span><span>
+</span><span id="line-99"></span><span>    </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-type">Offset</span></a></span><span> </span><span id="local-6989586621679152542"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152542"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679152541"><span class="annot"><span class="annottext">- :: Offset ty -&gt; Offset ty -&gt; Difference (Offset ty)
+</span><a href="Basement.Numerical.Subtractive.html#-"><span class="hs-glyph hs-var hs-var hs-var hs-var">-</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-type">Offset</span></a></span><span> </span><span id="local-6989586621679152539"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152539"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall ty. Int -&gt; CountOf ty
+</span><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-var">CountOf</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152542"><span class="hs-identifier hs-var">a</span></a></span><span class="annot"><span class="annottext">forall a. Subtractive a =&gt; a -&gt; a -&gt; Difference a
+</span><a href="Basement.Numerical.Subtractive.html#-"><span class="hs-glyph hs-var">-</span></a></span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152539"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-100"></span><span>
+</span><span id="line-101"></span><span id="local-6989586621679152923"><span class="annot"><a href="Basement.Types.OffsetSize.html#%2B."><span class="hs-operator hs-type">(+.)</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-type">Offset</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152923"><span class="hs-identifier hs-type">ty</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-type">Offset</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152923"><span class="hs-identifier hs-type">ty</span></a></span></span><span>
+</span><span id="line-102"></span><span id="%2B."><span class="annot"><span class="annottext">+. :: forall ty. Offset ty -&gt; Int -&gt; Offset ty
+</span><a href="Basement.Types.OffsetSize.html#%2B."><span class="hs-operator hs-var hs-var">(+.)</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-type">Offset</span></a></span><span> </span><span id="local-6989586621679152536"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152536"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679152535"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152535"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall ty. Int -&gt; Offset ty
+</span><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-var">Offset</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152536"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Additive a =&gt; a -&gt; a -&gt; a
+</span><a href="Basement.Numerical.Additive.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152535"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-103"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="hs-pragma">(</span><span class="hs-pragma">+.</span><span class="hs-pragma">)</span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-104"></span><span>
+</span><span id="line-105"></span><span class="hs-comment">-- . is offset (as a pointer from a beginning), and # is the size (amount of data)</span><span>
+</span><span id="line-106"></span><span id="local-6989586621679152921"><span class="annot"><a href="Basement.Types.OffsetSize.html#.%3D%3D%23"><span class="hs-operator hs-type">(.==#)</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-type">Offset</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152921"><span class="hs-identifier hs-type">ty</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152921"><span class="hs-identifier hs-type">ty</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span><span>
+</span><span id="line-107"></span><span id=".%3D%3D%23"><span class="annot"><span class="annottext">.==# :: forall ty. Offset ty -&gt; CountOf ty -&gt; Bool
+</span><a href="Basement.Types.OffsetSize.html#.%3D%3D%23"><span class="hs-operator hs-var hs-var">(.==#)</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-type">Offset</span></a></span><span> </span><span id="local-6989586621679152532"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152532"><span class="hs-identifier hs-var">ofs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span id="local-6989586621679152531"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152531"><span class="hs-identifier hs-var">sz</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152532"><span class="hs-identifier hs-var">ofs</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152531"><span class="hs-identifier hs-var">sz</span></a></span><span>
+</span><span id="line-108"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="hs-pragma">(</span><span class="hs-pragma">.==#</span><span class="hs-pragma">)</span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-109"></span><span>
+</span><span id="line-110"></span><span id="local-6989586621679152919"><span class="annot"><a href="Basement.Types.OffsetSize.html#offsetOfE"><span class="hs-identifier hs-type">offsetOfE</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-type">Offset</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152919"><span class="hs-identifier hs-type">ty</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset8"><span class="hs-identifier hs-type">Offset8</span></a></span></span><span>
+</span><span id="line-111"></span><span id="offsetOfE"><span class="annot"><span class="annottext">offsetOfE :: forall ty. CountOf Word8 -&gt; Offset ty -&gt; Offset8
+</span><a href="Basement.Types.OffsetSize.html#offsetOfE"><span class="hs-identifier hs-var hs-var">offsetOfE</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span id="local-6989586621679152528"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152528"><span class="hs-identifier hs-var">sz</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-type">Offset</span></a></span><span> </span><span id="local-6989586621679152527"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152527"><span class="hs-identifier hs-var">ty</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall ty. Int -&gt; Offset ty
+</span><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-var">Offset</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152527"><span class="hs-identifier hs-var">ty</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Multiplicative a =&gt; a -&gt; a -&gt; a
+</span><a href="Basement.Numerical.Multiplicative.html#%2A"><span class="hs-operator hs-var">*</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152528"><span class="hs-identifier hs-var">sz</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-112"></span><span>
+</span><span id="line-113"></span><span id="local-6989586621679152914"><span class="annot"><a href="Basement.Types.OffsetSize.html#offsetPlusE"><span class="hs-identifier hs-type">offsetPlusE</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-type">Offset</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152914"><span class="hs-identifier hs-type">ty</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152914"><span class="hs-identifier hs-type">ty</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-type">Offset</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152914"><span class="hs-identifier hs-type">ty</span></a></span></span><span>
+</span><span id="line-114"></span><span id="offsetPlusE"><span class="annot"><span class="annottext">offsetPlusE :: forall ty. Offset ty -&gt; CountOf ty -&gt; Offset ty
+</span><a href="Basement.Types.OffsetSize.html#offsetPlusE"><span class="hs-identifier hs-var hs-var">offsetPlusE</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-type">Offset</span></a></span><span> </span><span id="local-6989586621679152524"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152524"><span class="hs-identifier hs-var">ofs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span id="local-6989586621679152523"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152523"><span class="hs-identifier hs-var">sz</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall ty. Int -&gt; Offset ty
+</span><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-var">Offset</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152524"><span class="hs-identifier hs-var">ofs</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Additive a =&gt; a -&gt; a -&gt; a
+</span><a href="Basement.Numerical.Additive.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152523"><span class="hs-identifier hs-var">sz</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-115"></span><span>
+</span><span id="line-116"></span><span id="local-6989586621679152522"><span class="annot"><a href="Basement.Types.OffsetSize.html#offsetMinusE"><span class="hs-identifier hs-type">offsetMinusE</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-type">Offset</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152522"><span class="hs-identifier hs-type">ty</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152522"><span class="hs-identifier hs-type">ty</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-type">Offset</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152522"><span class="hs-identifier hs-type">ty</span></a></span></span><span>
+</span><span id="line-117"></span><span id="offsetMinusE"><span class="annot"><span class="annottext">offsetMinusE :: forall ty. Offset ty -&gt; CountOf ty -&gt; Offset ty
+</span><a href="Basement.Types.OffsetSize.html#offsetMinusE"><span class="hs-identifier hs-var hs-var">offsetMinusE</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-type">Offset</span></a></span><span> </span><span id="local-6989586621679152520"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152520"><span class="hs-identifier hs-var">ofs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span id="local-6989586621679152519"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152519"><span class="hs-identifier hs-var">sz</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall ty. Int -&gt; Offset ty
+</span><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-var">Offset</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152520"><span class="hs-identifier hs-var">ofs</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Subtractive a =&gt; a -&gt; a -&gt; Difference a
+</span><a href="Basement.Numerical.Subtractive.html#-"><span class="hs-glyph hs-var">-</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152519"><span class="hs-identifier hs-var">sz</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-118"></span><span>
+</span><span id="line-119"></span><span class="hs-comment">-- | subtract 2 CountOf values of the same type.</span><span>
+</span><span id="line-120"></span><span class="hs-comment">--</span><span>
+</span><span id="line-121"></span><span class="hs-comment">-- m need to be greater than n, otherwise negative count error ensue</span><span>
+</span><span id="line-122"></span><span class="hs-comment">-- use the safer (-) version if unsure.</span><span>
+</span><span id="line-123"></span><span id="local-6989586621679152518"><span class="annot"><a href="Basement.Types.OffsetSize.html#offsetSub"><span class="hs-identifier hs-type">offsetSub</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-type">Offset</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152518"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-type">Offset</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152518"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-type">Offset</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152518"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-124"></span><span id="offsetSub"><span class="annot"><span class="annottext">offsetSub :: forall ty. Offset ty -&gt; Offset ty -&gt; Offset ty
+</span><a href="Basement.Types.OffsetSize.html#offsetSub"><span class="hs-identifier hs-var hs-var">offsetSub</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-type">Offset</span></a></span><span> </span><span id="local-6989586621679152516"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152516"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-type">Offset</span></a></span><span> </span><span id="local-6989586621679152515"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152515"><span class="hs-identifier hs-var">n</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall ty. Int -&gt; Offset ty
+</span><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-var">Offset</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152516"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Subtractive a =&gt; a -&gt; a -&gt; Difference a
+</span><a href="Basement.Numerical.Subtractive.html#-"><span class="hs-glyph hs-var">-</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152515"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-125"></span><span>
+</span><span id="line-126"></span><span id="local-6989586621679152909"><span id="local-6989586621679152910"><span class="annot"><a href="Basement.Types.OffsetSize.html#offsetRecast"><span class="hs-identifier hs-type">offsetRecast</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-type">Offset</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152910"><span class="hs-identifier hs-type">ty</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-type">Offset</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152909"><span class="hs-identifier hs-type">ty2</span></a></span></span></span><span>
+</span><span id="line-127"></span><span id="offsetRecast"><span class="annot"><span class="annottext">offsetRecast :: forall ty ty2.
+CountOf Word8 -&gt; CountOf Word8 -&gt; Offset ty -&gt; Offset ty2
+</span><a href="Basement.Types.OffsetSize.html#offsetRecast"><span class="hs-identifier hs-var hs-var">offsetRecast</span></a></span></span><span> </span><span id="local-6989586621679152512"><span class="annot"><span class="annottext">CountOf Word8
+</span><a href="#local-6989586621679152512"><span class="hs-identifier hs-var">szTy</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span id="local-6989586621679152511"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152511"><span class="hs-identifier hs-var">szTy2</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679152510"><span class="annot"><span class="annottext">Offset ty
+</span><a href="#local-6989586621679152510"><span class="hs-identifier hs-var">ofs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-128"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-type">Offset</span></a></span><span> </span><span id="local-6989586621679152509"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152509"><span class="hs-identifier hs-var">bytes</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall ty. CountOf Word8 -&gt; Offset ty -&gt; Offset8
+</span><a href="Basement.Types.OffsetSize.html#offsetOfE"><span class="hs-identifier hs-var">offsetOfE</span></a></span><span> </span><span class="annot"><span class="annottext">CountOf Word8
+</span><a href="#local-6989586621679152512"><span class="hs-identifier hs-var">szTy</span></a></span><span> </span><span class="annot"><span class="annottext">Offset ty
+</span><a href="#local-6989586621679152510"><span class="hs-identifier hs-var">ofs</span></a></span><span>
+</span><span id="line-129"></span><span>     </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">forall ty. Int -&gt; Offset ty
+</span><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-var">Offset</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152509"><span class="hs-identifier hs-var">bytes</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. IDivisible a =&gt; a -&gt; a -&gt; a
+</span><a href="Basement.Numerical.Multiplicative.html#div"><span class="hs-operator hs-var">`div`</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152511"><span class="hs-identifier hs-var">szTy2</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-130"></span><span>
+</span><span id="line-131"></span><span id="local-6989586621679152904"><span id="local-6989586621679152905"><span class="annot"><a href="Basement.Types.OffsetSize.html#offsetShiftR"><span class="hs-identifier hs-type">offsetShiftR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-type">Offset</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152905"><span class="hs-identifier hs-type">ty</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-type">Offset</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152904"><span class="hs-identifier hs-type">ty2</span></a></span></span></span><span>
+</span><span id="line-132"></span><span id="offsetShiftR"><span class="annot"><span class="annottext">offsetShiftR :: forall ty ty2. Int -&gt; Offset ty -&gt; Offset ty2
+</span><a href="Basement.Types.OffsetSize.html#offsetShiftR"><span class="hs-identifier hs-var hs-var">offsetShiftR</span></a></span></span><span> </span><span id="local-6989586621679152505"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152505"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-type">Offset</span></a></span><span> </span><span id="local-6989586621679152504"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152504"><span class="hs-identifier hs-var">o</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall ty. Int -&gt; Offset ty
+</span><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-var">Offset</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152504"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`unsafeShiftR`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152505"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-133"></span><span>
+</span><span id="line-134"></span><span id="local-6989586621679152501"><span id="local-6989586621679152502"><span class="annot"><a href="Basement.Types.OffsetSize.html#offsetShiftL"><span class="hs-identifier hs-type">offsetShiftL</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-type">Offset</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152502"><span class="hs-identifier hs-type">ty</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-type">Offset</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152501"><span class="hs-identifier hs-type">ty2</span></a></span></span></span><span>
+</span><span id="line-135"></span><span id="offsetShiftL"><span class="annot"><span class="annottext">offsetShiftL :: forall ty ty2. Int -&gt; Offset ty -&gt; Offset ty2
+</span><a href="Basement.Types.OffsetSize.html#offsetShiftL"><span class="hs-identifier hs-var hs-var">offsetShiftL</span></a></span></span><span> </span><span id="local-6989586621679152499"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152499"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-type">Offset</span></a></span><span> </span><span id="local-6989586621679152498"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152498"><span class="hs-identifier hs-var">o</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall ty. Int -&gt; Offset ty
+</span><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-var">Offset</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152498"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`unsafeShiftL`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152499"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-136"></span><span>
+</span><span id="line-137"></span><span id="local-6989586621679152898"><span id="local-6989586621679152899"><span class="annot"><a href="Basement.Types.OffsetSize.html#offsetCast"><span class="hs-identifier hs-type">offsetCast</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Proxy</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679152899"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679152898"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-type">Offset</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152899"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-type">Offset</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152898"><span class="hs-identifier hs-type">b</span></a></span></span></span><span>
+</span><span id="line-138"></span><span id="offsetCast"><span class="annot"><span class="annottext">offsetCast :: forall a b. Proxy (a -&gt; b) -&gt; Offset a -&gt; Offset b
+</span><a href="Basement.Types.OffsetSize.html#offsetCast"><span class="hs-identifier hs-var hs-var">offsetCast</span></a></span></span><span> </span><span class="annot"><span class="annottext">Proxy (a -&gt; b)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-type">Offset</span></a></span><span> </span><span id="local-6989586621679152496"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152496"><span class="hs-identifier hs-var">o</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall ty. Int -&gt; Offset ty
+</span><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-var">Offset</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152496"><span class="hs-identifier hs-var">o</span></a></span><span>
+</span><span id="line-139"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#offsetCast"><span class="hs-pragma hs-type">offsetCast</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-140"></span><span>
+</span><span id="line-141"></span><span id="local-6989586621679152893"><span id="local-6989586621679152894"><span class="annot"><a href="Basement.Types.OffsetSize.html#sizeCast"><span class="hs-identifier hs-type">sizeCast</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Proxy</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679152894"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679152893"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152894"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152893"><span class="hs-identifier hs-type">b</span></a></span></span></span><span>
+</span><span id="line-142"></span><span id="sizeCast"><span class="annot"><span class="annottext">sizeCast :: forall a b. Proxy (a -&gt; b) -&gt; CountOf a -&gt; CountOf b
+</span><a href="Basement.Types.OffsetSize.html#sizeCast"><span class="hs-identifier hs-var hs-var">sizeCast</span></a></span></span><span> </span><span class="annot"><span class="annottext">Proxy (a -&gt; b)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span id="local-6989586621679152495"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152495"><span class="hs-identifier hs-var">sz</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall ty. Int -&gt; CountOf ty
+</span><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-var">CountOf</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152495"><span class="hs-identifier hs-var">sz</span></a></span><span>
+</span><span id="line-143"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#sizeCast"><span class="hs-pragma hs-type">sizeCast</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-144"></span><span>
+</span><span id="line-145"></span><span class="hs-comment">-- | subtract 2 CountOf values of the same type.</span><span>
+</span><span id="line-146"></span><span class="hs-comment">--</span><span>
+</span><span id="line-147"></span><span class="hs-comment">-- m need to be greater than n, otherwise negative count error ensue</span><span>
+</span><span id="line-148"></span><span class="hs-comment">-- use the safer (-) version if unsure.</span><span>
+</span><span id="line-149"></span><span id="local-6989586621679152890"><span class="annot"><a href="Basement.Types.OffsetSize.html#sizeSub"><span class="hs-identifier hs-type">sizeSub</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152890"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152890"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152890"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-150"></span><span id="sizeSub"><span class="annot"><span class="annottext">sizeSub :: forall a. CountOf a -&gt; CountOf a -&gt; CountOf a
+</span><a href="Basement.Types.OffsetSize.html#sizeSub"><span class="hs-identifier hs-var hs-var">sizeSub</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span id="local-6989586621679152489"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152489"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span id="local-6989586621679152488"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152488"><span class="hs-identifier hs-var">n</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-151"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Difference Int
+</span><a href="#local-6989586621679152487"><span class="hs-identifier hs-var">diff</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall ty. Int -&gt; CountOf ty
+</span><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-var">CountOf</span></a></span><span> </span><span class="annot"><span class="annottext">Difference Int
+</span><a href="#local-6989586621679152487"><span class="hs-identifier hs-var">diff</span></a></span><span>
+</span><span id="line-152"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. HasCallStack =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;sizeSub negative size&quot;</span></span><span>
+</span><span id="line-153"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-154"></span><span>    </span><span id="local-6989586621679152487"><span class="annot"><span class="annottext">diff :: Difference Int
+</span><a href="#local-6989586621679152487"><span class="hs-identifier hs-var hs-var">diff</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152489"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Subtractive a =&gt; a -&gt; a -&gt; Difference a
+</span><a href="Basement.Numerical.Subtractive.html#-"><span class="hs-glyph hs-var">-</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152488"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-155"></span><span>
+</span><span id="line-156"></span><span class="hs-comment">-- TODO add a callstack, or a construction to prevent size == 0 error</span><span>
+</span><span id="line-157"></span><span id="local-6989586621679152886"><span class="annot"><a href="Basement.Types.OffsetSize.html#sizeLastOffset"><span class="hs-identifier hs-type">sizeLastOffset</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152886"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-type">Offset</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152886"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-158"></span><span id="sizeLastOffset"><span class="annot"><span class="annottext">sizeLastOffset :: forall a. CountOf a -&gt; Offset a
+</span><a href="Basement.Types.OffsetSize.html#sizeLastOffset"><span class="hs-identifier hs-var hs-var">sizeLastOffset</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span id="local-6989586621679152480"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152480"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-159"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152480"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall ty. Int -&gt; Offset ty
+</span><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-var">Offset</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Enum a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">pred</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152480"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-160"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. HasCallStack =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;last offset on size 0&quot;</span></span><span>
+</span><span id="line-161"></span><span>
+</span><span id="line-162"></span><span id="local-6989586621679152477"><span class="annot"><a href="Basement.Types.OffsetSize.html#sizeAsOffset"><span class="hs-identifier hs-type">sizeAsOffset</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152477"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-type">Offset</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152477"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-163"></span><span id="sizeAsOffset"><span class="annot"><span class="annottext">sizeAsOffset :: forall a. CountOf a -&gt; Offset a
+</span><a href="Basement.Types.OffsetSize.html#sizeAsOffset"><span class="hs-identifier hs-var hs-var">sizeAsOffset</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span id="local-6989586621679152476"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152476"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall ty. Int -&gt; Offset ty
+</span><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-var">Offset</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152476"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-164"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#sizeAsOffset"><span class="hs-pragma hs-type">sizeAsOffset</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-165"></span><span>
+</span><span id="line-166"></span><span id="local-6989586621679152883"><span class="annot"><a href="Basement.Types.OffsetSize.html#offsetAsSize"><span class="hs-identifier hs-type">offsetAsSize</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-type">Offset</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152883"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152883"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-167"></span><span id="offsetAsSize"><span class="annot"><span class="annottext">offsetAsSize :: forall a. Offset a -&gt; CountOf a
+</span><a href="Basement.Types.OffsetSize.html#offsetAsSize"><span class="hs-identifier hs-var hs-var">offsetAsSize</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-type">Offset</span></a></span><span> </span><span id="local-6989586621679152475"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152475"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall ty. Int -&gt; CountOf ty
+</span><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-var">CountOf</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152475"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-168"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#offsetAsSize"><span class="hs-pragma hs-type">offsetAsSize</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-169"></span><span>
+</span><span id="line-170"></span><span class="hs-comment">-- | CountOf of a data structure.</span><span>
+</span><span id="line-171"></span><span class="hs-comment">--</span><span>
+</span><span id="line-172"></span><span class="hs-comment">-- More specifically, it represents the number of elements of type `ty` that fit</span><span>
+</span><span id="line-173"></span><span class="hs-comment">-- into the data structure.</span><span>
+</span><span id="line-174"></span><span class="hs-comment">--</span><span>
+</span><span id="line-175"></span><span class="hs-comment">-- &gt;&gt;&gt; length (fromList ['a', 'b', 'c', '&#127775;']) :: CountOf Char</span><span>
+</span><span id="line-176"></span><span class="hs-comment">-- CountOf 4</span><span>
+</span><span id="line-177"></span><span class="hs-comment">--</span><span>
+</span><span id="line-178"></span><span class="hs-comment">-- Same caveats as 'Offset' apply here.</span><span>
+</span><span id="line-179"></span><span class="hs-keyword">newtype</span><span> </span><span id="CountOf"><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-var">CountOf</span></a></span></span><span> </span><span id="local-6989586621679152924"><span class="annot"><a href="#local-6989586621679152924"><span class="hs-identifier hs-type">ty</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="CountOf"><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-var">CountOf</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-180"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679152467"><span id="local-6989586621679152469"><span id="local-6989586621679152473"><span class="annot"><span class="annottext">Int -&gt; CountOf ty -&gt; ShowS
+forall ty. Int -&gt; CountOf ty -&gt; ShowS
+forall ty. [CountOf ty] -&gt; ShowS
+forall ty. CountOf ty -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [CountOf ty] -&gt; ShowS
+$cshowList :: forall ty. [CountOf ty] -&gt; ShowS
+show :: CountOf ty -&gt; String
+$cshow :: forall ty. CountOf ty -&gt; String
+showsPrec :: Int -&gt; CountOf ty -&gt; ShowS
+$cshowsPrec :: forall ty. Int -&gt; CountOf ty -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679152461"><span id="local-6989586621679152465"><span class="annot"><span class="annottext">CountOf ty -&gt; CountOf ty -&gt; Bool
+forall ty. CountOf ty -&gt; CountOf ty -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: CountOf ty -&gt; CountOf ty -&gt; Bool
+$c/= :: forall ty. CountOf ty -&gt; CountOf ty -&gt; Bool
+== :: CountOf ty -&gt; CountOf ty -&gt; Bool
+$c== :: forall ty. CountOf ty -&gt; CountOf ty -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679152430"><span id="local-6989586621679152434"><span id="local-6989586621679152438"><span id="local-6989586621679152442"><span id="local-6989586621679152446"><span id="local-6989586621679152450"><span id="local-6989586621679152454"><span class="annot"><span class="annottext">CountOf ty -&gt; CountOf ty -&gt; Bool
+CountOf ty -&gt; CountOf ty -&gt; Ordering
+CountOf ty -&gt; CountOf ty -&gt; CountOf ty
+forall ty. Eq (CountOf ty)
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+forall ty. CountOf ty -&gt; CountOf ty -&gt; Bool
+forall ty. CountOf ty -&gt; CountOf ty -&gt; Ordering
+forall a. CountOf a -&gt; CountOf a -&gt; CountOf a
+min :: CountOf ty -&gt; CountOf ty -&gt; CountOf ty
+$cmin :: forall a. CountOf a -&gt; CountOf a -&gt; CountOf a
+max :: CountOf ty -&gt; CountOf ty -&gt; CountOf ty
+$cmax :: forall a. CountOf a -&gt; CountOf a -&gt; CountOf a
+&gt;= :: CountOf ty -&gt; CountOf ty -&gt; Bool
+$c&gt;= :: forall ty. CountOf ty -&gt; CountOf ty -&gt; Bool
+&gt; :: CountOf ty -&gt; CountOf ty -&gt; Bool
+$c&gt; :: forall ty. CountOf ty -&gt; CountOf ty -&gt; Bool
+&lt;= :: CountOf ty -&gt; CountOf ty -&gt; Bool
+$c&lt;= :: forall ty. CountOf ty -&gt; CountOf ty -&gt; Bool
+&lt; :: CountOf ty -&gt; CountOf ty -&gt; Bool
+$c&lt; :: forall ty. CountOf ty -&gt; CountOf ty -&gt; Bool
+compare :: CountOf ty -&gt; CountOf ty -&gt; Ordering
+$ccompare :: forall ty. CountOf ty -&gt; CountOf ty -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679152397"><span id="local-6989586621679152401"><span id="local-6989586621679152405"><span id="local-6989586621679152409"><span id="local-6989586621679152413"><span id="local-6989586621679152417"><span id="local-6989586621679152421"><span id="local-6989586621679152425"><span class="annot"><span class="annottext">Int -&gt; CountOf ty
+CountOf ty -&gt; Int
+CountOf ty -&gt; [CountOf ty]
+CountOf ty -&gt; CountOf ty
+CountOf ty -&gt; CountOf ty -&gt; [CountOf ty]
+CountOf ty -&gt; CountOf ty -&gt; CountOf ty -&gt; [CountOf ty]
+forall ty. Int -&gt; CountOf ty
+forall ty. CountOf ty -&gt; Int
+forall ty. CountOf ty -&gt; [CountOf ty]
+forall ty. CountOf ty -&gt; CountOf ty
+forall ty. CountOf ty -&gt; CountOf ty -&gt; [CountOf ty]
+forall ty. CountOf ty -&gt; CountOf ty -&gt; CountOf ty -&gt; [CountOf ty]
+forall a.
+(a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (Int -&gt; a)
+-&gt; (a -&gt; Int)
+-&gt; (a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; a -&gt; [a])
+-&gt; Enum a
+enumFromThenTo :: CountOf ty -&gt; CountOf ty -&gt; CountOf ty -&gt; [CountOf ty]
+$cenumFromThenTo :: forall ty. CountOf ty -&gt; CountOf ty -&gt; CountOf ty -&gt; [CountOf ty]
+enumFromTo :: CountOf ty -&gt; CountOf ty -&gt; [CountOf ty]
+$cenumFromTo :: forall ty. CountOf ty -&gt; CountOf ty -&gt; [CountOf ty]
+enumFromThen :: CountOf ty -&gt; CountOf ty -&gt; [CountOf ty]
+$cenumFromThen :: forall ty. CountOf ty -&gt; CountOf ty -&gt; [CountOf ty]
+enumFrom :: CountOf ty -&gt; [CountOf ty]
+$cenumFrom :: forall ty. CountOf ty -&gt; [CountOf ty]
+fromEnum :: CountOf ty -&gt; Int
+$cfromEnum :: forall ty. CountOf ty -&gt; Int
+toEnum :: Int -&gt; CountOf ty
+$ctoEnum :: forall ty. Int -&gt; CountOf ty
+pred :: CountOf ty -&gt; CountOf ty
+$cpred :: forall ty. CountOf ty -&gt; CountOf ty
+succ :: CountOf ty -&gt; CountOf ty
+$csucc :: forall ty. CountOf ty -&gt; CountOf ty
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Enum</span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier hs-type">Typeable</span></span><span class="hs-special">,</span><span id="local-6989586621679152392"><span class="annot"><span class="annottext">Integer -&gt; CountOf ty
+forall ty. Integer -&gt; CountOf ty
+forall a. (Integer -&gt; a) -&gt; Integral a
+fromInteger :: Integer -&gt; CountOf ty
+$cfromInteger :: forall ty. Integer -&gt; CountOf ty
+</span><a href="#local-6989586621679152392"><span class="hs-identifier hs-var hs-var hs-var hs-var">Integral</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-181"></span><span>
+</span><span id="line-182"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679152877"><span class="annot"><span class="hs-identifier hs-type">Prelude.Num</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152877"><span class="hs-identifier hs-type">ty</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-183"></span><span>    </span><span id="local-6989586621679152379"><span class="annot"><span class="annottext">fromInteger :: Integer -&gt; CountOf ty
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">fromInteger</span></span></span><span> </span><span id="local-6989586621679152378"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679152378"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall ty. Int -&gt; CountOf ty
+</span><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-var">CountOf</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Integral a =&gt; Integer -&gt; a
+</span><a href="Basement.Compat.NumLiteral.html#fromInteger"><span class="hs-identifier hs-var">fromInteger</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679152378"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-184"></span><span>    </span><span id="local-6989586621679152375"><span class="annot"><span class="annottext">+ :: CountOf ty -&gt; CountOf ty -&gt; CountOf ty
+</span><span class="hs-operator hs-var hs-var hs-var hs-var">(+)</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span id="local-6989586621679152373"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152373"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span id="local-6989586621679152372"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152372"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall ty. Int -&gt; CountOf ty
+</span><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-var">CountOf</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152373"><span class="hs-identifier hs-var">a</span></a></span><span class="annot"><span class="annottext">forall a. Additive a =&gt; a -&gt; a -&gt; a
+</span><a href="Basement.Numerical.Additive.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152372"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-185"></span><span>    </span><span id="local-6989586621679152368"><span class="hs-special">(</span><span class="hs-glyph">-</span><span class="hs-special">)</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span id="local-6989586621679152367"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152367"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span id="local-6989586621679152366"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152366"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-186"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152366"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152367"><span class="hs-identifier hs-var">a</span></a></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall ty. Int -&gt; CountOf ty
+</span><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-var">CountOf</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-187"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall ty. Int -&gt; CountOf ty
+</span><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-var">CountOf</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152367"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Subtractive a =&gt; a -&gt; a -&gt; Difference a
+</span><a href="Basement.Numerical.Subtractive.html#-"><span class="hs-glyph hs-var">-</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152366"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-188"></span><span>    </span><span id="local-6989586621679152364"><span class="annot"><span class="annottext">* :: CountOf ty -&gt; CountOf ty -&gt; CountOf ty
+</span><span class="hs-operator hs-var hs-var hs-var hs-var">(*)</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span id="local-6989586621679152362"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152362"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span id="local-6989586621679152361"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152361"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall ty. Int -&gt; CountOf ty
+</span><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-var">CountOf</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152362"><span class="hs-identifier hs-var">a</span></a></span><span class="annot"><span class="annottext">forall a. Multiplicative a =&gt; a -&gt; a -&gt; a
+</span><a href="Basement.Numerical.Multiplicative.html#%2A"><span class="hs-operator hs-var">*</span></a></span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152361"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-189"></span><span>    </span><span id="local-6989586621679152360"><span class="annot"><span class="annottext">abs :: CountOf ty -&gt; CountOf ty
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">abs</span></span></span><span> </span><span id="local-6989586621679152358"><span class="annot"><span class="annottext">CountOf ty
+</span><a href="#local-6989586621679152358"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CountOf ty
+</span><a href="#local-6989586621679152358"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-190"></span><span>    </span><span id="local-6989586621679152355"><span class="annot"><span class="annottext">negate :: CountOf ty -&gt; CountOf ty
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">negate</span></span></span><span> </span><span class="annot"><span class="annottext">CountOf ty
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. HasCallStack =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;cannot negate CountOf: use Foundation Numerical hierarchy for this function to not be exposed to CountOf&quot;</span></span><span>
+</span><span id="line-191"></span><span>    </span><span id="local-6989586621679152353"><span class="annot"><span class="annottext">signum :: CountOf ty -&gt; CountOf ty
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">signum</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span id="local-6989586621679152351"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152351"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall ty. Int -&gt; CountOf ty
+</span><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-var">CountOf</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">Prelude.signum</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152351"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-192"></span><span>
+</span><span id="line-193"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679152874"><span class="annot"><a href="Basement.Numerical.Number.html#IsIntegral"><span class="hs-identifier hs-type">IsIntegral</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152874"><span class="hs-identifier hs-type">ty</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-194"></span><span>    </span><span id="local-6989586621679152341"><span class="annot"><span class="annottext">toInteger :: CountOf ty -&gt; Integer
+</span><a href="#local-6989586621679152341"><span class="hs-identifier hs-var hs-var hs-var hs-var">toInteger</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span id="local-6989586621679152340"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152340"><span class="hs-identifier hs-var">i</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. IsIntegral a =&gt; a -&gt; Integer
+</span><a href="Basement.Numerical.Number.html#toInteger"><span class="hs-identifier hs-var">toInteger</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152340"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-195"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679152872"><span class="annot"><a href="Basement.Numerical.Number.html#IsNatural"><span class="hs-identifier hs-type">IsNatural</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152872"><span class="hs-identifier hs-type">ty</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-196"></span><span>    </span><span id="local-6989586621679152334"><span class="annot"><span class="annottext">toNatural :: CountOf ty -&gt; Natural
+</span><a href="#local-6989586621679152334"><span class="hs-identifier hs-var hs-var hs-var hs-var">toNatural</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span id="local-6989586621679152333"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152333"><span class="hs-identifier hs-var">i</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. IsNatural a =&gt; a -&gt; Natural
+</span><a href="Basement.Numerical.Number.html#toNatural"><span class="hs-identifier hs-var">toNatural</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Word
+</span><a href="Basement.Numerical.Conversion.html#intToWord"><span class="hs-identifier hs-var">intToWord</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152333"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-197"></span><span>
+</span><span id="line-198"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679152870"><span class="annot"><a href="Basement.Numerical.Additive.html#Additive"><span class="hs-identifier hs-type">Additive</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152870"><span class="hs-identifier hs-type">ty</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-199"></span><span>    </span><span id="local-6989586621679152327"><span class="annot"><span class="annottext">azero :: CountOf ty
+</span><a href="Basement.Numerical.Additive.html#azero"><span class="hs-identifier hs-var hs-var hs-var hs-var">azero</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall ty. Int -&gt; CountOf ty
+</span><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-var">CountOf</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-200"></span><span>    </span><span id="local-6989586621679152324"><span class="annot"><span class="annottext">+ :: CountOf ty -&gt; CountOf ty -&gt; CountOf ty
+</span><a href="#local-6989586621679152324"><span class="hs-operator hs-var hs-var hs-var hs-var">(+)</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span id="local-6989586621679152323"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152323"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span id="local-6989586621679152322"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152322"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall ty. Int -&gt; CountOf ty
+</span><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-var">CountOf</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152323"><span class="hs-identifier hs-var">a</span></a></span><span class="annot"><span class="annottext">forall a. Additive a =&gt; a -&gt; a -&gt; a
+</span><a href="Basement.Numerical.Additive.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152322"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-201"></span><span>    </span><span id="local-6989586621679152318"><span class="annot"><span class="annottext">scale :: forall n. IsNatural n =&gt; n -&gt; CountOf ty -&gt; CountOf ty
+</span><a href="Basement.Numerical.Additive.html#scale"><span class="hs-identifier hs-var hs-var hs-var hs-var">scale</span></a></span></span><span> </span><span id="local-6989586621679152316"><span class="annot"><span class="annottext">n
+</span><a href="#local-6989586621679152316"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span id="local-6989586621679152315"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152315"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall ty. Int -&gt; CountOf ty
+</span><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-var">CountOf</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a n. (Additive a, IsNatural n) =&gt; n -&gt; a -&gt; a
+</span><a href="Basement.Numerical.Additive.html#scale"><span class="hs-identifier hs-var">scale</span></a></span><span> </span><span class="annot"><span class="annottext">n
+</span><a href="#local-6989586621679152316"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152315"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-202"></span><span>
+</span><span id="line-203"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679152867"><span class="annot"><a href="Basement.Numerical.Subtractive.html#Subtractive"><span class="hs-identifier hs-type">Subtractive</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152867"><span class="hs-identifier hs-type">ty</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-204"></span><span>    </span><span class="hs-keyword">type</span><span> </span><span id="Difference"><span class="annot"><a href="Basement.Numerical.Subtractive.html#Difference"><span class="hs-identifier hs-var">Difference</span></a></span></span><span> </span><span id="local-6989586621679152867"><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152867"><span class="hs-identifier hs-type">ty</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152867"><span class="hs-identifier hs-type">ty</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-205"></span><span>    </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span id="local-6989586621679152308"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152308"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679152307"><span class="annot"><span class="annottext">- :: CountOf ty -&gt; CountOf ty -&gt; Difference (CountOf ty)
+</span><a href="#local-6989586621679152307"><span class="hs-glyph hs-var hs-var hs-var hs-var">-</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span id="local-6989586621679152306"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152306"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152308"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152306"><span class="hs-identifier hs-var">b</span></a></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">forall {k} (cat :: k -&gt; k -&gt; *) (b :: k) (c :: k) (a :: k).
+Category cat =&gt;
+cat b c -&gt; cat a b -&gt; cat a c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall ty. Int -&gt; CountOf ty
+</span><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-var">CountOf</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152308"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Subtractive a =&gt; a -&gt; a -&gt; Difference a
+</span><a href="Basement.Numerical.Subtractive.html#-"><span class="hs-glyph hs-var">-</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152306"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-206"></span><span>                              </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-207"></span><span>
+</span><span id="line-208"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679152300"><span id="local-6989586621679152302"><span id="local-6989586621679152854"><span class="annot"><span class="hs-identifier hs-type">Semigroup</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152854"><span class="hs-identifier hs-type">ty</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-209"></span><span>    </span><span id="local-6989586621679152297"><span class="annot"><span class="annottext">&lt;&gt; :: CountOf ty -&gt; CountOf ty -&gt; CountOf ty
+</span><span class="hs-operator hs-var hs-var hs-var hs-var">(&lt;&gt;)</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Additive a =&gt; a -&gt; a -&gt; a
+</span><a href="Basement.Numerical.Additive.html#%2B"><span class="hs-operator hs-var">(+)</span></a></span><span>
+</span><span id="line-210"></span><span>
+</span><span id="line-211"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679152292"><span id="local-6989586621679152852"><span class="annot"><span class="hs-identifier hs-type">Monoid</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152852"><span class="hs-identifier hs-type">ty</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-212"></span><span>    </span><span id="local-6989586621679152288"><span class="annot"><span class="annottext">mempty :: CountOf ty
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">mempty</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Additive a =&gt; a
+</span><a href="Basement.Numerical.Additive.html#azero"><span class="hs-identifier hs-var">azero</span></a></span><span>
+</span><span id="line-213"></span><span>    </span><span id="local-6989586621679152283"><span class="annot"><span class="annottext">mconcat :: [CountOf ty] -&gt; CountOf ty
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">mconcat</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) b a.
+Foldable t =&gt;
+(b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><span class="hs-identifier hs-var">foldl'</span></span><span> </span><span class="annot"><span class="annottext">forall a. Additive a =&gt; a -&gt; a -&gt; a
+</span><a href="Basement.Numerical.Additive.html#%2B"><span class="hs-operator hs-var">(+)</span></a></span><span> </span><span class="annot"><span class="annottext">CountOf ty
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-214"></span><span>
+</span><span id="line-215"></span><span id="local-6989586621679152848"><span class="annot"><a href="Basement.Types.OffsetSize.html#sizeOfE"><span class="hs-identifier hs-type">sizeOfE</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152848"><span class="hs-identifier hs-type">ty</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span></span><span>
+</span><span id="line-216"></span><span id="sizeOfE"><span class="annot"><span class="annottext">sizeOfE :: forall ty. CountOf Word8 -&gt; CountOf ty -&gt; CountOf Word8
+</span><a href="Basement.Types.OffsetSize.html#sizeOfE"><span class="hs-identifier hs-var hs-var">sizeOfE</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span id="local-6989586621679152281"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152281"><span class="hs-identifier hs-var">sz</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span id="local-6989586621679152280"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152280"><span class="hs-identifier hs-var">ty</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall ty. Int -&gt; CountOf ty
+</span><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-var">CountOf</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152280"><span class="hs-identifier hs-var">ty</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Multiplicative a =&gt; a -&gt; a -&gt; a
+</span><a href="Basement.Numerical.Multiplicative.html#%2A"><span class="hs-operator hs-var">*</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152281"><span class="hs-identifier hs-var">sz</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-217"></span><span>
+</span><span id="line-218"></span><span class="hs-comment">-- | alignment need to be a power of 2</span><span>
+</span><span id="line-219"></span><span id="local-6989586621679152846"><span class="annot"><a href="Basement.Types.OffsetSize.html#countOfRoundUp"><span class="hs-identifier hs-type">countOfRoundUp</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152846"><span class="hs-identifier hs-type">ty</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152846"><span class="hs-identifier hs-type">ty</span></a></span></span><span>
+</span><span id="line-220"></span><span id="countOfRoundUp"><span class="annot"><span class="annottext">countOfRoundUp :: forall ty. Int -&gt; CountOf ty -&gt; CountOf ty
+</span><a href="Basement.Types.OffsetSize.html#countOfRoundUp"><span class="hs-identifier hs-var hs-var">countOfRoundUp</span></a></span></span><span> </span><span id="local-6989586621679152272"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152272"><span class="hs-identifier hs-var">alignment</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span id="local-6989586621679152271"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152271"><span class="hs-identifier hs-var">n</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall ty. Int -&gt; CountOf ty
+</span><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-var">CountOf</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152271"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Additive a =&gt; a -&gt; a -&gt; a
+</span><a href="Basement.Numerical.Additive.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152272"><span class="hs-identifier hs-var">alignment</span></a></span><span class="annot"><span class="annottext">forall a. Subtractive a =&gt; a -&gt; a -&gt; Difference a
+</span><a href="Basement.Numerical.Subtractive.html#-"><span class="hs-glyph hs-var">-</span></a></span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.&amp;.</span></span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">complement</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152272"><span class="hs-identifier hs-var">alignment</span></a></span><span class="annot"><span class="annottext">forall a. Subtractive a =&gt; a -&gt; a -&gt; Difference a
+</span><a href="Basement.Numerical.Subtractive.html#-"><span class="hs-glyph hs-var">-</span></a></span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-221"></span><span>
+</span><span id="line-222"></span><span class="hs-comment">-- when #if WORD_SIZE_IN_BITS &lt; 64 the 2 following are wrong</span><span>
+</span><span id="line-223"></span><span class="hs-comment">-- instead of using FromIntegral and being silently wrong</span><span>
+</span><span id="line-224"></span><span class="hs-comment">-- explicit pattern match to sort it out.</span><span>
+</span><span id="line-225"></span><span>
+</span><span id="line-226"></span><span class="annot"><a href="Basement.Types.OffsetSize.html#csizeOfSize"><span class="hs-identifier hs-type">csizeOfSize</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CSize</span></span><span class="hs-cpp">
+#if WORD_SIZE_IN_BITS &lt; 64
+</span><span class="hs-identifier">csizeOfSize</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">CountOf</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">I#</span><span> </span><span class="hs-identifier">sz</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">CSize</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">W32#</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">int2Word#</span><span> </span><span class="hs-identifier">sz</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-cpp">
+#else
+</span><span class="hs-cpp">#if __GLASGOW_HASKELL__ &gt;= 904
+</span><span class="hs-identifier">csizeOfSize</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">CountOf</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">I#</span><span> </span><span class="hs-identifier">sz</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">CSize</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">W64#</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">wordToWord64#</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">int2Word#</span><span> </span><span class="hs-identifier">sz</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-cpp">
+
+#else
+</span><span id="csizeOfSize"><span class="annot"><span class="annottext">csizeOfSize :: CountOf Word8 -&gt; CSize
+</span><a href="Basement.Types.OffsetSize.html#csizeOfSize"><span class="hs-identifier hs-var hs-var">csizeOfSize</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">I#</span></span><span> </span><span id="local-6989586621679152268"><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679152268"><span class="hs-identifier hs-var">sz</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; CSize
+</span><span class="hs-identifier hs-var">CSize</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word# -&gt; Word64
+</span><span class="hs-identifier hs-var">W64#</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int# -&gt; Word#
+</span><span class="hs-identifier hs-var">int2Word#</span></span><span> </span><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679152268"><span class="hs-identifier hs-var">sz</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-cpp">
+
+#endif
+</span><span class="hs-cpp">#endif
+</span><span>
+</span><span id="line-239"></span><span class="annot"><a href="Basement.Types.OffsetSize.html#csizeOfOffset"><span class="hs-identifier hs-type">csizeOfOffset</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset8"><span class="hs-identifier hs-type">Offset8</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CSize</span></span><span class="hs-cpp">
+#if WORD_SIZE_IN_BITS &lt; 64
+</span><span class="hs-identifier">csizeOfOffset</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Offset</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">I#</span><span> </span><span class="hs-identifier">sz</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">CSize</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">W32#</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">int2Word#</span><span> </span><span class="hs-identifier">sz</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-cpp">
+#else
+</span><span class="hs-cpp">#if __GLASGOW_HASKELL__ &gt;= 904
+</span><span class="hs-identifier">csizeOfOffset</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Offset</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">I#</span><span> </span><span class="hs-identifier">sz</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">CSize</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">W64#</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">wordToWord64#</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">int2Word#</span><span> </span><span class="hs-identifier">sz</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-cpp">
+#else
+</span><span id="csizeOfOffset"><span class="annot"><span class="annottext">csizeOfOffset :: Offset8 -&gt; CSize
+</span><a href="Basement.Types.OffsetSize.html#csizeOfOffset"><span class="hs-identifier hs-var hs-var">csizeOfOffset</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-type">Offset</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">I#</span></span><span> </span><span id="local-6989586621679152265"><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679152265"><span class="hs-identifier hs-var">sz</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; CSize
+</span><span class="hs-identifier hs-var">CSize</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word# -&gt; Word64
+</span><span class="hs-identifier hs-var">W64#</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int# -&gt; Word#
+</span><span class="hs-identifier hs-var">int2Word#</span></span><span> </span><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679152265"><span class="hs-identifier hs-var">sz</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">#endif
+</span><span>
+</span><span id="line-250"></span><span class="annot"><a href="Basement.Types.OffsetSize.html#sizeOfCSSize"><span class="hs-identifier hs-type">sizeOfCSSize</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CSsize</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span>
+</span><span id="line-251"></span><span id="sizeOfCSSize"><span class="annot"><span class="annottext">sizeOfCSSize :: CSsize -&gt; CountOf Word8
+</span><a href="Basement.Types.OffsetSize.html#sizeOfCSSize"><span class="hs-identifier hs-var hs-var">sizeOfCSSize</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">CSsize</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">-</span><span class="hs-number">1</span><span class="hs-special">)</span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. HasCallStack =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;invalid size: CSSize is -1&quot;</span></span><span class="hs-cpp">
+#if WORD_SIZE_IN_BITS &lt; 64
+</span><span class="hs-identifier">sizeOfCSSize</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">CSsize</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">I32#</span><span> </span><span class="hs-identifier">sz</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">CountOf</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">I#</span><span> </span><span class="hs-identifier">sz</span><span class="hs-special">)</span><span class="hs-cpp">
+#else
+</span><span class="hs-cpp">#if __GLASGOW_HASKELL__ &gt;= 904
+</span><span class="hs-identifier">sizeOfCSSize</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">CSsize</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">I64#</span><span> </span><span class="hs-identifier">sz</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">CountOf</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">I#</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">int64ToInt#</span><span> </span><span class="hs-identifier">sz</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-cpp">
+#else
+</span><span class="annot"><a href="Basement.Types.OffsetSize.html#sizeOfCSSize"><span class="hs-identifier hs-var">sizeOfCSSize</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">CSsize</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">I64#</span></span><span> </span><span id="local-6989586621679152262"><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679152262"><span class="hs-identifier hs-var">sz</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall ty. Int -&gt; CountOf ty
+</span><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-var">CountOf</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int# -&gt; Int
+</span><span class="hs-identifier hs-var">I#</span></span><span> </span><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679152262"><span class="hs-identifier hs-var">sz</span></a></span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">#endif
+</span><span>
+</span><span id="line-262"></span><span class="annot"><a href="Basement.Types.OffsetSize.html#sizeOfCSize"><span class="hs-identifier hs-type">sizeOfCSize</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CSize</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span class="hs-cpp">
+#if WORD_SIZE_IN_BITS &lt; 64
+</span><span class="hs-identifier">sizeOfCSize</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">CSize</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">W32#</span><span> </span><span class="hs-identifier">sz</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">CountOf</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">I#</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">word2Int#</span><span> </span><span class="hs-identifier">sz</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-cpp">
+#else
+</span><span class="hs-cpp">#if __GLASGOW_HASKELL__ &gt;= 904
+</span><span class="hs-identifier">sizeOfCSize</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">CSize</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">W64#</span><span> </span><span class="hs-identifier">sz</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">CountOf</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">I#</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">word2Int#</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">word64ToWord#</span><span> </span><span class="hs-identifier">sz</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-cpp">
+#else
+</span><span id="sizeOfCSize"><span class="annot"><span class="annottext">sizeOfCSize :: CSize -&gt; CountOf Word8
+</span><a href="Basement.Types.OffsetSize.html#sizeOfCSize"><span class="hs-identifier hs-var hs-var">sizeOfCSize</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">CSize</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">W64#</span></span><span> </span><span id="local-6989586621679152261"><span class="annot"><span class="annottext">Word#
+</span><a href="#local-6989586621679152261"><span class="hs-identifier hs-var">sz</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall ty. Int -&gt; CountOf ty
+</span><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-var">CountOf</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int# -&gt; Int
+</span><span class="hs-identifier hs-var">I#</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word# -&gt; Int#
+</span><span class="hs-identifier hs-var">word2Int#</span></span><span> </span><span class="annot"><span class="annottext">Word#
+</span><a href="#local-6989586621679152261"><span class="hs-identifier hs-var">sz</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">#endif
+</span><span>
+</span><span id="line-273"></span><span class="annot"><a href="Basement.Types.OffsetSize.html#natValCountOf"><span class="hs-identifier hs-type">natValCountOf</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679152842"><span class="annot"><a href="#local-6989586621679152842"><span class="hs-identifier hs-type">n</span></a></span></span><span> </span><span id="local-6989586621679152841"><span class="annot"><a href="#local-6989586621679152841"><span class="hs-identifier hs-type">ty</span></a></span></span><span> </span><span id="local-6989586621679152839"><span class="annot"><a href="#local-6989586621679152839"><span class="hs-identifier hs-type">proxy</span></a></span></span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">KnownNat</span></span><span> </span><span class="annot"><a href="#local-6989586621679152842"><span class="hs-identifier hs-type">n</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Basement.Nat.html#NatWithinBound"><span class="hs-identifier hs-type">NatWithinBound</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152841"><span class="hs-identifier hs-type">ty</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679152842"><span class="hs-identifier hs-type">n</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679152839"><span class="hs-identifier hs-type">proxy</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152842"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152841"><span class="hs-identifier hs-type">ty</span></a></span><span>
+</span><span id="line-274"></span><span id="natValCountOf"><span class="annot"><span class="annottext">natValCountOf :: forall (n :: Natural) ty (proxy :: Natural -&gt; *).
+(KnownNat n, NatWithinBound (CountOf ty) n) =&gt;
+proxy n -&gt; CountOf ty
+</span><a href="Basement.Types.OffsetSize.html#natValCountOf"><span class="hs-identifier hs-var hs-var">natValCountOf</span></a></span></span><span> </span><span id="local-6989586621679152254"><span class="annot"><span class="annottext">proxy n
+</span><a href="#local-6989586621679152254"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall ty. Int -&gt; CountOf ty
+</span><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-var">CountOf</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">Prelude.fromIntegral</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (n :: Natural) (proxy :: Natural -&gt; *).
+KnownNat n =&gt;
+proxy n -&gt; Integer
+</span><span class="hs-identifier hs-var">natVal</span></span><span> </span><span class="annot"><span class="annottext">proxy n
+</span><a href="#local-6989586621679152254"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-275"></span><span>
+</span><span id="line-276"></span><span class="annot"><a href="Basement.Types.OffsetSize.html#natValOffset"><span class="hs-identifier hs-type">natValOffset</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679152831"><span class="annot"><a href="#local-6989586621679152831"><span class="hs-identifier hs-type">n</span></a></span></span><span> </span><span id="local-6989586621679152830"><span class="annot"><a href="#local-6989586621679152830"><span class="hs-identifier hs-type">ty</span></a></span></span><span> </span><span id="local-6989586621679152829"><span class="annot"><a href="#local-6989586621679152829"><span class="hs-identifier hs-type">proxy</span></a></span></span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">KnownNat</span></span><span> </span><span class="annot"><a href="#local-6989586621679152831"><span class="hs-identifier hs-type">n</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Basement.Nat.html#NatWithinBound"><span class="hs-identifier hs-type">NatWithinBound</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-type">Offset</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152830"><span class="hs-identifier hs-type">ty</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679152831"><span class="hs-identifier hs-type">n</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679152829"><span class="hs-identifier hs-type">proxy</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152831"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-type">Offset</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152830"><span class="hs-identifier hs-type">ty</span></a></span><span>
+</span><span id="line-277"></span><span id="natValOffset"><span class="annot"><span class="annottext">natValOffset :: forall (n :: Natural) ty (proxy :: Natural -&gt; *).
+(KnownNat n, NatWithinBound (Offset ty) n) =&gt;
+proxy n -&gt; Offset ty
+</span><a href="Basement.Types.OffsetSize.html#natValOffset"><span class="hs-identifier hs-var hs-var">natValOffset</span></a></span></span><span> </span><span id="local-6989586621679152247"><span class="annot"><span class="annottext">proxy n
+</span><a href="#local-6989586621679152247"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall ty. Int -&gt; Offset ty
+</span><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-var">Offset</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">Prelude.fromIntegral</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (n :: Natural) (proxy :: Natural -&gt; *).
+KnownNat n =&gt;
+proxy n -&gt; Integer
+</span><span class="hs-identifier hs-var">natVal</span></span><span> </span><span class="annot"><span class="annottext">proxy n
+</span><a href="#local-6989586621679152247"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-278"></span><span>
+</span><span id="line-279"></span><span class="hs-keyword">type</span><span> </span><span class="hs-keyword">instance</span><span> </span><span id="NatNumMaxBound"><span class="annot"><a href="Basement.Nat.html#NatNumMaxBound"><span class="hs-identifier hs-var">NatNumMaxBound</span></a></span></span><span> </span><span id="local-6989586621679152245"><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152245"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Basement.Nat.html#NatNumMaxBound"><span class="hs-identifier hs-type">NatNumMaxBound</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-280"></span><span class="hs-keyword">type</span><span> </span><span class="hs-keyword">instance</span><span> </span><span id="NatNumMaxBound"><span class="annot"><a href="Basement.Nat.html#NatNumMaxBound"><span class="hs-identifier hs-var">NatNumMaxBound</span></a></span></span><span> </span><span id="local-6989586621679152244"><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-type">Offset</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152244"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Basement.Nat.html#NatNumMaxBound"><span class="hs-identifier hs-type">NatNumMaxBound</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-281"></span><span>
+</span><span id="line-282"></span><span class="hs-keyword">type</span><span> </span><span id="Countable"><span class="annot"><a href="Basement.Types.OffsetSize.html#Countable"><span class="hs-identifier hs-var">Countable</span></a></span></span><span> </span><span id="local-6989586621679152243"><span class="annot"><a href="#local-6989586621679152243"><span class="hs-identifier hs-type">ty</span></a></span></span><span> </span><span id="local-6989586621679152242"><span class="annot"><a href="#local-6989586621679152242"><span class="hs-identifier hs-type">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Basement.Nat.html#NatWithinBound"><span class="hs-identifier hs-type">NatWithinBound</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#CountOf"><span class="hs-identifier hs-type">CountOf</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152243"><span class="hs-identifier hs-type">ty</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679152242"><span class="hs-identifier hs-type">n</span></a></span><span>
+</span><span id="line-283"></span><span class="hs-keyword">type</span><span> </span><span id="Offsetable"><span class="annot"><a href="Basement.Types.OffsetSize.html#Offsetable"><span class="hs-identifier hs-var">Offsetable</span></a></span></span><span> </span><span id="local-6989586621679152241"><span class="annot"><a href="#local-6989586621679152241"><span class="hs-identifier hs-type">ty</span></a></span></span><span> </span><span id="local-6989586621679152240"><span class="annot"><a href="#local-6989586621679152240"><span class="hs-identifier hs-type">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Basement.Nat.html#NatWithinBound"><span class="hs-identifier hs-type">NatWithinBound</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Basement.Types.OffsetSize.html#Offset"><span class="hs-identifier hs-type">Offset</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152241"><span class="hs-identifier hs-type">ty</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679152240"><span class="hs-identifier hs-type">n</span></a></span><span>
+</span><span id="line-284"></span></pre></body></html>

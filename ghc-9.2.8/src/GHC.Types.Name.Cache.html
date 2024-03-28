@@ -1,0 +1,201 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE RankNTypes #-}</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- | The Name Cache</span><span>
+</span><span id="line-5"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">GHC.Types.Name.Cache</span><span>
+</span><span id="line-6"></span><span>    </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Types.Name.Cache.html#lookupOrigNameCache"><span class="hs-identifier">lookupOrigNameCache</span></a></span><span>
+</span><span id="line-7"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Types.Name.Cache.html#extendOrigNameCache"><span class="hs-identifier">extendOrigNameCache</span></a></span><span>
+</span><span id="line-8"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Types.Name.Cache.html#extendNameCache"><span class="hs-identifier">extendNameCache</span></a></span><span>
+</span><span id="line-9"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Types.Name.Cache.html#initNameCache"><span class="hs-identifier">initNameCache</span></a></span><span>
+</span><span id="line-10"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Types.Name.Cache.html#NameCache"><span class="hs-identifier">NameCache</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Types.Name.Cache.html#OrigNameCache"><span class="hs-identifier">OrigNameCache</span></a></span><span>
+</span><span id="line-11"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Prelude.html"><span class="hs-identifier">GHC.Prelude</span></a></span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Unit.Module.html"><span class="hs-identifier">GHC.Unit.Module</span></a></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Name.html"><span class="hs-identifier">GHC.Types.Name</span></a></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Unique.Supply.html"><span class="hs-identifier">GHC.Types.Unique.Supply</span></a></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Builtin.Types.html"><span class="hs-identifier">GHC.Builtin.Types</span></a></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Builtin.Names.html"><span class="hs-identifier">GHC.Builtin.Names</span></a></span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Misc.html"><span class="hs-identifier">GHC.Utils.Misc</span></a></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html"><span class="hs-identifier">GHC.Utils.Outputable</span></a></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Panic.html"><span class="hs-identifier">GHC.Utils.Panic</span></a></span><span class="hs-cpp">
+
+#include &quot;HsVersions.h&quot;
+</span><span>
+</span><span id="line-27"></span><span class="hs-comment">{-
+
+Note [The Name Cache]
+~~~~~~~~~~~~~~~~~~~~~
+The Name Cache makes sure that, during any invocation of GHC, each
+External Name &quot;M.x&quot; has one, and only one globally-agreed Unique.
+
+* The first time we come across M.x we make up a Unique and record that
+  association in the Name Cache.
+
+* When we come across &quot;M.x&quot; again, we look it up in the Name Cache,
+  and get a hit.
+
+The functions newGlobalBinder, allocateGlobalBinder do the main work.
+When you make an External name, you should probably be calling one
+of them.
+
+
+Note [Built-in syntax and the OrigNameCache]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Built-in syntax like tuples and unboxed sums are quite ubiquitous. To lower
+their cost we use two tricks,
+
+  a. We specially encode tuple and sum Names in interface files' symbol tables
+     to avoid having to look up their names while loading interface files.
+     Namely these names are encoded as by their Uniques. We know how to get from
+     a Unique back to the Name which it represents via the mapping defined in
+     the SumTupleUniques module. See Note [Symbol table representation of names]
+     in GHC.Iface.Binary and for details.
+
+  b. We don't include them in the Orig name cache but instead parse their
+     OccNames (in isBuiltInOcc_maybe) to avoid bloating the name cache with
+     them.
+
+Why is the second measure necessary? Good question; afterall, 1) the parser
+emits built-in syntax directly as Exact RdrNames, and 2) built-in syntax never
+needs to looked-up during interface loading due to (a). It turns out that there
+are two reasons why we might look up an Orig RdrName for built-in syntax,
+
+  * If you use setRdrNameSpace on an Exact RdrName it may be
+    turned into an Orig RdrName.
+
+  * Template Haskell turns a BuiltInSyntax Name into a TH.NameG
+    (GHC.HsToCore.Quote.globalVar), and parses a NameG into an Orig RdrName
+    (GHC.ThToHs.thRdrName).  So, e.g. $(do { reify '(,); ... }) will
+    go this route (#8954).
+
+-}</span><span>
+</span><span id="line-76"></span><span>
+</span><span id="line-77"></span><span class="hs-comment">-- | Per-module cache of original 'OccName's given 'Name's</span><span>
+</span><span id="line-78"></span><span class="hs-keyword">type</span><span> </span><span id="OrigNameCache"><span class="annot"><a href="GHC.Types.Name.Cache.html#OrigNameCache"><span class="hs-identifier hs-var">OrigNameCache</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Env.html#ModuleEnv"><span class="hs-identifier hs-type">ModuleEnv</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.Name.Occurrence.html#OccEnv"><span class="hs-identifier hs-type">OccEnv</span></a></span><span> </span><span class="annot"><a href="GHC.Types.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-79"></span><span>
+</span><span id="line-80"></span><span class="annot"><a href="GHC.Types.Name.Cache.html#lookupOrigNameCache"><span class="hs-identifier hs-type">lookupOrigNameCache</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Types.Name.Cache.html#OrigNameCache"><span class="hs-identifier hs-type">OrigNameCache</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Unit.Types.html#Module"><span class="hs-identifier hs-type">Module</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Types.Name.Occurrence.html#OccName"><span class="hs-identifier hs-type">OccName</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Maybe"><span class="hs-identifier hs-type">Maybe</span></a></span><span> </span><span class="annot"><a href="GHC.Types.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span>
+</span><span id="line-81"></span><span id="lookupOrigNameCache"><span class="annot"><span class="annottext">lookupOrigNameCache :: OrigNameCache -&gt; Module -&gt; OccName -&gt; Maybe Name
+</span><a href="GHC.Types.Name.Cache.html#lookupOrigNameCache"><span class="hs-identifier hs-var hs-var">lookupOrigNameCache</span></a></span></span><span> </span><span id="local-6989586621681146700"><span class="annot"><span class="annottext">OrigNameCache
+</span><a href="#local-6989586621681146700"><span class="hs-identifier hs-var">nc</span></a></span></span><span> </span><span id="local-6989586621681146699"><span class="annot"><span class="annottext">Module
+</span><a href="#local-6989586621681146699"><span class="hs-identifier hs-var">mod</span></a></span></span><span> </span><span id="local-6989586621681146698"><span class="annot"><span class="annottext">OccName
+</span><a href="#local-6989586621681146698"><span class="hs-identifier hs-var">occ</span></a></span></span><span>
+</span><span id="line-82"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Module
+</span><a href="#local-6989586621681146699"><span class="hs-identifier hs-var">mod</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Module
+</span><a href="GHC.Builtin.Names.html#gHC_TYPES"><span class="hs-identifier hs-var">gHC_TYPES</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">Module
+</span><a href="#local-6989586621681146699"><span class="hs-identifier hs-var">mod</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Module
+</span><a href="GHC.Builtin.Names.html#gHC_PRIM"><span class="hs-identifier hs-var">gHC_PRIM</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">Module
+</span><a href="#local-6989586621681146699"><span class="hs-identifier hs-var">mod</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Module
+</span><a href="GHC.Builtin.Names.html#gHC_TUPLE"><span class="hs-identifier hs-var">gHC_TUPLE</span></a></span><span>
+</span><span id="line-83"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Just"><span class="hs-identifier hs-type">Just</span></a></span><span> </span><span id="local-6989586621681146693"><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621681146693"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">OccName -&gt; Maybe Name
+</span><a href="GHC.Builtin.Types.html#isBuiltInOcc_maybe"><span class="hs-identifier hs-var">isBuiltInOcc_maybe</span></a></span><span> </span><span class="annot"><span class="annottext">OccName
+</span><a href="#local-6989586621681146698"><span class="hs-identifier hs-var">occ</span></a></span><span>
+</span><span id="line-84"></span><span>  </span><span class="hs-glyph">=</span><span>     </span><span class="hs-comment">-- See Note [Known-key names], 3(c) in GHC.Builtin.Names</span><span>
+</span><span id="line-85"></span><span>        </span><span class="hs-comment">-- Special case for tuples; there are too many</span><span>
+</span><span id="line-86"></span><span>        </span><span class="hs-comment">-- of them to pre-populate the original-name cache</span><span>
+</span><span id="line-87"></span><span>    </span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Just"><span class="hs-identifier hs-var">Just</span></a></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621681146693"><span class="hs-identifier hs-var">name</span></a></span><span>
+</span><span id="line-88"></span><span>
+</span><span id="line-89"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#otherwise"><span class="hs-identifier hs-var">otherwise</span></a></span><span>
+</span><span id="line-90"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">forall a. ModuleEnv a -&gt; Module -&gt; Maybe a
+</span><a href="GHC.Unit.Module.Env.html#lookupModuleEnv"><span class="hs-identifier hs-var">lookupModuleEnv</span></a></span><span> </span><span class="annot"><span class="annottext">OrigNameCache
+</span><a href="#local-6989586621681146700"><span class="hs-identifier hs-var">nc</span></a></span><span> </span><span class="annot"><span class="annottext">Module
+</span><a href="#local-6989586621681146699"><span class="hs-identifier hs-var">mod</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-91"></span><span>        </span><span class="annot"><span class="annottext">Maybe (OccEnv Name)
+</span><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Nothing"><span class="hs-identifier hs-var">Nothing</span></a></span><span>      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Nothing"><span class="hs-identifier hs-var">Nothing</span></a></span><span>
+</span><span id="line-92"></span><span>        </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Just"><span class="hs-identifier hs-type">Just</span></a></span><span> </span><span id="local-6989586621681146690"><span class="annot"><span class="annottext">OccEnv Name
+</span><a href="#local-6989586621681146690"><span class="hs-identifier hs-var">occ_env</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a. OccEnv a -&gt; OccName -&gt; Maybe a
+</span><a href="GHC.Types.Name.Occurrence.html#lookupOccEnv"><span class="hs-identifier hs-var">lookupOccEnv</span></a></span><span> </span><span class="annot"><span class="annottext">OccEnv Name
+</span><a href="#local-6989586621681146690"><span class="hs-identifier hs-var">occ_env</span></a></span><span> </span><span class="annot"><span class="annottext">OccName
+</span><a href="#local-6989586621681146698"><span class="hs-identifier hs-var">occ</span></a></span><span>
+</span><span id="line-93"></span><span>
+</span><span id="line-94"></span><span class="annot"><a href="GHC.Types.Name.Cache.html#extendOrigNameCache"><span class="hs-identifier hs-type">extendOrigNameCache</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Types.Name.Cache.html#OrigNameCache"><span class="hs-identifier hs-type">OrigNameCache</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Types.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Types.Name.Cache.html#OrigNameCache"><span class="hs-identifier hs-type">OrigNameCache</span></a></span><span>
+</span><span id="line-95"></span><span id="extendOrigNameCache"><span class="annot"><span class="annottext">extendOrigNameCache :: OrigNameCache -&gt; Name -&gt; OrigNameCache
+</span><a href="GHC.Types.Name.Cache.html#extendOrigNameCache"><span class="hs-identifier hs-var hs-var">extendOrigNameCache</span></a></span></span><span> </span><span id="local-6989586621681146688"><span class="annot"><span class="annottext">OrigNameCache
+</span><a href="#local-6989586621681146688"><span class="hs-identifier hs-var">nc</span></a></span></span><span> </span><span id="local-6989586621681146687"><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621681146687"><span class="hs-identifier hs-var">name</span></a></span></span><span>
+</span><span id="line-96"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">ASSERT2</span><span class="hs-special">(</span><span> </span><span class="hs-identifier">isExternalName</span><span> </span><span class="hs-identifier">name</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">ppr</span><span> </span><span class="hs-identifier">name</span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-97"></span><span>    </span><span class="annot"><span class="annottext">OrigNameCache -&gt; Module -&gt; OccName -&gt; Name -&gt; OrigNameCache
+</span><a href="GHC.Types.Name.Cache.html#extendNameCache"><span class="hs-identifier hs-var">extendNameCache</span></a></span><span> </span><span class="annot"><span class="annottext">OrigNameCache
+</span><a href="#local-6989586621681146688"><span class="hs-identifier hs-var">nc</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">HasDebugCallStack =&gt; Name -&gt; Module
+</span><a href="GHC.Types.Name.html#nameModule"><span class="hs-identifier hs-var">nameModule</span></a></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621681146687"><span class="hs-identifier hs-var">name</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Name -&gt; OccName
+</span><a href="GHC.Types.Name.html#nameOccName"><span class="hs-identifier hs-var">nameOccName</span></a></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621681146687"><span class="hs-identifier hs-var">name</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621681146687"><span class="hs-identifier hs-var">name</span></a></span><span>
+</span><span id="line-98"></span><span>
+</span><span id="line-99"></span><span class="annot"><a href="GHC.Types.Name.Cache.html#extendNameCache"><span class="hs-identifier hs-type">extendNameCache</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Types.Name.Cache.html#OrigNameCache"><span class="hs-identifier hs-type">OrigNameCache</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Unit.Types.html#Module"><span class="hs-identifier hs-type">Module</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Types.Name.Occurrence.html#OccName"><span class="hs-identifier hs-type">OccName</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Types.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Types.Name.Cache.html#OrigNameCache"><span class="hs-identifier hs-type">OrigNameCache</span></a></span><span>
+</span><span id="line-100"></span><span id="extendNameCache"><span class="annot"><span class="annottext">extendNameCache :: OrigNameCache -&gt; Module -&gt; OccName -&gt; Name -&gt; OrigNameCache
+</span><a href="GHC.Types.Name.Cache.html#extendNameCache"><span class="hs-identifier hs-var hs-var">extendNameCache</span></a></span></span><span> </span><span id="local-6989586621681146678"><span class="annot"><span class="annottext">OrigNameCache
+</span><a href="#local-6989586621681146678"><span class="hs-identifier hs-var">nc</span></a></span></span><span> </span><span id="local-6989586621681146677"><span class="annot"><span class="annottext">Module
+</span><a href="#local-6989586621681146677"><span class="hs-identifier hs-var">mod</span></a></span></span><span> </span><span id="local-6989586621681146676"><span class="annot"><span class="annottext">OccName
+</span><a href="#local-6989586621681146676"><span class="hs-identifier hs-var">occ</span></a></span></span><span> </span><span id="local-6989586621681146675"><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621681146675"><span class="hs-identifier hs-var">name</span></a></span></span><span>
+</span><span id="line-101"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a.
+(a -&gt; a -&gt; a) -&gt; ModuleEnv a -&gt; Module -&gt; a -&gt; ModuleEnv a
+</span><a href="GHC.Unit.Module.Env.html#extendModuleEnvWith"><span class="hs-identifier hs-var">extendModuleEnvWith</span></a></span><span> </span><span class="annot"><span class="annottext">OccEnv Name -&gt; OccEnv Name -&gt; OccEnv Name
+</span><a href="#local-6989586621681146673"><span class="hs-identifier hs-var">combine</span></a></span><span> </span><span class="annot"><span class="annottext">OrigNameCache
+</span><a href="#local-6989586621681146678"><span class="hs-identifier hs-var">nc</span></a></span><span> </span><span class="annot"><span class="annottext">Module
+</span><a href="#local-6989586621681146677"><span class="hs-identifier hs-var">mod</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. OccName -&gt; a -&gt; OccEnv a
+</span><a href="GHC.Types.Name.Occurrence.html#unitOccEnv"><span class="hs-identifier hs-var">unitOccEnv</span></a></span><span> </span><span class="annot"><span class="annottext">OccName
+</span><a href="#local-6989586621681146676"><span class="hs-identifier hs-var">occ</span></a></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621681146675"><span class="hs-identifier hs-var">name</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-102"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-103"></span><span>    </span><span id="local-6989586621681146673"><span class="annot"><span class="annottext">combine :: OccEnv Name -&gt; OccEnv Name -&gt; OccEnv Name
+</span><a href="#local-6989586621681146673"><span class="hs-identifier hs-var hs-var">combine</span></a></span></span><span> </span><span class="annot"><span class="annottext">OccEnv Name
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681146671"><span class="annot"><span class="annottext">OccEnv Name
+</span><a href="#local-6989586621681146671"><span class="hs-identifier hs-var">occ_env</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. OccEnv a -&gt; OccName -&gt; a -&gt; OccEnv a
+</span><a href="GHC.Types.Name.Occurrence.html#extendOccEnv"><span class="hs-identifier hs-var">extendOccEnv</span></a></span><span> </span><span class="annot"><span class="annottext">OccEnv Name
+</span><a href="#local-6989586621681146671"><span class="hs-identifier hs-var">occ_env</span></a></span><span> </span><span class="annot"><span class="annottext">OccName
+</span><a href="#local-6989586621681146676"><span class="hs-identifier hs-var">occ</span></a></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621681146675"><span class="hs-identifier hs-var">name</span></a></span><span>
+</span><span id="line-104"></span><span>
+</span><span id="line-105"></span><span class="hs-comment">-- | The NameCache makes sure that there is just one Unique assigned for</span><span>
+</span><span id="line-106"></span><span class="hs-comment">-- each original name; i.e. (module-name, occ-name) pair and provides</span><span>
+</span><span id="line-107"></span><span class="hs-comment">-- something of a lookup mechanism for those names.</span><span>
+</span><span id="line-108"></span><span class="hs-keyword">data</span><span> </span><span id="NameCache"><span class="annot"><a href="GHC.Types.Name.Cache.html#NameCache"><span class="hs-identifier hs-var">NameCache</span></a></span></span><span>
+</span><span id="line-109"></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="NameCache"><span class="annot"><a href="GHC.Types.Name.Cache.html#NameCache"><span class="hs-identifier hs-var">NameCache</span></a></span></span><span> </span><span class="hs-special">{</span><span>  </span><span id="nsUniqs"><span class="annot"><span class="annottext">NameCache -&gt; UniqSupply
+</span><a href="GHC.Types.Name.Cache.html#nsUniqs"><span class="hs-identifier hs-var hs-var">nsUniqs</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GHC.Types.Unique.Supply.html#UniqSupply"><span class="hs-identifier hs-type">UniqSupply</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-110"></span><span>                </span><span class="hs-comment">-- ^ Supply of uniques</span><span>
+</span><span id="line-111"></span><span>                </span><span id="nsNames"><span class="annot"><span class="annottext">NameCache -&gt; OrigNameCache
+</span><a href="GHC.Types.Name.Cache.html#nsNames"><span class="hs-identifier hs-var hs-var">nsNames</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GHC.Types.Name.Cache.html#OrigNameCache"><span class="hs-identifier hs-type">OrigNameCache</span></a></span><span>
+</span><span id="line-112"></span><span>                </span><span class="hs-comment">-- ^ Ensures that one original name gets one unique</span><span>
+</span><span id="line-113"></span><span>   </span><span class="hs-special">}</span><span>
+</span><span id="line-114"></span><span>
+</span><span id="line-115"></span><span class="hs-comment">-- | Return a function to atomically update the name cache.</span><span>
+</span><span id="line-116"></span><span class="annot"><a href="GHC.Types.Name.Cache.html#initNameCache"><span class="hs-identifier hs-type">initNameCache</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Types.Unique.Supply.html#UniqSupply"><span class="hs-identifier hs-type">UniqSupply</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Types.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Types.Name.Cache.html#NameCache"><span class="hs-identifier hs-type">NameCache</span></a></span><span>
+</span><span id="line-117"></span><span id="initNameCache"><span class="annot"><span class="annottext">initNameCache :: UniqSupply -&gt; [Name] -&gt; NameCache
+</span><a href="GHC.Types.Name.Cache.html#initNameCache"><span class="hs-identifier hs-var hs-var">initNameCache</span></a></span></span><span> </span><span id="local-6989586621681146666"><span class="annot"><span class="annottext">UniqSupply
+</span><a href="#local-6989586621681146666"><span class="hs-identifier hs-var">us</span></a></span></span><span> </span><span id="local-6989586621681146665"><span class="annot"><span class="annottext">[Name]
+</span><a href="#local-6989586621681146665"><span class="hs-identifier hs-var">names</span></a></span></span><span>
+</span><span id="line-118"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.Types.Name.Cache.html#NameCache"><span class="hs-identifier hs-type">NameCache</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">nsUniqs :: UniqSupply
+</span><a href="GHC.Types.Name.Cache.html#nsUniqs"><span class="hs-identifier hs-var">nsUniqs</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UniqSupply
+</span><a href="#local-6989586621681146666"><span class="hs-identifier hs-var">us</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-119"></span><span>                </span><span class="annot"><span class="annottext">nsNames :: OrigNameCache
+</span><a href="GHC.Types.Name.Cache.html#nsNames"><span class="hs-identifier hs-var">nsNames</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Name] -&gt; OrigNameCache
+</span><a href="GHC.Types.Name.Cache.html#initOrigNames"><span class="hs-identifier hs-var">initOrigNames</span></a></span><span> </span><span class="annot"><span class="annottext">[Name]
+</span><a href="#local-6989586621681146665"><span class="hs-identifier hs-var">names</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-120"></span><span>
+</span><span id="line-121"></span><span class="annot"><a href="GHC.Types.Name.Cache.html#initOrigNames"><span class="hs-identifier hs-type">initOrigNames</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Types.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Types.Name.Cache.html#OrigNameCache"><span class="hs-identifier hs-type">OrigNameCache</span></a></span><span>
+</span><span id="line-122"></span><span id="initOrigNames"><span class="annot"><span class="annottext">initOrigNames :: [Name] -&gt; OrigNameCache
+</span><a href="GHC.Types.Name.Cache.html#initOrigNames"><span class="hs-identifier hs-var hs-var">initOrigNames</span></a></span></span><span> </span><span id="local-6989586621681146663"><span class="annot"><span class="annottext">[Name]
+</span><a href="#local-6989586621681146663"><span class="hs-identifier hs-var">names</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) b a.
+Foldable t =&gt;
+(b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><a href="../../base-4.16.4.0/src/Data-Foldable.html#foldl%27"><span class="hs-identifier hs-var">foldl'</span></a></span><span> </span><span class="annot"><span class="annottext">OrigNameCache -&gt; Name -&gt; OrigNameCache
+</span><a href="GHC.Types.Name.Cache.html#extendOrigNameCache"><span class="hs-identifier hs-var">extendOrigNameCache</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. ModuleEnv a
+</span><a href="GHC.Unit.Module.Env.html#emptyModuleEnv"><span class="hs-identifier hs-var">emptyModuleEnv</span></a></span><span> </span><span class="annot"><span class="annottext">[Name]
+</span><a href="#local-6989586621681146663"><span class="hs-identifier hs-var">names</span></a></span><span>
+</span><span id="line-123"></span></pre></body></html>

@@ -1,0 +1,135 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">{-|
+    A WAI adapter to the HTML5 Server-Sent Events API.
+
+    If running through a proxy like Nginx you might need to add the
+    headers:
+
+    &gt; [ (&quot;X-Accel-Buffering&quot;, &quot;no&quot;), (&quot;Cache-Control&quot;, &quot;no-cache&quot;)]
+
+    There is a small example using these functions in the @example@ directory.
+-}</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Network.Wai.EventSource</span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-12"></span><span>    </span><span class="annot"><a href="Network.Wai.EventSource.EventStream.html#ServerEvent"><span class="hs-identifier">ServerEvent</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-13"></span><span>    </span><span class="annot"><a href="Network.Wai.EventSource.html#eventSourceAppChan"><span class="hs-identifier">eventSourceAppChan</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-14"></span><span>    </span><span class="annot"><a href="Network.Wai.EventSource.html#eventSourceAppIO"><span class="hs-identifier">eventSourceAppIO</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-15"></span><span>    </span><span class="annot"><a href="Network.Wai.EventSource.html#eventStreamAppRaw"><span class="hs-identifier">eventStreamAppRaw</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-16"></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Concurrent.Chan</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Chan</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">dupChan</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">readChan</span></span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.IO.Class</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">liftIO</span></span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Function</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">fix</span></span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Network.HTTP.Types</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">hContentType</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">status200</span></span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Network.Wai</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Application</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">responseStream</span></span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.Wai.EventSource.EventStream.html"><span class="hs-identifier">Network.Wai.EventSource.EventStream</span></a></span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span class="hs-comment">-- | Make a new WAI EventSource application reading events from</span><span>
+</span><span id="line-27"></span><span class="hs-comment">-- the given channel.</span><span>
+</span><span id="line-28"></span><span class="annot"><a href="Network.Wai.EventSource.html#eventSourceAppChan"><span class="hs-identifier hs-type">eventSourceAppChan</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Chan</span></span><span> </span><span class="annot"><a href="Network.Wai.EventSource.EventStream.html#ServerEvent"><span class="hs-identifier hs-type">ServerEvent</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Application</span></span><span>
+</span><span id="line-29"></span><span id="eventSourceAppChan"><span class="annot"><span class="annottext">eventSourceAppChan :: Chan ServerEvent -&gt; Application
+</span><a href="Network.Wai.EventSource.html#eventSourceAppChan"><span class="hs-identifier hs-var hs-var">eventSourceAppChan</span></a></span></span><span> </span><span id="local-6989586621679121070"><span class="annot"><span class="annottext">Chan ServerEvent
+</span><a href="#local-6989586621679121070"><span class="hs-identifier hs-var">chan</span></a></span></span><span> </span><span id="local-6989586621679121069"><span class="annot"><span class="annottext">Request
+</span><a href="#local-6989586621679121069"><span class="hs-identifier hs-var">req</span></a></span></span><span> </span><span id="local-6989586621679121068"><span class="annot"><span class="annottext">Response -&gt; IO ResponseReceived
+</span><a href="#local-6989586621679121068"><span class="hs-identifier hs-var">sendResponse</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-30"></span><span>    </span><span id="local-6989586621679121067"><span class="annot"><span class="annottext">Chan ServerEvent
+</span><a href="#local-6989586621679121067"><span class="hs-identifier hs-var">chan'</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><span class="hs-identifier hs-var">liftIO</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall a. Chan a -&gt; IO (Chan a)
+</span><span class="hs-identifier hs-var">dupChan</span></span><span> </span><span class="annot"><span class="annottext">Chan ServerEvent
+</span><a href="#local-6989586621679121070"><span class="hs-identifier hs-var">chan</span></a></span><span>
+</span><span id="line-31"></span><span>    </span><span class="annot"><span class="annottext">IO ServerEvent -&gt; Application
+</span><a href="Network.Wai.EventSource.html#eventSourceAppIO"><span class="hs-identifier hs-var">eventSourceAppIO</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Chan a -&gt; IO a
+</span><span class="hs-identifier hs-var">readChan</span></span><span> </span><span class="annot"><span class="annottext">Chan ServerEvent
+</span><a href="#local-6989586621679121067"><span class="hs-identifier hs-var">chan'</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Request
+</span><a href="#local-6989586621679121069"><span class="hs-identifier hs-var">req</span></a></span><span> </span><span class="annot"><span class="annottext">Response -&gt; IO ResponseReceived
+</span><a href="#local-6989586621679121068"><span class="hs-identifier hs-var">sendResponse</span></a></span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span class="hs-comment">-- | Make a new WAI EventSource application reading events from</span><span>
+</span><span id="line-34"></span><span class="hs-comment">-- the given IO action.</span><span>
+</span><span id="line-35"></span><span class="annot"><a href="Network.Wai.EventSource.html#eventSourceAppIO"><span class="hs-identifier hs-type">eventSourceAppIO</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Network.Wai.EventSource.EventStream.html#ServerEvent"><span class="hs-identifier hs-type">ServerEvent</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Application</span></span><span>
+</span><span id="line-36"></span><span id="eventSourceAppIO"><span class="annot"><span class="annottext">eventSourceAppIO :: IO ServerEvent -&gt; Application
+</span><a href="Network.Wai.EventSource.html#eventSourceAppIO"><span class="hs-identifier hs-var hs-var">eventSourceAppIO</span></a></span></span><span> </span><span id="local-6989586621679121066"><span class="annot"><span class="annottext">IO ServerEvent
+</span><a href="#local-6989586621679121066"><span class="hs-identifier hs-var">src</span></a></span></span><span> </span><span class="annot"><span class="annottext">Request
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679121065"><span class="annot"><span class="annottext">Response -&gt; IO ResponseReceived
+</span><a href="#local-6989586621679121065"><span class="hs-identifier hs-var">sendResponse</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-37"></span><span>    </span><span class="annot"><span class="annottext">Response -&gt; IO ResponseReceived
+</span><a href="#local-6989586621679121065"><span class="hs-identifier hs-var">sendResponse</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Status -&gt; ResponseHeaders -&gt; StreamingBody -&gt; Response
+</span><span class="hs-identifier hs-var">responseStream</span></span><span>
+</span><span id="line-38"></span><span>        </span><span class="annot"><span class="annottext">Status
+</span><span class="hs-identifier hs-var">status200</span></span><span>
+</span><span id="line-39"></span><span>        </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="annottext">HeaderName
+</span><span class="hs-identifier hs-var">hContentType</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;text/event-stream&quot;</span></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-40"></span><span>        </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679121064"><span class="annot"><span class="annottext">Builder -&gt; IO ()
+</span><a href="#local-6989586621679121064"><span class="hs-identifier hs-var">sendChunk</span></a></span></span><span> </span><span id="local-6989586621679121063"><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621679121063"><span class="hs-identifier hs-var">flush</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-41"></span><span>            </span><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621679121063"><span class="hs-identifier hs-var">flush</span></a></span><span>
+</span><span id="line-42"></span><span>            </span><span class="annot"><span class="annottext">forall a. (a -&gt; a) -&gt; a
+</span><span class="hs-identifier hs-var">fix</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679121062"><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621679121062"><span class="hs-identifier hs-var">loop</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-43"></span><span>                </span><span id="local-6989586621679121061"><span class="annot"><span class="annottext">ServerEvent
+</span><a href="#local-6989586621679121061"><span class="hs-identifier hs-var">se</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO ServerEvent
+</span><a href="#local-6989586621679121066"><span class="hs-identifier hs-var">src</span></a></span><span>
+</span><span id="line-44"></span><span>                </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">ServerEvent -&gt; Maybe Builder
+</span><a href="Network.Wai.EventSource.EventStream.html#eventToBuilder"><span class="hs-identifier hs-var">eventToBuilder</span></a></span><span> </span><span class="annot"><span class="annottext">ServerEvent
+</span><a href="#local-6989586621679121061"><span class="hs-identifier hs-var">se</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-45"></span><span>                    </span><span class="annot"><span class="annottext">Maybe Builder
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-46"></span><span>                    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679121059"><span class="annot"><span class="annottext">Builder
+</span><a href="#local-6989586621679121059"><span class="hs-identifier hs-var">b</span></a></span></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Builder -&gt; IO ()
+</span><a href="#local-6989586621679121064"><span class="hs-identifier hs-var">sendChunk</span></a></span><span> </span><span class="annot"><span class="annottext">Builder
+</span><a href="#local-6989586621679121059"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621679121063"><span class="hs-identifier hs-var">flush</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621679121062"><span class="hs-identifier hs-var">loop</span></a></span><span>
+</span><span id="line-47"></span><span>
+</span><span id="line-48"></span><span class="hs-comment">-- | Make a new WAI EventSource application with a handler that emits events.</span><span>
+</span><span id="line-49"></span><span class="hs-comment">--</span><span>
+</span><span id="line-50"></span><span class="hs-comment">-- @since 3.0.28</span><span>
+</span><span id="line-51"></span><span class="annot"><a href="Network.Wai.EventSource.html#eventStreamAppRaw"><span class="hs-identifier hs-type">eventStreamAppRaw</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><a href="Network.Wai.EventSource.EventStream.html#ServerEvent"><span class="hs-identifier hs-type">ServerEvent</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Application</span></span><span>
+</span><span id="line-52"></span><span id="eventStreamAppRaw"><span class="annot"><span class="annottext">eventStreamAppRaw :: ((ServerEvent -&gt; IO ()) -&gt; IO () -&gt; IO ()) -&gt; Application
+</span><a href="Network.Wai.EventSource.html#eventStreamAppRaw"><span class="hs-identifier hs-var hs-var">eventStreamAppRaw</span></a></span></span><span> </span><span id="local-6989586621679121058"><span class="annot"><span class="annottext">(ServerEvent -&gt; IO ()) -&gt; IO () -&gt; IO ()
+</span><a href="#local-6989586621679121058"><span class="hs-identifier hs-var">handler</span></a></span></span><span> </span><span class="annot"><span class="annottext">Request
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679121057"><span class="annot"><span class="annottext">Response -&gt; IO ResponseReceived
+</span><a href="#local-6989586621679121057"><span class="hs-identifier hs-var">sendResponse</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-53"></span><span>    </span><span class="annot"><span class="annottext">Response -&gt; IO ResponseReceived
+</span><a href="#local-6989586621679121057"><span class="hs-identifier hs-var">sendResponse</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Status -&gt; ResponseHeaders -&gt; StreamingBody -&gt; Response
+</span><span class="hs-identifier hs-var">responseStream</span></span><span>
+</span><span id="line-54"></span><span>        </span><span class="annot"><span class="annottext">Status
+</span><span class="hs-identifier hs-var">status200</span></span><span>
+</span><span id="line-55"></span><span>        </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="annottext">HeaderName
+</span><span class="hs-identifier hs-var">hContentType</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;text/event-stream&quot;</span></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-56"></span><span>        </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679121056"><span class="annot"><span class="annottext">Builder -&gt; IO ()
+</span><a href="#local-6989586621679121056"><span class="hs-identifier hs-var">sendChunk</span></a></span></span><span> </span><span id="local-6989586621679121055"><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621679121055"><span class="hs-identifier hs-var">flush</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(ServerEvent -&gt; IO ()) -&gt; IO () -&gt; IO ()
+</span><a href="#local-6989586621679121058"><span class="hs-identifier hs-var">handler</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall {m :: * -&gt; *}.
+Monad m =&gt;
+(Builder -&gt; m ()) -&gt; ServerEvent -&gt; m ()
+</span><a href="#local-6989586621679121054"><span class="hs-identifier hs-var">sendEvent</span></a></span><span> </span><span class="annot"><span class="annottext">Builder -&gt; IO ()
+</span><a href="#local-6989586621679121056"><span class="hs-identifier hs-var">sendChunk</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621679121055"><span class="hs-identifier hs-var">flush</span></a></span><span>
+</span><span id="line-57"></span><span>    </span><span class="hs-keyword">where</span><span>
+</span><span id="line-58"></span><span>        </span><span id="local-6989586621679121054"><span class="annot"><span class="annottext">sendEvent :: (Builder -&gt; m ()) -&gt; ServerEvent -&gt; m ()
+</span><a href="#local-6989586621679121054"><span class="hs-identifier hs-var hs-var">sendEvent</span></a></span></span><span> </span><span id="local-6989586621679121051"><span class="annot"><span class="annottext">Builder -&gt; m ()
+</span><a href="#local-6989586621679121051"><span class="hs-identifier hs-var">sendChunk</span></a></span></span><span> </span><span id="local-6989586621679121050"><span class="annot"><span class="annottext">ServerEvent
+</span><a href="#local-6989586621679121050"><span class="hs-identifier hs-var">event</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-59"></span><span>            </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">ServerEvent -&gt; Maybe Builder
+</span><a href="Network.Wai.EventSource.EventStream.html#eventToBuilder"><span class="hs-identifier hs-var">eventToBuilder</span></a></span><span> </span><span class="annot"><span class="annottext">ServerEvent
+</span><a href="#local-6989586621679121050"><span class="hs-identifier hs-var">event</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-60"></span><span>                </span><span class="annot"><span class="annottext">Maybe Builder
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-61"></span><span>                </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679121049"><span class="annot"><span class="annottext">Builder
+</span><a href="#local-6989586621679121049"><span class="hs-identifier hs-var">b</span></a></span></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Builder -&gt; m ()
+</span><a href="#local-6989586621679121051"><span class="hs-identifier hs-var">sendChunk</span></a></span><span> </span><span class="annot"><span class="annottext">Builder
+</span><a href="#local-6989586621679121049"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-62"></span></pre></body></html>

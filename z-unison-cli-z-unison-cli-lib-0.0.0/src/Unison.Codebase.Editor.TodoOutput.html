@@ -1,0 +1,224 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE RecordWildCards #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Unison.Codebase.Editor.TodoOutput</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Set</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Set</span></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Codebase.Editor.DisplayObject</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">DisplayObject</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">UserObject</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Codebase.Patch</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Patch</span></span><span class="hs-special">)</span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Codebase.Patch</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Patch</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.DataDeclaration</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Decl</span></span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.DataDeclaration</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">DD</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.LabeledDependency</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">LabeledDependency</span></span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.LabeledDependency</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">LD</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Names</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Names</span></span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Names</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Names</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Prelude</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Reference</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Reference</span></span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Type</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Type</span></span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Type</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Type</span></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Util.Relation</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">R</span></span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">type</span><span> </span><span id="Score"><span class="annot"><a href="Unison.Codebase.Editor.TodoOutput.html#Score"><span class="hs-identifier hs-var">Score</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">data</span><span> </span><span id="TodoOutput"><span class="annot"><a href="Unison.Codebase.Editor.TodoOutput.html#TodoOutput"><span class="hs-identifier hs-var">TodoOutput</span></a></span></span><span> </span><span id="local-6989586621679586895"><span class="annot"><a href="#local-6989586621679586895"><span class="hs-identifier hs-type">v</span></a></span></span><span> </span><span id="local-6989586621679586894"><span class="annot"><a href="#local-6989586621679586894"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="TodoOutput"><span class="annot"><a href="Unison.Codebase.Editor.TodoOutput.html#TodoOutput"><span class="hs-identifier hs-var">TodoOutput</span></a></span></span><span>
+</span><span id="line-24"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="%24sel%3AtodoScore%3ATodoOutput"><span class="annot"><span class="annottext">forall v a. TodoOutput v a -&gt; Score
+</span><a href="Unison.Codebase.Editor.TodoOutput.html#%24sel%3AtodoScore%3ATodoOutput"><span class="hs-identifier hs-var hs-var">todoScore</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Codebase.Editor.TodoOutput.html#Score"><span class="hs-identifier hs-type">Score</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-25"></span><span>    </span><span id="%24sel%3AtodoFrontier%3ATodoOutput"><span class="annot"><span class="annottext">forall v a.
+TodoOutput v a
+-&gt; ([(Reference, Maybe (Type v a))],
+    [(Reference, DisplayObject () (Decl v a))])
+</span><a href="Unison.Codebase.Editor.TodoOutput.html#%24sel%3AtodoFrontier%3ATodoOutput"><span class="hs-identifier hs-var hs-var">todoFrontier</span></a></span></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-26"></span><span>      </span><span class="hs-special">(</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Reference</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Type</span></span><span> </span><span class="annot"><a href="#local-6989586621679586895"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679586894"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">]</span><span class="hs-special">,</span><span>
+</span><span id="line-27"></span><span>        </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Reference</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">DisplayObject</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Decl</span></span><span> </span><span class="annot"><a href="#local-6989586621679586895"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679586894"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-28"></span><span>      </span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-29"></span><span>    </span><span id="%24sel%3AtodoFrontierDependents%3ATodoOutput"><span class="annot"><span class="annottext">forall v a.
+TodoOutput v a
+-&gt; ([(Score, Reference, Maybe (Type v a))],
+    [(Score, Reference, DisplayObject () (Decl v a))])
+</span><a href="Unison.Codebase.Editor.TodoOutput.html#%24sel%3AtodoFrontierDependents%3ATodoOutput"><span class="hs-identifier hs-var hs-var">todoFrontierDependents</span></a></span></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-30"></span><span>      </span><span class="hs-special">(</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><a href="Unison.Codebase.Editor.TodoOutput.html#Score"><span class="hs-identifier hs-type">Score</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Reference</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Type</span></span><span> </span><span class="annot"><a href="#local-6989586621679586895"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679586894"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">]</span><span class="hs-special">,</span><span>
+</span><span id="line-31"></span><span>        </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><a href="Unison.Codebase.Editor.TodoOutput.html#Score"><span class="hs-identifier hs-type">Score</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Reference</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">DisplayObject</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Decl</span></span><span> </span><span class="annot"><a href="#local-6989586621679586895"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679586894"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-32"></span><span>      </span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-33"></span><span>    </span><span id="%24sel%3AnameConflicts%3ATodoOutput"><span class="annot"><span class="annottext">forall v a. TodoOutput v a -&gt; Names
+</span><a href="Unison.Codebase.Editor.TodoOutput.html#%24sel%3AnameConflicts%3ATodoOutput"><span class="hs-identifier hs-var hs-var">nameConflicts</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Names</span></span><span class="hs-special">,</span><span>
+</span><span id="line-34"></span><span>    </span><span id="%24sel%3AeditConflicts%3ATodoOutput"><span class="annot"><span class="annottext">forall v a. TodoOutput v a -&gt; Patch
+</span><a href="Unison.Codebase.Editor.TodoOutput.html#%24sel%3AeditConflicts%3ATodoOutput"><span class="hs-identifier hs-var hs-var">editConflicts</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Patch</span></span><span>
+</span><span id="line-35"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span id="local-6989586621679586874"><span id="local-6989586621679586875"><span class="annot"><a href="Unison.Codebase.Editor.TodoOutput.html#labeledDependencies"><span class="hs-identifier hs-type">labeledDependencies</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679586875"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Unison.Codebase.Editor.TodoOutput.html#TodoOutput"><span class="hs-identifier hs-type">TodoOutput</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679586875"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679586874"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">LabeledDependency</span></span></span></span><span>
+</span><span id="line-38"></span><span id="labeledDependencies"><span class="annot"><span class="annottext">labeledDependencies :: forall v a. Ord v =&gt; TodoOutput v a -&gt; Set LabeledDependency
+</span><a href="Unison.Codebase.Editor.TodoOutput.html#labeledDependencies"><span class="hs-identifier hs-var hs-var">labeledDependencies</span></a></span></span><span> </span><span class="annot"><a href="Unison.Codebase.Editor.TodoOutput.html#TodoOutput"><span class="hs-identifier hs-type">TodoOutput</span></a></span><span> </span><span class="hs-special">{</span><span id="local-6989586621679586801"><span id="local-6989586621679586802"><span id="local-6989586621679586803"><span id="local-6989586621679586804"><span id="local-6989586621679586805"><span class="annot"><span class="annottext">Score
+([(Reference, Maybe (Type v a))],
+ [(Reference, DisplayObject () (Decl v a))])
+([(Score, Reference, Maybe (Type v a))],
+ [(Score, Reference, DisplayObject () (Decl v a))])
+Names
+Patch
+editConflicts :: Patch
+nameConflicts :: Names
+todoFrontierDependents :: ([(Score, Reference, Maybe (Type v a))],
+ [(Score, Reference, DisplayObject () (Decl v a))])
+todoFrontier :: ([(Reference, Maybe (Type v a))],
+ [(Reference, DisplayObject () (Decl v a))])
+todoScore :: Score
+$sel:editConflicts:TodoOutput :: forall v a. TodoOutput v a -&gt; Patch
+$sel:nameConflicts:TodoOutput :: forall v a. TodoOutput v a -&gt; Names
+$sel:todoFrontierDependents:TodoOutput :: forall v a.
+TodoOutput v a
+-&gt; ([(Score, Reference, Maybe (Type v a))],
+    [(Score, Reference, DisplayObject () (Decl v a))])
+$sel:todoFrontier:TodoOutput :: forall v a.
+TodoOutput v a
+-&gt; ([(Reference, Maybe (Type v a))],
+    [(Reference, DisplayObject () (Decl v a))])
+$sel:todoScore:TodoOutput :: forall v a. TodoOutput v a -&gt; Score
+</span><a href="#local-6989586621679586801"><span class="hs-glyph hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">..</span></a></span></span></span></span></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-39"></span><span>  </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; [a] -&gt; Set a
+</span><span class="hs-identifier hs-var">Set.fromList</span></span><span>
+</span><span id="line-40"></span><span>    </span><span class="hs-special">(</span><span> </span><span class="hs-comment">-- term refs</span><span>
+</span><span id="line-41"></span><span>      </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Reference -&gt; LabeledDependency
+</span><span class="hs-identifier hs-var">LD.termRef</span></span><span> </span><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621679586798"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679586798"><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621679586798"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Maybe (Type v a)
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a b. (a, b) -&gt; a
+</span><span class="hs-identifier hs-var">fst</span></span><span> </span><span class="annot"><span class="annottext">([(Reference, Maybe (Type v a))],
+ [(Reference, DisplayObject () (Decl v a))])
+</span><a href="#local-6989586621679586804"><span class="hs-identifier hs-var">todoFrontier</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-42"></span><span>        </span><span class="annot"><span class="annottext">forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Reference -&gt; LabeledDependency
+</span><span class="hs-identifier hs-var">LD.termRef</span></span><span> </span><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621679586797"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Score
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679586797"><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621679586797"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Maybe (Type v a)
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a b. (a, b) -&gt; a
+</span><span class="hs-identifier hs-var">fst</span></span><span> </span><span class="annot"><span class="annottext">([(Score, Reference, Maybe (Type v a))],
+ [(Score, Reference, DisplayObject () (Decl v a))])
+</span><a href="#local-6989586621679586803"><span class="hs-identifier hs-var">todoFrontierDependents</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-43"></span><span>        </span><span class="annot"><span class="annottext">forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Reference -&gt; LabeledDependency
+</span><span class="hs-identifier hs-var">LD.typeRef</span></span><span> </span><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621679586795"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679586795"><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621679586795"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">DisplayObject () (Decl v a)
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a b. (a, b) -&gt; b
+</span><span class="hs-identifier hs-var">snd</span></span><span> </span><span class="annot"><span class="annottext">([(Reference, Maybe (Type v a))],
+ [(Reference, DisplayObject () (Decl v a))])
+</span><a href="#local-6989586621679586804"><span class="hs-identifier hs-var">todoFrontier</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-44"></span><span>        </span><span class="annot"><span class="annottext">forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Reference -&gt; LabeledDependency
+</span><span class="hs-identifier hs-var">LD.typeRef</span></span><span> </span><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621679586794"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Score
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679586794"><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621679586794"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">DisplayObject () (Decl v a)
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a b. (a, b) -&gt; b
+</span><span class="hs-identifier hs-var">snd</span></span><span> </span><span class="annot"><span class="annottext">([(Score, Reference, Maybe (Type v a))],
+ [(Score, Reference, DisplayObject () (Decl v a))])
+</span><a href="#local-6989586621679586803"><span class="hs-identifier hs-var">todoFrontierDependents</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-45"></span><span>        </span><span class="annot"><span class="annottext">forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span>
+</span><span id="line-46"></span><span>        </span><span class="hs-comment">-- types of term refs</span><span>
+</span><span id="line-47"></span><span>        </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">Reference -&gt; LabeledDependency
+</span><span class="hs-identifier hs-var">LD.typeRef</span></span><span> </span><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621679586793"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Reference
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679586792"><span class="annot"><span class="annottext">Type v a
+</span><a href="#local-6989586621679586792"><span class="hs-identifier hs-var">t</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a b. (a, b) -&gt; a
+</span><span class="hs-identifier hs-var">fst</span></span><span> </span><span class="annot"><span class="annottext">([(Reference, Maybe (Type v a))],
+ [(Reference, DisplayObject () (Decl v a))])
+</span><a href="#local-6989586621679586804"><span class="hs-identifier hs-var">todoFrontier</span></a></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679586793"><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621679586793"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; [a]
+</span><span class="hs-identifier hs-var">toList</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall v a. Ord v =&gt; Type v a -&gt; Set Reference
+</span><span class="hs-identifier hs-var">Type.dependencies</span></span><span> </span><span class="annot"><span class="annottext">Type v a
+</span><a href="#local-6989586621679586792"><span class="hs-identifier hs-var">t</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-48"></span><span>        </span><span class="hs-special">]</span><span>
+</span><span id="line-49"></span><span>        </span><span class="annot"><span class="annottext">forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">Reference -&gt; LabeledDependency
+</span><span class="hs-identifier hs-var">LD.typeRef</span></span><span> </span><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621679586789"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Score
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Reference
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679586788"><span class="annot"><span class="annottext">Type v a
+</span><a href="#local-6989586621679586788"><span class="hs-identifier hs-var">t</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a b. (a, b) -&gt; a
+</span><span class="hs-identifier hs-var">fst</span></span><span> </span><span class="annot"><span class="annottext">([(Score, Reference, Maybe (Type v a))],
+ [(Score, Reference, DisplayObject () (Decl v a))])
+</span><a href="#local-6989586621679586803"><span class="hs-identifier hs-var">todoFrontierDependents</span></a></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679586789"><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621679586789"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; [a]
+</span><span class="hs-identifier hs-var">toList</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall v a. Ord v =&gt; Type v a -&gt; Set Reference
+</span><span class="hs-identifier hs-var">Type.dependencies</span></span><span> </span><span class="annot"><span class="annottext">Type v a
+</span><a href="#local-6989586621679586788"><span class="hs-identifier hs-var">t</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-50"></span><span>           </span><span class="hs-special">]</span><span>
+</span><span id="line-51"></span><span>        </span><span class="annot"><span class="annottext">forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span>
+</span><span id="line-52"></span><span>        </span><span class="hs-comment">-- and decls of type refs</span><span>
+</span><span id="line-53"></span><span>        </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">LabeledDependency
+</span><a href="#local-6989586621679586787"><span class="hs-identifier hs-var">labeledDep</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679586786"><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621679586786"><span class="hs-identifier hs-var">declRef</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">UserObject</span></span><span> </span><span id="local-6989586621679586785"><span class="annot"><span class="annottext">Decl v a
+</span><a href="#local-6989586621679586785"><span class="hs-identifier hs-var">d</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a b. (a, b) -&gt; b
+</span><span class="hs-identifier hs-var">snd</span></span><span> </span><span class="annot"><span class="annottext">([(Reference, Maybe (Type v a))],
+ [(Reference, DisplayObject () (Decl v a))])
+</span><a href="#local-6989586621679586804"><span class="hs-identifier hs-var">todoFrontier</span></a></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679586787"><span class="annot"><span class="annottext">LabeledDependency
+</span><a href="#local-6989586621679586787"><span class="hs-identifier hs-var">labeledDep</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; [a]
+</span><span class="hs-identifier hs-var">toList</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall v a. Ord v =&gt; Reference -&gt; Decl v a -&gt; Set LabeledDependency
+</span><span class="hs-identifier hs-var">DD.labeledDeclDependenciesIncludingSelf</span></span><span> </span><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621679586786"><span class="hs-identifier hs-var">declRef</span></a></span><span> </span><span class="annot"><span class="annottext">Decl v a
+</span><a href="#local-6989586621679586785"><span class="hs-identifier hs-var">d</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-54"></span><span>        </span><span class="hs-special">]</span><span>
+</span><span id="line-55"></span><span>        </span><span class="annot"><span class="annottext">forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">LabeledDependency
+</span><a href="#local-6989586621679586783"><span class="hs-identifier hs-var">labeledDep</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Score
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679586782"><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621679586782"><span class="hs-identifier hs-var">declRef</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">UserObject</span></span><span> </span><span id="local-6989586621679586781"><span class="annot"><span class="annottext">Decl v a
+</span><a href="#local-6989586621679586781"><span class="hs-identifier hs-var">d</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a b. (a, b) -&gt; b
+</span><span class="hs-identifier hs-var">snd</span></span><span> </span><span class="annot"><span class="annottext">([(Score, Reference, Maybe (Type v a))],
+ [(Score, Reference, DisplayObject () (Decl v a))])
+</span><a href="#local-6989586621679586803"><span class="hs-identifier hs-var">todoFrontierDependents</span></a></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679586783"><span class="annot"><span class="annottext">LabeledDependency
+</span><a href="#local-6989586621679586783"><span class="hs-identifier hs-var">labeledDep</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; [a]
+</span><span class="hs-identifier hs-var">toList</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall v a. Ord v =&gt; Reference -&gt; Decl v a -&gt; Set LabeledDependency
+</span><span class="hs-identifier hs-var">DD.labeledDeclDependenciesIncludingSelf</span></span><span> </span><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621679586782"><span class="hs-identifier hs-var">declRef</span></a></span><span> </span><span class="annot"><span class="annottext">Decl v a
+</span><a href="#local-6989586621679586781"><span class="hs-identifier hs-var">d</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-56"></span><span>           </span><span class="hs-special">]</span><span>
+</span><span id="line-57"></span><span>    </span><span class="hs-special">)</span><span>
+</span><span id="line-58"></span><span>    </span><span class="annot"><span class="annottext">forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span>
+</span><span id="line-59"></span><span>    </span><span class="hs-comment">-- name conflicts</span><span>
+</span><span id="line-60"></span><span>    </span><span class="annot"><span class="annottext">forall b a. Ord b =&gt; (a -&gt; b) -&gt; Set a -&gt; Set b
+</span><span class="hs-identifier hs-var">Set.map</span></span><span> </span><span class="annot"><span class="annottext">Referent -&gt; LabeledDependency
+</span><span class="hs-identifier hs-var">LD.referent</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. Relation a b -&gt; Set b
+</span><span class="hs-identifier hs-var">R.ran</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Names -&gt; Relation Name Referent
+</span><span class="hs-identifier hs-var">Names.terms</span></span><span> </span><span class="annot"><span class="annottext">Names
+</span><a href="#local-6989586621679586802"><span class="hs-identifier hs-var">nameConflicts</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-61"></span><span>    </span><span class="annot"><span class="annottext">forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall b a. Ord b =&gt; (a -&gt; b) -&gt; Set a -&gt; Set b
+</span><span class="hs-identifier hs-var">Set.map</span></span><span> </span><span class="annot"><span class="annottext">Reference -&gt; LabeledDependency
+</span><span class="hs-identifier hs-var">LD.typeRef</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. Relation a b -&gt; Set b
+</span><span class="hs-identifier hs-var">R.ran</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Names -&gt; Relation Name Reference
+</span><span class="hs-identifier hs-var">Names.types</span></span><span> </span><span class="annot"><span class="annottext">Names
+</span><a href="#local-6989586621679586802"><span class="hs-identifier hs-var">nameConflicts</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-62"></span><span>    </span><span class="annot"><span class="annottext">forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Patch -&gt; Set LabeledDependency
+</span><span class="hs-identifier hs-var">Patch.labeledDependencies</span></span><span> </span><span class="annot"><span class="annottext">Patch
+</span><a href="#local-6989586621679586801"><span class="hs-identifier hs-var">editConflicts</span></a></span><span>
+</span><span id="line-63"></span><span>
+</span><span id="line-64"></span><span id="local-6989586621679586847"><span id="local-6989586621679586848"><span class="annot"><a href="Unison.Codebase.Editor.TodoOutput.html#noConflicts"><span class="hs-identifier hs-type">noConflicts</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Codebase.Editor.TodoOutput.html#TodoOutput"><span class="hs-identifier hs-type">TodoOutput</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679586848"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679586847"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span></span><span>
+</span><span id="line-65"></span><span id="noConflicts"><span class="annot"><span class="annottext">noConflicts :: forall v a. TodoOutput v a -&gt; Bool
+</span><a href="Unison.Codebase.Editor.TodoOutput.html#noConflicts"><span class="hs-identifier hs-var hs-var">noConflicts</span></a></span></span><span> </span><span id="local-6989586621679586767"><span class="annot"><span class="annottext">TodoOutput v a
+</span><a href="#local-6989586621679586767"><span class="hs-identifier hs-var">todo</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-66"></span><span>  </span><span class="annot"><span class="annottext">forall v a. TodoOutput v a -&gt; Names
+</span><a href="Unison.Codebase.Editor.TodoOutput.html#%24sel%3AnameConflicts%3ATodoOutput"><span class="hs-identifier hs-var">nameConflicts</span></a></span><span> </span><span class="annot"><span class="annottext">TodoOutput v a
+</span><a href="#local-6989586621679586767"><span class="hs-identifier hs-var">todo</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">forall v a. TodoOutput v a -&gt; Patch
+</span><a href="Unison.Codebase.Editor.TodoOutput.html#%24sel%3AeditConflicts%3ATodoOutput"><span class="hs-identifier hs-var">editConflicts</span></a></span><span> </span><span class="annot"><span class="annottext">TodoOutput v a
+</span><a href="#local-6989586621679586767"><span class="hs-identifier hs-var">todo</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Patch
+</span><span class="hs-identifier hs-var">Patch.empty</span></span><span>
+</span><span id="line-67"></span><span>
+</span><span id="line-68"></span><span id="local-6989586621679586763"><span id="local-6989586621679586764"><span class="annot"><a href="Unison.Codebase.Editor.TodoOutput.html#noEdits"><span class="hs-identifier hs-type">noEdits</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Codebase.Editor.TodoOutput.html#TodoOutput"><span class="hs-identifier hs-type">TodoOutput</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679586764"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679586763"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span></span><span>
+</span><span id="line-69"></span><span id="noEdits"><span class="annot"><span class="annottext">noEdits :: forall v a. TodoOutput v a -&gt; Bool
+</span><a href="Unison.Codebase.Editor.TodoOutput.html#noEdits"><span class="hs-identifier hs-var hs-var">noEdits</span></a></span></span><span> </span><span id="local-6989586621679586757"><span class="annot"><span class="annottext">TodoOutput v a
+</span><a href="#local-6989586621679586757"><span class="hs-identifier hs-var">todo</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-70"></span><span>  </span><span class="annot"><span class="annottext">forall v a. TodoOutput v a -&gt; Score
+</span><a href="Unison.Codebase.Editor.TodoOutput.html#%24sel%3AtodoScore%3ATodoOutput"><span class="hs-identifier hs-var">todoScore</span></a></span><span> </span><span class="annot"><span class="annottext">TodoOutput v a
+</span><a href="#local-6989586621679586757"><span class="hs-identifier hs-var">todo</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Score
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-71"></span></pre></body></html>

@@ -1,0 +1,402 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span id="local-6989586621679071933"><span id="local-6989586621679071934"><span id="local-6989586621679071935"><span id="local-6989586621679071936"><span id="local-6989586621679071937"><span id="local-6989586621679071938"><span id="local-6989586621679071939"><span id="local-6989586621679071940"><span id="local-6989586621679071941"></span></span></span></span></span></span></span></span></span><span class="hs-pragma">{-# LANGUAGE Safe #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Data.Time.Calendar.Week</span><span>
+</span><span id="line-4"></span><span>    </span><span class="hs-special">(</span><span>
+</span><span id="line-5"></span><span>      </span><span class="annot"><span class="hs-comment">-- * Week</span></span><span>
+</span><span id="line-6"></span><span>      </span><span class="annot"><a href="Data.Time.Calendar.Week.html#DayOfWeek"><span class="hs-identifier">DayOfWeek</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Time.Calendar.Week.html#dayOfWeek"><span class="hs-identifier">dayOfWeek</span></a></span><span>
+</span><span id="line-8"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Time.Calendar.Week.html#dayOfWeekDiff"><span class="hs-identifier">dayOfWeekDiff</span></a></span><span>
+</span><span id="line-9"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Time.Calendar.Week.html#firstDayOfWeekOnAfter"><span class="hs-identifier">firstDayOfWeekOnAfter</span></a></span><span>
+</span><span id="line-10"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-11"></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Data-Fixed.html#"><span class="hs-identifier">Data.Fixed</span></a></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Data-Ix.html#"><span class="hs-identifier">Data.Ix</span></a></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Data-Data.html#"><span class="hs-identifier">Data.Data</span></a></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../deepseq-1.4.6.1/src/Control-DeepSeq.html#"><span class="hs-identifier">Control.DeepSeq</span></a></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Time.Calendar.Days.html"><span class="hs-identifier">Data.Time.Calendar.Days</span></a></span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">data</span><span> </span><span id="DayOfWeek"><span class="annot"><a href="Data.Time.Calendar.Week.html#DayOfWeek"><span class="hs-identifier hs-var">DayOfWeek</span></a></span></span><span>
+</span><span id="line-19"></span><span>    </span><span class="hs-glyph">=</span><span> </span><span id="Monday"><span class="annot"><a href="Data.Time.Calendar.Week.html#Monday"><span class="hs-identifier hs-var">Monday</span></a></span></span><span>
+</span><span id="line-20"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="Tuesday"><span class="annot"><a href="Data.Time.Calendar.Week.html#Tuesday"><span class="hs-identifier hs-var">Tuesday</span></a></span></span><span>
+</span><span id="line-21"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="Wednesday"><span class="annot"><a href="Data.Time.Calendar.Week.html#Wednesday"><span class="hs-identifier hs-var">Wednesday</span></a></span></span><span>
+</span><span id="line-22"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="Thursday"><span class="annot"><a href="Data.Time.Calendar.Week.html#Thursday"><span class="hs-identifier hs-var">Thursday</span></a></span></span><span>
+</span><span id="line-23"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="Friday"><span class="annot"><a href="Data.Time.Calendar.Week.html#Friday"><span class="hs-identifier hs-var">Friday</span></a></span></span><span>
+</span><span id="line-24"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="Saturday"><span class="annot"><a href="Data.Time.Calendar.Week.html#Saturday"><span class="hs-identifier hs-var">Saturday</span></a></span></span><span>
+</span><span id="line-25"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="Sunday"><span class="annot"><a href="Data.Time.Calendar.Week.html#Sunday"><span class="hs-identifier hs-var">Sunday</span></a></span></span><span>
+</span><span id="line-26"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679071905"><span id="local-6989586621679071907"><span class="annot"><span class="annottext">DayOfWeek -&gt; DayOfWeek -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: DayOfWeek -&gt; DayOfWeek -&gt; Bool
+$c/= :: DayOfWeek -&gt; DayOfWeek -&gt; Bool
+== :: DayOfWeek -&gt; DayOfWeek -&gt; Bool
+$c== :: DayOfWeek -&gt; DayOfWeek -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679071898"><span id="local-6989586621679071900"><span id="local-6989586621679071902"><span class="annot"><span class="annottext">Int -&gt; DayOfWeek -&gt; ShowS
+[DayOfWeek] -&gt; ShowS
+DayOfWeek -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [DayOfWeek] -&gt; ShowS
+$cshowList :: [DayOfWeek] -&gt; ShowS
+show :: DayOfWeek -&gt; String
+$cshow :: DayOfWeek -&gt; String
+showsPrec :: Int -&gt; DayOfWeek -&gt; ShowS
+$cshowsPrec :: Int -&gt; DayOfWeek -&gt; ShowS
+</span><a href="../../base-4.16.4.0/src/GHC-Show.html#Show"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></a></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679071880"><span id="local-6989586621679071890"><span id="local-6989586621679071893"><span id="local-6989586621679071895"><span class="annot"><span class="annottext">ReadPrec [DayOfWeek]
+ReadPrec DayOfWeek
+Int -&gt; ReadS DayOfWeek
+ReadS [DayOfWeek]
+forall a.
+(Int -&gt; ReadS a)
+-&gt; ReadS [a] -&gt; ReadPrec a -&gt; ReadPrec [a] -&gt; Read a
+readListPrec :: ReadPrec [DayOfWeek]
+$creadListPrec :: ReadPrec [DayOfWeek]
+readPrec :: ReadPrec DayOfWeek
+$creadPrec :: ReadPrec DayOfWeek
+readList :: ReadS [DayOfWeek]
+$creadList :: ReadS [DayOfWeek]
+readsPrec :: Int -&gt; ReadS DayOfWeek
+$creadsPrec :: Int -&gt; ReadS DayOfWeek
+</span><a href="../../base-4.16.4.0/src/GHC-Read.html#Read"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Read</span></a></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679071848"><span id="local-6989586621679071850"><span id="local-6989586621679071852"><span id="local-6989586621679071854"><span id="local-6989586621679071856"><span id="local-6989586621679071858"><span id="local-6989586621679071860"><span id="local-6989586621679071862"><span id="local-6989586621679071864"><span id="local-6989586621679071866"><span id="local-6989586621679071868"><span id="local-6989586621679071870"><span id="local-6989586621679071872"><span id="local-6989586621679071874"><span class="annot"><span class="annottext">Typeable DayOfWeek
+DayOfWeek -&gt; DataType
+DayOfWeek -&gt; Constr
+(forall b. Data b =&gt; b -&gt; b) -&gt; DayOfWeek -&gt; DayOfWeek
+forall a.
+Typeable a
+-&gt; (forall (c :: * -&gt; *).
+    (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+    -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; DayOfWeek -&gt; u
+forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; DayOfWeek -&gt; [u]
+forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; DayOfWeek -&gt; r
+forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; DayOfWeek -&gt; r
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; DayOfWeek -&gt; m DayOfWeek
+forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; DayOfWeek -&gt; m DayOfWeek
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c DayOfWeek
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; DayOfWeek -&gt; c DayOfWeek
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c DayOfWeek)
+forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c DayOfWeek)
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; DayOfWeek -&gt; m DayOfWeek
+$cgmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; DayOfWeek -&gt; m DayOfWeek
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; DayOfWeek -&gt; m DayOfWeek
+$cgmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; DayOfWeek -&gt; m DayOfWeek
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; DayOfWeek -&gt; m DayOfWeek
+$cgmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; DayOfWeek -&gt; m DayOfWeek
+gmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; DayOfWeek -&gt; u
+$cgmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; DayOfWeek -&gt; u
+gmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; DayOfWeek -&gt; [u]
+$cgmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; DayOfWeek -&gt; [u]
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; DayOfWeek -&gt; r
+$cgmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; DayOfWeek -&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; DayOfWeek -&gt; r
+$cgmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; DayOfWeek -&gt; r
+gmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; DayOfWeek -&gt; DayOfWeek
+$cgmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; DayOfWeek -&gt; DayOfWeek
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c DayOfWeek)
+$cdataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c DayOfWeek)
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c DayOfWeek)
+$cdataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c DayOfWeek)
+dataTypeOf :: DayOfWeek -&gt; DataType
+$cdataTypeOf :: DayOfWeek -&gt; DataType
+toConstr :: DayOfWeek -&gt; Constr
+$ctoConstr :: DayOfWeek -&gt; Constr
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c DayOfWeek
+$cgunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c DayOfWeek
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; DayOfWeek -&gt; c DayOfWeek
+$cgfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; DayOfWeek -&gt; c DayOfWeek
+</span><a href="../../base-4.16.4.0/src/Data-Data.html#Data"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data</span></a></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Data-Typeable-Internal.html#Typeable"><span class="hs-identifier hs-type">Typeable</span></a></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679071828"><span id="local-6989586621679071830"><span id="local-6989586621679071833"><span id="local-6989586621679071836"><span id="local-6989586621679071839"><span id="local-6989586621679071841"><span id="local-6989586621679071843"><span class="annot"><span class="annottext">Eq DayOfWeek
+DayOfWeek -&gt; DayOfWeek -&gt; Bool
+DayOfWeek -&gt; DayOfWeek -&gt; Ordering
+DayOfWeek -&gt; DayOfWeek -&gt; DayOfWeek
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: DayOfWeek -&gt; DayOfWeek -&gt; DayOfWeek
+$cmin :: DayOfWeek -&gt; DayOfWeek -&gt; DayOfWeek
+max :: DayOfWeek -&gt; DayOfWeek -&gt; DayOfWeek
+$cmax :: DayOfWeek -&gt; DayOfWeek -&gt; DayOfWeek
+&gt;= :: DayOfWeek -&gt; DayOfWeek -&gt; Bool
+$c&gt;= :: DayOfWeek -&gt; DayOfWeek -&gt; Bool
+&gt; :: DayOfWeek -&gt; DayOfWeek -&gt; Bool
+$c&gt; :: DayOfWeek -&gt; DayOfWeek -&gt; Bool
+&lt;= :: DayOfWeek -&gt; DayOfWeek -&gt; Bool
+$c&lt;= :: DayOfWeek -&gt; DayOfWeek -&gt; Bool
+&lt; :: DayOfWeek -&gt; DayOfWeek -&gt; Bool
+$c&lt; :: DayOfWeek -&gt; DayOfWeek -&gt; Bool
+compare :: DayOfWeek -&gt; DayOfWeek -&gt; Ordering
+$ccompare :: DayOfWeek -&gt; DayOfWeek -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679071811"><span id="local-6989586621679071813"><span id="local-6989586621679071815"><span id="local-6989586621679071817"><span id="local-6989586621679071819"><span id="local-6989586621679071823"><span class="annot"><span class="annottext">Ord DayOfWeek
+(DayOfWeek, DayOfWeek) -&gt; Int
+(DayOfWeek, DayOfWeek) -&gt; [DayOfWeek]
+(DayOfWeek, DayOfWeek) -&gt; DayOfWeek -&gt; Bool
+(DayOfWeek, DayOfWeek) -&gt; DayOfWeek -&gt; Int
+forall a.
+Ord a
+-&gt; ((a, a) -&gt; [a])
+-&gt; ((a, a) -&gt; a -&gt; Int)
+-&gt; ((a, a) -&gt; a -&gt; Int)
+-&gt; ((a, a) -&gt; a -&gt; Bool)
+-&gt; ((a, a) -&gt; Int)
+-&gt; ((a, a) -&gt; Int)
+-&gt; Ix a
+unsafeRangeSize :: (DayOfWeek, DayOfWeek) -&gt; Int
+$cunsafeRangeSize :: (DayOfWeek, DayOfWeek) -&gt; Int
+rangeSize :: (DayOfWeek, DayOfWeek) -&gt; Int
+$crangeSize :: (DayOfWeek, DayOfWeek) -&gt; Int
+inRange :: (DayOfWeek, DayOfWeek) -&gt; DayOfWeek -&gt; Bool
+$cinRange :: (DayOfWeek, DayOfWeek) -&gt; DayOfWeek -&gt; Bool
+unsafeIndex :: (DayOfWeek, DayOfWeek) -&gt; DayOfWeek -&gt; Int
+$cunsafeIndex :: (DayOfWeek, DayOfWeek) -&gt; DayOfWeek -&gt; Int
+index :: (DayOfWeek, DayOfWeek) -&gt; DayOfWeek -&gt; Int
+$cindex :: (DayOfWeek, DayOfWeek) -&gt; DayOfWeek -&gt; Int
+range :: (DayOfWeek, DayOfWeek) -&gt; [DayOfWeek]
+$crange :: (DayOfWeek, DayOfWeek) -&gt; [DayOfWeek]
+</span><a href="../../base-4.16.4.0/src/GHC-Ix.html#Ix"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ix</span></a></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="../../deepseq-1.4.6.1/src/Control-DeepSeq.html#NFData"><span class="hs-identifier hs-type">NFData</span></a></span><span> </span><span class="annot"><a href="Data.Time.Calendar.Week.html#DayOfWeek"><span class="hs-identifier hs-type">DayOfWeek</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-29"></span><span>    </span><span id="local-6989586621679071806"><span class="annot"><span class="annottext">rnf :: DayOfWeek -&gt; ()
+</span><a href="../../deepseq-1.4.6.1/src/Control-DeepSeq.html#rnf"><span class="hs-identifier hs-var hs-var hs-var hs-var">rnf</span></a></span></span><span> </span><span class="annot"><span class="annottext">DayOfWeek
+</span><a href="Data.Time.Calendar.Week.html#Monday"><span class="hs-identifier hs-var">Monday</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span>    </span><span class="annot"><a href="../../deepseq-1.4.6.1/src/Control-DeepSeq.html#rnf"><span class="hs-identifier hs-var">rnf</span></a></span><span> </span><span class="annot"><span class="annottext">DayOfWeek
+</span><a href="Data.Time.Calendar.Week.html#Tuesday"><span class="hs-identifier hs-var">Tuesday</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span>    </span><span class="annot"><a href="../../deepseq-1.4.6.1/src/Control-DeepSeq.html#rnf"><span class="hs-identifier hs-var">rnf</span></a></span><span> </span><span class="annot"><span class="annottext">DayOfWeek
+</span><a href="Data.Time.Calendar.Week.html#Wednesday"><span class="hs-identifier hs-var">Wednesday</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span>    </span><span class="annot"><a href="../../deepseq-1.4.6.1/src/Control-DeepSeq.html#rnf"><span class="hs-identifier hs-var">rnf</span></a></span><span> </span><span class="annot"><span class="annottext">DayOfWeek
+</span><a href="Data.Time.Calendar.Week.html#Thursday"><span class="hs-identifier hs-var">Thursday</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span>    </span><span class="annot"><a href="../../deepseq-1.4.6.1/src/Control-DeepSeq.html#rnf"><span class="hs-identifier hs-var">rnf</span></a></span><span> </span><span class="annot"><span class="annottext">DayOfWeek
+</span><a href="Data.Time.Calendar.Week.html#Friday"><span class="hs-identifier hs-var">Friday</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-34"></span><span>    </span><span class="annot"><a href="../../deepseq-1.4.6.1/src/Control-DeepSeq.html#rnf"><span class="hs-identifier hs-var">rnf</span></a></span><span> </span><span class="annot"><span class="annottext">DayOfWeek
+</span><a href="Data.Time.Calendar.Week.html#Saturday"><span class="hs-identifier hs-var">Saturday</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span>    </span><span class="annot"><a href="../../deepseq-1.4.6.1/src/Control-DeepSeq.html#rnf"><span class="hs-identifier hs-var">rnf</span></a></span><span> </span><span class="annot"><span class="annottext">DayOfWeek
+</span><a href="Data.Time.Calendar.Week.html#Sunday"><span class="hs-identifier hs-var">Sunday</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- | \&quot;Circular\&quot;, so for example @[Tuesday ..]@ gives an endless sequence.</span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- Also: 'fromEnum' gives [1 .. 7] for [Monday .. Sunday], and 'toEnum' performs mod 7 to give a cycle of days.</span><span>
+</span><span id="line-39"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679071795"><span id="local-6989586621679071797"><span id="local-6989586621679071801"><span id="local-6989586621679071803"><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Enum.html#Enum"><span class="hs-identifier hs-type">Enum</span></a></span><span> </span><span class="annot"><a href="Data.Time.Calendar.Week.html#DayOfWeek"><span class="hs-identifier hs-type">DayOfWeek</span></a></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-40"></span><span>    </span><span id="local-6989586621679071776"><span class="annot"><span class="annottext">toEnum :: Int -&gt; DayOfWeek
+</span><a href="../../base-4.16.4.0/src/GHC-Enum.html#toEnum"><span class="hs-identifier hs-var hs-var hs-var hs-var">toEnum</span></a></span></span><span> </span><span id="local-6989586621679071774"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679071774"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-41"></span><span>        </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">forall a. Integral a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Real.html#mod"><span class="hs-identifier hs-var">mod</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679071774"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">7</span></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-42"></span><span>            </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">DayOfWeek
+</span><a href="Data.Time.Calendar.Week.html#Sunday"><span class="hs-identifier hs-var">Sunday</span></a></span><span>
+</span><span id="line-43"></span><span>            </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">DayOfWeek
+</span><a href="Data.Time.Calendar.Week.html#Monday"><span class="hs-identifier hs-var">Monday</span></a></span><span>
+</span><span id="line-44"></span><span>            </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">DayOfWeek
+</span><a href="Data.Time.Calendar.Week.html#Tuesday"><span class="hs-identifier hs-var">Tuesday</span></a></span><span>
+</span><span id="line-45"></span><span>            </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">DayOfWeek
+</span><a href="Data.Time.Calendar.Week.html#Wednesday"><span class="hs-identifier hs-var">Wednesday</span></a></span><span>
+</span><span id="line-46"></span><span>            </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">DayOfWeek
+</span><a href="Data.Time.Calendar.Week.html#Thursday"><span class="hs-identifier hs-var">Thursday</span></a></span><span>
+</span><span id="line-47"></span><span>            </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">5</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">DayOfWeek
+</span><a href="Data.Time.Calendar.Week.html#Friday"><span class="hs-identifier hs-var">Friday</span></a></span><span>
+</span><span id="line-48"></span><span>            </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">DayOfWeek
+</span><a href="Data.Time.Calendar.Week.html#Saturday"><span class="hs-identifier hs-var">Saturday</span></a></span><span>
+</span><span id="line-49"></span><span>    </span><span id="local-6989586621679071772"><span class="annot"><span class="annottext">fromEnum :: DayOfWeek -&gt; Int
+</span><a href="../../base-4.16.4.0/src/GHC-Enum.html#fromEnum"><span class="hs-identifier hs-var hs-var hs-var hs-var">fromEnum</span></a></span></span><span> </span><span class="annot"><span class="annottext">DayOfWeek
+</span><a href="Data.Time.Calendar.Week.html#Monday"><span class="hs-identifier hs-var">Monday</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-50"></span><span>    </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Enum.html#fromEnum"><span class="hs-identifier hs-var">fromEnum</span></a></span><span> </span><span class="annot"><span class="annottext">DayOfWeek
+</span><a href="Data.Time.Calendar.Week.html#Tuesday"><span class="hs-identifier hs-var">Tuesday</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span>
+</span><span id="line-51"></span><span>    </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Enum.html#fromEnum"><span class="hs-identifier hs-var">fromEnum</span></a></span><span> </span><span class="annot"><span class="annottext">DayOfWeek
+</span><a href="Data.Time.Calendar.Week.html#Wednesday"><span class="hs-identifier hs-var">Wednesday</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span>
+</span><span id="line-52"></span><span>    </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Enum.html#fromEnum"><span class="hs-identifier hs-var">fromEnum</span></a></span><span> </span><span class="annot"><span class="annottext">DayOfWeek
+</span><a href="Data.Time.Calendar.Week.html#Thursday"><span class="hs-identifier hs-var">Thursday</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span>
+</span><span id="line-53"></span><span>    </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Enum.html#fromEnum"><span class="hs-identifier hs-var">fromEnum</span></a></span><span> </span><span class="annot"><span class="annottext">DayOfWeek
+</span><a href="Data.Time.Calendar.Week.html#Friday"><span class="hs-identifier hs-var">Friday</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">5</span></span><span>
+</span><span id="line-54"></span><span>    </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Enum.html#fromEnum"><span class="hs-identifier hs-var">fromEnum</span></a></span><span> </span><span class="annot"><span class="annottext">DayOfWeek
+</span><a href="Data.Time.Calendar.Week.html#Saturday"><span class="hs-identifier hs-var">Saturday</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">6</span></span><span>
+</span><span id="line-55"></span><span>    </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Enum.html#fromEnum"><span class="hs-identifier hs-var">fromEnum</span></a></span><span> </span><span class="annot"><span class="annottext">DayOfWeek
+</span><a href="Data.Time.Calendar.Week.html#Sunday"><span class="hs-identifier hs-var">Sunday</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">7</span></span><span>
+</span><span id="line-56"></span><span>    </span><span id="local-6989586621679071767"><span class="annot"><span class="annottext">enumFromTo :: DayOfWeek -&gt; DayOfWeek -&gt; [DayOfWeek]
+</span><a href="../../base-4.16.4.0/src/GHC-Enum.html#enumFromTo"><span class="hs-identifier hs-var hs-var hs-var hs-var">enumFromTo</span></a></span></span><span> </span><span id="local-6989586621679071766"><span class="annot"><span class="annottext">DayOfWeek
+</span><a href="#local-6989586621679071766"><span class="hs-identifier hs-var">wd1</span></a></span></span><span> </span><span id="local-6989586621679071765"><span class="annot"><span class="annottext">DayOfWeek
+</span><a href="#local-6989586621679071765"><span class="hs-identifier hs-var">wd2</span></a></span></span><span>
+</span><span id="line-57"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">DayOfWeek
+</span><a href="#local-6989586621679071766"><span class="hs-identifier hs-var">wd1</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">DayOfWeek
+</span><a href="#local-6989586621679071765"><span class="hs-identifier hs-var">wd2</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">DayOfWeek
+</span><a href="#local-6989586621679071766"><span class="hs-identifier hs-var">wd1</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-58"></span><span>    </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Enum.html#enumFromTo"><span class="hs-identifier hs-var">enumFromTo</span></a></span><span> </span><span id="local-6989586621679071764"><span class="annot"><span class="annottext">DayOfWeek
+</span><a href="#local-6989586621679071764"><span class="hs-identifier hs-var">wd1</span></a></span></span><span> </span><span id="local-6989586621679071763"><span class="annot"><span class="annottext">DayOfWeek
+</span><a href="#local-6989586621679071763"><span class="hs-identifier hs-var">wd2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">DayOfWeek
+</span><a href="#local-6989586621679071764"><span class="hs-identifier hs-var">wd1</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">forall a. Enum a =&gt; a -&gt; a -&gt; [a]
+</span><a href="../../base-4.16.4.0/src/GHC-Enum.html#enumFromTo"><span class="hs-identifier hs-var">enumFromTo</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Enum a =&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Enum.html#succ"><span class="hs-identifier hs-var">succ</span></a></span><span> </span><span class="annot"><span class="annottext">DayOfWeek
+</span><a href="#local-6989586621679071764"><span class="hs-identifier hs-var">wd1</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">DayOfWeek
+</span><a href="#local-6989586621679071763"><span class="hs-identifier hs-var">wd2</span></a></span><span>
+</span><span id="line-59"></span><span>    </span><span id="local-6989586621679071753"><span class="annot"><span class="annottext">enumFromThenTo :: DayOfWeek -&gt; DayOfWeek -&gt; DayOfWeek -&gt; [DayOfWeek]
+</span><a href="../../base-4.16.4.0/src/GHC-Enum.html#enumFromThenTo"><span class="hs-identifier hs-var hs-var hs-var hs-var">enumFromThenTo</span></a></span></span><span> </span><span id="local-6989586621679071752"><span class="annot"><span class="annottext">DayOfWeek
+</span><a href="#local-6989586621679071752"><span class="hs-identifier hs-var">wd1</span></a></span></span><span> </span><span id="local-6989586621679071751"><span class="annot"><span class="annottext">DayOfWeek
+</span><a href="#local-6989586621679071751"><span class="hs-identifier hs-var">wd2</span></a></span></span><span> </span><span id="local-6989586621679071750"><span class="annot"><span class="annottext">DayOfWeek
+</span><a href="#local-6989586621679071750"><span class="hs-identifier hs-var">wd3</span></a></span></span><span>
+</span><span id="line-60"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">DayOfWeek
+</span><a href="#local-6989586621679071751"><span class="hs-identifier hs-var">wd2</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">DayOfWeek
+</span><a href="#local-6989586621679071750"><span class="hs-identifier hs-var">wd3</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">DayOfWeek
+</span><a href="#local-6989586621679071752"><span class="hs-identifier hs-var">wd1</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">DayOfWeek
+</span><a href="#local-6989586621679071751"><span class="hs-identifier hs-var">wd2</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-61"></span><span>    </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Enum.html#enumFromThenTo"><span class="hs-identifier hs-var">enumFromThenTo</span></a></span><span> </span><span id="local-6989586621679071749"><span class="annot"><span class="annottext">DayOfWeek
+</span><a href="#local-6989586621679071749"><span class="hs-identifier hs-var">wd1</span></a></span></span><span> </span><span id="local-6989586621679071748"><span class="annot"><span class="annottext">DayOfWeek
+</span><a href="#local-6989586621679071748"><span class="hs-identifier hs-var">wd2</span></a></span></span><span> </span><span id="local-6989586621679071747"><span class="annot"><span class="annottext">DayOfWeek
+</span><a href="#local-6989586621679071747"><span class="hs-identifier hs-var">wd3</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">DayOfWeek
+</span><a href="#local-6989586621679071749"><span class="hs-identifier hs-var">wd1</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">forall a. Enum a =&gt; a -&gt; a -&gt; a -&gt; [a]
+</span><a href="../../base-4.16.4.0/src/GHC-Enum.html#enumFromThenTo"><span class="hs-identifier hs-var">enumFromThenTo</span></a></span><span> </span><span class="annot"><span class="annottext">DayOfWeek
+</span><a href="#local-6989586621679071748"><span class="hs-identifier hs-var">wd2</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Enum a =&gt; Int -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Enum.html#toEnum"><span class="hs-identifier hs-var">toEnum</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2A"><span class="hs-operator hs-var">*</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Enum a =&gt; a -&gt; Int
+</span><a href="../../base-4.16.4.0/src/GHC-Enum.html#fromEnum"><span class="hs-identifier hs-var">fromEnum</span></a></span><span> </span><span class="annot"><span class="annottext">DayOfWeek
+</span><a href="#local-6989586621679071748"><span class="hs-identifier hs-var">wd2</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#-"><span class="hs-glyph hs-var">-</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Enum a =&gt; a -&gt; Int
+</span><a href="../../base-4.16.4.0/src/GHC-Enum.html#fromEnum"><span class="hs-identifier hs-var">fromEnum</span></a></span><span> </span><span class="annot"><span class="annottext">DayOfWeek
+</span><a href="#local-6989586621679071749"><span class="hs-identifier hs-var">wd1</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">DayOfWeek
+</span><a href="#local-6989586621679071747"><span class="hs-identifier hs-var">wd3</span></a></span><span>
+</span><span id="line-62"></span><span>
+</span><span id="line-63"></span><span class="annot"><a href="Data.Time.Calendar.Week.html#dayOfWeek"><span class="hs-identifier hs-type">dayOfWeek</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Time.Calendar.Days.html#Day"><span class="hs-identifier hs-type">Day</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Time.Calendar.Week.html#DayOfWeek"><span class="hs-identifier hs-type">DayOfWeek</span></a></span><span>
+</span><span id="line-64"></span><span id="dayOfWeek"><span class="annot"><span class="annottext">dayOfWeek :: Day -&gt; DayOfWeek
+</span><a href="Data.Time.Calendar.Week.html#dayOfWeek"><span class="hs-identifier hs-var hs-var">dayOfWeek</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Time.Calendar.Days.html#ModifiedJulianDay"><span class="hs-identifier hs-type">ModifiedJulianDay</span></a></span><span> </span><span id="local-6989586621679071744"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679071744"><span class="hs-identifier hs-var">d</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Enum a =&gt; Int -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Enum.html#toEnum"><span class="hs-identifier hs-var">toEnum</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; Integer -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#fromInteger"><span class="hs-identifier hs-var">fromInteger</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679071744"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">3</span></span><span>
+</span><span id="line-65"></span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span class="hs-comment">-- | @dayOfWeekDiff a b = a - b@ in range 0 to 6.</span><span>
+</span><span id="line-68"></span><span class="hs-comment">-- The number of days from b to the next a.</span><span>
+</span><span id="line-69"></span><span class="annot"><a href="Data.Time.Calendar.Week.html#dayOfWeekDiff"><span class="hs-identifier hs-type">dayOfWeekDiff</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Time.Calendar.Week.html#DayOfWeek"><span class="hs-identifier hs-type">DayOfWeek</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Time.Calendar.Week.html#DayOfWeek"><span class="hs-identifier hs-type">DayOfWeek</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-70"></span><span id="dayOfWeekDiff"><span class="annot"><span class="annottext">dayOfWeekDiff :: DayOfWeek -&gt; DayOfWeek -&gt; Int
+</span><a href="Data.Time.Calendar.Week.html#dayOfWeekDiff"><span class="hs-identifier hs-var hs-var">dayOfWeekDiff</span></a></span></span><span> </span><span id="local-6989586621679071742"><span class="annot"><span class="annottext">DayOfWeek
+</span><a href="#local-6989586621679071742"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679071741"><span class="annot"><span class="annottext">DayOfWeek
+</span><a href="#local-6989586621679071741"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Real a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/Data-Fixed.html#mod%27"><span class="hs-identifier hs-var">mod'</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Enum a =&gt; a -&gt; Int
+</span><a href="../../base-4.16.4.0/src/GHC-Enum.html#fromEnum"><span class="hs-identifier hs-var">fromEnum</span></a></span><span> </span><span class="annot"><span class="annottext">DayOfWeek
+</span><a href="#local-6989586621679071742"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../base-4.16.4.0/src/GHC-Num.html#-"><span class="hs-glyph hs-var">-</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Enum a =&gt; a -&gt; Int
+</span><a href="../../base-4.16.4.0/src/GHC-Enum.html#fromEnum"><span class="hs-identifier hs-var">fromEnum</span></a></span><span> </span><span class="annot"><span class="annottext">DayOfWeek
+</span><a href="#local-6989586621679071741"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">7</span></span><span>
+</span><span id="line-71"></span><span>
+</span><span id="line-72"></span><span class="hs-comment">-- | The first day-of-week on or after some day</span><span>
+</span><span id="line-73"></span><span class="annot"><a href="Data.Time.Calendar.Week.html#firstDayOfWeekOnAfter"><span class="hs-identifier hs-type">firstDayOfWeekOnAfter</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Time.Calendar.Week.html#DayOfWeek"><span class="hs-identifier hs-type">DayOfWeek</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Time.Calendar.Days.html#Day"><span class="hs-identifier hs-type">Day</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Time.Calendar.Days.html#Day"><span class="hs-identifier hs-type">Day</span></a></span><span>
+</span><span id="line-74"></span><span id="firstDayOfWeekOnAfter"><span class="annot"><span class="annottext">firstDayOfWeekOnAfter :: DayOfWeek -&gt; Day -&gt; Day
+</span><a href="Data.Time.Calendar.Week.html#firstDayOfWeekOnAfter"><span class="hs-identifier hs-var hs-var">firstDayOfWeekOnAfter</span></a></span></span><span> </span><span id="local-6989586621679071739"><span class="annot"><span class="annottext">DayOfWeek
+</span><a href="#local-6989586621679071739"><span class="hs-identifier hs-var">dw</span></a></span></span><span> </span><span id="local-6989586621679071738"><span class="annot"><span class="annottext">Day
+</span><a href="#local-6989586621679071738"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Day -&gt; Day
+</span><a href="Data.Time.Calendar.Days.html#addDays"><span class="hs-identifier hs-var">addDays</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Integral a =&gt; a -&gt; Integer
+</span><a href="../../base-4.16.4.0/src/GHC-Real.html#toInteger"><span class="hs-identifier hs-var">toInteger</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">DayOfWeek -&gt; DayOfWeek -&gt; Int
+</span><a href="Data.Time.Calendar.Week.html#dayOfWeekDiff"><span class="hs-identifier hs-var">dayOfWeekDiff</span></a></span><span> </span><span class="annot"><span class="annottext">DayOfWeek
+</span><a href="#local-6989586621679071739"><span class="hs-identifier hs-var">dw</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">Day -&gt; DayOfWeek
+</span><a href="Data.Time.Calendar.Week.html#dayOfWeek"><span class="hs-identifier hs-var">dayOfWeek</span></a></span><span> </span><span class="annot"><span class="annottext">Day
+</span><a href="#local-6989586621679071738"><span class="hs-identifier hs-var">d</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Day
+</span><a href="#local-6989586621679071738"><span class="hs-identifier hs-var">d</span></a></span><span>
+</span><span id="line-75"></span></pre></body></html>

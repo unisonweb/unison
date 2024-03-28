@@ -1,0 +1,186 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Unison.Codebase.Editor.HandleInput.EditNamespace</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Codebase.Editor.HandleInput.EditNamespace.html#handleEditNamespace"><span class="hs-identifier">handleEditNamespace</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Reader</span></span><span>
+</span><span id="line-4"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.List.Extra</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">List</span></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Map</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Map</span></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Cli.Monad.html"><span class="hs-identifier">Unison.Cli.Monad</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Cli.Monad.html#Cli"><span class="hs-identifier">Cli</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Cli.Monad.html"><span class="hs-identifier">Unison.Cli.Monad</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Cli</span></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Cli.MonadUtils.html"><span class="hs-identifier">Unison.Cli.MonadUtils</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Cli</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Cli.PrettyPrintUtils.html"><span class="hs-identifier">Unison.Cli.PrettyPrintUtils</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">NamesUtils</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Codebase</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Codebase</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Codebase.Branch</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Branch</span></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Codebase.Branch.Names</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Branch</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Codebase.Editor.HandleInput.ShowDefinition.html"><span class="hs-identifier">Unison.Codebase.Editor.HandleInput.ShowDefinition</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Codebase.Editor.HandleInput.ShowDefinition.html#showDefinitions"><span class="hs-identifier">showDefinitions</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Codebase.Editor.Input.html"><span class="hs-identifier">Unison.Codebase.Editor.Input</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Codebase.Editor.Input.html#OutputLocation"><span class="hs-identifier">OutputLocation</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Codebase.Path</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Path</span></span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Codebase.Path</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Path</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Names</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Names</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Prelude</span></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Server.Backend</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Backend</span></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Util.Monoid</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">foldMapM</span></span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="annot"><a href="Unison.Codebase.Editor.HandleInput.EditNamespace.html#handleEditNamespace"><span class="hs-identifier hs-type">handleEditNamespace</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Codebase.Editor.Input.html#OutputLocation"><span class="hs-identifier hs-type">OutputLocation</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Path</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Cli.Monad.html#Cli"><span class="hs-identifier hs-type">Cli</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span id="handleEditNamespace"><span class="annot"><span class="annottext">handleEditNamespace :: OutputLocation -&gt; [Path] -&gt; Cli ()
+</span><a href="Unison.Codebase.Editor.HandleInput.EditNamespace.html#handleEditNamespace"><span class="hs-identifier hs-var hs-var">handleEditNamespace</span></a></span></span><span> </span><span id="local-6989586621679639023"><span class="annot"><span class="annottext">OutputLocation
+</span><a href="#local-6989586621679639023"><span class="hs-identifier hs-var">outputLoc</span></a></span></span><span> </span><span id="local-6989586621679639022"><span class="annot"><span class="annottext">[Path]
+</span><a href="#local-6989586621679639022"><span class="hs-identifier hs-var">inputPaths</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-24"></span><span>  </span><span class="annot"><a href="Unison.Cli.Monad.html#Env"><span class="hs-identifier hs-type">Cli.Env</span></a></span><span> </span><span class="hs-special">{</span><span id="local-6989586621679639020"><span class="annot"><span class="annottext">Codebase IO Symbol Ann
+$sel:codebase:Env :: Env -&gt; Codebase IO Symbol Ann
+codebase :: Codebase IO Symbol Ann
+</span><a href="Unison.Cli.Monad.html#%24sel%3Acodebase%3AEnv"><span class="hs-identifier hs-var hs-var">codebase</span></a></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall r (m :: * -&gt; *). MonadReader r m =&gt; m r
+</span><span class="hs-identifier hs-var">ask</span></span><span>
+</span><span id="line-25"></span><span>  </span><span id="local-6989586621679639017"><span class="annot"><span class="annottext">Branch0 IO
+</span><a href="#local-6989586621679639017"><span class="hs-identifier hs-var">currentBranch</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Cli (Branch0 IO)
+</span><a href="Unison.Cli.MonadUtils.html#getCurrentBranch0"><span class="hs-identifier hs-var">Cli.getCurrentBranch0</span></a></span><span>
+</span><span id="line-26"></span><span>  </span><span id="local-6989586621679639015"><span class="annot"><span class="annottext">PrettyPrintEnvDecl
+</span><a href="#local-6989586621679639015"><span class="hs-identifier hs-var">ppe</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Cli PrettyPrintEnvDecl
+</span><a href="Unison.Cli.PrettyPrintUtils.html#currentPrettyPrintEnvDecl"><span class="hs-identifier hs-var">NamesUtils.currentPrettyPrintEnvDecl</span></a></span><span>
+</span><span id="line-27"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679639013"><span class="annot"><span class="annottext">paths :: [Path]
+</span><a href="#local-6989586621679639013"><span class="hs-identifier hs-var hs-var">paths</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-28"></span><span>        </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">null</span></span><span> </span><span class="annot"><span class="annottext">[Path]
+</span><a href="#local-6989586621679639022"><span class="hs-identifier hs-var">inputPaths</span></a></span><span>
+</span><span id="line-29"></span><span>          </span><span class="hs-keyword">then</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Path
+</span><span class="hs-identifier hs-var">Path.empty</span></span><span class="hs-special">]</span><span>
+</span><span id="line-30"></span><span>          </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">[Path]
+</span><a href="#local-6989586621679639022"><span class="hs-identifier hs-var">inputPaths</span></a></span><span>
+</span><span id="line-31"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679639010"><span class="annot"><span class="annottext">allNamesToEdit :: Names
+</span><a href="#local-6989586621679639010"><span class="hs-identifier hs-var hs-var">allNamesToEdit</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-32"></span><span>        </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Ord a =&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">List.nubOrd</span></span><span> </span><span class="annot"><span class="annottext">[Path]
+</span><a href="#local-6989586621679639013"><span class="hs-identifier hs-var">paths</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) m a.
+(Foldable t, Monoid m) =&gt;
+(a -&gt; m) -&gt; t a -&gt; m
+</span><span class="hs-identifier hs-var">foldMap</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679639006"><span class="annot"><span class="annottext">Path
+</span><a href="#local-6989586621679639006"><span class="hs-identifier hs-var">path</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-33"></span><span>          </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679639005"><span class="annot"><span class="annottext">b :: Branch0 IO
+</span><a href="#local-6989586621679639005"><span class="hs-identifier hs-var hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *). Branch0 m -&gt; Branch0 m
+</span><span class="hs-identifier hs-var">Branch.withoutLib</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *). Path -&gt; Branch0 m -&gt; Branch0 m
+</span><span class="hs-identifier hs-var">Branch.getAt0</span></span><span> </span><span class="annot"><span class="annottext">Path
+</span><a href="#local-6989586621679639006"><span class="hs-identifier hs-var">path</span></a></span><span> </span><span class="annot"><span class="annottext">Branch0 IO
+</span><a href="#local-6989586621679639017"><span class="hs-identifier hs-var">currentBranch</span></a></span><span>
+</span><span id="line-34"></span><span>              </span><span id="local-6989586621679639002"><span class="annot"><span class="annottext">names :: Names
+</span><a href="#local-6989586621679639002"><span class="hs-identifier hs-var hs-var">names</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (m :: * -&gt; *). Branch0 m -&gt; Names
+</span><span class="hs-identifier hs-var">Branch.toNames</span></span><span> </span><span class="annot"><span class="annottext">Branch0 IO
+</span><a href="#local-6989586621679639005"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span>              </span><span id="local-6989586621679639000"><span class="annot"><span class="annottext">prefixedNames :: Names
+</span><a href="#local-6989586621679639000"><span class="hs-identifier hs-var hs-var">prefixedNames</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Path -&gt; Maybe Name
+</span><span class="hs-identifier hs-var">Path.toName</span></span><span> </span><span class="annot"><span class="annottext">Path
+</span><a href="#local-6989586621679639006"><span class="hs-identifier hs-var">path</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-36"></span><span>                </span><span class="annot"><span class="annottext">Maybe Name
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Names
+</span><a href="#local-6989586621679639002"><span class="hs-identifier hs-var">names</span></a></span><span>
+</span><span id="line-37"></span><span>                </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679638998"><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679638998"><span class="hs-identifier hs-var">pathPrefix</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Name -&gt; Names -&gt; Names
+</span><span class="hs-identifier hs-var">Names.prefix0</span></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679638998"><span class="hs-identifier hs-var">pathPrefix</span></a></span><span> </span><span class="annot"><span class="annottext">Names
+</span><a href="#local-6989586621679639002"><span class="hs-identifier hs-var">names</span></a></span><span>
+</span><span id="line-38"></span><span>           </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">Names
+</span><a href="#local-6989586621679639000"><span class="hs-identifier hs-var">prefixedNames</span></a></span><span>
+</span><span id="line-39"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679638996"><span class="annot"><span class="annottext">termRefs :: Set Reference
+</span><a href="#local-6989586621679638996"><span class="hs-identifier hs-var hs-var">termRefs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Names -&gt; Set Reference
+</span><span class="hs-identifier hs-var">Names.termReferences</span></span><span> </span><span class="annot"><span class="annottext">Names
+</span><a href="#local-6989586621679639010"><span class="hs-identifier hs-var">allNamesToEdit</span></a></span><span>
+</span><span id="line-40"></span><span>  </span><span class="hs-comment">-- We only need to (optionally) include cycles for type references, not term references,</span><span>
+</span><span id="line-41"></span><span>  </span><span class="hs-comment">-- because 'update' is smart enough to patch-up cycles as expected for terms.</span><span>
+</span><span id="line-42"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679638994"><span class="annot"><span class="annottext">typeRefsWithoutCycles :: Set Reference
+</span><a href="#local-6989586621679638994"><span class="hs-identifier hs-var hs-var">typeRefsWithoutCycles</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Names -&gt; Set Reference
+</span><span class="hs-identifier hs-var">Names.typeReferences</span></span><span> </span><span class="annot"><span class="annottext">Names
+</span><a href="#local-6989586621679639010"><span class="hs-identifier hs-var">allNamesToEdit</span></a></span><span>
+</span><span id="line-43"></span><span>  </span><span id="local-6989586621679638992"><span class="annot"><span class="annottext">Set Reference
+</span><a href="#local-6989586621679638992"><span class="hs-identifier hs-var">typeRefs</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a. Transaction a -&gt; Cli a
+</span><a href="Unison.Cli.Monad.html#runTransaction"><span class="hs-identifier hs-var">Cli.runTransaction</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-44"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">IncludeCycles
+</span><a href="#local-6989586621679638990"><span class="hs-identifier hs-var">includeCycles</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-45"></span><span>      </span><span class="annot"><span class="annottext">IncludeCycles
+</span><span class="hs-identifier hs-var">Backend.IncludeCycles</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) (f :: * -&gt; *) b a.
+(Monad m, Foldable f, Monoid b) =&gt;
+(a -&gt; m b) -&gt; f a -&gt; m b
+</span><span class="hs-identifier hs-var">foldMapM</span></span><span> </span><span class="annot"><span class="annottext">Reference -&gt; Transaction (Set Reference)
+</span><span class="hs-identifier hs-var">Codebase.componentReferencesForReference</span></span><span> </span><span class="annot"><span class="annottext">Set Reference
+</span><a href="#local-6989586621679638994"><span class="hs-identifier hs-var">typeRefsWithoutCycles</span></a></span><span>
+</span><span id="line-46"></span><span>      </span><span class="annot"><span class="annottext">IncludeCycles
+</span><span class="hs-identifier hs-var">Backend.DontIncludeCycles</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">Set Reference
+</span><a href="#local-6989586621679638994"><span class="hs-identifier hs-var">typeRefsWithoutCycles</span></a></span><span>
+</span><span id="line-47"></span><span>
+</span><span id="line-48"></span><span>  </span><span id="local-6989586621679638986"><span class="annot"><span class="annottext">Map Reference (DisplayObject (Type Symbol Ann) (Term Symbol Ann))
+</span><a href="#local-6989586621679638986"><span class="hs-identifier hs-var">terms</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span>
+</span><span id="line-49"></span><span>    </span><span class="annot"><span class="annottext">Set Reference
+</span><a href="#local-6989586621679638996"><span class="hs-identifier hs-var">termRefs</span></a></span><span>
+</span><span id="line-50"></span><span>      </span><span class="annot"><span class="annottext">forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) (f :: * -&gt; *) b a.
+(Monad m, Foldable f, Monoid b) =&gt;
+(a -&gt; m b) -&gt; f a -&gt; m b
+</span><span class="hs-identifier hs-var">foldMapM</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679638985"><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621679638985"><span class="hs-identifier hs-var">ref</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-51"></span><span>        </span><span class="annot"><span class="annottext">forall k a. k -&gt; a -&gt; Map k a
+</span><span class="hs-identifier hs-var">Map.singleton</span></span><span> </span><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621679638985"><span class="hs-identifier hs-var">ref</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *).
+Codebase m Symbol Ann
+-&gt; Reference
+-&gt; Transaction (DisplayObject (Type Symbol Ann) (Term Symbol Ann))
+</span><span class="hs-identifier hs-var">Backend.displayTerm</span></span><span> </span><span class="annot"><span class="annottext">Codebase IO Symbol Ann
+</span><a href="#local-6989586621679639020"><span class="hs-identifier hs-var">codebase</span></a></span><span> </span><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621679638985"><span class="hs-identifier hs-var">ref</span></a></span><span>
+</span><span id="line-52"></span><span>          </span><span class="annot"><span class="annottext">forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">forall a. Transaction a -&gt; Cli a
+</span><a href="Unison.Cli.Monad.html#runTransaction"><span class="hs-identifier hs-var">Cli.runTransaction</span></a></span><span>
+</span><span id="line-53"></span><span>
+</span><span id="line-54"></span><span>  </span><span id="local-6989586621679638981"><span class="annot"><span class="annottext">Map Reference (DisplayObject () (Decl Symbol Ann))
+</span><a href="#local-6989586621679638981"><span class="hs-identifier hs-var">types</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span>
+</span><span id="line-55"></span><span>    </span><span class="annot"><span class="annottext">Set Reference
+</span><a href="#local-6989586621679638992"><span class="hs-identifier hs-var">typeRefs</span></a></span><span>
+</span><span id="line-56"></span><span>      </span><span class="annot"><span class="annottext">forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) (f :: * -&gt; *) b a.
+(Monad m, Foldable f, Monoid b) =&gt;
+(a -&gt; m b) -&gt; f a -&gt; m b
+</span><span class="hs-identifier hs-var">foldMapM</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679638980"><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621679638980"><span class="hs-identifier hs-var">ref</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-57"></span><span>        </span><span class="annot"><span class="annottext">forall k a. k -&gt; a -&gt; Map k a
+</span><span class="hs-identifier hs-var">Map.singleton</span></span><span> </span><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621679638980"><span class="hs-identifier hs-var">ref</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *).
+Codebase m Symbol Ann
+-&gt; Reference -&gt; Transaction (DisplayObject () (Decl Symbol Ann))
+</span><span class="hs-identifier hs-var">Backend.displayType</span></span><span> </span><span class="annot"><span class="annottext">Codebase IO Symbol Ann
+</span><a href="#local-6989586621679639020"><span class="hs-identifier hs-var">codebase</span></a></span><span> </span><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621679638980"><span class="hs-identifier hs-var">ref</span></a></span><span>
+</span><span id="line-58"></span><span>          </span><span class="annot"><span class="annottext">forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">forall a. Transaction a -&gt; Cli a
+</span><a href="Unison.Cli.Monad.html#runTransaction"><span class="hs-identifier hs-var">Cli.runTransaction</span></a></span><span>
+</span><span id="line-59"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679638978"><span class="annot"><span class="annottext">misses :: [a]
+</span><a href="#local-6989586621679638978"><span class="hs-identifier hs-var hs-var">misses</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-60"></span><span>  </span><span class="annot"><span class="annottext">OutputLocation
+-&gt; PrettyPrintEnvDecl
+-&gt; Map
+     Reference (DisplayObject (Type Symbol Ann) (Term Symbol Ann))
+-&gt; Map Reference (DisplayObject () (Decl Symbol Ann))
+-&gt; [HashQualified Name]
+-&gt; Cli ()
+</span><a href="Unison.Codebase.Editor.HandleInput.ShowDefinition.html#showDefinitions"><span class="hs-identifier hs-var">showDefinitions</span></a></span><span> </span><span class="annot"><span class="annottext">OutputLocation
+</span><a href="#local-6989586621679639023"><span class="hs-identifier hs-var">outputLoc</span></a></span><span> </span><span class="annot"><span class="annottext">PrettyPrintEnvDecl
+</span><a href="#local-6989586621679639015"><span class="hs-identifier hs-var">ppe</span></a></span><span> </span><span class="annot"><span class="annottext">Map Reference (DisplayObject (Type Symbol Ann) (Term Symbol Ann))
+</span><a href="#local-6989586621679638986"><span class="hs-identifier hs-var">terms</span></a></span><span> </span><span class="annot"><span class="annottext">Map Reference (DisplayObject () (Decl Symbol Ann))
+</span><a href="#local-6989586621679638981"><span class="hs-identifier hs-var">types</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. [a]
+</span><a href="#local-6989586621679638978"><span class="hs-identifier hs-var">misses</span></a></span><span>
+</span><span id="line-61"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-62"></span><span>    </span><span class="hs-comment">-- `view`: don't include cycles; `edit`: include cycles</span><span>
+</span><span id="line-63"></span><span>    </span><span id="local-6989586621679638990"><span class="annot"><span class="annottext">includeCycles :: IncludeCycles
+</span><a href="#local-6989586621679638990"><span class="hs-identifier hs-var hs-var">includeCycles</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-64"></span><span>      </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">OutputLocation
+</span><a href="#local-6989586621679639023"><span class="hs-identifier hs-var">outputLoc</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-65"></span><span>        </span><span class="annot"><span class="annottext">OutputLocation
+</span><a href="Unison.Codebase.Editor.Input.html#ConsoleLocation"><span class="hs-identifier hs-var">ConsoleLocation</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IncludeCycles
+</span><span class="hs-identifier hs-var">Backend.DontIncludeCycles</span></span><span>
+</span><span id="line-66"></span><span>        </span><span class="annot"><a href="Unison.Codebase.Editor.Input.html#FileLocation"><span class="hs-identifier hs-type">FileLocation</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IncludeCycles
+</span><span class="hs-identifier hs-var">Backend.IncludeCycles</span></span><span>
+</span><span id="line-67"></span><span>        </span><span class="annot"><span class="annottext">OutputLocation
+</span><a href="Unison.Codebase.Editor.Input.html#LatestFileLocation"><span class="hs-identifier hs-var">LatestFileLocation</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IncludeCycles
+</span><span class="hs-identifier hs-var">Backend.IncludeCycles</span></span><span>
+</span><span id="line-68"></span></pre></body></html>

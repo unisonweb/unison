@@ -1,0 +1,60 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">{-
+(c) The University of Glasgow 2006
+(c) The GRASP/AQUA Project, Glasgow University, 1992-1998
+
+\section{Haskell abstract syntax definition}
+
+This module glues together the pieces of the Haskell abstract syntax,
+which is declared in the various \tr{Hs*} modules.  This module,
+therefore, is almost nothing but re-exporting.
+-}</span><span>
+</span><span id="line-11"></span><span>
+</span><span id="line-12"></span><span class="hs-pragma">{-# LANGUAGE ConstraintKinds #-}</span><span>
+</span><span id="line-13"></span><span class="hs-pragma">{-# LANGUAGE FlexibleContexts #-}</span><span>
+</span><span id="line-14"></span><span class="hs-pragma">{-# LANGUAGE FlexibleInstances #-}</span><span> </span><span class="hs-comment">-- For deriving instance Data</span><span>
+</span><span id="line-15"></span><span class="hs-pragma">{-# LANGUAGE TypeFamilies #-}</span><span>
+</span><span id="line-16"></span><span class="hs-pragma">{-# LANGUAGE UndecidableInstances #-}</span><span> </span><span class="hs-comment">-- Wrinkle in Note [Trees That Grow]</span><span>
+</span><span id="line-17"></span><span>                                      </span><span class="hs-comment">-- in module Language.Haskell.Syntax.Extension</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- See Note [Language.Haskell.Syntax.* Hierarchy] for why not GHC.Hs.*</span><span>
+</span><span id="line-19"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Language.Haskell.Syntax</span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-20"></span><span>        </span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Binds.html"><span class="hs-identifier">Language.Haskell.Syntax.Binds</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-21"></span><span>        </span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Decls.html"><span class="hs-identifier">Language.Haskell.Syntax.Decls</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-22"></span><span>        </span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html"><span class="hs-identifier">Language.Haskell.Syntax.Expr</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-23"></span><span>        </span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html"><span class="hs-identifier">Language.Haskell.Syntax.Lit</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-24"></span><span>        </span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Pat.html"><span class="hs-identifier">Language.Haskell.Syntax.Pat</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-25"></span><span>        </span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Type.html"><span class="hs-identifier">Language.Haskell.Syntax.Type</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-26"></span><span>        </span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Extension.html"><span class="hs-identifier">Language.Haskell.Syntax.Extension</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-27"></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Decls.html"><span class="hs-identifier">Language.Haskell.Syntax.Decls</span></a></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Binds.html"><span class="hs-identifier">Language.Haskell.Syntax.Binds</span></a></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html"><span class="hs-identifier">Language.Haskell.Syntax.Expr</span></a></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Lit.html"><span class="hs-identifier">Language.Haskell.Syntax.Lit</span></a></span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Extension.html"><span class="hs-identifier">Language.Haskell.Syntax.Extension</span></a></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Pat.html"><span class="hs-identifier">Language.Haskell.Syntax.Pat</span></a></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Type.html"><span class="hs-identifier">Language.Haskell.Syntax.Type</span></a></span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="hs-comment">{-
+Note [Language.Haskell.Syntax.* Hierarchy]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Why are these modules not 'GHC.Hs.*', or some other 'GHC.*'? The answer
+is that they are to be separated from GHC and put into another package,
+in accordance with the final goals of Trees that Grow. (See Note [Trees
+that grow] in 'Language.Haskell.Syntax.Extension'.) In short, the
+'Language.Haskell.Syntax.*' tree should be entirely GHC-independent.
+GHC-specific stuff related to source-language syntax should be in
+'GHC.Hs.*'.
+
+We cannot move them to the separate package yet, but by giving them
+names like so, we hope to remind others that the goal is to factor them
+out, and therefore dependencies on the rest of GHC should never be
+added, only removed.
+
+For more details, see
+https://gitlab.haskell.org/ghc/ghc/-/wikis/implementing-trees-that-grow
+-}</span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span>
+</span><span id="line-59"></span><span class="hs-comment">-- TODO Add TTG parameter to 'HsModule' and move here.</span><span>
+</span><span id="line-60"></span></pre></body></html>

@@ -1,0 +1,232 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- THIS IS A GENERATED FILE, DO NOT EDIT</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-imports #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-matches #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-deprecations #-}</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.ErrorCodes</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Hashable</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html"><span class="hs-identifier">Language.LSP.Protocol.Utils.Misc</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prettyprinter</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Aeson.html"><span class="hs-identifier">Data.Row.Aeson</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Hashable.html"><span class="hs-identifier">Data.Row.Hashable</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Hashable</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Set</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.String</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html"><span class="hs-identifier">Language.LSP.Protocol.Types.Common</span></a></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html"><span class="hs-identifier">Language.LSP.Protocol.Types.LspEnum</span></a></span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-comment">{-|
+Predefined error codes.
+-}</span><span>
+</span><span id="line-24"></span><span id="local-6989586621682187374"><span id="local-6989586621682187375"></span></span><span class="hs-keyword">data</span><span> </span><span id="ErrorCodes"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ErrorCodes.html#ErrorCodes"><span class="hs-identifier hs-var">ErrorCodes</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span>
+</span><span id="line-25"></span><span>    </span><span class="hs-comment">{-|
+
+  -}</span><span>
+</span><span id="line-28"></span><span>  </span><span id="ErrorCodes_ParseError"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ErrorCodes.html#ErrorCodes_ParseError"><span class="hs-identifier hs-var">ErrorCodes_ParseError</span></a></span></span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-comment">{-|
+
+  -}</span><span>
+</span><span id="line-32"></span><span>  </span><span id="ErrorCodes_InvalidRequest"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ErrorCodes.html#ErrorCodes_InvalidRequest"><span class="hs-identifier hs-var">ErrorCodes_InvalidRequest</span></a></span></span><span>
+</span><span id="line-33"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-comment">{-|
+
+  -}</span><span>
+</span><span id="line-36"></span><span>  </span><span id="ErrorCodes_MethodNotFound"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ErrorCodes.html#ErrorCodes_MethodNotFound"><span class="hs-identifier hs-var">ErrorCodes_MethodNotFound</span></a></span></span><span>
+</span><span id="line-37"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-comment">{-|
+
+  -}</span><span>
+</span><span id="line-40"></span><span>  </span><span id="ErrorCodes_InvalidParams"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ErrorCodes.html#ErrorCodes_InvalidParams"><span class="hs-identifier hs-var">ErrorCodes_InvalidParams</span></a></span></span><span>
+</span><span id="line-41"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-comment">{-|
+
+  -}</span><span>
+</span><span id="line-44"></span><span>  </span><span id="ErrorCodes_InternalError"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ErrorCodes.html#ErrorCodes_InternalError"><span class="hs-identifier hs-var">ErrorCodes_InternalError</span></a></span></span><span>
+</span><span id="line-45"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-comment">{-|
+  Error code indicating that a server received a notification or
+  request before the server has received the `initialize` request.
+  -}</span><span>
+</span><span id="line-49"></span><span>  </span><span id="ErrorCodes_ServerNotInitialized"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ErrorCodes.html#ErrorCodes_ServerNotInitialized"><span class="hs-identifier hs-var">ErrorCodes_ServerNotInitialized</span></a></span></span><span>
+</span><span id="line-50"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-comment">{-|
+
+  -}</span><span>
+</span><span id="line-53"></span><span>  </span><span id="ErrorCodes_UnknownErrorCode"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ErrorCodes.html#ErrorCodes_UnknownErrorCode"><span class="hs-identifier hs-var">ErrorCodes_UnknownErrorCode</span></a></span></span><span>
+</span><span id="line-54"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ErrorCodes_Custom"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ErrorCodes.html#ErrorCodes_Custom"><span class="hs-identifier hs-var">ErrorCodes_Custom</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Language.LSP.Protocol.Types.Common.Int32</span></span><span>
+</span><span id="line-55"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682187356"><span id="local-6989586621682187358"><span id="local-6989586621682187364"><span class="annot"><span class="annottext">Int -&gt; ErrorCodes -&gt; ShowS
+[ErrorCodes] -&gt; ShowS
+ErrorCodes -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [ErrorCodes] -&gt; ShowS
+$cshowList :: [ErrorCodes] -&gt; ShowS
+show :: ErrorCodes -&gt; String
+$cshow :: ErrorCodes -&gt; String
+showsPrec :: Int -&gt; ErrorCodes -&gt; ShowS
+$cshowsPrec :: Int -&gt; ErrorCodes -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682187349"><span id="local-6989586621682187353"><span class="annot"><span class="annottext">ErrorCodes -&gt; ErrorCodes -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: ErrorCodes -&gt; ErrorCodes -&gt; Bool
+$c/= :: ErrorCodes -&gt; ErrorCodes -&gt; Bool
+== :: ErrorCodes -&gt; ErrorCodes -&gt; Bool
+$c== :: ErrorCodes -&gt; ErrorCodes -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682187330"><span id="local-6989586621682187332"><span id="local-6989586621682187334"><span id="local-6989586621682187336"><span id="local-6989586621682187338"><span id="local-6989586621682187340"><span id="local-6989586621682187344"><span class="annot"><span class="annottext">Eq ErrorCodes
+ErrorCodes -&gt; ErrorCodes -&gt; Bool
+ErrorCodes -&gt; ErrorCodes -&gt; Ordering
+ErrorCodes -&gt; ErrorCodes -&gt; ErrorCodes
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: ErrorCodes -&gt; ErrorCodes -&gt; ErrorCodes
+$cmin :: ErrorCodes -&gt; ErrorCodes -&gt; ErrorCodes
+max :: ErrorCodes -&gt; ErrorCodes -&gt; ErrorCodes
+$cmax :: ErrorCodes -&gt; ErrorCodes -&gt; ErrorCodes
+&gt;= :: ErrorCodes -&gt; ErrorCodes -&gt; Bool
+$c&gt;= :: ErrorCodes -&gt; ErrorCodes -&gt; Bool
+&gt; :: ErrorCodes -&gt; ErrorCodes -&gt; Bool
+$c&gt; :: ErrorCodes -&gt; ErrorCodes -&gt; Bool
+&lt;= :: ErrorCodes -&gt; ErrorCodes -&gt; Bool
+$c&lt;= :: ErrorCodes -&gt; ErrorCodes -&gt; Bool
+&lt; :: ErrorCodes -&gt; ErrorCodes -&gt; Bool
+$c&lt; :: ErrorCodes -&gt; ErrorCodes -&gt; Bool
+compare :: ErrorCodes -&gt; ErrorCodes -&gt; Ordering
+$ccompare :: ErrorCodes -&gt; ErrorCodes -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall x. Rep ErrorCodes x -&gt; ErrorCodes
+forall x. ErrorCodes -&gt; Rep ErrorCodes x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cto :: forall x. Rep ErrorCodes x -&gt; ErrorCodes
+$cfrom :: forall x. ErrorCodes -&gt; Rep ErrorCodes x
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-56"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">anyclass</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682187324"><span class="annot"><span class="annottext">ErrorCodes -&gt; ()
+forall a. (a -&gt; ()) -&gt; NFData a
+rnf :: ErrorCodes -&gt; ()
+$crnf :: ErrorCodes -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682187317"><span id="local-6989586621682187319"><span class="annot"><span class="annottext">Eq ErrorCodes
+Int -&gt; ErrorCodes -&gt; Int
+ErrorCodes -&gt; Int
+forall a. Eq a -&gt; (Int -&gt; a -&gt; Int) -&gt; (a -&gt; Int) -&gt; Hashable a
+hash :: ErrorCodes -&gt; Int
+$chash :: ErrorCodes -&gt; Int
+hashWithSalt :: Int -&gt; ErrorCodes -&gt; Int
+$chashWithSalt :: Int -&gt; ErrorCodes -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Hashable</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-57"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span> </span><span id="local-6989586621682187292"><span id="local-6989586621682187299"><span id="local-6989586621682187306"><span id="local-6989586621682187314"><span class="annot"><span class="annottext">[ErrorCodes] -&gt; Encoding
+[ErrorCodes] -&gt; Value
+ErrorCodes -&gt; Encoding
+ErrorCodes -&gt; Value
+forall a.
+(a -&gt; Value)
+-&gt; (a -&gt; Encoding)
+-&gt; ([a] -&gt; Value)
+-&gt; ([a] -&gt; Encoding)
+-&gt; ToJSON a
+toEncodingList :: [ErrorCodes] -&gt; Encoding
+$ctoEncodingList :: [ErrorCodes] -&gt; Encoding
+toJSONList :: [ErrorCodes] -&gt; Value
+$ctoJSONList :: [ErrorCodes] -&gt; Value
+toEncoding :: ErrorCodes -&gt; Encoding
+$ctoEncoding :: ErrorCodes -&gt; Encoding
+toJSON :: ErrorCodes -&gt; Value
+$ctoJSON :: ErrorCodes -&gt; Value
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Aeson.ToJSON</span></span></span></span></span></span><span>
+</span><span id="line-58"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="local-6989586621682187269"><span id="local-6989586621682187278"><span class="annot"><span class="annottext">Value -&gt; Parser [ErrorCodes]
+Value -&gt; Parser ErrorCodes
+forall a.
+(Value -&gt; Parser a) -&gt; (Value -&gt; Parser [a]) -&gt; FromJSON a
+parseJSONList :: Value -&gt; Parser [ErrorCodes]
+$cparseJSONList :: Value -&gt; Parser [ErrorCodes]
+parseJSON :: Value -&gt; Parser ErrorCodes
+$cparseJSON :: Value -&gt; Parser ErrorCodes
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Aeson.FromJSON</span></span></span></span><span> </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">via</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#AsLspEnum"><span class="hs-identifier hs-type">Language.LSP.Protocol.Types.LspEnum.AsLspEnum</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ErrorCodes.html#ErrorCodes"><span class="hs-identifier hs-type">ErrorCodes</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Language.LSP.Protocol.Types.Common.Int32</span></span><span class="hs-special">)</span><span>
+</span><span id="line-59"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621682187250"><span id="local-6989586621682187256"><span class="annot"><span class="annottext">forall ann. [ErrorCodes] -&gt; Doc ann
+forall ann. ErrorCodes -&gt; Doc ann
+forall a.
+(forall ann. a -&gt; Doc ann)
+-&gt; (forall ann. [a] -&gt; Doc ann) -&gt; Pretty a
+prettyList :: forall ann. [ErrorCodes] -&gt; Doc ann
+$cprettyList :: forall ann. [ErrorCodes] -&gt; Doc ann
+pretty :: forall ann. ErrorCodes -&gt; Doc ann
+$cpretty :: forall ann. ErrorCodes -&gt; Doc ann
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Pretty</span></span></span></span><span> </span><span class="hs-keyword">via</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html#ViaJSON"><span class="hs-identifier hs-type">ViaJSON</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ErrorCodes.html#ErrorCodes"><span class="hs-identifier hs-type">ErrorCodes</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-60"></span><span>
+</span><span id="line-61"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682187241"><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#LspEnum"><span class="hs-identifier hs-type">Language.LSP.Protocol.Types.LspEnum.LspEnum</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ErrorCodes.html#ErrorCodes"><span class="hs-identifier hs-type">ErrorCodes</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-62"></span><span>  </span><span id="local-6989586621682187238"><span class="annot"><span class="annottext">knownValues :: Set ErrorCodes
+</span><a href="Language.LSP.Protocol.Types.LspEnum.html#knownValues"><span class="hs-identifier hs-var hs-var hs-var hs-var">knownValues</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Ord a =&gt; [a] -&gt; Set a
+</span><span class="hs-identifier hs-var">Data.Set.fromList</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">ErrorCodes
+</span><a href="Language.LSP.Protocol.Internal.Types.ErrorCodes.html#ErrorCodes_ParseError"><span class="hs-identifier hs-var">ErrorCodes_ParseError</span></a></span><span>
+</span><span id="line-63"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">ErrorCodes
+</span><a href="Language.LSP.Protocol.Internal.Types.ErrorCodes.html#ErrorCodes_InvalidRequest"><span class="hs-identifier hs-var">ErrorCodes_InvalidRequest</span></a></span><span>
+</span><span id="line-64"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">ErrorCodes
+</span><a href="Language.LSP.Protocol.Internal.Types.ErrorCodes.html#ErrorCodes_MethodNotFound"><span class="hs-identifier hs-var">ErrorCodes_MethodNotFound</span></a></span><span>
+</span><span id="line-65"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">ErrorCodes
+</span><a href="Language.LSP.Protocol.Internal.Types.ErrorCodes.html#ErrorCodes_InvalidParams"><span class="hs-identifier hs-var">ErrorCodes_InvalidParams</span></a></span><span>
+</span><span id="line-66"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">ErrorCodes
+</span><a href="Language.LSP.Protocol.Internal.Types.ErrorCodes.html#ErrorCodes_InternalError"><span class="hs-identifier hs-var">ErrorCodes_InternalError</span></a></span><span>
+</span><span id="line-67"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">ErrorCodes
+</span><a href="Language.LSP.Protocol.Internal.Types.ErrorCodes.html#ErrorCodes_ServerNotInitialized"><span class="hs-identifier hs-var">ErrorCodes_ServerNotInitialized</span></a></span><span>
+</span><span id="line-68"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">ErrorCodes
+</span><a href="Language.LSP.Protocol.Internal.Types.ErrorCodes.html#ErrorCodes_UnknownErrorCode"><span class="hs-identifier hs-var">ErrorCodes_UnknownErrorCode</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-69"></span><span>  </span><span class="hs-keyword">type</span><span> </span><span id="EnumBaseType"><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#EnumBaseType"><span class="hs-identifier hs-var">EnumBaseType</span></a></span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ErrorCodes.html#ErrorCodes"><span class="hs-identifier hs-type">ErrorCodes</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Language.LSP.Protocol.Types.Common.Int32</span></span><span>
+</span><span id="line-70"></span><span>  </span><span id="local-6989586621682187227"><span class="annot"><span class="annottext">toEnumBaseType :: ErrorCodes -&gt; EnumBaseType ErrorCodes
+</span><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var hs-var hs-var hs-var">toEnumBaseType</span></a></span></span><span> </span><span class="annot"><span class="annottext">ErrorCodes
+</span><a href="Language.LSP.Protocol.Internal.Types.ErrorCodes.html#ErrorCodes_ParseError"><span class="hs-identifier hs-var">ErrorCodes_ParseError</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int32
+</span><span class="hs-number">-32700</span></span><span>
+</span><span id="line-71"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">ErrorCodes
+</span><a href="Language.LSP.Protocol.Internal.Types.ErrorCodes.html#ErrorCodes_InvalidRequest"><span class="hs-identifier hs-var">ErrorCodes_InvalidRequest</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int32
+</span><span class="hs-number">-32600</span></span><span>
+</span><span id="line-72"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">ErrorCodes
+</span><a href="Language.LSP.Protocol.Internal.Types.ErrorCodes.html#ErrorCodes_MethodNotFound"><span class="hs-identifier hs-var">ErrorCodes_MethodNotFound</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int32
+</span><span class="hs-number">-32601</span></span><span>
+</span><span id="line-73"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">ErrorCodes
+</span><a href="Language.LSP.Protocol.Internal.Types.ErrorCodes.html#ErrorCodes_InvalidParams"><span class="hs-identifier hs-var">ErrorCodes_InvalidParams</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int32
+</span><span class="hs-number">-32602</span></span><span>
+</span><span id="line-74"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">ErrorCodes
+</span><a href="Language.LSP.Protocol.Internal.Types.ErrorCodes.html#ErrorCodes_InternalError"><span class="hs-identifier hs-var">ErrorCodes_InternalError</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int32
+</span><span class="hs-number">-32603</span></span><span>
+</span><span id="line-75"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">ErrorCodes
+</span><a href="Language.LSP.Protocol.Internal.Types.ErrorCodes.html#ErrorCodes_ServerNotInitialized"><span class="hs-identifier hs-var">ErrorCodes_ServerNotInitialized</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int32
+</span><span class="hs-number">-32002</span></span><span>
+</span><span id="line-76"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">ErrorCodes
+</span><a href="Language.LSP.Protocol.Internal.Types.ErrorCodes.html#ErrorCodes_UnknownErrorCode"><span class="hs-identifier hs-var">ErrorCodes_UnknownErrorCode</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int32
+</span><span class="hs-number">-32001</span></span><span>
+</span><span id="line-77"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ErrorCodes.html#ErrorCodes_Custom"><span class="hs-identifier hs-type">ErrorCodes_Custom</span></a></span><span> </span><span id="local-6989586621682187225"><span class="annot"><span class="annottext">Int32
+</span><a href="#local-6989586621682187225"><span class="hs-identifier hs-var">arg</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int32
+</span><a href="#local-6989586621682187225"><span class="hs-identifier hs-var">arg</span></a></span><span>
+</span><span id="line-78"></span><span>
+</span><span id="line-79"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#LspOpenEnum"><span class="hs-identifier hs-type">Language.LSP.Protocol.Types.LspEnum.LspOpenEnum</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ErrorCodes.html#ErrorCodes"><span class="hs-identifier hs-type">ErrorCodes</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-80"></span><span>  </span><span id="local-6989586621682187206"><span class="annot"><span class="annottext">fromOpenEnumBaseType :: EnumBaseType ErrorCodes -&gt; ErrorCodes
+</span><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var hs-var hs-var hs-var">fromOpenEnumBaseType</span></a></span></span><span> </span><span class="annot"><span class="annottext">EnumBaseType ErrorCodes
+</span><span class="hs-number">-32700</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ErrorCodes
+</span><a href="Language.LSP.Protocol.Internal.Types.ErrorCodes.html#ErrorCodes_ParseError"><span class="hs-identifier hs-var">ErrorCodes_ParseError</span></a></span><span>
+</span><span id="line-81"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType ErrorCodes
+</span><span class="hs-number">-32600</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ErrorCodes
+</span><a href="Language.LSP.Protocol.Internal.Types.ErrorCodes.html#ErrorCodes_InvalidRequest"><span class="hs-identifier hs-var">ErrorCodes_InvalidRequest</span></a></span><span>
+</span><span id="line-82"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType ErrorCodes
+</span><span class="hs-number">-32601</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ErrorCodes
+</span><a href="Language.LSP.Protocol.Internal.Types.ErrorCodes.html#ErrorCodes_MethodNotFound"><span class="hs-identifier hs-var">ErrorCodes_MethodNotFound</span></a></span><span>
+</span><span id="line-83"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType ErrorCodes
+</span><span class="hs-number">-32602</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ErrorCodes
+</span><a href="Language.LSP.Protocol.Internal.Types.ErrorCodes.html#ErrorCodes_InvalidParams"><span class="hs-identifier hs-var">ErrorCodes_InvalidParams</span></a></span><span>
+</span><span id="line-84"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType ErrorCodes
+</span><span class="hs-number">-32603</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ErrorCodes
+</span><a href="Language.LSP.Protocol.Internal.Types.ErrorCodes.html#ErrorCodes_InternalError"><span class="hs-identifier hs-var">ErrorCodes_InternalError</span></a></span><span>
+</span><span id="line-85"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType ErrorCodes
+</span><span class="hs-number">-32002</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ErrorCodes
+</span><a href="Language.LSP.Protocol.Internal.Types.ErrorCodes.html#ErrorCodes_ServerNotInitialized"><span class="hs-identifier hs-var">ErrorCodes_ServerNotInitialized</span></a></span><span>
+</span><span id="line-86"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType ErrorCodes
+</span><span class="hs-number">-32001</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ErrorCodes
+</span><a href="Language.LSP.Protocol.Internal.Types.ErrorCodes.html#ErrorCodes_UnknownErrorCode"><span class="hs-identifier hs-var">ErrorCodes_UnknownErrorCode</span></a></span><span>
+</span><span id="line-87"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span id="local-6989586621682187204"><span class="annot"><span class="annottext">EnumBaseType ErrorCodes
+</span><a href="#local-6989586621682187204"><span class="hs-identifier hs-var">arg</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int32 -&gt; ErrorCodes
+</span><a href="Language.LSP.Protocol.Internal.Types.ErrorCodes.html#ErrorCodes_Custom"><span class="hs-identifier hs-var">ErrorCodes_Custom</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType ErrorCodes
+</span><a href="#local-6989586621682187204"><span class="hs-identifier hs-var">arg</span></a></span><span>
+</span><span id="line-88"></span><span>
+</span><span id="line-89"></span><span>
+</span><span id="line-90"></span></pre></body></html>

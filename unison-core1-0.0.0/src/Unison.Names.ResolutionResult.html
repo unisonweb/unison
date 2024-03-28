@@ -1,0 +1,395 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Unison.Names.ResolutionResult</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Set.NonEmpty</span></span><span>
+</span><span id="line-4"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Names.html"><span class="hs-identifier">Unison.Names</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Names.html#Names"><span class="hs-identifier">Names</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Prelude</span></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Reference.html"><span class="hs-identifier">Unison.Reference</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Reference</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Reference</span></span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Referent.html"><span class="hs-identifier">Unison.Referent</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Referent</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Referent.html#Referent"><span class="hs-identifier">Referent</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">data</span><span> </span><span id="ResolutionError"><span class="annot"><a href="Unison.Names.ResolutionResult.html#ResolutionError"><span class="hs-identifier hs-var">ResolutionError</span></a></span></span><span> </span><span id="local-6989586621679225580"><span class="annot"><a href="#local-6989586621679225580"><span class="hs-identifier hs-type">ref</span></a></span></span><span>
+</span><span id="line-10"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="NotFound"><span class="annot"><a href="Unison.Names.ResolutionResult.html#NotFound"><span class="hs-identifier hs-var">NotFound</span></a></span></span><span>
+</span><span id="line-11"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-comment">-- Contains the names which were in scope and which refs were possible options</span><span>
+</span><span id="line-12"></span><span>    </span><span class="hs-comment">-- The NonEmpty set of refs must contain 2 or more refs (otherwise what is ambiguous?).</span><span>
+</span><span id="line-13"></span><span>    </span><span id="Ambiguous"><span class="annot"><a href="Unison.Names.ResolutionResult.html#Ambiguous"><span class="hs-identifier hs-var">Ambiguous</span></a></span></span><span> </span><span class="annot"><a href="Unison.Names.html#Names"><span class="hs-identifier hs-type">Names</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">NESet</span></span><span> </span><span class="annot"><a href="#local-6989586621679225580"><span class="hs-identifier hs-type">ref</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679225434"><span id="local-6989586621679225440"><span class="annot"><span class="annottext">ResolutionError ref -&gt; ResolutionError ref -&gt; Bool
+forall ref.
+Eq ref =&gt;
+ResolutionError ref -&gt; ResolutionError ref -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: ResolutionError ref -&gt; ResolutionError ref -&gt; Bool
+$c/= :: forall ref.
+Eq ref =&gt;
+ResolutionError ref -&gt; ResolutionError ref -&gt; Bool
+== :: ResolutionError ref -&gt; ResolutionError ref -&gt; Bool
+$c== :: forall ref.
+Eq ref =&gt;
+ResolutionError ref -&gt; ResolutionError ref -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679225408"><span id="local-6989586621679225410"><span id="local-6989586621679225413"><span id="local-6989586621679225416"><span id="local-6989586621679225419"><span id="local-6989586621679225423"><span id="local-6989586621679225429"><span class="annot"><span class="annottext">ResolutionError ref -&gt; ResolutionError ref -&gt; Bool
+ResolutionError ref -&gt; ResolutionError ref -&gt; Ordering
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+forall {ref}. Ord ref =&gt; Eq (ResolutionError ref)
+forall ref.
+Ord ref =&gt;
+ResolutionError ref -&gt; ResolutionError ref -&gt; Bool
+forall ref.
+Ord ref =&gt;
+ResolutionError ref -&gt; ResolutionError ref -&gt; Ordering
+forall ref.
+Ord ref =&gt;
+ResolutionError ref -&gt; ResolutionError ref -&gt; ResolutionError ref
+min :: ResolutionError ref -&gt; ResolutionError ref -&gt; ResolutionError ref
+$cmin :: forall ref.
+Ord ref =&gt;
+ResolutionError ref -&gt; ResolutionError ref -&gt; ResolutionError ref
+max :: ResolutionError ref -&gt; ResolutionError ref -&gt; ResolutionError ref
+$cmax :: forall ref.
+Ord ref =&gt;
+ResolutionError ref -&gt; ResolutionError ref -&gt; ResolutionError ref
+&gt;= :: ResolutionError ref -&gt; ResolutionError ref -&gt; Bool
+$c&gt;= :: forall ref.
+Ord ref =&gt;
+ResolutionError ref -&gt; ResolutionError ref -&gt; Bool
+&gt; :: ResolutionError ref -&gt; ResolutionError ref -&gt; Bool
+$c&gt; :: forall ref.
+Ord ref =&gt;
+ResolutionError ref -&gt; ResolutionError ref -&gt; Bool
+&lt;= :: ResolutionError ref -&gt; ResolutionError ref -&gt; Bool
+$c&lt;= :: forall ref.
+Ord ref =&gt;
+ResolutionError ref -&gt; ResolutionError ref -&gt; Bool
+&lt; :: ResolutionError ref -&gt; ResolutionError ref -&gt; Bool
+$c&lt; :: forall ref.
+Ord ref =&gt;
+ResolutionError ref -&gt; ResolutionError ref -&gt; Bool
+compare :: ResolutionError ref -&gt; ResolutionError ref -&gt; Ordering
+$ccompare :: forall ref.
+Ord ref =&gt;
+ResolutionError ref -&gt; ResolutionError ref -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679225395"><span id="local-6989586621679225397"><span id="local-6989586621679225405"><span class="annot"><span class="annottext">Int -&gt; ResolutionError ref -&gt; ShowS
+forall ref. Show ref =&gt; Int -&gt; ResolutionError ref -&gt; ShowS
+forall ref. Show ref =&gt; [ResolutionError ref] -&gt; ShowS
+forall ref. Show ref =&gt; ResolutionError ref -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [ResolutionError ref] -&gt; ShowS
+$cshowList :: forall ref. Show ref =&gt; [ResolutionError ref] -&gt; ShowS
+show :: ResolutionError ref -&gt; String
+$cshow :: forall ref. Show ref =&gt; ResolutionError ref -&gt; String
+showsPrec :: Int -&gt; ResolutionError ref -&gt; ShowS
+$cshowsPrec :: forall ref. Show ref =&gt; Int -&gt; ResolutionError ref -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- | ResolutionFailure represents the failure to resolve a given variable.</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">data</span><span> </span><span id="ResolutionFailure"><span class="annot"><a href="Unison.Names.ResolutionResult.html#ResolutionFailure"><span class="hs-identifier hs-var">ResolutionFailure</span></a></span></span><span> </span><span id="local-6989586621679225565"><span class="annot"><a href="#local-6989586621679225565"><span class="hs-identifier hs-type">var</span></a></span></span><span> </span><span id="local-6989586621679225564"><span class="annot"><a href="#local-6989586621679225564"><span class="hs-identifier hs-type">annotation</span></a></span></span><span>
+</span><span id="line-18"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="TypeResolutionFailure"><span class="annot"><a href="Unison.Names.ResolutionResult.html#TypeResolutionFailure"><span class="hs-identifier hs-var">TypeResolutionFailure</span></a></span></span><span> </span><span class="annot"><a href="#local-6989586621679225565"><span class="hs-identifier hs-type">var</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679225564"><span class="hs-identifier hs-type">annotation</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Names.ResolutionResult.html#ResolutionError"><span class="hs-identifier hs-type">ResolutionError</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Reference</span></span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="TermResolutionFailure"><span class="annot"><a href="Unison.Names.ResolutionResult.html#TermResolutionFailure"><span class="hs-identifier hs-var">TermResolutionFailure</span></a></span></span><span> </span><span class="annot"><a href="#local-6989586621679225565"><span class="hs-identifier hs-type">var</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679225564"><span class="hs-identifier hs-type">annotation</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Names.ResolutionResult.html#ResolutionError"><span class="hs-identifier hs-type">ResolutionError</span></a></span><span> </span><span class="annot"><a href="Unison.Referent.html#Referent"><span class="hs-identifier hs-type">Referent</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679225380"><span id="local-6989586621679225390"><span class="annot"><span class="annottext">ResolutionFailure var annotation
+-&gt; ResolutionFailure var annotation -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+forall var annotation.
+(Eq var, Eq annotation) =&gt;
+ResolutionFailure var annotation
+-&gt; ResolutionFailure var annotation -&gt; Bool
+/= :: ResolutionFailure var annotation
+-&gt; ResolutionFailure var annotation -&gt; Bool
+$c/= :: forall var annotation.
+(Eq var, Eq annotation) =&gt;
+ResolutionFailure var annotation
+-&gt; ResolutionFailure var annotation -&gt; Bool
+== :: ResolutionFailure var annotation
+-&gt; ResolutionFailure var annotation -&gt; Bool
+$c== :: forall var annotation.
+(Eq var, Eq annotation) =&gt;
+ResolutionFailure var annotation
+-&gt; ResolutionFailure var annotation -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679225339"><span id="local-6989586621679225341"><span id="local-6989586621679225344"><span id="local-6989586621679225347"><span id="local-6989586621679225350"><span id="local-6989586621679225360"><span id="local-6989586621679225370"><span class="annot"><span class="annottext">ResolutionFailure var annotation
+-&gt; ResolutionFailure var annotation -&gt; Bool
+ResolutionFailure var annotation
+-&gt; ResolutionFailure var annotation -&gt; Ordering
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+forall {var} {annotation}.
+(Ord var, Ord annotation) =&gt;
+Eq (ResolutionFailure var annotation)
+forall var annotation.
+(Ord var, Ord annotation) =&gt;
+ResolutionFailure var annotation
+-&gt; ResolutionFailure var annotation -&gt; Bool
+forall var annotation.
+(Ord var, Ord annotation) =&gt;
+ResolutionFailure var annotation
+-&gt; ResolutionFailure var annotation -&gt; Ordering
+forall var annotation.
+(Ord var, Ord annotation) =&gt;
+ResolutionFailure var annotation
+-&gt; ResolutionFailure var annotation
+-&gt; ResolutionFailure var annotation
+min :: ResolutionFailure var annotation
+-&gt; ResolutionFailure var annotation
+-&gt; ResolutionFailure var annotation
+$cmin :: forall var annotation.
+(Ord var, Ord annotation) =&gt;
+ResolutionFailure var annotation
+-&gt; ResolutionFailure var annotation
+-&gt; ResolutionFailure var annotation
+max :: ResolutionFailure var annotation
+-&gt; ResolutionFailure var annotation
+-&gt; ResolutionFailure var annotation
+$cmax :: forall var annotation.
+(Ord var, Ord annotation) =&gt;
+ResolutionFailure var annotation
+-&gt; ResolutionFailure var annotation
+-&gt; ResolutionFailure var annotation
+&gt;= :: ResolutionFailure var annotation
+-&gt; ResolutionFailure var annotation -&gt; Bool
+$c&gt;= :: forall var annotation.
+(Ord var, Ord annotation) =&gt;
+ResolutionFailure var annotation
+-&gt; ResolutionFailure var annotation -&gt; Bool
+&gt; :: ResolutionFailure var annotation
+-&gt; ResolutionFailure var annotation -&gt; Bool
+$c&gt; :: forall var annotation.
+(Ord var, Ord annotation) =&gt;
+ResolutionFailure var annotation
+-&gt; ResolutionFailure var annotation -&gt; Bool
+&lt;= :: ResolutionFailure var annotation
+-&gt; ResolutionFailure var annotation -&gt; Bool
+$c&lt;= :: forall var annotation.
+(Ord var, Ord annotation) =&gt;
+ResolutionFailure var annotation
+-&gt; ResolutionFailure var annotation -&gt; Bool
+&lt; :: ResolutionFailure var annotation
+-&gt; ResolutionFailure var annotation -&gt; Bool
+$c&lt; :: forall var annotation.
+(Ord var, Ord annotation) =&gt;
+ResolutionFailure var annotation
+-&gt; ResolutionFailure var annotation -&gt; Bool
+compare :: ResolutionFailure var annotation
+-&gt; ResolutionFailure var annotation -&gt; Ordering
+$ccompare :: forall var annotation.
+(Ord var, Ord annotation) =&gt;
+ResolutionFailure var annotation
+-&gt; ResolutionFailure var annotation -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679225315"><span id="local-6989586621679225317"><span id="local-6989586621679225329"><span class="annot"><span class="annottext">Int -&gt; ResolutionFailure var annotation -&gt; ShowS
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+forall var annotation.
+(Show var, Show annotation) =&gt;
+Int -&gt; ResolutionFailure var annotation -&gt; ShowS
+forall var annotation.
+(Show var, Show annotation) =&gt;
+[ResolutionFailure var annotation] -&gt; ShowS
+forall var annotation.
+(Show var, Show annotation) =&gt;
+ResolutionFailure var annotation -&gt; String
+showList :: [ResolutionFailure var annotation] -&gt; ShowS
+$cshowList :: forall var annotation.
+(Show var, Show annotation) =&gt;
+[ResolutionFailure var annotation] -&gt; ShowS
+show :: ResolutionFailure var annotation -&gt; String
+$cshow :: forall var annotation.
+(Show var, Show annotation) =&gt;
+ResolutionFailure var annotation -&gt; String
+showsPrec :: Int -&gt; ResolutionFailure var annotation -&gt; ShowS
+$cshowsPrec :: forall var annotation.
+(Show var, Show annotation) =&gt;
+Int -&gt; ResolutionFailure var annotation -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679225305"><span id="local-6989586621679225307"><span class="annot"><span class="annottext">forall a b. a -&gt; ResolutionFailure var b -&gt; ResolutionFailure var a
+forall a b.
+(a -&gt; b) -&gt; ResolutionFailure var a -&gt; ResolutionFailure var b
+forall var a b.
+a -&gt; ResolutionFailure var b -&gt; ResolutionFailure var a
+forall var a b.
+(a -&gt; b) -&gt; ResolutionFailure var a -&gt; ResolutionFailure var b
+forall (f :: * -&gt; *).
+(forall a b. (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b. a -&gt; f b -&gt; f a) -&gt; Functor f
+&lt;$ :: forall a b. a -&gt; ResolutionFailure var b -&gt; ResolutionFailure var a
+$c&lt;$ :: forall var a b.
+a -&gt; ResolutionFailure var b -&gt; ResolutionFailure var a
+fmap :: forall a b.
+(a -&gt; b) -&gt; ResolutionFailure var a -&gt; ResolutionFailure var b
+$cfmap :: forall var a b.
+(a -&gt; b) -&gt; ResolutionFailure var a -&gt; ResolutionFailure var b
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Functor</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679225268"><span id="local-6989586621679225270"><span id="local-6989586621679225272"><span id="local-6989586621679225274"><span id="local-6989586621679225276"><span id="local-6989586621679225278"><span id="local-6989586621679225280"><span id="local-6989586621679225282"><span id="local-6989586621679225284"><span id="local-6989586621679225286"><span id="local-6989586621679225288"><span id="local-6989586621679225290"><span id="local-6989586621679225292"><span id="local-6989586621679225294"><span id="local-6989586621679225296"><span id="local-6989586621679225299"><span id="local-6989586621679225301"><span class="annot"><span class="annottext">forall a. ResolutionFailure var a -&gt; Bool
+forall var a. Eq a =&gt; a -&gt; ResolutionFailure var a -&gt; Bool
+forall var a. Num a =&gt; ResolutionFailure var a -&gt; a
+forall var a. Ord a =&gt; ResolutionFailure var a -&gt; a
+forall var m. Monoid m =&gt; ResolutionFailure var m -&gt; m
+forall m a. Monoid m =&gt; (a -&gt; m) -&gt; ResolutionFailure var a -&gt; m
+forall var a. ResolutionFailure var a -&gt; Bool
+forall var a. ResolutionFailure var a -&gt; Int
+forall var a. ResolutionFailure var a -&gt; [a]
+forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; ResolutionFailure var a -&gt; b
+forall var a. (a -&gt; a -&gt; a) -&gt; ResolutionFailure var a -&gt; a
+forall var m a.
+Monoid m =&gt;
+(a -&gt; m) -&gt; ResolutionFailure var a -&gt; m
+forall var b a. (b -&gt; a -&gt; b) -&gt; b -&gt; ResolutionFailure var a -&gt; b
+forall var a b. (a -&gt; b -&gt; b) -&gt; b -&gt; ResolutionFailure var a -&gt; b
+forall (t :: * -&gt; *).
+(forall m. Monoid m =&gt; t m -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; t a -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; t a -&gt; m)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; t a -&gt; a)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; t a -&gt; a)
+-&gt; (forall a. t a -&gt; [a])
+-&gt; (forall a. t a -&gt; Bool)
+-&gt; (forall a. t a -&gt; Int)
+-&gt; (forall a. Eq a =&gt; a -&gt; t a -&gt; Bool)
+-&gt; (forall a. Ord a =&gt; t a -&gt; a)
+-&gt; (forall a. Ord a =&gt; t a -&gt; a)
+-&gt; (forall a. Num a =&gt; t a -&gt; a)
+-&gt; (forall a. Num a =&gt; t a -&gt; a)
+-&gt; Foldable t
+product :: forall a. Num a =&gt; ResolutionFailure var a -&gt; a
+$cproduct :: forall var a. Num a =&gt; ResolutionFailure var a -&gt; a
+sum :: forall a. Num a =&gt; ResolutionFailure var a -&gt; a
+$csum :: forall var a. Num a =&gt; ResolutionFailure var a -&gt; a
+minimum :: forall a. Ord a =&gt; ResolutionFailure var a -&gt; a
+$cminimum :: forall var a. Ord a =&gt; ResolutionFailure var a -&gt; a
+maximum :: forall a. Ord a =&gt; ResolutionFailure var a -&gt; a
+$cmaximum :: forall var a. Ord a =&gt; ResolutionFailure var a -&gt; a
+elem :: forall a. Eq a =&gt; a -&gt; ResolutionFailure var a -&gt; Bool
+$celem :: forall var a. Eq a =&gt; a -&gt; ResolutionFailure var a -&gt; Bool
+length :: forall a. ResolutionFailure var a -&gt; Int
+$clength :: forall var a. ResolutionFailure var a -&gt; Int
+null :: forall a. ResolutionFailure var a -&gt; Bool
+$cnull :: forall var a. ResolutionFailure var a -&gt; Bool
+toList :: forall a. ResolutionFailure var a -&gt; [a]
+$ctoList :: forall var a. ResolutionFailure var a -&gt; [a]
+foldl1 :: forall a. (a -&gt; a -&gt; a) -&gt; ResolutionFailure var a -&gt; a
+$cfoldl1 :: forall var a. (a -&gt; a -&gt; a) -&gt; ResolutionFailure var a -&gt; a
+foldr1 :: forall a. (a -&gt; a -&gt; a) -&gt; ResolutionFailure var a -&gt; a
+$cfoldr1 :: forall var a. (a -&gt; a -&gt; a) -&gt; ResolutionFailure var a -&gt; a
+foldl' :: forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; ResolutionFailure var a -&gt; b
+$cfoldl' :: forall var b a. (b -&gt; a -&gt; b) -&gt; b -&gt; ResolutionFailure var a -&gt; b
+foldl :: forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; ResolutionFailure var a -&gt; b
+$cfoldl :: forall var b a. (b -&gt; a -&gt; b) -&gt; b -&gt; ResolutionFailure var a -&gt; b
+foldr' :: forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; ResolutionFailure var a -&gt; b
+$cfoldr' :: forall var a b. (a -&gt; b -&gt; b) -&gt; b -&gt; ResolutionFailure var a -&gt; b
+foldr :: forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; ResolutionFailure var a -&gt; b
+$cfoldr :: forall var a b. (a -&gt; b -&gt; b) -&gt; b -&gt; ResolutionFailure var a -&gt; b
+foldMap' :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; ResolutionFailure var a -&gt; m
+$cfoldMap' :: forall var m a.
+Monoid m =&gt;
+(a -&gt; m) -&gt; ResolutionFailure var a -&gt; m
+foldMap :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; ResolutionFailure var a -&gt; m
+$cfoldMap :: forall var m a.
+Monoid m =&gt;
+(a -&gt; m) -&gt; ResolutionFailure var a -&gt; m
+fold :: forall m. Monoid m =&gt; ResolutionFailure var m -&gt; m
+$cfold :: forall var m. Monoid m =&gt; ResolutionFailure var m -&gt; m
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Foldable</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679225251"><span id="local-6989586621679225253"><span id="local-6989586621679225255"><span id="local-6989586621679225261"><span class="annot"><span class="annottext">forall var. Functor (ResolutionFailure var)
+forall var. Foldable (ResolutionFailure var)
+forall var (m :: * -&gt; *) a.
+Monad m =&gt;
+ResolutionFailure var (m a) -&gt; m (ResolutionFailure var a)
+forall var (f :: * -&gt; *) a.
+Applicative f =&gt;
+ResolutionFailure var (f a) -&gt; f (ResolutionFailure var a)
+forall var (m :: * -&gt; *) a b.
+Monad m =&gt;
+(a -&gt; m b)
+-&gt; ResolutionFailure var a -&gt; m (ResolutionFailure var b)
+forall var (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b)
+-&gt; ResolutionFailure var a -&gt; f (ResolutionFailure var b)
+forall (t :: * -&gt; *).
+Functor t
+-&gt; Foldable t
+-&gt; (forall (f :: * -&gt; *) a b.
+    Applicative f =&gt;
+    (a -&gt; f b) -&gt; t a -&gt; f (t b))
+-&gt; (forall (f :: * -&gt; *) a. Applicative f =&gt; t (f a) -&gt; f (t a))
+-&gt; (forall (m :: * -&gt; *) a b.
+    Monad m =&gt;
+    (a -&gt; m b) -&gt; t a -&gt; m (t b))
+-&gt; (forall (m :: * -&gt; *) a. Monad m =&gt; t (m a) -&gt; m (t a))
+-&gt; Traversable t
+forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b)
+-&gt; ResolutionFailure var a -&gt; f (ResolutionFailure var b)
+sequence :: forall (m :: * -&gt; *) a.
+Monad m =&gt;
+ResolutionFailure var (m a) -&gt; m (ResolutionFailure var a)
+$csequence :: forall var (m :: * -&gt; *) a.
+Monad m =&gt;
+ResolutionFailure var (m a) -&gt; m (ResolutionFailure var a)
+mapM :: forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+(a -&gt; m b)
+-&gt; ResolutionFailure var a -&gt; m (ResolutionFailure var b)
+$cmapM :: forall var (m :: * -&gt; *) a b.
+Monad m =&gt;
+(a -&gt; m b)
+-&gt; ResolutionFailure var a -&gt; m (ResolutionFailure var b)
+sequenceA :: forall (f :: * -&gt; *) a.
+Applicative f =&gt;
+ResolutionFailure var (f a) -&gt; f (ResolutionFailure var a)
+$csequenceA :: forall var (f :: * -&gt; *) a.
+Applicative f =&gt;
+ResolutionFailure var (f a) -&gt; f (ResolutionFailure var a)
+traverse :: forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b)
+-&gt; ResolutionFailure var a -&gt; f (ResolutionFailure var b)
+$ctraverse :: forall var (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b)
+-&gt; ResolutionFailure var a -&gt; f (ResolutionFailure var b)
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Traversable</span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span id="local-6989586621679225518"><span id="local-6989586621679225519"><span class="annot"><a href="Unison.Names.ResolutionResult.html#getAnnotation"><span class="hs-identifier hs-type">getAnnotation</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Names.ResolutionResult.html#ResolutionFailure"><span class="hs-identifier hs-type">ResolutionFailure</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679225519"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679225518"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679225518"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-23"></span><span id="getAnnotation"><span class="annot"><span class="annottext">getAnnotation :: forall v a. ResolutionFailure v a -&gt; a
+</span><a href="Unison.Names.ResolutionResult.html#getAnnotation"><span class="hs-identifier hs-var hs-var">getAnnotation</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-24"></span><span>  </span><span class="annot"><a href="Unison.Names.ResolutionResult.html#TypeResolutionFailure"><span class="hs-identifier hs-type">TypeResolutionFailure</span></a></span><span> </span><span class="annot"><span class="annottext">v
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679225247"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679225247"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="annot"><span class="annottext">ResolutionError Reference
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679225247"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-25"></span><span>  </span><span class="annot"><a href="Unison.Names.ResolutionResult.html#TermResolutionFailure"><span class="hs-identifier hs-type">TermResolutionFailure</span></a></span><span> </span><span class="annot"><span class="annottext">v
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679225246"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679225246"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="annot"><span class="annottext">ResolutionError Referent
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679225246"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span id="local-6989586621679225514"><span id="local-6989586621679225515"><span class="annot"><a href="Unison.Names.ResolutionResult.html#getVar"><span class="hs-identifier hs-type">getVar</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Names.ResolutionResult.html#ResolutionFailure"><span class="hs-identifier hs-type">ResolutionFailure</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679225515"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679225514"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679225515"><span class="hs-identifier hs-type">v</span></a></span></span></span><span>
+</span><span id="line-28"></span><span id="getVar"><span class="annot"><span class="annottext">getVar :: forall v a. ResolutionFailure v a -&gt; v
+</span><a href="Unison.Names.ResolutionResult.html#getVar"><span class="hs-identifier hs-var hs-var">getVar</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-29"></span><span>  </span><span class="annot"><a href="Unison.Names.ResolutionResult.html#TypeResolutionFailure"><span class="hs-identifier hs-type">TypeResolutionFailure</span></a></span><span> </span><span id="local-6989586621679225244"><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621679225244"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">ResolutionError Reference
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621679225244"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-30"></span><span>  </span><span class="annot"><a href="Unison.Names.ResolutionResult.html#TermResolutionFailure"><span class="hs-identifier hs-type">TermResolutionFailure</span></a></span><span> </span><span id="local-6989586621679225243"><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621679225243"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">ResolutionError Referent
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621679225243"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">type</span><span> </span><span id="ResolutionResult"><span class="annot"><a href="Unison.Names.ResolutionResult.html#ResolutionResult"><span class="hs-identifier hs-var">ResolutionResult</span></a></span></span><span> </span><span id="local-6989586621679225241"><span class="annot"><a href="#local-6989586621679225241"><span class="hs-identifier hs-type">v</span></a></span></span><span> </span><span id="local-6989586621679225240"><span class="annot"><a href="#local-6989586621679225240"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span id="local-6989586621679225239"><span class="annot"><a href="#local-6989586621679225239"><span class="hs-identifier hs-type">r</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Seq</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Names.ResolutionResult.html#ResolutionFailure"><span class="hs-identifier hs-type">ResolutionFailure</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679225241"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679225240"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679225239"><span class="hs-identifier hs-type">r</span></a></span><span>
+</span><span id="line-33"></span></pre></body></html>

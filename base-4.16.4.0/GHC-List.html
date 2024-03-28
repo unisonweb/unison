@@ -1,0 +1,451 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>GHC.List</title><link href="linuwial.css" rel="stylesheet" type="text/css" title="Linuwial" /><link rel="stylesheet" type="text/css" href="quick-jump.css" /><link rel="stylesheet" type="text/css" href="https://fonts.googleapis.com/css?family=PT+Sans:400,400i,700" /><script src="haddock-bundle.min.js" async="async" type="text/javascript"></script><script type="text/x-mathjax-config">MathJax.Hub.Config({ tex2jax: { processClass: "mathjax", ignoreClass: ".*" } });</script><script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/MathJax.js?config=TeX-AMS-MML_HTMLorMML" type="text/javascript"></script></head><body><div id="package-header"><span class="caption">base-4.16.4.0: Basic libraries</span><ul class="links" id="page-menu"><li><a href="src/GHC.List.html">Source</a></li><li><a href="index.html">Contents</a></li><li><a href="doc-index.html">Index</a></li></ul></div><div id="content"><div id="module-header"><table class="info"><tr><th valign="top">Copyright</th><td>(c) The University of Glasgow 1994-2002</td></tr><tr><th>License</th><td>see libraries/base/LICENSE</td></tr><tr><th>Maintainer</th><td>cvs-ghc@haskell.org</td></tr><tr><th>Stability</th><td>internal</td></tr><tr><th>Portability</th><td>non-portable (GHC Extensions)</td></tr><tr><th>Safe Haskell</th><td>Trustworthy</td></tr><tr><th>Language</th><td>Haskell2010</td></tr></table><p class="caption">GHC.List</p></div><div id="description"><p class="caption">Description</p><div class="doc"><p>The List data type and its operations</p></div></div><div id="synopsis"><details id="syn"><summary>Synopsis</summary><ul class="details-toggle" data-details-id="syn"><li class="src short"><a href="#v:map">map</a> :: (a -&gt; b) -&gt; [a] -&gt; [b]</li><li class="src short"><a href="#v:-43--43-">(++)</a> :: [a] -&gt; [a] -&gt; [a]</li><li class="src short"><a href="#v:filter">filter</a> :: (a -&gt; <a href="Data-Bool.html#t:Bool" title="Data.Bool">Bool</a>) -&gt; [a] -&gt; [a]</li><li class="src short"><a href="#v:concat">concat</a> :: [[a]] -&gt; [a]</li><li class="src short"><a href="#v:head">head</a> :: [a] -&gt; a</li><li class="src short"><a href="#v:last">last</a> :: [a] -&gt; a</li><li class="src short"><a href="#v:tail">tail</a> :: [a] -&gt; [a]</li><li class="src short"><a href="#v:init">init</a> :: [a] -&gt; [a]</li><li class="src short"><a href="#v:uncons">uncons</a> :: [a] -&gt; <a href="Data-Maybe.html#t:Maybe" title="Data.Maybe">Maybe</a> (a, [a])</li><li class="src short"><a href="#v:null">null</a> :: [a] -&gt; <a href="Data-Bool.html#t:Bool" title="Data.Bool">Bool</a></li><li class="src short"><a href="#v:length">length</a> :: [a] -&gt; <a href="Data-Int.html#t:Int" title="Data.Int">Int</a></li><li class="src short"><a href="#v:-33--33-">(!!)</a> :: [a] -&gt; <a href="Data-Int.html#t:Int" title="Data.Int">Int</a> -&gt; a</li><li class="src short"><a href="#v:foldl">foldl</a> :: <span class="keyword">forall</span> a b. (b -&gt; a -&gt; b) -&gt; b -&gt; [a] -&gt; b</li><li class="src short"><a href="#v:foldl-39-">foldl'</a> :: <span class="keyword">forall</span> a b. (b -&gt; a -&gt; b) -&gt; b -&gt; [a] -&gt; b</li><li class="src short"><a href="#v:foldl1">foldl1</a> :: (a -&gt; a -&gt; a) -&gt; [a] -&gt; a</li><li class="src short"><a href="#v:foldl1-39-">foldl1'</a> :: (a -&gt; a -&gt; a) -&gt; [a] -&gt; a</li><li class="src short"><a href="#v:scanl">scanl</a> :: (b -&gt; a -&gt; b) -&gt; b -&gt; [a] -&gt; [b]</li><li class="src short"><a href="#v:scanl1">scanl1</a> :: (a -&gt; a -&gt; a) -&gt; [a] -&gt; [a]</li><li class="src short"><a href="#v:scanl-39-">scanl'</a> :: (b -&gt; a -&gt; b) -&gt; b -&gt; [a] -&gt; [b]</li><li class="src short"><a href="#v:foldr">foldr</a> :: (a -&gt; b -&gt; b) -&gt; b -&gt; [a] -&gt; b</li><li class="src short"><a href="#v:foldr1">foldr1</a> :: (a -&gt; a -&gt; a) -&gt; [a] -&gt; a</li><li class="src short"><a href="#v:scanr">scanr</a> :: (a -&gt; b -&gt; b) -&gt; b -&gt; [a] -&gt; [b]</li><li class="src short"><a href="#v:scanr1">scanr1</a> :: (a -&gt; a -&gt; a) -&gt; [a] -&gt; [a]</li><li class="src short"><a href="#v:iterate">iterate</a> :: (a -&gt; a) -&gt; a -&gt; [a]</li><li class="src short"><a href="#v:iterate-39-">iterate'</a> :: (a -&gt; a) -&gt; a -&gt; [a]</li><li class="src short"><a href="#v:repeat">repeat</a> :: a -&gt; [a]</li><li class="src short"><a href="#v:replicate">replicate</a> :: <a href="Data-Int.html#t:Int" title="Data.Int">Int</a> -&gt; a -&gt; [a]</li><li class="src short"><a href="#v:cycle">cycle</a> :: [a] -&gt; [a]</li><li class="src short"><a href="#v:take">take</a> :: <a href="Data-Int.html#t:Int" title="Data.Int">Int</a> -&gt; [a] -&gt; [a]</li><li class="src short"><a href="#v:drop">drop</a> :: <a href="Data-Int.html#t:Int" title="Data.Int">Int</a> -&gt; [a] -&gt; [a]</li><li class="src short"><a href="#v:sum">sum</a> :: <a href="Prelude.html#t:Num" title="Prelude">Num</a> a =&gt; [a] -&gt; a</li><li class="src short"><a href="#v:product">product</a> :: <a href="Prelude.html#t:Num" title="Prelude">Num</a> a =&gt; [a] -&gt; a</li><li class="src short"><a href="#v:maximum">maximum</a> :: <a href="Data-Ord.html#t:Ord" title="Data.Ord">Ord</a> a =&gt; [a] -&gt; a</li><li class="src short"><a href="#v:minimum">minimum</a> :: <a href="Data-Ord.html#t:Ord" title="Data.Ord">Ord</a> a =&gt; [a] -&gt; a</li><li class="src short"><a href="#v:splitAt">splitAt</a> :: <a href="Data-Int.html#t:Int" title="Data.Int">Int</a> -&gt; [a] -&gt; ([a], [a])</li><li class="src short"><a href="#v:takeWhile">takeWhile</a> :: (a -&gt; <a href="Data-Bool.html#t:Bool" title="Data.Bool">Bool</a>) -&gt; [a] -&gt; [a]</li><li class="src short"><a href="#v:dropWhile">dropWhile</a> :: (a -&gt; <a href="Data-Bool.html#t:Bool" title="Data.Bool">Bool</a>) -&gt; [a] -&gt; [a]</li><li class="src short"><a href="#v:span">span</a> :: (a -&gt; <a href="Data-Bool.html#t:Bool" title="Data.Bool">Bool</a>) -&gt; [a] -&gt; ([a], [a])</li><li class="src short"><a href="#v:break">break</a> :: (a -&gt; <a href="Data-Bool.html#t:Bool" title="Data.Bool">Bool</a>) -&gt; [a] -&gt; ([a], [a])</li><li class="src short"><a href="#v:reverse">reverse</a> :: [a] -&gt; [a]</li><li class="src short"><a href="#v:and">and</a> :: [<a href="Data-Bool.html#t:Bool" title="Data.Bool">Bool</a>] -&gt; <a href="Data-Bool.html#t:Bool" title="Data.Bool">Bool</a></li><li class="src short"><a href="#v:or">or</a> :: [<a href="Data-Bool.html#t:Bool" title="Data.Bool">Bool</a>] -&gt; <a href="Data-Bool.html#t:Bool" title="Data.Bool">Bool</a></li><li class="src short"><a href="#v:any">any</a> :: (a -&gt; <a href="Data-Bool.html#t:Bool" title="Data.Bool">Bool</a>) -&gt; [a] -&gt; <a href="Data-Bool.html#t:Bool" title="Data.Bool">Bool</a></li><li class="src short"><a href="#v:all">all</a> :: (a -&gt; <a href="Data-Bool.html#t:Bool" title="Data.Bool">Bool</a>) -&gt; [a] -&gt; <a href="Data-Bool.html#t:Bool" title="Data.Bool">Bool</a></li><li class="src short"><a href="#v:elem">elem</a> :: <a href="Data-Eq.html#t:Eq" title="Data.Eq">Eq</a> a =&gt; a -&gt; [a] -&gt; <a href="Data-Bool.html#t:Bool" title="Data.Bool">Bool</a></li><li class="src short"><a href="#v:notElem">notElem</a> :: <a href="Data-Eq.html#t:Eq" title="Data.Eq">Eq</a> a =&gt; a -&gt; [a] -&gt; <a href="Data-Bool.html#t:Bool" title="Data.Bool">Bool</a></li><li class="src short"><a href="#v:lookup">lookup</a> :: <a href="Data-Eq.html#t:Eq" title="Data.Eq">Eq</a> a =&gt; a -&gt; [(a, b)] -&gt; <a href="Data-Maybe.html#t:Maybe" title="Data.Maybe">Maybe</a> b</li><li class="src short"><a href="#v:concatMap">concatMap</a> :: (a -&gt; [b]) -&gt; [a] -&gt; [b]</li><li class="src short"><a href="#v:zip">zip</a> :: [a] -&gt; [b] -&gt; [(a, b)]</li><li class="src short"><a href="#v:zip3">zip3</a> :: [a] -&gt; [b] -&gt; [c] -&gt; [(a, b, c)]</li><li class="src short"><a href="#v:zipWith">zipWith</a> :: (a -&gt; b -&gt; c) -&gt; [a] -&gt; [b] -&gt; [c]</li><li class="src short"><a href="#v:zipWith3">zipWith3</a> :: (a -&gt; b -&gt; c -&gt; d) -&gt; [a] -&gt; [b] -&gt; [c] -&gt; [d]</li><li class="src short"><a href="#v:unzip">unzip</a> :: [(a, b)] -&gt; ([a], [b])</li><li class="src short"><a href="#v:unzip3">unzip3</a> :: [(a, b, c)] -&gt; ([a], [b], [c])</li><li class="src short"><a href="#v:errorEmptyList">errorEmptyList</a> :: <a href="Data-String.html#t:String" title="Data.String">String</a> -&gt; a</li></ul></details></div><div id="interface"><h1>Documentation</h1><div class="top"><p class="src"><a id="v:map" class="def">map</a> :: (a -&gt; b) -&gt; [a] -&gt; [b] <a href="src/GHC.Base.html#map" class="link">Source</a> <a href="#v:map" class="selflink">#</a></p><div class="doc"><p><span class="mathjax">\(\mathcal{O}(n)\)</span>. <code><a href="GHC-List.html#v:map" title="GHC.List">map</a></code> <code>f xs</code> is the list obtained by applying <code>f</code> to
+ each element of <code>xs</code>, i.e.,</p><pre>map f [x1, x2, ..., xn] == [f x1, f x2, ..., f xn]
+map f [x1, x2, ...] == [f x1, f x2, ...]</pre><pre class="screen"><code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>map (+1) [1, 2, 3]
+</code></strong>[2,3,4]
+</pre></div></div><div class="top"><p class="src"><a id="v:-43--43-" class="def">(++)</a> :: [a] -&gt; [a] -&gt; [a] <span class="fixity">infixr 5</span><span class="rightedge"></span> <a href="src/GHC.Base.html#%2B%2B" class="link">Source</a> <a href="#v:-43--43-" class="selflink">#</a></p><div class="doc"><p>Append two lists, i.e.,</p><pre>[x1, ..., xm] ++ [y1, ..., yn] == [x1, ..., xm, y1, ..., yn]
+[x1, ..., xm] ++ [y1, ...] == [x1, ..., xm, y1, ...]</pre><p>If the first list is not finite, the result is the first list.</p></div></div><div class="top"><p class="src"><a id="v:filter" class="def">filter</a> :: (a -&gt; <a href="Data-Bool.html#t:Bool" title="Data.Bool">Bool</a>) -&gt; [a] -&gt; [a] <a href="src/GHC.List.html#filter" class="link">Source</a> <a href="#v:filter" class="selflink">#</a></p><div class="doc"><p><span class="mathjax">\(\mathcal{O}(n)\)</span>. <code><a href="GHC-List.html#v:filter" title="GHC.List">filter</a></code>, applied to a predicate and a list, returns
+ the list of those elements that satisfy the predicate; i.e.,</p><pre>filter p xs = [ x | x &lt;- xs, p x]</pre><pre class="screen"><code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>filter odd [1, 2, 3]
+</code></strong>[1,3]
+</pre></div></div><div class="top"><p class="src"><a id="v:concat" class="def">concat</a> :: [[a]] -&gt; [a] <a href="src/GHC.List.html#concat" class="link">Source</a> <a href="#v:concat" class="selflink">#</a></p><div class="doc"><p>Concatenate a list of lists.</p><pre class="screen"><code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>concat []
+</code></strong>[]
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>concat [[42]]
+</code></strong>[42]
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>concat [[1,2,3], [4,5], [6], []]
+</code></strong>[1,2,3,4,5,6]
+</pre></div></div><div class="top"><p class="src"><a id="v:head" class="def">head</a> :: [a] -&gt; a <a href="src/GHC.List.html#head" class="link">Source</a> <a href="#v:head" class="selflink">#</a></p><div class="doc"><p><span class="mathjax">\(\mathcal{O}(1)\)</span>. Extract the first element of a list, which must be non-empty.</p><pre class="screen"><code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>head [1, 2, 3]
+</code></strong>1
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>head [1..]
+</code></strong>1
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>head []
+</code></strong>*** Exception: Prelude.head: empty list
+</pre></div></div><div class="top"><p class="src"><a id="v:last" class="def">last</a> :: [a] -&gt; a <a href="src/GHC.List.html#last" class="link">Source</a> <a href="#v:last" class="selflink">#</a></p><div class="doc"><p><span class="mathjax">\(\mathcal{O}(n)\)</span>. Extract the last element of a list, which must be
+ finite and non-empty.</p><pre class="screen"><code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>last [1, 2, 3]
+</code></strong>3
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>last [1..]
+</code></strong>* Hangs forever *
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>last []
+</code></strong>*** Exception: Prelude.last: empty list
+</pre></div></div><div class="top"><p class="src"><a id="v:tail" class="def">tail</a> :: [a] -&gt; [a] <a href="src/GHC.List.html#tail" class="link">Source</a> <a href="#v:tail" class="selflink">#</a></p><div class="doc"><p><span class="mathjax">\(\mathcal{O}(1)\)</span>. Extract the elements after the head of a list, which
+ must be non-empty.</p><pre class="screen"><code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>tail [1, 2, 3]
+</code></strong>[2,3]
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>tail [1]
+</code></strong>[]
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>tail []
+</code></strong>*** Exception: Prelude.tail: empty list
+</pre></div></div><div class="top"><p class="src"><a id="v:init" class="def">init</a> :: [a] -&gt; [a] <a href="src/GHC.List.html#init" class="link">Source</a> <a href="#v:init" class="selflink">#</a></p><div class="doc"><p><span class="mathjax">\(\mathcal{O}(n)\)</span>. Return all the elements of a list except the last one.
+ The list must be non-empty.</p><pre class="screen"><code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>init [1, 2, 3]
+</code></strong>[1,2]
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>init [1]
+</code></strong>[]
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>init []
+</code></strong>*** Exception: Prelude.init: empty list
+</pre></div></div><div class="top"><p class="src"><a id="v:uncons" class="def">uncons</a> :: [a] -&gt; <a href="Data-Maybe.html#t:Maybe" title="Data.Maybe">Maybe</a> (a, [a]) <a href="src/GHC.List.html#uncons" class="link">Source</a> <a href="#v:uncons" class="selflink">#</a></p><div class="doc"><p><span class="mathjax">\(\mathcal{O}(1)\)</span>. Decompose a list into its head and tail.</p><ul><li>If the list is empty, returns <code><a href="Data-Maybe.html#v:Nothing" title="Data.Maybe">Nothing</a></code>.</li><li>If the list is non-empty, returns <code><code><a href="Data-Maybe.html#v:Just" title="Data.Maybe">Just</a></code> (x, xs)</code>,
+ where <code>x</code> is the head of the list and <code>xs</code> its tail.</li></ul><pre class="screen"><code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>uncons []
+</code></strong>Nothing
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>uncons [1]
+</code></strong>Just (1,[])
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>uncons [1, 2, 3]
+</code></strong>Just (1,[2,3])
+</pre><p><em>Since: base-4.8.0.0</em></p></div></div><div class="top"><p class="src"><a id="v:null" class="def">null</a> :: [a] -&gt; <a href="Data-Bool.html#t:Bool" title="Data.Bool">Bool</a> <a href="src/GHC.List.html#null" class="link">Source</a> <a href="#v:null" class="selflink">#</a></p><div class="doc"><p><span class="mathjax">\(\mathcal{O}(1)\)</span>. Test whether a list is empty.</p><pre class="screen"><code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>null []
+</code></strong>True
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>null [1]
+</code></strong>False
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>null [1..]
+</code></strong>False
+</pre></div></div><div class="top"><p class="src"><a id="v:length" class="def">length</a> :: [a] -&gt; <a href="Data-Int.html#t:Int" title="Data.Int">Int</a> <a href="src/GHC.List.html#length" class="link">Source</a> <a href="#v:length" class="selflink">#</a></p><div class="doc"><p><span class="mathjax">\(\mathcal{O}(n)\)</span>. <code><a href="GHC-List.html#v:length" title="GHC.List">length</a></code> returns the length of a finite list as an
+ <code><a href="Data-Int.html#t:Int" title="Data.Int">Int</a></code>. It is an instance of the more general <code><a href="Data-List.html#v:genericLength" title="Data.List">genericLength</a></code>, the
+ result type of which may be any kind of number.</p><pre class="screen"><code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>length []
+</code></strong>0
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>length ['a', 'b', 'c']
+</code></strong>3
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>length [1..]
+</code></strong>* Hangs forever *
+</pre></div></div><div class="top"><p class="src"><a id="v:-33--33-" class="def">(!!)</a> :: [a] -&gt; <a href="Data-Int.html#t:Int" title="Data.Int">Int</a> -&gt; a <span class="fixity">infixl 9</span><span class="rightedge"></span> <a href="src/GHC.List.html#%21%21" class="link">Source</a> <a href="#v:-33--33-" class="selflink">#</a></p><div class="doc"><p>List index (subscript) operator, starting from 0.
+ It is an instance of the more general <code><a href="Data-List.html#v:genericIndex" title="Data.List">genericIndex</a></code>,
+ which takes an index of any integral type.</p><pre class="screen"><code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>['a', 'b', 'c'] !! 0
+</code></strong>'a'
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>['a', 'b', 'c'] !! 2
+</code></strong>'c'
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>['a', 'b', 'c'] !! 3
+</code></strong>*** Exception: Prelude.!!: index too large
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>['a', 'b', 'c'] !! (-1)
+</code></strong>*** Exception: Prelude.!!: negative index
+</pre></div></div><div class="top"><p class="src"><a id="v:foldl" class="def">foldl</a> :: <span class="keyword">forall</span> a b. (b -&gt; a -&gt; b) -&gt; b -&gt; [a] -&gt; b <a href="src/GHC.List.html#foldl" class="link">Source</a> <a href="#v:foldl" class="selflink">#</a></p><div class="doc"><p><code><a href="GHC-List.html#v:foldl" title="GHC.List">foldl</a></code>, applied to a binary operator, a starting value (typically
+ the left-identity of the operator), and a list, reduces the list
+ using the binary operator, from left to right:</p><pre>foldl f z [x1, x2, ..., xn] == (...((z `f` x1) `f` x2) `f`...) `f` xn</pre><p>The list must be finite.</p><pre class="screen"><code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>foldl (+) 0 [1..4]
+</code></strong>10
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>foldl (+) 42 []
+</code></strong>42
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>foldl (-) 100 [1..4]
+</code></strong>90
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>foldl (\reversedString nextChar -&gt; nextChar : reversedString) &quot;foo&quot; ['a', 'b', 'c', 'd']
+</code></strong>&quot;dcbafoo&quot;
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>foldl (+) 0 [1..]
+</code></strong>* Hangs forever *
+</pre></div></div><div class="top"><p class="src"><a id="v:foldl-39-" class="def">foldl'</a> :: <span class="keyword">forall</span> a b. (b -&gt; a -&gt; b) -&gt; b -&gt; [a] -&gt; b <a href="src/GHC.List.html#foldl%27" class="link">Source</a> <a href="#v:foldl-39-" class="selflink">#</a></p><div class="doc"><p>A strict version of <code><a href="GHC-List.html#v:foldl" title="GHC.List">foldl</a></code>.</p></div></div><div class="top"><p class="src"><a id="v:foldl1" class="def">foldl1</a> :: (a -&gt; a -&gt; a) -&gt; [a] -&gt; a <a href="src/GHC.List.html#foldl1" class="link">Source</a> <a href="#v:foldl1" class="selflink">#</a></p><div class="doc"><p><code><a href="GHC-List.html#v:foldl1" title="GHC.List">foldl1</a></code> is a variant of <code><a href="GHC-List.html#v:foldl" title="GHC.List">foldl</a></code> that has no starting value argument,
+ and thus must be applied to non-empty lists. Note that unlike <code><a href="GHC-List.html#v:foldl" title="GHC.List">foldl</a></code>, the accumulated value must be of the same type as the list elements.</p><pre class="screen"><code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>foldl1 (+) [1..4]
+</code></strong>10
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>foldl1 (+) []
+</code></strong>*** Exception: Prelude.foldl1: empty list
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>foldl1 (-) [1..4]
+</code></strong>-8
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>foldl1 (&amp;&amp;) [True, False, True, True]
+</code></strong>False
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>foldl1 (||) [False, False, True, True]
+</code></strong>True
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>foldl1 (+) [1..]
+</code></strong>* Hangs forever *
+</pre></div></div><div class="top"><p class="src"><a id="v:foldl1-39-" class="def">foldl1'</a> :: (a -&gt; a -&gt; a) -&gt; [a] -&gt; a <a href="src/GHC.List.html#foldl1%27" class="link">Source</a> <a href="#v:foldl1-39-" class="selflink">#</a></p><div class="doc"><p>A strict version of <code><a href="GHC-List.html#v:foldl1" title="GHC.List">foldl1</a></code>.</p></div></div><div class="top"><p class="src"><a id="v:scanl" class="def">scanl</a> :: (b -&gt; a -&gt; b) -&gt; b -&gt; [a] -&gt; [b] <a href="src/GHC.List.html#scanl" class="link">Source</a> <a href="#v:scanl" class="selflink">#</a></p><div class="doc"><p><span class="mathjax">\(\mathcal{O}(n)\)</span>. <code><a href="GHC-List.html#v:scanl" title="GHC.List">scanl</a></code> is similar to <code><a href="GHC-List.html#v:foldl" title="GHC.List">foldl</a></code>, but returns a list of
+ successive reduced values from the left:</p><pre>scanl f z [x1, x2, ...] == [z, z `f` x1, (z `f` x1) `f` x2, ...]</pre><p>Note that</p><pre>last (scanl f z xs) == foldl f z xs</pre><pre class="screen"><code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>scanl (+) 0 [1..4]
+</code></strong>[0,1,3,6,10]
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>scanl (+) 42 []
+</code></strong>[42]
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>scanl (-) 100 [1..4]
+</code></strong>[100,99,97,94,90]
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>scanl (\reversedString nextChar -&gt; nextChar : reversedString) &quot;foo&quot; ['a', 'b', 'c', 'd']
+</code></strong>[&quot;foo&quot;,&quot;afoo&quot;,&quot;bafoo&quot;,&quot;cbafoo&quot;,&quot;dcbafoo&quot;]
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>scanl (+) 0 [1..]
+</code></strong>* Hangs forever *
+</pre></div></div><div class="top"><p class="src"><a id="v:scanl1" class="def">scanl1</a> :: (a -&gt; a -&gt; a) -&gt; [a] -&gt; [a] <a href="src/GHC.List.html#scanl1" class="link">Source</a> <a href="#v:scanl1" class="selflink">#</a></p><div class="doc"><p><span class="mathjax">\(\mathcal{O}(n)\)</span>. <code><a href="GHC-List.html#v:scanl1" title="GHC.List">scanl1</a></code> is a variant of <code><a href="GHC-List.html#v:scanl" title="GHC.List">scanl</a></code> that has no starting
+ value argument:</p><pre>scanl1 f [x1, x2, ...] == [x1, x1 `f` x2, ...]</pre><pre class="screen"><code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>scanl1 (+) [1..4]
+</code></strong>[1,3,6,10]
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>scanl1 (+) []
+</code></strong>[]
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>scanl1 (-) [1..4]
+</code></strong>[1,-1,-4,-8]
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>scanl1 (&amp;&amp;) [True, False, True, True]
+</code></strong>[True,False,False,False]
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>scanl1 (||) [False, False, True, True]
+</code></strong>[False,False,True,True]
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>scanl1 (+) [1..]
+</code></strong>* Hangs forever *
+</pre></div></div><div class="top"><p class="src"><a id="v:scanl-39-" class="def">scanl'</a> :: (b -&gt; a -&gt; b) -&gt; b -&gt; [a] -&gt; [b] <a href="src/GHC.List.html#scanl%27" class="link">Source</a> <a href="#v:scanl-39-" class="selflink">#</a></p><div class="doc"><p><span class="mathjax">\(\mathcal{O}(n)\)</span>. A strict version of <code><a href="GHC-List.html#v:scanl" title="GHC.List">scanl</a></code>.</p></div></div><div class="top"><p class="src"><a id="v:foldr" class="def">foldr</a> :: (a -&gt; b -&gt; b) -&gt; b -&gt; [a] -&gt; b <a href="src/GHC.Base.html#foldr" class="link">Source</a> <a href="#v:foldr" class="selflink">#</a></p><div class="doc"><p><code><a href="GHC-List.html#v:foldr" title="GHC.List">foldr</a></code>, applied to a binary operator, a starting value (typically
+ the right-identity of the operator), and a list, reduces the list
+ using the binary operator, from right to left:</p><pre>foldr f z [x1, x2, ..., xn] == x1 `f` (x2 `f` ... (xn `f` z)...)</pre></div></div><div class="top"><p class="src"><a id="v:foldr1" class="def">foldr1</a> :: (a -&gt; a -&gt; a) -&gt; [a] -&gt; a <a href="src/GHC.List.html#foldr1" class="link">Source</a> <a href="#v:foldr1" class="selflink">#</a></p><div class="doc"><p><code><a href="GHC-List.html#v:foldr1" title="GHC.List">foldr1</a></code> is a variant of <code><a href="GHC-List.html#v:foldr" title="GHC.List">foldr</a></code> that has no starting value argument,
+ and thus must be applied to non-empty lists. Note that unlike <code><a href="GHC-List.html#v:foldr" title="GHC.List">foldr</a></code>, the accumulated value must be of the same type as the list elements.</p><pre class="screen"><code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>foldr1 (+) [1..4]
+</code></strong>10
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>foldr1 (+) []
+</code></strong>*** Exception: Prelude.foldr1: empty list
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>foldr1 (-) [1..4]
+</code></strong>-2
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>foldr1 (&amp;&amp;) [True, False, True, True]
+</code></strong>False
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>foldr1 (||) [False, False, True, True]
+</code></strong>True
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>force $ foldr1 (+) [1..]
+</code></strong>*** Exception: stack overflow
+</pre></div></div><div class="top"><p class="src"><a id="v:scanr" class="def">scanr</a> :: (a -&gt; b -&gt; b) -&gt; b -&gt; [a] -&gt; [b] <a href="src/GHC.List.html#scanr" class="link">Source</a> <a href="#v:scanr" class="selflink">#</a></p><div class="doc"><p><span class="mathjax">\(\mathcal{O}(n)\)</span>. <code><a href="GHC-List.html#v:scanr" title="GHC.List">scanr</a></code> is the right-to-left dual of <code><a href="GHC-List.html#v:scanl" title="GHC.List">scanl</a></code>. Note that the order of parameters on the accumulating function are reversed compared to <code><a href="GHC-List.html#v:scanl" title="GHC.List">scanl</a></code>.
+ Also note that</p><pre>head (scanr f z xs) == foldr f z xs.</pre><pre class="screen"><code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>scanr (+) 0 [1..4]
+</code></strong>[10,9,7,4,0]
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>scanr (+) 42 []
+</code></strong>[42]
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>scanr (-) 100 [1..4]
+</code></strong>[98,-97,99,-96,100]
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>scanr (\nextChar reversedString -&gt; nextChar : reversedString) &quot;foo&quot; ['a', 'b', 'c', 'd']
+</code></strong>[&quot;abcdfoo&quot;,&quot;bcdfoo&quot;,&quot;cdfoo&quot;,&quot;dfoo&quot;,&quot;foo&quot;]
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>force $ scanr (+) 0 [1..]
+</code></strong>*** Exception: stack overflow
+</pre></div></div><div class="top"><p class="src"><a id="v:scanr1" class="def">scanr1</a> :: (a -&gt; a -&gt; a) -&gt; [a] -&gt; [a] <a href="src/GHC.List.html#scanr1" class="link">Source</a> <a href="#v:scanr1" class="selflink">#</a></p><div class="doc"><p><span class="mathjax">\(\mathcal{O}(n)\)</span>. <code><a href="GHC-List.html#v:scanr1" title="GHC.List">scanr1</a></code> is a variant of <code><a href="GHC-List.html#v:scanr" title="GHC.List">scanr</a></code> that has no starting
+ value argument.</p><pre class="screen"><code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>scanr1 (+) [1..4]
+</code></strong>[10,9,7,4]
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>scanr1 (+) []
+</code></strong>[]
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>scanr1 (-) [1..4]
+</code></strong>[-2,3,-1,4]
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>scanr1 (&amp;&amp;) [True, False, True, True]
+</code></strong>[False,False,True,True]
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>scanr1 (||) [True, True, False, False]
+</code></strong>[True,True,False,False]
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>force $ scanr1 (+) [1..]
+</code></strong>*** Exception: stack overflow
+</pre></div></div><div class="top"><p class="src"><a id="v:iterate" class="def">iterate</a> :: (a -&gt; a) -&gt; a -&gt; [a] <a href="src/GHC.List.html#iterate" class="link">Source</a> <a href="#v:iterate" class="selflink">#</a></p><div class="doc"><p><code><a href="GHC-List.html#v:iterate" title="GHC.List">iterate</a></code> <code>f x</code> returns an infinite list of repeated applications
+ of <code>f</code> to <code>x</code>:</p><pre>iterate f x == [x, f x, f (f x), ...]</pre><p>Note that <code><a href="GHC-List.html#v:iterate" title="GHC.List">iterate</a></code> is lazy, potentially leading to thunk build-up if
+ the consumer doesn't force each iterate. See <code><a href="GHC-List.html#v:iterate-39-" title="GHC.List">iterate'</a></code> for a strict
+ variant of this function.</p><pre class="screen"><code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>take 10 $ iterate not True
+</code></strong>[True,False,True,False...
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>take 10 $ iterate (+3) 42
+</code></strong>[42,45,48,51,54,57,60,63...
+</pre></div></div><div class="top"><p class="src"><a id="v:iterate-39-" class="def">iterate'</a> :: (a -&gt; a) -&gt; a -&gt; [a] <a href="src/GHC.List.html#iterate%27" class="link">Source</a> <a href="#v:iterate-39-" class="selflink">#</a></p><div class="doc"><p><code><a href="GHC-List.html#v:iterate-39-" title="GHC.List">iterate'</a></code> is the strict version of <code><a href="GHC-List.html#v:iterate" title="GHC.List">iterate</a></code>.</p><p>It forces the result of each application of the function to weak head normal
+ form (WHNF)
+ before proceeding.</p></div></div><div class="top"><p class="src"><a id="v:repeat" class="def">repeat</a> :: a -&gt; [a] <a href="src/GHC.List.html#repeat" class="link">Source</a> <a href="#v:repeat" class="selflink">#</a></p><div class="doc"><p><code><a href="GHC-List.html#v:repeat" title="GHC.List">repeat</a></code> <code>x</code> is an infinite list, with <code>x</code> the value of every element.</p><pre class="screen"><code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>take 20 $ repeat 17
+</code></strong>[17,17,17,17,17,17,17,17,17...
+</pre></div></div><div class="top"><p class="src"><a id="v:replicate" class="def">replicate</a> :: <a href="Data-Int.html#t:Int" title="Data.Int">Int</a> -&gt; a -&gt; [a] <a href="src/GHC.List.html#replicate" class="link">Source</a> <a href="#v:replicate" class="selflink">#</a></p><div class="doc"><p><code><a href="GHC-List.html#v:replicate" title="GHC.List">replicate</a></code> <code>n x</code> is a list of length <code>n</code> with <code>x</code> the value of
+ every element.
+ It is an instance of the more general <code><a href="Data-List.html#v:genericReplicate" title="Data.List">genericReplicate</a></code>,
+ in which <code>n</code> may be of any integral type.</p><pre class="screen"><code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>replicate 0 True
+</code></strong>[]
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>replicate (-1) True
+</code></strong>[]
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>replicate 4 True
+</code></strong>[True,True,True,True]
+</pre></div></div><div class="top"><p class="src"><a id="v:cycle" class="def">cycle</a> :: [a] -&gt; [a] <a href="src/GHC.List.html#cycle" class="link">Source</a> <a href="#v:cycle" class="selflink">#</a></p><div class="doc"><p><code><a href="GHC-List.html#v:cycle" title="GHC.List">cycle</a></code> ties a finite list into a circular one, or equivalently,
+ the infinite repetition of the original list.  It is the identity
+ on infinite lists.</p><pre class="screen"><code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>cycle []
+</code></strong>*** Exception: Prelude.cycle: empty list
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>take 20 $ cycle [42]
+</code></strong>[42,42,42,42,42,42,42,42,42,42...
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>take 20 $ cycle [2, 5, 7]
+</code></strong>[2,5,7,2,5,7,2,5,7,2,5,7...
+</pre></div></div><div class="top"><p class="src"><a id="v:take" class="def">take</a> :: <a href="Data-Int.html#t:Int" title="Data.Int">Int</a> -&gt; [a] -&gt; [a] <a href="src/GHC.List.html#take" class="link">Source</a> <a href="#v:take" class="selflink">#</a></p><div class="doc"><p><code><a href="GHC-List.html#v:take" title="GHC.List">take</a></code> <code>n</code>, applied to a list <code>xs</code>, returns the prefix of <code>xs</code>
+ of length <code>n</code>, or <code>xs</code> itself if <code>n &gt;= <code><a href="GHC-List.html#v:length" title="GHC.List">length</a></code> xs</code>.</p><pre class="screen"><code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>take 5 &quot;Hello World!&quot;
+</code></strong>&quot;Hello&quot;
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>take 3 [1,2,3,4,5]
+</code></strong>[1,2,3]
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>take 3 [1,2]
+</code></strong>[1,2]
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>take 3 []
+</code></strong>[]
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>take (-1) [1,2]
+</code></strong>[]
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>take 0 [1,2]
+</code></strong>[]
+</pre><p>It is an instance of the more general <code><a href="Data-List.html#v:genericTake" title="Data.List">genericTake</a></code>,
+ in which <code>n</code> may be of any integral type.</p></div></div><div class="top"><p class="src"><a id="v:drop" class="def">drop</a> :: <a href="Data-Int.html#t:Int" title="Data.Int">Int</a> -&gt; [a] -&gt; [a] <a href="src/GHC.List.html#drop" class="link">Source</a> <a href="#v:drop" class="selflink">#</a></p><div class="doc"><p><code><a href="GHC-List.html#v:drop" title="GHC.List">drop</a></code> <code>n xs</code> returns the suffix of <code>xs</code>
+ after the first <code>n</code> elements, or <code>[]</code> if <code>n &gt;= <code><a href="GHC-List.html#v:length" title="GHC.List">length</a></code> xs</code>.</p><pre class="screen"><code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>drop 6 &quot;Hello World!&quot;
+</code></strong>&quot;World!&quot;
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>drop 3 [1,2,3,4,5]
+</code></strong>[4,5]
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>drop 3 [1,2]
+</code></strong>[]
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>drop 3 []
+</code></strong>[]
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>drop (-1) [1,2]
+</code></strong>[1,2]
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>drop 0 [1,2]
+</code></strong>[1,2]
+</pre><p>It is an instance of the more general <code><a href="Data-List.html#v:genericDrop" title="Data.List">genericDrop</a></code>,
+ in which <code>n</code> may be of any integral type.</p></div></div><div class="top"><p class="src"><a id="v:sum" class="def">sum</a> :: <a href="Prelude.html#t:Num" title="Prelude">Num</a> a =&gt; [a] -&gt; a <a href="src/GHC.List.html#sum" class="link">Source</a> <a href="#v:sum" class="selflink">#</a></p><div class="doc"><p>The <code><a href="GHC-List.html#v:sum" title="GHC.List">sum</a></code> function computes the sum of a finite list of numbers.</p><pre class="screen"><code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>sum []
+</code></strong>0
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>sum [42]
+</code></strong>42
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>sum [1..10]
+</code></strong>55
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>sum [4.1, 2.0, 1.7]
+</code></strong>7.8
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>sum [1..]
+</code></strong>* Hangs forever *
+</pre></div></div><div class="top"><p class="src"><a id="v:product" class="def">product</a> :: <a href="Prelude.html#t:Num" title="Prelude">Num</a> a =&gt; [a] -&gt; a <a href="src/GHC.List.html#product" class="link">Source</a> <a href="#v:product" class="selflink">#</a></p><div class="doc"><p>The <code><a href="GHC-List.html#v:product" title="GHC.List">product</a></code> function computes the product of a finite list of numbers.</p><pre class="screen"><code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>product []
+</code></strong>1
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>product [42]
+</code></strong>42
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>product [1..10]
+</code></strong>3628800
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>product [4.1, 2.0, 1.7]
+</code></strong>13.939999999999998
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>product [1..]
+</code></strong>* Hangs forever *
+</pre></div></div><div class="top"><p class="src"><a id="v:maximum" class="def">maximum</a> :: <a href="Data-Ord.html#t:Ord" title="Data.Ord">Ord</a> a =&gt; [a] -&gt; a <a href="src/GHC.List.html#maximum" class="link">Source</a> <a href="#v:maximum" class="selflink">#</a></p><div class="doc"><p><code><a href="GHC-List.html#v:maximum" title="GHC.List">maximum</a></code> returns the maximum value from a list,
+ which must be non-empty, finite, and of an ordered type.
+ It is a special case of <code><a href="Data-List.html#v:maximumBy" title="Data.List">maximumBy</a></code>, which allows the
+ programmer to supply their own comparison function.</p><pre class="screen"><code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>maximum []
+</code></strong>*** Exception: Prelude.maximum: empty list
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>maximum [42]
+</code></strong>42
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>maximum [55, -12, 7, 0, -89]
+</code></strong>55
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>maximum [1..]
+</code></strong>* Hangs forever *
+</pre></div></div><div class="top"><p class="src"><a id="v:minimum" class="def">minimum</a> :: <a href="Data-Ord.html#t:Ord" title="Data.Ord">Ord</a> a =&gt; [a] -&gt; a <a href="src/GHC.List.html#minimum" class="link">Source</a> <a href="#v:minimum" class="selflink">#</a></p><div class="doc"><p><code><a href="GHC-List.html#v:minimum" title="GHC.List">minimum</a></code> returns the minimum value from a list,
+ which must be non-empty, finite, and of an ordered type.
+ It is a special case of <code><a href="Data-List.html#v:minimumBy" title="Data.List">minimumBy</a></code>, which allows the
+ programmer to supply their own comparison function.</p><pre class="screen"><code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>minimum []
+</code></strong>*** Exception: Prelude.minimum: empty list
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>minimum [42]
+</code></strong>42
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>minimum [55, -12, 7, 0, -89]
+</code></strong>-89
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>minimum [1..]
+</code></strong>* Hangs forever *
+</pre></div></div><div class="top"><p class="src"><a id="v:splitAt" class="def">splitAt</a> :: <a href="Data-Int.html#t:Int" title="Data.Int">Int</a> -&gt; [a] -&gt; ([a], [a]) <a href="src/GHC.List.html#splitAt" class="link">Source</a> <a href="#v:splitAt" class="selflink">#</a></p><div class="doc"><p><code><a href="GHC-List.html#v:splitAt" title="GHC.List">splitAt</a></code> <code>n xs</code> returns a tuple where first element is <code>xs</code> prefix of
+ length <code>n</code> and second element is the remainder of the list:</p><pre class="screen"><code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>splitAt 6 &quot;Hello World!&quot;
+</code></strong>(&quot;Hello &quot;,&quot;World!&quot;)
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>splitAt 3 [1,2,3,4,5]
+</code></strong>([1,2,3],[4,5])
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>splitAt 1 [1,2,3]
+</code></strong>([1],[2,3])
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>splitAt 3 [1,2,3]
+</code></strong>([1,2,3],[])
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>splitAt 4 [1,2,3]
+</code></strong>([1,2,3],[])
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>splitAt 0 [1,2,3]
+</code></strong>([],[1,2,3])
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>splitAt (-1) [1,2,3]
+</code></strong>([],[1,2,3])
+</pre><p>It is equivalent to <code>(<code><a href="GHC-List.html#v:take" title="GHC.List">take</a></code> n xs, <code><a href="GHC-List.html#v:drop" title="GHC.List">drop</a></code> n xs)</code> when <code>n</code> is not <code>_|_</code>
+ (<code>splitAt _|_ xs = _|_</code>).
+ <code><a href="GHC-List.html#v:splitAt" title="GHC.List">splitAt</a></code> is an instance of the more general <code><a href="Data-List.html#v:genericSplitAt" title="Data.List">genericSplitAt</a></code>,
+ in which <code>n</code> may be of any integral type.</p></div></div><div class="top"><p class="src"><a id="v:takeWhile" class="def">takeWhile</a> :: (a -&gt; <a href="Data-Bool.html#t:Bool" title="Data.Bool">Bool</a>) -&gt; [a] -&gt; [a] <a href="src/GHC.List.html#takeWhile" class="link">Source</a> <a href="#v:takeWhile" class="selflink">#</a></p><div class="doc"><p><code><a href="GHC-List.html#v:takeWhile" title="GHC.List">takeWhile</a></code>, applied to a predicate <code>p</code> and a list <code>xs</code>, returns the
+ longest prefix (possibly empty) of <code>xs</code> of elements that satisfy <code>p</code>.</p><pre class="screen"><code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>takeWhile (&lt; 3) [1,2,3,4,1,2,3,4]
+</code></strong>[1,2]
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>takeWhile (&lt; 9) [1,2,3]
+</code></strong>[1,2,3]
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>takeWhile (&lt; 0) [1,2,3]
+</code></strong>[]
+</pre></div></div><div class="top"><p class="src"><a id="v:dropWhile" class="def">dropWhile</a> :: (a -&gt; <a href="Data-Bool.html#t:Bool" title="Data.Bool">Bool</a>) -&gt; [a] -&gt; [a] <a href="src/GHC.List.html#dropWhile" class="link">Source</a> <a href="#v:dropWhile" class="selflink">#</a></p><div class="doc"><p><code><a href="GHC-List.html#v:dropWhile" title="GHC.List">dropWhile</a></code> <code>p xs</code> returns the suffix remaining after <code><a href="GHC-List.html#v:takeWhile" title="GHC.List">takeWhile</a></code> <code>p xs</code>.</p><pre class="screen"><code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>dropWhile (&lt; 3) [1,2,3,4,5,1,2,3]
+</code></strong>[3,4,5,1,2,3]
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>dropWhile (&lt; 9) [1,2,3]
+</code></strong>[]
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>dropWhile (&lt; 0) [1,2,3]
+</code></strong>[1,2,3]
+</pre></div></div><div class="top"><p class="src"><a id="v:span" class="def">span</a> :: (a -&gt; <a href="Data-Bool.html#t:Bool" title="Data.Bool">Bool</a>) -&gt; [a] -&gt; ([a], [a]) <a href="src/GHC.List.html#span" class="link">Source</a> <a href="#v:span" class="selflink">#</a></p><div class="doc"><p><code><a href="GHC-List.html#v:span" title="GHC.List">span</a></code>, applied to a predicate <code>p</code> and a list <code>xs</code>, returns a tuple where
+ first element is longest prefix (possibly empty) of <code>xs</code> of elements that
+ satisfy <code>p</code> and second element is the remainder of the list:</p><pre class="screen"><code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>span (&lt; 3) [1,2,3,4,1,2,3,4]
+</code></strong>([1,2],[3,4,1,2,3,4])
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>span (&lt; 9) [1,2,3]
+</code></strong>([1,2,3],[])
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>span (&lt; 0) [1,2,3]
+</code></strong>([],[1,2,3])
+</pre><p><code><a href="GHC-List.html#v:span" title="GHC.List">span</a></code> <code>p xs</code> is equivalent to <code>(<code><a href="GHC-List.html#v:takeWhile" title="GHC.List">takeWhile</a></code> p xs, <code><a href="GHC-List.html#v:dropWhile" title="GHC.List">dropWhile</a></code> p xs)</code></p></div></div><div class="top"><p class="src"><a id="v:break" class="def">break</a> :: (a -&gt; <a href="Data-Bool.html#t:Bool" title="Data.Bool">Bool</a>) -&gt; [a] -&gt; ([a], [a]) <a href="src/GHC.List.html#break" class="link">Source</a> <a href="#v:break" class="selflink">#</a></p><div class="doc"><p><code><a href="GHC-List.html#v:break" title="GHC.List">break</a></code>, applied to a predicate <code>p</code> and a list <code>xs</code>, returns a tuple where
+ first element is longest prefix (possibly empty) of <code>xs</code> of elements that
+ <em>do not satisfy</em> <code>p</code> and second element is the remainder of the list:</p><pre class="screen"><code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>break (&gt; 3) [1,2,3,4,1,2,3,4]
+</code></strong>([1,2,3],[4,1,2,3,4])
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>break (&lt; 9) [1,2,3]
+</code></strong>([],[1,2,3])
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>break (&gt; 9) [1,2,3]
+</code></strong>([1,2,3],[])
+</pre><p><code><a href="GHC-List.html#v:break" title="GHC.List">break</a></code> <code>p</code> is equivalent to <code><code><a href="GHC-List.html#v:span" title="GHC.List">span</a></code> (<code><a href="Data-Bool.html#v:not" title="Data.Bool">not</a></code> . p)</code>.</p></div></div><div class="top"><p class="src"><a id="v:reverse" class="def">reverse</a> :: [a] -&gt; [a] <a href="src/GHC.List.html#reverse" class="link">Source</a> <a href="#v:reverse" class="selflink">#</a></p><div class="doc"><p><code><a href="GHC-List.html#v:reverse" title="GHC.List">reverse</a></code> <code>xs</code> returns the elements of <code>xs</code> in reverse order.
+ <code>xs</code> must be finite.</p><pre class="screen"><code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>reverse []
+</code></strong>[]
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>reverse [42]
+</code></strong>[42]
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>reverse [2,5,7]
+</code></strong>[7,5,2]
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>reverse [1..]
+</code></strong>* Hangs forever *
+</pre></div></div><div class="top"><p class="src"><a id="v:and" class="def">and</a> :: [<a href="Data-Bool.html#t:Bool" title="Data.Bool">Bool</a>] -&gt; <a href="Data-Bool.html#t:Bool" title="Data.Bool">Bool</a> <a href="src/GHC.List.html#and" class="link">Source</a> <a href="#v:and" class="selflink">#</a></p><div class="doc"><p><code><a href="GHC-List.html#v:and" title="GHC.List">and</a></code> returns the conjunction of a Boolean list. For the result to be
+ <code><a href="Data-Bool.html#v:True" title="Data.Bool">True</a></code>, the list must be finite; <code><a href="Data-Bool.html#v:False" title="Data.Bool">False</a></code>, however, results from a <code><a href="Data-Bool.html#v:False" title="Data.Bool">False</a></code>
+ value at a finite index of a finite or infinite list.</p><pre class="screen"><code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>and []
+</code></strong>True
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>and [True]
+</code></strong>True
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>and [False]
+</code></strong>False
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>and [True, True, False]
+</code></strong>False
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>and (False : repeat True) -- Infinite list [False,True,True,True,True,True,True...
+</code></strong>False
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>and (repeat True)
+</code></strong>* Hangs forever *
+</pre></div></div><div class="top"><p class="src"><a id="v:or" class="def">or</a> :: [<a href="Data-Bool.html#t:Bool" title="Data.Bool">Bool</a>] -&gt; <a href="Data-Bool.html#t:Bool" title="Data.Bool">Bool</a> <a href="src/GHC.List.html#or" class="link">Source</a> <a href="#v:or" class="selflink">#</a></p><div class="doc"><p><code><a href="GHC-List.html#v:or" title="GHC.List">or</a></code> returns the disjunction of a Boolean list. For the result to be
+ <code><a href="Data-Bool.html#v:False" title="Data.Bool">False</a></code>, the list must be finite; <code><a href="Data-Bool.html#v:True" title="Data.Bool">True</a></code>, however, results from a <code><a href="Data-Bool.html#v:True" title="Data.Bool">True</a></code>
+ value at a finite index of a finite or infinite list.</p><pre class="screen"><code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>or []
+</code></strong>False
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>or [True]
+</code></strong>True
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>or [False]
+</code></strong>False
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>or [True, True, False]
+</code></strong>True
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>or (True : repeat False) -- Infinite list [True,False,False,False,False,False,False...
+</code></strong>True
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>or (repeat False)
+</code></strong>* Hangs forever *
+</pre></div></div><div class="top"><p class="src"><a id="v:any" class="def">any</a> :: (a -&gt; <a href="Data-Bool.html#t:Bool" title="Data.Bool">Bool</a>) -&gt; [a] -&gt; <a href="Data-Bool.html#t:Bool" title="Data.Bool">Bool</a> <a href="src/GHC.List.html#any" class="link">Source</a> <a href="#v:any" class="selflink">#</a></p><div class="doc"><p>Applied to a predicate and a list, <code><a href="GHC-List.html#v:any" title="GHC.List">any</a></code> determines if any element
+ of the list satisfies the predicate. For the result to be
+ <code><a href="Data-Bool.html#v:False" title="Data.Bool">False</a></code>, the list must be finite; <code><a href="Data-Bool.html#v:True" title="Data.Bool">True</a></code>, however, results from a <code><a href="Data-Bool.html#v:True" title="Data.Bool">True</a></code>
+ value for the predicate applied to an element at a finite index of a finite
+ or infinite list.</p><pre class="screen"><code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>any (&gt; 3) []
+</code></strong>False
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>any (&gt; 3) [1,2]
+</code></strong>False
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>any (&gt; 3) [1,2,3,4,5]
+</code></strong>True
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>any (&gt; 3) [1..]
+</code></strong>True
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>any (&gt; 3) [0, -1..]
+</code></strong>* Hangs forever *
+</pre></div></div><div class="top"><p class="src"><a id="v:all" class="def">all</a> :: (a -&gt; <a href="Data-Bool.html#t:Bool" title="Data.Bool">Bool</a>) -&gt; [a] -&gt; <a href="Data-Bool.html#t:Bool" title="Data.Bool">Bool</a> <a href="src/GHC.List.html#all" class="link">Source</a> <a href="#v:all" class="selflink">#</a></p><div class="doc"><p>Applied to a predicate and a list, <code><a href="GHC-List.html#v:all" title="GHC.List">all</a></code> determines if all elements
+ of the list satisfy the predicate. For the result to be
+ <code><a href="Data-Bool.html#v:True" title="Data.Bool">True</a></code>, the list must be finite; <code><a href="Data-Bool.html#v:False" title="Data.Bool">False</a></code>, however, results from a <code><a href="Data-Bool.html#v:False" title="Data.Bool">False</a></code>
+ value for the predicate applied to an element at a finite index of a finite
+ or infinite list.</p><pre class="screen"><code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>all (&gt; 3) []
+</code></strong>True
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>all (&gt; 3) [1,2]
+</code></strong>False
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>all (&gt; 3) [1,2,3,4,5]
+</code></strong>False
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>all (&gt; 3) [1..]
+</code></strong>False
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>all (&gt; 3) [4..]
+</code></strong>* Hangs forever *
+</pre></div></div><div class="top"><p class="src"><a id="v:elem" class="def">elem</a> :: <a href="Data-Eq.html#t:Eq" title="Data.Eq">Eq</a> a =&gt; a -&gt; [a] -&gt; <a href="Data-Bool.html#t:Bool" title="Data.Bool">Bool</a> <span class="fixity">infix 4</span><span class="rightedge"></span> <a href="src/GHC.List.html#elem" class="link">Source</a> <a href="#v:elem" class="selflink">#</a></p><div class="doc"><p><code><a href="GHC-List.html#v:elem" title="GHC.List">elem</a></code> is the list membership predicate, usually written in infix form,
+ e.g., <code>x `elem` xs</code>.  For the result to be
+ <code><a href="Data-Bool.html#v:False" title="Data.Bool">False</a></code>, the list must be finite; <code><a href="Data-Bool.html#v:True" title="Data.Bool">True</a></code>, however, results from an element
+ equal to <code>x</code> found at a finite index of a finite or infinite list.</p><pre class="screen"><code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>3 `elem` []
+</code></strong>False
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>3 `elem` [1,2]
+</code></strong>False
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>3 `elem` [1,2,3,4,5]
+</code></strong>True
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>3 `elem` [1..]
+</code></strong>True
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>3 `elem` [4..]
+</code></strong>* Hangs forever *
+</pre></div></div><div class="top"><p class="src"><a id="v:notElem" class="def">notElem</a> :: <a href="Data-Eq.html#t:Eq" title="Data.Eq">Eq</a> a =&gt; a -&gt; [a] -&gt; <a href="Data-Bool.html#t:Bool" title="Data.Bool">Bool</a> <span class="fixity">infix 4</span><span class="rightedge"></span> <a href="src/GHC.List.html#notElem" class="link">Source</a> <a href="#v:notElem" class="selflink">#</a></p><div class="doc"><p><code><a href="GHC-List.html#v:notElem" title="GHC.List">notElem</a></code> is the negation of <code><a href="GHC-List.html#v:elem" title="GHC.List">elem</a></code>.</p><pre class="screen"><code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>3 `notElem` []
+</code></strong>True
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>3 `notElem` [1,2]
+</code></strong>True
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>3 `notElem` [1,2,3,4,5]
+</code></strong>False
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>3 `notElem` [1..]
+</code></strong>False
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>3 `notElem` [4..]
+</code></strong>* Hangs forever *
+</pre></div></div><div class="top"><p class="src"><a id="v:lookup" class="def">lookup</a> :: <a href="Data-Eq.html#t:Eq" title="Data.Eq">Eq</a> a =&gt; a -&gt; [(a, b)] -&gt; <a href="Data-Maybe.html#t:Maybe" title="Data.Maybe">Maybe</a> b <a href="src/GHC.List.html#lookup" class="link">Source</a> <a href="#v:lookup" class="selflink">#</a></p><div class="doc"><p><span class="mathjax">\(\mathcal{O}(n)\)</span>. <code><a href="GHC-List.html#v:lookup" title="GHC.List">lookup</a></code> <code>key assocs</code> looks up a key in an association
+ list.</p><pre class="screen"><code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>lookup 2 []
+</code></strong>Nothing
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>lookup 2 [(1, &quot;first&quot;)]
+</code></strong>Nothing
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>lookup 2 [(1, &quot;first&quot;), (2, &quot;second&quot;), (3, &quot;third&quot;)]
+</code></strong>Just &quot;second&quot;
+</pre></div></div><div class="top"><p class="src"><a id="v:concatMap" class="def">concatMap</a> :: (a -&gt; [b]) -&gt; [a] -&gt; [b] <a href="src/GHC.List.html#concatMap" class="link">Source</a> <a href="#v:concatMap" class="selflink">#</a></p><div class="doc"><p>Map a function returning a list over a list and concatenate the results.
+ <code><a href="GHC-List.html#v:concatMap" title="GHC.List">concatMap</a></code> can be seen as the composition of <code><a href="GHC-List.html#v:concat" title="GHC.List">concat</a></code> and <code><a href="GHC-List.html#v:map" title="GHC.List">map</a></code>.</p><pre>concatMap f xs == (concat . map f) xs</pre><pre class="screen"><code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>concatMap (\i -&gt; [-i,i]) []
+</code></strong>[]
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>concatMap (\i -&gt; [-i,i]) [1,2,3]
+</code></strong>[-1,1,-2,2,-3,3]
+</pre></div></div><div class="top"><p class="src"><a id="v:zip" class="def">zip</a> :: [a] -&gt; [b] -&gt; [(a, b)] <a href="src/GHC.List.html#zip" class="link">Source</a> <a href="#v:zip" class="selflink">#</a></p><div class="doc"><p><span class="mathjax">\(\mathcal{O}(\min(m,n))\)</span>. <code><a href="GHC-List.html#v:zip" title="GHC.List">zip</a></code> takes two lists and returns a list of
+ corresponding pairs.</p><pre class="screen"><code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>zip [1, 2] ['a', 'b']
+</code></strong>[(1,'a'),(2,'b')]
+</pre><p>If one input list is shorter than the other, excess elements of the longer
+ list are discarded, even if one of the lists is infinite:</p><pre class="screen"><code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>zip [1] ['a', 'b']
+</code></strong>[(1,'a')]
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>zip [1, 2] ['a']
+</code></strong>[(1,'a')]
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>zip [] [1..]
+</code></strong>[]
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>zip [1..] []
+</code></strong>[]
+</pre><p><code><a href="GHC-List.html#v:zip" title="GHC.List">zip</a></code> is right-lazy:</p><pre class="screen"><code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>zip [] undefined
+</code></strong>[]
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>zip undefined []
+</code></strong>*** Exception: Prelude.undefined
+...
+</pre><p><code><a href="GHC-List.html#v:zip" title="GHC.List">zip</a></code> is capable of list fusion, but it is restricted to its
+ first list argument and its resulting list.</p></div></div><div class="top"><p class="src"><a id="v:zip3" class="def">zip3</a> :: [a] -&gt; [b] -&gt; [c] -&gt; [(a, b, c)] <a href="src/GHC.List.html#zip3" class="link">Source</a> <a href="#v:zip3" class="selflink">#</a></p><div class="doc"><p><code><a href="GHC-List.html#v:zip3" title="GHC.List">zip3</a></code> takes three lists and returns a list of triples, analogous to
+ <code><a href="GHC-List.html#v:zip" title="GHC.List">zip</a></code>.
+ It is capable of list fusion, but it is restricted to its
+ first list argument and its resulting list.</p></div></div><div class="top"><p class="src"><a id="v:zipWith" class="def">zipWith</a> :: (a -&gt; b -&gt; c) -&gt; [a] -&gt; [b] -&gt; [c] <a href="src/GHC.List.html#zipWith" class="link">Source</a> <a href="#v:zipWith" class="selflink">#</a></p><div class="doc"><p><span class="mathjax">\(\mathcal{O}(\min(m,n))\)</span>. <code><a href="GHC-List.html#v:zipWith" title="GHC.List">zipWith</a></code> generalises <code><a href="GHC-List.html#v:zip" title="GHC.List">zip</a></code> by zipping with the
+ function given as the first argument, instead of a tupling function.</p><pre>zipWith (,) xs ys == zip xs ys
+zipWith f [x1,x2,x3..] [y1,y2,y3..] == [f x1 y1, f x2 y2, f x3 y3..]</pre><p>For example, <code><code><a href="GHC-List.html#v:zipWith" title="GHC.List">zipWith</a></code> (+)</code> is applied to two lists to produce the list of
+ corresponding sums:</p><pre class="screen"><code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>zipWith (+) [1, 2, 3] [4, 5, 6]
+</code></strong>[5,7,9]
+</pre><p><code><a href="GHC-List.html#v:zipWith" title="GHC.List">zipWith</a></code> is right-lazy:</p><pre class="screen"><code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>let f = undefined
+</code></strong><code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>zipWith f [] undefined
+</code></strong>[]
+</pre><p><code><a href="GHC-List.html#v:zipWith" title="GHC.List">zipWith</a></code> is capable of list fusion, but it is restricted to its
+ first list argument and its resulting list.</p></div></div><div class="top"><p class="src"><a id="v:zipWith3" class="def">zipWith3</a> :: (a -&gt; b -&gt; c -&gt; d) -&gt; [a] -&gt; [b] -&gt; [c] -&gt; [d] <a href="src/GHC.List.html#zipWith3" class="link">Source</a> <a href="#v:zipWith3" class="selflink">#</a></p><div class="doc"><p>The <code><a href="GHC-List.html#v:zipWith3" title="GHC.List">zipWith3</a></code> function takes a function which combines three
+ elements, as well as three lists and returns a list of the function applied
+ to corresponding elements, analogous to <code><a href="GHC-List.html#v:zipWith" title="GHC.List">zipWith</a></code>.
+ It is capable of list fusion, but it is restricted to its
+ first list argument and its resulting list.</p><pre>zipWith3 (,,) xs ys zs == zip3 xs ys zs
+zipWith3 f [x1,x2,x3..] [y1,y2,y3..] [z1,z2,z3..] == [f x1 y1 z1, f x2 y2 z2, f x3 y3 z3..]</pre></div></div><div class="top"><p class="src"><a id="v:unzip" class="def">unzip</a> :: [(a, b)] -&gt; ([a], [b]) <a href="src/GHC.List.html#unzip" class="link">Source</a> <a href="#v:unzip" class="selflink">#</a></p><div class="doc"><p><code><a href="GHC-List.html#v:unzip" title="GHC.List">unzip</a></code> transforms a list of pairs into a list of first components
+ and a list of second components.</p><pre class="screen"><code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>unzip []
+</code></strong>([],[])
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>unzip [(1, 'a'), (2, 'b')]
+</code></strong>([1,2],&quot;ab&quot;)
+</pre></div></div><div class="top"><p class="src"><a id="v:unzip3" class="def">unzip3</a> :: [(a, b, c)] -&gt; ([a], [b], [c]) <a href="src/GHC.List.html#unzip3" class="link">Source</a> <a href="#v:unzip3" class="selflink">#</a></p><div class="doc"><p>The <code><a href="GHC-List.html#v:unzip3" title="GHC.List">unzip3</a></code> function takes a list of triples and returns three
+ lists, analogous to <code><a href="GHC-List.html#v:unzip" title="GHC.List">unzip</a></code>.</p><pre class="screen"><code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>unzip3 []
+</code></strong>([],[],[])
+<code class="prompt">&gt;&gt;&gt; </code><strong class="userinput"><code>unzip3 [(1, 'a', True), (2, 'b', False)]
+</code></strong>([1,2],&quot;ab&quot;,[True,False])
+</pre></div></div><div class="top"><p class="src"><a id="v:errorEmptyList" class="def">errorEmptyList</a> :: <a href="Data-String.html#t:String" title="Data.String">String</a> -&gt; a <a href="src/GHC.List.html#errorEmptyList" class="link">Source</a> <a href="#v:errorEmptyList" class="selflink">#</a></p></div></div></div><div id="footer"><p>Produced by <a href="http://www.haskell.org/haddock/">Haddock</a> version 2.26.0</p></div></body></html>

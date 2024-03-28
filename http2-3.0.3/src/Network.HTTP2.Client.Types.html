@@ -1,0 +1,37 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Network.HTTP2.Client.Types</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.HTTP2.Arch.html"><span class="hs-identifier">Network.HTTP2.Arch</span></a></span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-6"></span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- | Client type.</span><span>
+</span><span id="line-8"></span><span class="hs-keyword">type</span><span> </span><span id="Client"><span class="annot"><a href="Network.HTTP2.Client.Types.html#Client"><span class="hs-identifier hs-var">Client</span></a></span></span><span> </span><span id="local-6989586621679101341"><span class="annot"><a href="#local-6989586621679101341"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.HTTP2.Client.Types.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.HTTP2.Client.Types.html#Response"><span class="hs-identifier hs-type">Response</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679101341"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679101341"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679101341"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- | Request from client.</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">newtype</span><span> </span><span id="Request"><span class="annot"><a href="Network.HTTP2.Client.Types.html#Request"><span class="hs-identifier hs-var">Request</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Request"><span class="annot"><a href="Network.HTTP2.Client.Types.html#Request"><span class="hs-identifier hs-var">Request</span></a></span></span><span> </span><span class="annot"><a href="Network.HTTP2.Arch.Types.html#OutObj"><span class="hs-identifier hs-type">OutObj</span></a></span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679101330"><span id="local-6989586621679101332"><span id="local-6989586621679101338"><span class="annot"><span class="annottext">Int -&gt; Request -&gt; ShowS
+[Request] -&gt; ShowS
+Request -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [Request] -&gt; ShowS
+$cshowList :: [Request] -&gt; ShowS
+show :: Request -&gt; String
+$cshow :: Request -&gt; String
+showsPrec :: Int -&gt; Request -&gt; ShowS
+$cshowsPrec :: Int -&gt; Request -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- | Response from server.</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">newtype</span><span> </span><span id="Response"><span class="annot"><a href="Network.HTTP2.Client.Types.html#Response"><span class="hs-identifier hs-var">Response</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Response"><span class="annot"><a href="Network.HTTP2.Client.Types.html#Response"><span class="hs-identifier hs-var">Response</span></a></span></span><span> </span><span class="annot"><a href="Network.HTTP2.Arch.Types.html#InpObj"><span class="hs-identifier hs-type">InpObj</span></a></span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679101319"><span id="local-6989586621679101321"><span id="local-6989586621679101326"><span class="annot"><span class="annottext">Int -&gt; Response -&gt; ShowS
+[Response] -&gt; ShowS
+Response -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [Response] -&gt; ShowS
+$cshowList :: [Response] -&gt; ShowS
+show :: Response -&gt; String
+$cshow :: Response -&gt; String
+showsPrec :: Int -&gt; Response -&gt; ShowS
+$cshowsPrec :: Int -&gt; Response -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span></pre></body></html>

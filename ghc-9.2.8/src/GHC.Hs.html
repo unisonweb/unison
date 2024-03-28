@@ -1,0 +1,407 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span id="local-6989586621681084271"><span id="local-6989586621681084272"><span id="local-6989586621681084273"><span id="local-6989586621681084274"></span></span></span></span><span class="hs-comment">{-
+(c) The University of Glasgow 2006
+(c) The GRASP/AQUA Project, Glasgow University, 1992-1998
+
+\section{Haskell abstract syntax definition}
+
+This module glues together the pieces of the Haskell abstract syntax,
+which is declared in the various \tr{Hs*} modules.  This module,
+therefore, is almost nothing but re-exporting.
+-}</span><span>
+</span><span id="line-11"></span><span>
+</span><span id="line-12"></span><span class="hs-pragma">{-# LANGUAGE DeriveDataTypeable #-}</span><span>
+</span><span id="line-13"></span><span class="hs-pragma">{-# LANGUAGE StandaloneDeriving #-}</span><span>
+</span><span id="line-14"></span><span class="hs-pragma">{-# LANGUAGE FlexibleContexts #-}</span><span>
+</span><span id="line-15"></span><span class="hs-pragma">{-# LANGUAGE UndecidableInstances #-}</span><span> </span><span class="hs-comment">-- Wrinkle in Note [Trees That Grow]</span><span>
+</span><span id="line-16"></span><span>                                      </span><span class="hs-comment">-- in module Language.Haskell.Syntax.Extension</span><span>
+</span><span id="line-17"></span><span class="hs-pragma">{-# LANGUAGE ConstraintKinds #-}</span><span>
+</span><span id="line-18"></span><span class="hs-pragma">{-# LANGUAGE TypeFamilies #-}</span><span>
+</span><span id="line-19"></span><span class="hs-pragma">{-# LANGUAGE FlexibleInstances #-}</span><span> </span><span class="hs-comment">-- For deriving instance Data</span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">GHC.Hs</span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-22"></span><span>        </span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.html"><span class="hs-identifier">Language.Haskell.Syntax</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-23"></span><span>        </span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Hs.Binds.html"><span class="hs-identifier">GHC.Hs.Binds</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-24"></span><span>        </span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Hs.Decls.html"><span class="hs-identifier">GHC.Hs.Decls</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-25"></span><span>        </span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Hs.Expr.html"><span class="hs-identifier">GHC.Hs.Expr</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-26"></span><span>        </span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Hs.ImpExp.html"><span class="hs-identifier">GHC.Hs.ImpExp</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-27"></span><span>        </span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Hs.Lit.html"><span class="hs-identifier">GHC.Hs.Lit</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-28"></span><span>        </span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Hs.Pat.html"><span class="hs-identifier">GHC.Hs.Pat</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-29"></span><span>        </span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Hs.Type.html"><span class="hs-identifier">GHC.Hs.Type</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-30"></span><span>        </span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Hs.Utils.html"><span class="hs-identifier">GHC.Hs.Utils</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-31"></span><span>        </span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Hs.Doc.html"><span class="hs-identifier">GHC.Hs.Doc</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-32"></span><span>        </span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Hs.Extension.html"><span class="hs-identifier">GHC.Hs.Extension</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-33"></span><span>        </span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Parser.Annotation.html"><span class="hs-identifier">GHC.Parser.Annotation</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-34"></span><span>        </span><span class="annot"><a href="GHC.Types.Fixity.html#Fixity"><span class="hs-identifier">Fixity</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-35"></span><span>
+</span><span id="line-36"></span><span>        </span><span class="annot"><a href="GHC.Hs.html#HsModule"><span class="hs-identifier">HsModule</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Hs.html#AnnsModule"><span class="hs-identifier">AnnsModule</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-37"></span><span>        </span><span class="annot"><a href="GHC.Hs.html#HsParsedModule"><span class="hs-identifier">HsParsedModule</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-38"></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- friends:</span><span>
+</span><span id="line-41"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Prelude.html"><span class="hs-identifier">GHC.Prelude</span></a></span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Hs.Decls.html"><span class="hs-identifier">GHC.Hs.Decls</span></a></span><span>
+</span><span id="line-44"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Hs.Binds.html"><span class="hs-identifier">GHC.Hs.Binds</span></a></span><span>
+</span><span id="line-45"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Hs.Expr.html"><span class="hs-identifier">GHC.Hs.Expr</span></a></span><span>
+</span><span id="line-46"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Hs.ImpExp.html"><span class="hs-identifier">GHC.Hs.ImpExp</span></a></span><span>
+</span><span id="line-47"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Hs.Lit.html"><span class="hs-identifier">GHC.Hs.Lit</span></a></span><span>
+</span><span id="line-48"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.html"><span class="hs-identifier">Language.Haskell.Syntax</span></a></span><span>
+</span><span id="line-49"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Hs.Extension.html"><span class="hs-identifier">GHC.Hs.Extension</span></a></span><span>
+</span><span id="line-50"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Parser.Annotation.html"><span class="hs-identifier">GHC.Parser.Annotation</span></a></span><span>
+</span><span id="line-51"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Hs.Pat.html"><span class="hs-identifier">GHC.Hs.Pat</span></a></span><span>
+</span><span id="line-52"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Hs.Type.html"><span class="hs-identifier">GHC.Hs.Type</span></a></span><span>
+</span><span id="line-53"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Hs.Utils.html"><span class="hs-identifier">GHC.Hs.Utils</span></a></span><span>
+</span><span id="line-54"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Hs.Doc.html"><span class="hs-identifier">GHC.Hs.Doc</span></a></span><span>
+</span><span id="line-55"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Hs.Instances.html"><span class="hs-identifier">GHC.Hs.Instances</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-comment">-- For Data instances</span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span class="hs-comment">-- others:</span><span>
+</span><span id="line-58"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html"><span class="hs-identifier">GHC.Utils.Outputable</span></a></span><span>
+</span><span id="line-59"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Fixity.html"><span class="hs-identifier">GHC.Types.Fixity</span></a></span><span>         </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Types.Fixity.html#Fixity"><span class="hs-identifier">Fixity</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-60"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.SrcLoc.html"><span class="hs-identifier">GHC.Types.SrcLoc</span></a></span><span>
+</span><span id="line-61"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Unit.Module.html"><span class="hs-identifier">GHC.Unit.Module</span></a></span><span>          </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Name.html#ModuleName"><span class="hs-identifier">ModuleName</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-62"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Warnings.html"><span class="hs-identifier">GHC.Unit.Module.Warnings</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Warnings.html#WarningTxt"><span class="hs-identifier">WarningTxt</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-63"></span><span>
+</span><span id="line-64"></span><span class="hs-comment">-- libraries:</span><span>
+</span><span id="line-65"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Data-Data.html#"><span class="hs-identifier">Data.Data</span></a></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Data-Data.html#Fixity"><span class="hs-identifier">Fixity</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span class="hs-comment">-- | Haskell Module</span><span>
+</span><span id="line-68"></span><span class="hs-comment">--</span><span>
+</span><span id="line-69"></span><span class="hs-comment">-- All we actually declare here is the top-level structure for a module.</span><span>
+</span><span id="line-70"></span><span class="hs-keyword">data</span><span> </span><span id="HsModule"><span class="annot"><a href="GHC.Hs.html#HsModule"><span class="hs-identifier hs-var">HsModule</span></a></span></span><span>
+</span><span id="line-71"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="HsModule"><span class="annot"><a href="GHC.Hs.html#HsModule"><span class="hs-identifier hs-var">HsModule</span></a></span></span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-72"></span><span>      </span><span id="hsmodAnn"><span class="annot"><span class="annottext">HsModule -&gt; EpAnn AnnsModule
+</span><a href="GHC.Hs.html#hsmodAnn"><span class="hs-identifier hs-var hs-var">hsmodAnn</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Parser.Annotation.html#EpAnn"><span class="hs-identifier hs-type">EpAnn</span></a></span><span> </span><span class="annot"><a href="GHC.Hs.html#AnnsModule"><span class="hs-identifier hs-type">AnnsModule</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-73"></span><span>      </span><span id="hsmodLayout"><span class="annot"><span class="annottext">HsModule -&gt; LayoutInfo
+</span><a href="GHC.Hs.html#hsmodLayout"><span class="hs-identifier hs-var hs-var">hsmodLayout</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Types.SrcLoc.html#LayoutInfo"><span class="hs-identifier hs-type">LayoutInfo</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-74"></span><span>        </span><span class="hs-comment">-- ^ Layout info for the module.</span><span>
+</span><span id="line-75"></span><span>        </span><span class="hs-comment">-- For incomplete modules (e.g. the output of parseHeader), it is NoLayoutInfo.</span><span>
+</span><span id="line-76"></span><span>      </span><span id="hsmodName"><span class="annot"><span class="annottext">HsModule -&gt; Maybe (LocatedA ModuleName)
+</span><a href="GHC.Hs.html#hsmodName"><span class="hs-identifier hs-var hs-var">hsmodName</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Maybe"><span class="hs-identifier hs-type">Maybe</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Parser.Annotation.html#LocatedA"><span class="hs-identifier hs-type">LocatedA</span></a></span><span> </span><span class="annot"><a href="GHC.Unit.Module.Name.html#ModuleName"><span class="hs-identifier hs-type">ModuleName</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-77"></span><span>        </span><span class="hs-comment">-- ^ @Nothing@: \&quot;module X where\&quot; is omitted (in which case the next</span><span>
+</span><span id="line-78"></span><span>        </span><span class="hs-comment">--     field is Nothing too)</span><span>
+</span><span id="line-79"></span><span>      </span><span id="hsmodExports"><span class="annot"><span class="annottext">HsModule -&gt; Maybe (LocatedL [LIE GhcPs])
+</span><a href="GHC.Hs.html#hsmodExports"><span class="hs-identifier hs-var hs-var">hsmodExports</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Maybe"><span class="hs-identifier hs-type">Maybe</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Parser.Annotation.html#LocatedL"><span class="hs-identifier hs-type">LocatedL</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Hs.ImpExp.html#LIE"><span class="hs-identifier hs-type">LIE</span></a></span><span> </span><span class="annot"><a href="GHC.Hs.Extension.html#GhcPs"><span class="hs-identifier hs-type">GhcPs</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-80"></span><span>        </span><span class="hs-comment">-- ^ Export list</span><span>
+</span><span id="line-81"></span><span>        </span><span class="hs-comment">--</span><span>
+</span><span id="line-82"></span><span>        </span><span class="hs-comment">--  - @Nothing@: export list omitted, so export everything</span><span>
+</span><span id="line-83"></span><span>        </span><span class="hs-comment">--</span><span>
+</span><span id="line-84"></span><span>        </span><span class="hs-comment">--  - @Just []@: export /nothing/</span><span>
+</span><span id="line-85"></span><span>        </span><span class="hs-comment">--</span><span>
+</span><span id="line-86"></span><span>        </span><span class="hs-comment">--  - @Just [...]@: as you would expect...</span><span>
+</span><span id="line-87"></span><span>        </span><span class="hs-comment">--</span><span>
+</span><span id="line-88"></span><span>        </span><span class="hs-comment">--</span><span>
+</span><span id="line-89"></span><span>        </span><span class="hs-comment">--  - 'GHC.Parser.Annotation.AnnKeywordId's : 'GHC.Parser.Annotation.AnnOpen'</span><span>
+</span><span id="line-90"></span><span>        </span><span class="hs-comment">--                                   ,'GHC.Parser.Annotation.AnnClose'</span><span>
+</span><span id="line-91"></span><span>
+</span><span id="line-92"></span><span>        </span><span class="hs-comment">-- For details on above see note [exact print annotations] in GHC.Parser.Annotation</span><span>
+</span><span id="line-93"></span><span>      </span><span id="hsmodImports"><span class="annot"><span class="annottext">HsModule -&gt; [LImportDecl GhcPs]
+</span><a href="GHC.Hs.html#hsmodImports"><span class="hs-identifier hs-var hs-var">hsmodImports</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Hs.ImpExp.html#LImportDecl"><span class="hs-identifier hs-type">LImportDecl</span></a></span><span> </span><span class="annot"><a href="GHC.Hs.Extension.html#GhcPs"><span class="hs-identifier hs-type">GhcPs</span></a></span><span class="hs-special">]</span><span class="hs-special">,</span><span>
+</span><span id="line-94"></span><span>        </span><span class="hs-comment">-- ^ We snaffle interesting stuff out of the imported interfaces early</span><span>
+</span><span id="line-95"></span><span>        </span><span class="hs-comment">-- on, adding that info to TyDecls/etc; so this list is often empty,</span><span>
+</span><span id="line-96"></span><span>        </span><span class="hs-comment">-- downstream.</span><span>
+</span><span id="line-97"></span><span>      </span><span id="hsmodDecls"><span class="annot"><span class="annottext">HsModule -&gt; [LHsDecl GhcPs]
+</span><a href="GHC.Hs.html#hsmodDecls"><span class="hs-identifier hs-var hs-var">hsmodDecls</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Language.Haskell.Syntax.Decls.html#LHsDecl"><span class="hs-identifier hs-type">LHsDecl</span></a></span><span> </span><span class="annot"><a href="GHC.Hs.Extension.html#GhcPs"><span class="hs-identifier hs-type">GhcPs</span></a></span><span class="hs-special">]</span><span class="hs-special">,</span><span>
+</span><span id="line-98"></span><span>        </span><span class="hs-comment">-- ^ Type, class, value, and interface signature decls</span><span>
+</span><span id="line-99"></span><span>      </span><span id="hsmodDeprecMessage"><span class="annot"><span class="annottext">HsModule -&gt; Maybe (LocatedP WarningTxt)
+</span><a href="GHC.Hs.html#hsmodDeprecMessage"><span class="hs-identifier hs-var hs-var">hsmodDeprecMessage</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Maybe"><span class="hs-identifier hs-type">Maybe</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Parser.Annotation.html#LocatedP"><span class="hs-identifier hs-type">LocatedP</span></a></span><span> </span><span class="annot"><a href="GHC.Unit.Module.Warnings.html#WarningTxt"><span class="hs-identifier hs-type">WarningTxt</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-100"></span><span>        </span><span class="hs-comment">-- ^ reason\/explanation for warning/deprecation of this module</span><span>
+</span><span id="line-101"></span><span>        </span><span class="hs-comment">--</span><span>
+</span><span id="line-102"></span><span>        </span><span class="hs-comment">--  - 'GHC.Parser.Annotation.AnnKeywordId's : 'GHC.Parser.Annotation.AnnOpen'</span><span>
+</span><span id="line-103"></span><span>        </span><span class="hs-comment">--                                   ,'GHC.Parser.Annotation.AnnClose'</span><span>
+</span><span id="line-104"></span><span>        </span><span class="hs-comment">--</span><span>
+</span><span id="line-105"></span><span>
+</span><span id="line-106"></span><span>        </span><span class="hs-comment">-- For details on above see note [exact print annotations] in GHC.Parser.Annotation</span><span>
+</span><span id="line-107"></span><span>      </span><span id="hsmodHaddockModHeader"><span class="annot"><span class="annottext">HsModule -&gt; Maybe LHsDocString
+</span><a href="GHC.Hs.html#hsmodHaddockModHeader"><span class="hs-identifier hs-var hs-var">hsmodHaddockModHeader</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Maybe"><span class="hs-identifier hs-type">Maybe</span></a></span><span> </span><span class="annot"><a href="GHC.Hs.Doc.html#LHsDocString"><span class="hs-identifier hs-type">LHsDocString</span></a></span><span>
+</span><span id="line-108"></span><span>        </span><span class="hs-comment">-- ^ Haddock module info and description, unparsed</span><span>
+</span><span id="line-109"></span><span>        </span><span class="hs-comment">--</span><span>
+</span><span id="line-110"></span><span>        </span><span class="hs-comment">--  - 'GHC.Parser.Annotation.AnnKeywordId's : 'GHC.Parser.Annotation.AnnOpen'</span><span>
+</span><span id="line-111"></span><span>        </span><span class="hs-comment">--                                   ,'GHC.Parser.Annotation.AnnClose'</span><span>
+</span><span id="line-112"></span><span>
+</span><span id="line-113"></span><span>        </span><span class="hs-comment">-- For details on above see note [exact print annotations] in GHC.Parser.Annotation</span><span>
+</span><span id="line-114"></span><span>   </span><span class="hs-special">}</span><span>
+</span><span id="line-115"></span><span>     </span><span class="hs-comment">-- ^ 'GHC.Parser.Annotation.AnnKeywordId's</span><span>
+</span><span id="line-116"></span><span>     </span><span class="hs-comment">--</span><span>
+</span><span id="line-117"></span><span>     </span><span class="hs-comment">--  - 'GHC.Parser.Annotation.AnnModule','GHC.Parser.Annotation.AnnWhere'</span><span>
+</span><span id="line-118"></span><span>     </span><span class="hs-comment">--</span><span>
+</span><span id="line-119"></span><span>     </span><span class="hs-comment">--  - 'GHC.Parser.Annotation.AnnOpen','GHC.Parser.Annotation.AnnSemi',</span><span>
+</span><span id="line-120"></span><span>     </span><span class="hs-comment">--    'GHC.Parser.Annotation.AnnClose' for explicit braces and semi around</span><span>
+</span><span id="line-121"></span><span>     </span><span class="hs-comment">--    hsmodImports,hsmodDecls if this style is used.</span><span>
+</span><span id="line-122"></span><span>
+</span><span id="line-123"></span><span>     </span><span class="hs-comment">-- For details on above see note [exact print annotations] in GHC.Parser.Annotation</span><span>
+</span><span id="line-124"></span><span>
+</span><span id="line-125"></span><span id="local-6989586621681084196"><span id="local-6989586621681084198"><span id="local-6989586621681084200"><span id="local-6989586621681084202"><span id="local-6989586621681084204"><span id="local-6989586621681084206"><span id="local-6989586621681084208"><span id="local-6989586621681084210"><span id="local-6989586621681084212"><span id="local-6989586621681084214"><span id="local-6989586621681084216"><span id="local-6989586621681084218"><span id="local-6989586621681084235"><span id="local-6989586621681084256"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/Data-Data.html#Data"><span class="hs-identifier hs-type">Data</span></a></span><span> </span><span class="annot"><a href="GHC.Hs.html#HsModule"><span class="hs-identifier hs-type">HsModule</span></a></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span>
+</span><span id="line-126"></span><span>
+</span><span id="line-127"></span><span class="hs-keyword">data</span><span> </span><span id="AnnsModule"><span class="annot"><a href="GHC.Hs.html#AnnsModule"><span class="hs-identifier hs-var">AnnsModule</span></a></span></span><span>
+</span><span id="line-128"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="AnnsModule"><span class="annot"><a href="GHC.Hs.html#AnnsModule"><span class="hs-identifier hs-var">AnnsModule</span></a></span></span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-129"></span><span>    </span><span id="am_main"><span class="annot"><span class="annottext">AnnsModule -&gt; [AddEpAnn]
+</span><a href="GHC.Hs.html#am_main"><span class="hs-identifier hs-var hs-var">am_main</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Parser.Annotation.html#AddEpAnn"><span class="hs-identifier hs-type">AddEpAnn</span></a></span><span class="hs-special">]</span><span class="hs-special">,</span><span>
+</span><span id="line-130"></span><span>    </span><span id="am_decls"><span class="annot"><span class="annottext">AnnsModule -&gt; AnnList
+</span><a href="GHC.Hs.html#am_decls"><span class="hs-identifier hs-var hs-var">am_decls</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Parser.Annotation.html#AnnList"><span class="hs-identifier hs-type">AnnList</span></a></span><span>
+</span><span id="line-131"></span><span>    </span><span class="hs-special">}</span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681084108"><span id="local-6989586621681084110"><span id="local-6989586621681084112"><span id="local-6989586621681084114"><span id="local-6989586621681084116"><span id="local-6989586621681084118"><span id="local-6989586621681084120"><span id="local-6989586621681084122"><span id="local-6989586621681084124"><span id="local-6989586621681084126"><span id="local-6989586621681084128"><span id="local-6989586621681084130"><span id="local-6989586621681084135"><span id="local-6989586621681084140"><span class="annot"><span class="annottext">Typeable AnnsModule
+AnnsModule -&gt; DataType
+AnnsModule -&gt; Constr
+(forall b. Data b =&gt; b -&gt; b) -&gt; AnnsModule -&gt; AnnsModule
+forall a.
+Typeable a
+-&gt; (forall (c :: * -&gt; *).
+    (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+    -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; AnnsModule -&gt; u
+forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; AnnsModule -&gt; [u]
+forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; AnnsModule -&gt; r
+forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; AnnsModule -&gt; r
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; AnnsModule -&gt; m AnnsModule
+forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; AnnsModule -&gt; m AnnsModule
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c AnnsModule
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; AnnsModule -&gt; c AnnsModule
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c AnnsModule)
+forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c AnnsModule)
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; AnnsModule -&gt; m AnnsModule
+$cgmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; AnnsModule -&gt; m AnnsModule
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; AnnsModule -&gt; m AnnsModule
+$cgmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; AnnsModule -&gt; m AnnsModule
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; AnnsModule -&gt; m AnnsModule
+$cgmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; AnnsModule -&gt; m AnnsModule
+gmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; AnnsModule -&gt; u
+$cgmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; AnnsModule -&gt; u
+gmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; AnnsModule -&gt; [u]
+$cgmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; AnnsModule -&gt; [u]
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; AnnsModule -&gt; r
+$cgmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; AnnsModule -&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; AnnsModule -&gt; r
+$cgmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; AnnsModule -&gt; r
+gmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; AnnsModule -&gt; AnnsModule
+$cgmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; AnnsModule -&gt; AnnsModule
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c AnnsModule)
+$cdataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c AnnsModule)
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c AnnsModule)
+$cdataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c AnnsModule)
+dataTypeOf :: AnnsModule -&gt; DataType
+$cdataTypeOf :: AnnsModule -&gt; DataType
+toConstr :: AnnsModule -&gt; Constr
+$ctoConstr :: AnnsModule -&gt; Constr
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c AnnsModule
+$cgunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c AnnsModule
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; AnnsModule -&gt; c AnnsModule
+$cgfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; AnnsModule -&gt; c AnnsModule
+</span><a href="../../base-4.16.4.0/src/Data-Data.html#Data"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data</span></a></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681084098"><span id="local-6989586621681084105"><span class="annot"><span class="annottext">AnnsModule -&gt; AnnsModule -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: AnnsModule -&gt; AnnsModule -&gt; Bool
+$c/= :: AnnsModule -&gt; AnnsModule -&gt; Bool
+== :: AnnsModule -&gt; AnnsModule -&gt; Bool
+$c== :: AnnsModule -&gt; AnnsModule -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-132"></span><span>
+</span><span id="line-133"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#Outputable"><span class="hs-identifier hs-type">Outputable</span></a></span><span> </span><span class="annot"><a href="GHC.Hs.html#HsModule"><span class="hs-identifier hs-type">HsModule</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-134"></span><span>
+</span><span id="line-135"></span><span>    </span><span id="local-6989586621681084043"><span class="annot"><span class="annottext">ppr :: HsModule -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var hs-var hs-var hs-var">ppr</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Hs.html#HsModule"><span class="hs-identifier hs-type">HsModule</span></a></span><span> </span><span class="annot"><span class="annottext">EpAnn AnnsModule
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">LayoutInfo
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Maybe (LocatedA ModuleName)
+</span><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Nothing"><span class="hs-identifier hs-var">Nothing</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe (LocatedL [LIE GhcPs])
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681084041"><span class="annot"><span class="annottext">[LImportDecl GhcPs]
+</span><a href="#local-6989586621681084041"><span class="hs-identifier hs-var">imports</span></a></span></span><span> </span><span id="local-6989586621681084040"><span class="annot"><span class="annottext">[LHsDecl GhcPs]
+</span><a href="#local-6989586621681084040"><span class="hs-identifier hs-var">decls</span></a></span></span><span> </span><span class="annot"><span class="annottext">Maybe (LocatedP WarningTxt)
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681084039"><span class="annot"><span class="annottext">Maybe LHsDocString
+</span><a href="#local-6989586621681084039"><span class="hs-identifier hs-var">mbDoc</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-136"></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall t. Outputable t =&gt; Maybe t -&gt; SDoc
+</span><a href="GHC.Hs.html#pp_mb"><span class="hs-identifier hs-var">pp_mb</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe LHsDocString
+</span><a href="#local-6989586621681084039"><span class="hs-identifier hs-var">mbDoc</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#%24%24"><span class="hs-operator hs-var">$$</span></a></span><span> </span><span class="annot"><span class="annottext">forall t. Outputable t =&gt; [t] -&gt; SDoc
+</span><a href="GHC.Hs.html#pp_nonnull"><span class="hs-identifier hs-var">pp_nonnull</span></a></span><span> </span><span class="annot"><span class="annottext">[LImportDecl GhcPs]
+</span><a href="#local-6989586621681084041"><span class="hs-identifier hs-var">imports</span></a></span><span>
+</span><span id="line-137"></span><span>                    </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#%24%24"><span class="hs-operator hs-var">$$</span></a></span><span> </span><span class="annot"><span class="annottext">forall t. Outputable t =&gt; [t] -&gt; SDoc
+</span><a href="GHC.Hs.html#pp_nonnull"><span class="hs-identifier hs-var">pp_nonnull</span></a></span><span> </span><span class="annot"><span class="annottext">[LHsDecl GhcPs]
+</span><a href="#local-6989586621681084040"><span class="hs-identifier hs-var">decls</span></a></span><span>
+</span><span id="line-138"></span><span>
+</span><span id="line-139"></span><span>    </span><span class="annot"><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Hs.html#HsModule"><span class="hs-identifier hs-type">HsModule</span></a></span><span> </span><span class="annot"><span class="annottext">EpAnn AnnsModule
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">LayoutInfo
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Just"><span class="hs-identifier hs-type">Just</span></a></span><span> </span><span id="local-6989586621681084035"><span class="annot"><span class="annottext">LocatedA ModuleName
+</span><a href="#local-6989586621681084035"><span class="hs-identifier hs-var">name</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621681084034"><span class="annot"><span class="annottext">Maybe (LocatedL [LIE GhcPs])
+</span><a href="#local-6989586621681084034"><span class="hs-identifier hs-var">exports</span></a></span></span><span> </span><span id="local-6989586621681084033"><span class="annot"><span class="annottext">[LImportDecl GhcPs]
+</span><a href="#local-6989586621681084033"><span class="hs-identifier hs-var">imports</span></a></span></span><span> </span><span id="local-6989586621681084032"><span class="annot"><span class="annottext">[LHsDecl GhcPs]
+</span><a href="#local-6989586621681084032"><span class="hs-identifier hs-var">decls</span></a></span></span><span> </span><span id="local-6989586621681084031"><span class="annot"><span class="annottext">Maybe (LocatedP WarningTxt)
+</span><a href="#local-6989586621681084031"><span class="hs-identifier hs-var">deprec</span></a></span></span><span> </span><span id="local-6989586621681084030"><span class="annot"><span class="annottext">Maybe LHsDocString
+</span><a href="#local-6989586621681084030"><span class="hs-identifier hs-var">mbDoc</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-140"></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[SDoc] -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#vcat"><span class="hs-identifier hs-var">vcat</span></a></span><span> </span><span class="hs-special">[</span><span>
+</span><span id="line-141"></span><span>            </span><span class="annot"><span class="annottext">forall t. Outputable t =&gt; Maybe t -&gt; SDoc
+</span><a href="GHC.Hs.html#pp_mb"><span class="hs-identifier hs-var">pp_mb</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe LHsDocString
+</span><a href="#local-6989586621681084030"><span class="hs-identifier hs-var">mbDoc</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-142"></span><span>            </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Maybe (LocatedL [LIE GhcPs])
+</span><a href="#local-6989586621681084034"><span class="hs-identifier hs-var">exports</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-143"></span><span>              </span><span class="annot"><span class="annottext">Maybe (LocatedL [LIE GhcPs])
+</span><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Nothing"><span class="hs-identifier hs-var">Nothing</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc
+</span><a href="#local-6989586621681084028"><span class="hs-identifier hs-var">pp_header</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;where&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-144"></span><span>              </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Just"><span class="hs-identifier hs-type">Just</span></a></span><span> </span><span id="local-6989586621681084026"><span class="annot"><span class="annottext">LocatedL [LIE GhcPs]
+</span><a href="#local-6989586621681084026"><span class="hs-identifier hs-var">es</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[SDoc] -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#vcat"><span class="hs-identifier hs-var">vcat</span></a></span><span> </span><span class="hs-special">[</span><span>
+</span><span id="line-145"></span><span>                           </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc
+</span><a href="#local-6989586621681084028"><span class="hs-identifier hs-var">pp_header</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc
+</span><a href="GHC.Utils.Outputable.html#lparen"><span class="hs-identifier hs-var">lparen</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-146"></span><span>                           </span><span class="annot"><span class="annottext">Int -&gt; SDoc -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#nest"><span class="hs-identifier hs-var">nest</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[SDoc] -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#fsep"><span class="hs-identifier hs-var">fsep</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SDoc -&gt; [SDoc] -&gt; [SDoc]
+</span><a href="GHC.Utils.Outputable.html#punctuate"><span class="hs-identifier hs-var">punctuate</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc
+</span><a href="GHC.Utils.Outputable.html#comma"><span class="hs-identifier hs-var">comma</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#map"><span class="hs-identifier hs-var">map</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall l e. GenLocated l e -&gt; e
+</span><a href="GHC.Types.SrcLoc.html#unLoc"><span class="hs-identifier hs-var">unLoc</span></a></span><span> </span><span class="annot"><span class="annottext">LocatedL [LIE GhcPs]
+</span><a href="#local-6989586621681084026"><span class="hs-identifier hs-var">es</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-147"></span><span>                           </span><span class="annot"><span class="annottext">Int -&gt; SDoc -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#nest"><span class="hs-identifier hs-var">nest</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;) where&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-148"></span><span>                          </span><span class="hs-special">]</span><span class="hs-special">,</span><span>
+</span><span id="line-149"></span><span>            </span><span class="annot"><span class="annottext">forall t. Outputable t =&gt; [t] -&gt; SDoc
+</span><a href="GHC.Hs.html#pp_nonnull"><span class="hs-identifier hs-var">pp_nonnull</span></a></span><span> </span><span class="annot"><span class="annottext">[LImportDecl GhcPs]
+</span><a href="#local-6989586621681084033"><span class="hs-identifier hs-var">imports</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-150"></span><span>            </span><span class="annot"><span class="annottext">forall t. Outputable t =&gt; [t] -&gt; SDoc
+</span><a href="GHC.Hs.html#pp_nonnull"><span class="hs-identifier hs-var">pp_nonnull</span></a></span><span> </span><span class="annot"><span class="annottext">[LHsDecl GhcPs]
+</span><a href="#local-6989586621681084032"><span class="hs-identifier hs-var">decls</span></a></span><span>
+</span><span id="line-151"></span><span>          </span><span class="hs-special">]</span><span>
+</span><span id="line-152"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-153"></span><span>        </span><span id="local-6989586621681084028"><span class="annot"><span class="annottext">pp_header :: SDoc -&gt; SDoc
+</span><a href="#local-6989586621681084028"><span class="hs-identifier hs-var hs-var">pp_header</span></a></span></span><span> </span><span id="local-6989586621681084019"><span class="annot"><span class="annottext">SDoc
+</span><a href="#local-6989586621681084019"><span class="hs-identifier hs-var">rest</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Maybe (LocatedP WarningTxt)
+</span><a href="#local-6989586621681084031"><span class="hs-identifier hs-var">deprec</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-154"></span><span>           </span><span class="annot"><span class="annottext">Maybe (LocatedP WarningTxt)
+</span><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Nothing"><span class="hs-identifier hs-var">Nothing</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">SDoc
+</span><a href="#local-6989586621681084018"><span class="hs-identifier hs-var">pp_modname</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc
+</span><a href="#local-6989586621681084019"><span class="hs-identifier hs-var">rest</span></a></span><span>
+</span><span id="line-155"></span><span>           </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Just"><span class="hs-identifier hs-type">Just</span></a></span><span> </span><span id="local-6989586621681084016"><span class="annot"><span class="annottext">LocatedP WarningTxt
+</span><a href="#local-6989586621681084016"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[SDoc] -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#vcat"><span class="hs-identifier hs-var">vcat</span></a></span><span> </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">SDoc
+</span><a href="#local-6989586621681084018"><span class="hs-identifier hs-var">pp_modname</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">LocatedP WarningTxt
+</span><a href="#local-6989586621681084016"><span class="hs-identifier hs-var">d</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">SDoc
+</span><a href="#local-6989586621681084019"><span class="hs-identifier hs-var">rest</span></a></span><span> </span><span class="hs-special">]</span><span>
+</span><span id="line-156"></span><span>
+</span><span id="line-157"></span><span>        </span><span id="local-6989586621681084018"><span class="annot"><span class="annottext">pp_modname :: SDoc
+</span><a href="#local-6989586621681084018"><span class="hs-identifier hs-var hs-var">pp_modname</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;module&quot;</span></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">LocatedA ModuleName
+</span><a href="#local-6989586621681084035"><span class="hs-identifier hs-var">name</span></a></span><span>
+</span><span id="line-158"></span><span>
+</span><span id="line-159"></span><span id="local-6989586621681084371"><span class="annot"><a href="GHC.Hs.html#pp_mb"><span class="hs-identifier hs-type">pp_mb</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#Outputable"><span class="hs-identifier hs-type">Outputable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681084371"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Maybe"><span class="hs-identifier hs-type">Maybe</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681084371"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#SDoc"><span class="hs-identifier hs-type">SDoc</span></a></span></span><span>
+</span><span id="line-160"></span><span id="pp_mb"><span class="annot"><span class="annottext">pp_mb :: forall t. Outputable t =&gt; Maybe t -&gt; SDoc
+</span><a href="GHC.Hs.html#pp_mb"><span class="hs-identifier hs-var hs-var">pp_mb</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Just"><span class="hs-identifier hs-type">Just</span></a></span><span> </span><span id="local-6989586621681084013"><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621681084013"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621681084013"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-161"></span><span class="annot"><a href="GHC.Hs.html#pp_mb"><span class="hs-identifier hs-var">pp_mb</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe t
+</span><a href="../../base-4.16.4.0/src/GHC-Maybe.html#Nothing"><span class="hs-identifier hs-var">Nothing</span></a></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SDoc
+</span><a href="GHC.Utils.Outputable.html#empty"><span class="hs-identifier hs-var">empty</span></a></span><span>
+</span><span id="line-162"></span><span>
+</span><span id="line-163"></span><span id="local-6989586621681084370"><span class="annot"><a href="GHC.Hs.html#pp_nonnull"><span class="hs-identifier hs-type">pp_nonnull</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#Outputable"><span class="hs-identifier hs-type">Outputable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681084370"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621681084370"><span class="hs-identifier hs-type">t</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#SDoc"><span class="hs-identifier hs-type">SDoc</span></a></span></span><span>
+</span><span id="line-164"></span><span id="pp_nonnull"><span class="annot"><span class="annottext">pp_nonnull :: forall t. Outputable t =&gt; [t] -&gt; SDoc
+</span><a href="GHC.Hs.html#pp_nonnull"><span class="hs-identifier hs-var hs-var">pp_nonnull</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SDoc
+</span><a href="GHC.Utils.Outputable.html#empty"><span class="hs-identifier hs-var">empty</span></a></span><span>
+</span><span id="line-165"></span><span class="annot"><a href="GHC.Hs.html#pp_nonnull"><span class="hs-identifier hs-var">pp_nonnull</span></a></span><span> </span><span id="local-6989586621681084009"><span class="annot"><span class="annottext">[t]
+</span><a href="#local-6989586621681084009"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[SDoc] -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#vcat"><span class="hs-identifier hs-var">vcat</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><a href="../../base-4.16.4.0/src/GHC-Base.html#map"><span class="hs-identifier hs-var">map</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">[t]
+</span><a href="#local-6989586621681084009"><span class="hs-identifier hs-var">xs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-166"></span><span>
+</span><span id="line-167"></span><span class="hs-keyword">data</span><span> </span><span id="HsParsedModule"><span class="annot"><a href="GHC.Hs.html#HsParsedModule"><span class="hs-identifier hs-var">HsParsedModule</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="HsParsedModule"><span class="annot"><a href="GHC.Hs.html#HsParsedModule"><span class="hs-identifier hs-var">HsParsedModule</span></a></span></span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-168"></span><span>    </span><span id="hpm_module"><span class="annot"><span class="annottext">HsParsedModule -&gt; Located HsModule
+</span><a href="GHC.Hs.html#hpm_module"><span class="hs-identifier hs-var hs-var">hpm_module</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Types.SrcLoc.html#Located"><span class="hs-identifier hs-type">Located</span></a></span><span> </span><span class="annot"><a href="GHC.Hs.html#HsModule"><span class="hs-identifier hs-type">HsModule</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-169"></span><span>    </span><span id="hpm_src_files"><span class="annot"><span class="annottext">HsParsedModule -&gt; [String]
+</span><a href="GHC.Hs.html#hpm_src_files"><span class="hs-identifier hs-var hs-var">hpm_src_files</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="../../base-4.16.4.0/src/GHC-IO.html#FilePath"><span class="hs-identifier hs-type">FilePath</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-170"></span><span>       </span><span class="hs-comment">-- ^ extra source files (e.g. from #includes).  The lexer collects</span><span>
+</span><span id="line-171"></span><span>       </span><span class="hs-comment">-- these from '# &lt;file&gt; &lt;line&gt;' pragmas, which the C preprocessor</span><span>
+</span><span id="line-172"></span><span>       </span><span class="hs-comment">-- leaves behind.  These files and their timestamps are stored in</span><span>
+</span><span id="line-173"></span><span>       </span><span class="hs-comment">-- the .hi file, so that we can force recompilation if any of</span><span>
+</span><span id="line-174"></span><span>       </span><span class="hs-comment">-- them change (#3589)</span><span>
+</span><span id="line-175"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-176"></span></pre></body></html>
