@@ -545,11 +545,6 @@
     [(unison-termlink-con tyl i)
      (ref-referent-con (typelink->reference tyl) i)]))
 
-(define (list->unison-tuple l)
-  (foldr ref-tuple-pair ref-unit-unit l))
-
-(define (unison-tuple . l) (list->unison-tuple l))
-
 (define (unison-seq . l)
   (vector->chunked-list (list->vector l)))
 

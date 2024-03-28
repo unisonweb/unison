@@ -113,8 +113,6 @@
 (define (ClientConfig.certificates.set certs config) ; list tlsSignedCert tlsClientConfig -> tlsClientConfig
   (client-config (client-config-host config) certs))
 
-; TODO: have someone familiar with TLS verify these exception
-; classifications
 (define (handle-errors fn)
   (with-handlers
       [[exn:fail:network?
