@@ -17,6 +17,7 @@ tests = Tests.main do
   !array.tests
   !codelookup.tests
   !sandbox.tests
+  !linkstuff.tests
 
 murmur.hash.tests = do
   targets =
