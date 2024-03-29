@@ -13,10 +13,10 @@ usage() {
     prev_version="${prev_tag#release/}"
     prefix="${prev_version%.*}"
     next_version="${prefix}.$(( ${prev_version##*.} + 1 ))"
-    echo "usage: $0 <version> [target]"
+    echo "usage: $0 <version> [ref]"
     echo ""
     echo "version: The new version number"
-    echo "target: The Git revision to make the release from, defaults to 'origin/trunk'"
+    echo "ref: The Git revision to make the release from, defaults to 'origin/trunk'"
     echo ""
     echo "Try: $0 $next_version"
 }
@@ -53,8 +53,8 @@ git fetch origin trunk
 git tag "${tag}" "${target}"
 git push origin "${tag}"
 gh workflow run release --repo unisonweb/unison \
-  --ref "${target}" \
-  --field "version=${version}
+  --ref "${tag}" \
+  --field "version=${version}"
 
 echo "Kicking off Homebrew update task"
 gh workflow run release --repo unisonweb/homebrew-unison --field "version=${version}"
