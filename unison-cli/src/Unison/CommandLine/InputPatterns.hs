@@ -2507,7 +2507,7 @@ runScheme =
   InputPattern
     "run.native"
     []
-    I.Visible
+    I.Hidden
     [("definition to run", Required, exactDefinitionTermQueryArg), ("arguments", ZeroPlus, noCompletionsArg)]
     ( P.wrapColumn2
         [ ( makeExample runScheme ["main", "args"],
@@ -2524,7 +2524,7 @@ compileScheme =
   InputPattern
     "compile.native"
     []
-    I.Visible
+    I.Hidden
     [("definition to compile", Required, exactDefinitionTermQueryArg), ("output file", Required, filePathArg)]
     ( P.wrapColumn2
         [ ( makeExample compileScheme ["main", "file"],
