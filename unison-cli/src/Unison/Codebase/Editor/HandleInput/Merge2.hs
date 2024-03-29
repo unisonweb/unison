@@ -5,7 +5,7 @@ module Unison.Codebase.Editor.HandleInput.Merge2
   )
 where
 
-import Control.Lens (Lens', over, view)
+import Control.Lens (over, view)
 import Control.Monad.Reader (ask)
 import Data.Bifoldable (bifoldMap)
 import Data.Bitraversable (bitraverse)
@@ -50,7 +50,7 @@ import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.SqliteCodebase.Branch.Cache (newBranchCache)
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Conversions
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
-import Unison.Merge.CombineDiffs (AliceIorBob (..), Unconflicts (..), combineDiffs)
+import Unison.Merge.CombineDiffs (combineDiffs)
 import Unison.Merge.Database (MergeDatabase (..), makeMergeDatabase, referent2to1)
 import Unison.Merge.Diff qualified as Merge
 import Unison.Merge.DiffOp (DiffOp)
@@ -64,6 +64,7 @@ import Unison.Merge.TwoOrThreeWay (TwoOrThreeWay (..))
 import Unison.Merge.TwoWay (TwoWay (..))
 import Unison.Merge.TwoWay qualified as TwoWay
 import Unison.Merge.TwoWayI (TwoWayI (..))
+import Unison.Merge.Unconflicts (Unconflicts (..))
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment (..))
@@ -86,7 +87,7 @@ import Unison.UnisonFile (UnisonFile')
 import Unison.UnisonFile qualified as UnisonFile
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
-import Unison.Util.Defns (Defns (..), DefnsF, alignDefnsWith, defnsAreEmpty, unzipDefnsWith, zipDefnsWith)
+import Unison.Util.Defns (Defns (..), DefnsF, alignDefnsWith, defnsAreEmpty, zipDefnsWith)
 import Unison.Util.Map qualified as Map
 import Unison.Util.Nametree (Nametree (..), flattenNametree, traverseNametreeWithName, unflattenNametree)
 import Unison.Util.Pretty (ColorText, Pretty)
@@ -98,6 +99,7 @@ import Unison.Util.Star2 (Star2)
 import Unison.Util.Star2 qualified as Star2
 import Witch (unsafeFrom)
 import Prelude hiding (unzip, zip, zipWith)
+import qualified Unison.Merge.Unconflicts as Unconflicts
 
 -- Little todo list
 --
@@ -694,7 +696,7 @@ identifyDependendenciesDueToUnconflicts ::
   DefnsF Unconflicts Referent TypeReference ->
   TwoWay (Set Reference)
 identifyDependendenciesDueToUnconflicts defns unconflicts =
-  let deletesAndUpdates = getSoloDeletesAndUpdates unconflicts
+  let deletesAndUpdates = bitraverse Unconflicts.deletedAndUpdatedNames Unconflicts.deletedAndUpdatedNames unconflicts
    in defnsReferences <$> (restrictDefnsToNames <$> TwoWay.swap deletesAndUpdates <*> defns)
 
 -- The other source of dependencies: Alice's own conflicted things, and ditto for Bob.
@@ -808,39 +810,9 @@ defnsReferences :: Defns (BiMultimap Referent Name) (BiMultimap TypeReference Na
 defnsReferences =
   bifoldMap (Set.map Referent.toReference . BiMultimap.dom) BiMultimap.dom
 
-getSoloDeletesAndUpdates ::
-  DefnsF Unconflicts Referent TypeReference ->
-  TwoWay (DefnsF Set Name Name)
-getSoloDeletesAndUpdates unconflicts =
-  let (alice, bob) =
-        unzipDefnsWith
-          ( \terms ->
-              ( namesOfUnconflictedDeletesAndUpdates OnlyAlice terms,
-                namesOfUnconflictedDeletesAndUpdates OnlyBob terms
-              )
-          )
-          ( \types ->
-              ( namesOfUnconflictedDeletesAndUpdates OnlyAlice types,
-                namesOfUnconflictedDeletesAndUpdates OnlyBob types
-              )
-          )
-          unconflicts
-   in TwoWay {alice, bob}
-
--- Names of the given person's deletes and updates.
-namesOfUnconflictedDeletesAndUpdates :: AliceIorBob -> Unconflicts v -> Set Name
-namesOfUnconflictedDeletesAndUpdates who unconflicts =
-  Map.keysSet (view (whoL who) unconflicts.deletes) <> Map.keysSet (view (whoL who) unconflicts.updates)
-
 defnsRangeOnly :: Defns (BiMultimap term name) (BiMultimap typ name) -> DefnsF (Map name) term typ
 defnsRangeOnly =
   bimap BiMultimap.range BiMultimap.range
-
-whoL :: AliceIorBob -> Lens' (TwoWayI a) a
-whoL = \case
-  OnlyAlice -> #alice
-  OnlyBob -> #bob
-  AliceAndBob -> #both
 
 defnsRangeToNames :: DefnsF (Map Name) Referent TypeReference -> Names
 defnsRangeToNames Defns {terms, types} =

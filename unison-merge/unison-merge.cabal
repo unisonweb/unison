@@ -18,6 +18,7 @@ source-repository head
 library
   exposed-modules:
       Unison.Merge
+      Unison.Merge.AliceIorBob
       Unison.Merge.CombineDiffs
       Unison.Merge.Database
       Unison.Merge.Diff
@@ -30,6 +31,7 @@ library
       Unison.Merge.TwoOrThreeWay
       Unison.Merge.TwoWay
       Unison.Merge.TwoWayI
+      Unison.Merge.Unconflicts
   hs-source-dirs:
       src
   default-extensions:

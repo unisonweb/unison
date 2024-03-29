@@ -2,31 +2,25 @@
 
 -- | Combine two diffs together.
 module Unison.Merge.CombineDiffs
-  ( AliceIorBob (..),
-    Unconflicts (..),
-    combineDiffs,
+  ( combineDiffs,
   )
 where
 
-import Control.Lens (Lens', view, (%~))
+import Control.Lens (view, (%~))
 import Data.Map.Strict qualified as Map
 import Data.Semialign (alignWith)
 import Data.These (These (..))
+import Unison.Merge.AliceIorBob (AliceIorBob (..), whoL)
 import Unison.Merge.DiffOp (DiffOp (..))
 import Unison.Merge.Synhashed (Synhashed (..))
 import Unison.Merge.TwoWay (TwoWay (..))
 import Unison.Merge.TwoWayI (TwoWayI (..))
+import Unison.Merge.Unconflicts (Unconflicts (..))
 import Unison.Name (Name)
 import Unison.Prelude hiding (catMaybes)
 import Unison.Reference (TypeReference)
 import Unison.Referent (Referent)
 import Unison.Util.Defns (Defns (..), DefnsF)
-
--- | Alice inclusive-or Bob?
-data AliceIorBob
-  = OnlyAlice
-  | OnlyBob
-  | AliceAndBob
 
 -- Alice exclusive-or Bob?
 data AliceXorBob
@@ -46,13 +40,6 @@ data Flicts v = Flicts
     unconflicts :: !(Unconflicts v)
   }
   deriving stock (Generic)
-
-data Unconflicts v = Unconflicts
-  { adds :: !(TwoWayI (Map Name v)),
-    deletes :: !(TwoWayI (Map Name v)),
-    updates :: !(TwoWayI (Map Name v))
-  }
-  deriving stock (Foldable, Functor, Generic)
 
 -- | Combine LCA->Alice diff and LCA->Bob diff, then partition into conflicted and unconflicted things.
 combineDiffs ::
@@ -86,12 +73,6 @@ partition =
       Deleted2 who v -> #unconflicts . #deletes . whoL who %~ Map.insert k v
       Updated2 who v -> #unconflicts . #updates . whoL who %~ Map.insert k v
       Conflict v -> #conflicts %~ Map.insert k v
-
-whoL :: AliceIorBob -> Lens' (TwoWayI a) a
-whoL = \case
-  OnlyAlice -> #alice
-  OnlyBob -> #bob
-  AliceAndBob -> #both
 
 combine :: AliceXorBob -> AliceXorBob -> These (DiffOp (Synhashed v)) (DiffOp (Synhashed v)) -> DiffOp2 v
 combine this that = \case
