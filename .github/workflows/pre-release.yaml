@@ -16,12 +16,6 @@ on:
   # run manually
   workflow_dispatch:
 
-  # run for any PR that touches this file
-  pull_request:
-    paths:
-      - .github/workflows/pre-release.yaml
-      - .github/workflows/bundle-ucm.yaml
-
 jobs:
   bundle-ucm:
     name: build and bundle ucm
