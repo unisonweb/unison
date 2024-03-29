@@ -1681,16 +1681,6 @@ boxBoxTo0 instr =
   where
     (arg1, arg2) = fresh
 
--- -- a -> b -> c ->{E} ()
--- boxBoxBoxTo0 :: ForeignOp
--- boxBoxBoxTo0 instr =
---   ([BX, BX, BX],)
---     . TAbss [arg1, arg2, arg3]
---     . TLets Direct [] [] (TFOp instr [arg1, arg2, arg3])
---     $ TCon Ty.unitRef 0 []
---   where
---     (arg1, arg2, arg3) = fresh
-
 -- a -> b ->{E} Nat
 boxBoxToNat :: ForeignOp
 boxBoxToNat instr =
@@ -2391,11 +2381,7 @@ declareUdpForeigns = do
   declareForeign Tracked "IO.UDP.serverSocket.impl.v1" boxBoxToEFBox
     . mkForeignIOF
     $ \(ip :: Util.Text.Text, port :: Util.Text.Text) ->
-      let --ipStr = Util.Text.toString ip
-          -- portStr = Util.Text.toString port
-          -- maybeIp = readMaybe ipStr :: Maybe IP
-          maybeIp = readMaybe $ Util.Text.toString ip :: Maybe IP
-          -- maybePort = readMaybe portStr :: Maybe PortNumber
+      let maybeIp = readMaybe $ Util.Text.toString ip :: Maybe IP
           maybePort = readMaybe $ Util.Text.toString port :: Maybe PortNumber
       in case (maybeIp, maybePort) of
         (Nothing, _) -> fail "Invalid IP Address"
