@@ -248,6 +248,8 @@
     builtin-Char.Class.is:termlink
     builtin-Pattern.captureAs
     builtin-Pattern.captureAs:termlink
+    builtin-Pattern.many.corrected
+    builtin-Pattern.many.corrected:termlink
     builtin-Pattern.isMatch
     builtin-Pattern.isMatch:termlink
     builtin-IO.fileExists.impl.v3
@@ -740,6 +742,7 @@
   (define-builtin-link Universal.compare)
   (define-builtin-link Universal.murmurHash)
   (define-builtin-link Pattern.captureAs)
+  (define-builtin-link Pattern.many.corrected)
   (define-builtin-link Pattern.isMatch)
   (define-builtin-link Char.Class.is)
   (define-builtin-link Scope.bytearrayOf)
@@ -861,6 +864,8 @@
 
     (define-unison (builtin-Pattern.captureAs c p)
       (capture-as c p))
+
+    (define-unison (builtin-Pattern.many.corrected p) (many p))
 
     (define-unison (builtin-Pattern.isMatch p s)
       (pattern-match? p s))
@@ -1457,5 +1462,6 @@
   (declare-builtin-link builtin-Pattern.isMatch)
   (declare-builtin-link builtin-Scope.bytearrayOf)
   (declare-builtin-link builtin-Char.Class.is)
+  (declare-builtin-link builtin-Pattern.many.corrected)
   (declare-builtin-link builtin-unsafe.coerceAbilities)
   )
