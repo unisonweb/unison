@@ -12,7 +12,7 @@ data Pattern
   | Or Pattern Pattern -- left-biased choice: tries second pattern only if first fails
   | Capture Pattern -- capture all the text consumed by the inner pattern, discarding its subcaptures
   | CaptureAs Text Pattern -- capture the given text, discarding its subcaptures, and name the capture
-  | Many Bool Pattern -- zero or more repetitions (at least 1 can be written: Join [p, Many p]); boolean determines whether it works correctly
+  | Many Bool Pattern -- zero or more repetitions (at least 1 can be written: Join [p, Many p]); boolean determines whether it's the correct version (True) or the original (False).
   | Replicate Int Int Pattern -- m to n occurrences of a pattern, optional = 0-1
   | Eof -- succeed if given the empty text, fail otherwise
   | Literal Text -- succeed if input starts with the given text, advance by that text
