@@ -1,20 +1,25 @@
 name: pre-release
+run-name: pre-release ${{github.ref_name}}
 
 defaults:
   run:
     shell: bash
 
 on:
+  # run on each merge to `trunk`
   workflow_run:
     workflows: ["CI"]
-    branches: [ trunk ]
+    branches: [trunk]
     types:
       - completed
+
+  # run manually
   workflow_dispatch:
 
 jobs:
-  build-ucm:
-    uses: ./.github/workflows/build-optimized-ucm.yaml
+  bundle-ucm:
+    name: build and bundle ucm
+    uses: ./.github/workflows/bundle-ucm.yaml
     with:
       ref: ${{ github.ref }}
 
@@ -22,7 +27,7 @@ jobs:
     name: create release
     runs-on: ubuntu-20.04
     needs:
-      - build-ucm
+      - bundle-ucm
 
     steps:
       - name: make download dir
@@ -33,12 +38,15 @@ jobs:
         with:
           path: /tmp/ucm
 
+      - name: derive release tag
+        run: echo "ref_name=$(echo ${{ github.ref_name }} | awk -F'/' '{print $NF}')" >> $GITHUB_ENV
+
       - uses: "marvinpinto/action-automatic-releases@latest"
         with:
           repo_token: "${{ secrets.GITHUB_TOKEN }}"
-          automatic_release_tag: "trunk-build"
+          automatic_release_tag: ${{ env.ref_name }}-build
           prerelease: true
-          title: "Development Build"
+          title: Development Build (${{ env.ref_name }})
           files: |
-            /tmp/ucm/**/*.tar.gz
-            /tmp/ucm/**/*.zip
+            /tmp/ucm/**/ucm-*.tar.gz
+            /tmp/ucm/**/ucm-*.zip

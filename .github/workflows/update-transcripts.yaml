@@ -29,13 +29,13 @@ jobs:
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
       - name: build
-        run: stack --no-terminal build --fast --no-run-tests --test
+        run: stack build --fast --no-run-tests --test
       - name: round-trip-tests
         run: |
-          stack --no-terminal exec unison transcript unison-src/transcripts-round-trip/main.md
-          stack --no-terminal exec unison transcript unison-src/transcripts-manual/rewrites.md
+          stack exec unison transcript unison-src/transcripts-round-trip/main.md
+          stack exec unison transcript unison-src/transcripts-manual/rewrites.md
       - name: transcripts
-        run: stack --no-terminal exec transcripts
+        run: stack exec transcripts
       - name: save transcript changes
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
