@@ -522,10 +522,11 @@ getNamespaceDependentsOf2 defns dependencies = do
           Reference.RtTerm -> True
           Reference.RtType -> False
 
-  let terms = Map.foldlWithKey' addTerms Map.empty termDependentRefs
-  let types = Map.foldlWithKey' addTypes Map.empty typeDependentRefs
-
-  pure Defns {terms, types}
+  pure
+    Defns
+      { terms = Map.foldlWithKey' addTerms Map.empty termDependentRefs,
+        types = Map.foldlWithKey' addTypes Map.empty typeDependentRefs
+      }
   where
     addTerms :: Map Name TermReferenceId -> TermReferenceId -> ignored -> Map Name TermReferenceId
     addTerms acc0 ref _ =

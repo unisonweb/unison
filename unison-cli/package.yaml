@@ -19,6 +19,7 @@ dependencies:
   - base
   - bytes
   - bytestring
+  - co-log-core
   - concurrent-output
   - configurator
   - containers >= 0.6.3
@@ -30,9 +31,9 @@ dependencies:
   - extra
   - filepath
   - free
+  - friendly-time
   - fsnotify
   - fuzzyfind
-  - friendly-time
   - generic-lens
   - haskeline
   - http-client >= 0.7.6
@@ -47,11 +48,9 @@ dependencies:
   - megaparsec
   - memory
   - mtl
-  - network-uri
-  - network-simple
   - network
-  - co-log-core
-  - uri-encode
+  - network-simple
+  - network-uri
   - nonempty-containers
   - open-browser
   - pretty-simple
@@ -91,12 +90,13 @@ dependencies:
   - unison-util-relation
   - unliftio
   - unordered-containers
+  - uri-encode
   - uuid
   - vector
-  - witherable
   - wai
   - warp
   - witch
+  - witherable
   - witherable
 
 library:

@@ -3,7 +3,6 @@
 -- | Combine two diffs together.
 module Unison.Merge.CombineDiffs
   ( AliceIorBob (..),
-    Flicts (..),
     Unconflicts (..),
     combineDiffs,
   )
@@ -55,15 +54,16 @@ data Unconflicts v = Unconflicts
   }
   deriving stock (Foldable, Functor, Generic)
 
--- | Combine and partition LCA->Alice diff and LCA->Bob diff into conflicts and "unconflicts" (unconflicted things).
+-- | Combine LCA->Alice diff and LCA->Bob diff, then partition into conflicted and unconflicted things.
 combineDiffs ::
   TwoWay (DefnsF (Map Name) (DiffOp (Synhashed Referent)) (DiffOp (Synhashed TypeReference))) ->
-  DefnsF Flicts Referent TypeReference
+  ( DefnsF (Map Name) (TwoWay Referent) (TwoWay TypeReference),
+    DefnsF Unconflicts Referent TypeReference
+  )
 combineDiffs diffs =
-  Defns
-    { terms = partition2 (view #terms <$> diffs),
-      types = partition2 (view #types <$> diffs)
-    }
+  let Flicts termConflicts termUnconflicts = partition2 (view #terms <$> diffs)
+      Flicts typeConflicts typeUnconflicts = partition2 (view #types <$> diffs)
+   in (Defns termConflicts typeConflicts, Defns termUnconflicts typeUnconflicts)
 
 partition2 :: TwoWay (Map Name (DiffOp (Synhashed v))) -> Flicts v
 partition2 diffs =
@@ -75,11 +75,8 @@ partition =
     (\s k v -> insert k v s)
     Flicts
       { unconflicts =
-          Unconflicts
-            { adds = TwoWayI Map.empty Map.empty Map.empty,
-              deletes = TwoWayI Map.empty Map.empty Map.empty,
-              updates = TwoWayI Map.empty Map.empty Map.empty
-            },
+          let empty = TwoWayI Map.empty Map.empty Map.empty
+           in Unconflicts empty empty empty,
         conflicts = Map.empty
       }
   where

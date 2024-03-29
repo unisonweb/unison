@@ -9,6 +9,7 @@ module Unison.Util.Map
     foldMapM,
     for_,
     insertLookup,
+    invert,
     mergeMap,
     unionWithM,
     remap,
@@ -54,6 +55,12 @@ swap =
 insertLookup :: Ord k => k -> v -> Map k v -> (Maybe v, Map k v)
 insertLookup k v =
   upsertLookup (const v) k
+
+-- | Invert a map's keys and values. This probably only makes sense with injective maps, but otherwise, later key/value
+-- pairs (ordered by the original map's keys) overwrite earlier ones.
+invert :: Ord v => Map k v -> Map v k
+invert =
+  Map.foldlWithKey' (\m k v -> Map.insert v k m) Map.empty
 
 -- | Upsert an element into a map.
 upsert :: (Ord k) => (Maybe v -> v) -> k -> Map k v -> Map k v
