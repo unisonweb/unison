@@ -2351,9 +2351,6 @@ declareUdpForeigns = do
     . mkForeignIOF
     $ \(sock :: UDPSocket) -> Bytes.fromArray <$> UDP.recv sock
 
-  -- declareForeign Tracked "IO.UDP.UDPSocket.send.impl.v1" boxBoxToExn0
-    -- . mkForeign $ fmap .uncurry UDP.send
-
   declareForeign Tracked "IO.UDP.UDPSocket.send.impl.v1" boxBoxToEF0
     . mkForeignIOF
     $ \(sock :: UDPSocket, bytes :: Bytes.Bytes) ->
