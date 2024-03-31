@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.35.2.
+-- This file has been generated from package.yaml by hpack version 0.36.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -101,7 +101,7 @@ library
       Unison.KindInference.Constraint.Pretty
       Unison.KindInference.Constraint.Provenance
       Unison.KindInference.Constraint.Solved
-      Unison.KindInference.Constraint.StarProvenance
+      Unison.KindInference.Constraint.TypeProvenance
       Unison.KindInference.Constraint.Unsolved
       Unison.KindInference.Error
       Unison.KindInference.Error.Pretty

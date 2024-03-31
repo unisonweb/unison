@@ -341,10 +341,10 @@ analyseNotes fileUri ppe src notes = do
       Context.Suggestion {suggestionName, suggestionType, suggestionMatch} <- sortOn nameResolutionSuggestionPriority suggestions
       let prettyType = TypePrinter.prettyStr Nothing ppe suggestionType
       let ranges = (diags ^.. folded . range)
-      let rca = rangedCodeAction ("Use " <> suggestionName <> " : " <> Text.pack prettyType) diags ranges
+      let rca = rangedCodeAction ("Use " <> Name.toText suggestionName <> " : " <> Text.pack prettyType) diags ranges
       pure $
         rca
-          & includeEdits fileUri suggestionName ranges
+          & includeEdits fileUri (Name.toText suggestionName) ranges
           & codeAction . isPreferred ?~ (suggestionMatch == Context.Exact)
 
     nameResolutionSuggestionPriority (Context.Suggestion {suggestionMatch, suggestionName}) = case suggestionMatch of

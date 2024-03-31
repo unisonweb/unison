@@ -173,6 +173,10 @@ Simply install the [Unison Language VSCode extension](https://marketplace.visual
 To `~/.config/helix/languages.toml` append this code:
 
 ```toml
+[language-server.ucm]
+command = "nc" # or 'ncat' or 'netcat'
+args = ["localhost", "5757"]
+
 [[language]]
 name = "unison"
 scope = "source.unison"
@@ -183,7 +187,8 @@ roots = []
 auto-format = false
 comment-token = "--"
 indent = { tab-width = 4, unit = "    " }
-language-server = { command = "ncat", args = ["localhost", "5757"] }
+language-servers = [ "ucm" ]
+
 ```
 
 or follow the instructions for Unison in "[How to install the default language servers](https://github.com/helix-editor/helix/wiki/How-to-install-the-default-language-servers#unison)" wiki page.

@@ -747,9 +747,9 @@ instance FromJSON HashMismatchForEntity where
     Aeson.withObject "HashMismatchForEntity" \obj ->
       HashMismatchForEntity
         <$> obj
-        .: "supplied"
+          .: "supplied"
         <*> obj
-        .: "computed"
+          .: "computed"
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Fast-forward path

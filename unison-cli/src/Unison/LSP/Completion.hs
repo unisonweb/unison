@@ -43,7 +43,7 @@ import Unison.Referent qualified as Referent
 import Unison.Runtime.IOSource qualified as IOSource
 import Unison.Syntax.DeclPrinter qualified as DeclPrinter
 import Unison.Syntax.HashQualified' qualified as HQ' (toText)
-import Unison.Syntax.Name qualified as Name (parseText, nameP, toText)
+import Unison.Syntax.Name qualified as Name (nameP, parseText, toText)
 import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Util.Monoid qualified as Monoid
 import Unison.Util.Pretty qualified as Pretty
@@ -57,15 +57,16 @@ completionHandler m respond =
     (range, prefix) <- VFS.completionPrefix (m ^. params . textDocument . uri) (m ^. params . position)
     ppe <- PPED.suffixifiedPPE <$> lift currentPPED
     codebaseCompletions <- lift getCodebaseCompletions
-    Config {maxCompletions} <- lift getConfig
+    -- Config {maxCompletions} <- lift getConfig
     let defMatches = matchCompletions codebaseCompletions prefix
     let (isIncomplete, defCompletions) =
           defMatches
             & nubOrdOn (\(p, _name, ref) -> (p, ref))
             & fmap (over _1 Path.toText)
-            & case maxCompletions of
-              Nothing -> (False,)
-              Just n -> takeCompletions n
+            & (False,)
+    -- case maxCompletions of
+    -- Nothing -> (False,)
+    -- Just n -> takeCompletions n
     let defCompletionItems =
           defCompletions
             & mapMaybe \(path, fqn, dep) ->
@@ -75,12 +76,13 @@ completionHandler m respond =
     let itemDefaults = Nothing
     pure . CompletionList isIncomplete itemDefaults $ defCompletionItems
   where
-    -- Takes at most the specified number of completions, but also indicates with a boolean
-    -- whether there were more completions remaining so we can pass that along to the client.
-    takeCompletions :: Int -> [a] -> (Bool, [a])
-    takeCompletions 0 xs = (not $ null xs, [])
-    takeCompletions _ [] = (False, [])
-    takeCompletions n (x : xs) = second (x :) $ takeCompletions (pred n) xs
+
+-- Takes at most the specified number of completions, but also indicates with a boolean
+-- whether there were more completions remaining so we can pass that along to the client.
+-- takeCompletions :: Int -> [a] -> (Bool, [a])
+-- takeCompletions 0 xs = (not $ null xs, [])
+-- takeCompletions _ [] = (False, [])
+-- takeCompletions n (x : xs) = second (x :) $ takeCompletions (pred n) xs
 
 mkDefCompletionItem :: Uri -> Range -> Name -> Name -> Text -> Text -> LabeledDependency -> CompletionItem
 mkDefCompletionItem fileUri range relativeName fullyQualifiedName path suffixified dep =

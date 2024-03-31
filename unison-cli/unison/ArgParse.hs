@@ -114,6 +114,7 @@ data Command
 data GlobalOptions = GlobalOptions
   { codebasePathOption :: Maybe CodebasePathOption,
     exitOption :: ShouldExit,
+    nativeRuntimePath :: Maybe FilePath,
     lspFormattingConfig :: LspFormattingConfig
   }
   deriving (Show, Eq)
@@ -256,10 +257,11 @@ globalOptionsParser = do
   -- ApplicativeDo
   codebasePathOption <- codebasePathParser <|> codebaseCreateParser
   exitOption <- exitParser
+  nativeRuntimePath <- nativeRuntimePathFlag
   lspFormattingConfig <- lspFormattingParser
 
   pure
-    GlobalOptions {codebasePathOption, exitOption, lspFormattingConfig}
+    GlobalOptions {codebasePathOption, exitOption, nativeRuntimePath, lspFormattingConfig}
 
 codebasePathParser :: Parser (Maybe CodebasePathOption)
 codebasePathParser = do
@@ -445,6 +447,14 @@ readAbsolutePath = do
         "Expected an absolute path, but the path "
           <> show rel
           <> " was relative. Try adding a `.` prefix, e.g. `.path.to.project`"
+
+nativeRuntimePathFlag :: Parser (Maybe FilePath)
+nativeRuntimePathFlag =
+  optional . strOption $
+    long "runtime-path"
+      <> metavar "DIR"
+      <> help "Path to native runtime files"
+      <> noGlobal
 
 readPath' :: ReadM Path.Path'
 readPath' = do

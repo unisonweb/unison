@@ -43,87 +43,103 @@
 
 ; typeLink msg any
 (define (Exception typeLink message payload)
-    (let* ([x7 (unison-any-any payload)]
-           [x8 (unison-failure-failure typeLink message x7)])
-    (unison-either-left x8)))
+    (let* ([a (unison-any-any payload)]
+           [msg (string->chunked-string message)]
+           [f (ref-failure-failure typeLink msg a)])
+    (ref-either-left f)))
 
 (define-unison (isFileOpen.impl.v3 port)
-    (unison-either-right (not (port-closed? port))))
+    (ref-either-right (not (port-closed? port))))
 
 (define-unison (ready.impl.v1 port)
     (if (byte-ready? port)
-        (unison-either-right #t)
+        (ref-either-right #t)
         (if (port-eof? port)
-            (Exception 'IO "EOF" port)
-            (unison-either-right #f))))
+            (Exception ref-iofailure:typelink "EOF" port)
+            (ref-either-right #f))))
 
 (define-unison (getCurrentDirectory.impl.v3 unit)
-    (unison-either-right
+    (ref-either-right
       (string->chunked-string (path->string (current-directory)))))
 
 (define-unison (isSeekable.impl.v3 handle)
-    (unison-either-right
+    (ref-either-right
         (port-has-set-port-position!? handle)))
 
 (define-unison (handlePosition.impl.v3 handle)
-    (unison-either-right (port-position handle)))
+    (ref-either-right (port-position handle)))
 
 (define-unison (seekHandle.impl.v3 handle mode amount)
     (data-case mode
         (0 ()
             (set-port-position! handle amount)
-            (unison-either-right none))
+            (ref-either-right none))
         (1 ()
             (let ([current (port-position handle)])
                 (set-port-position! handle (+ current amount))
-                (unison-either-right none)))
+                (ref-either-right none)))
         (2 ()
-            (Exception 'BadNews "SeekFromEnd not supported" 0))))
+            (Exception
+              ref-iofailure:typelink
+              "SeekFromEnd not supported"
+              0))))
 
 (define-unison (getLine.impl.v1 handle)
   (let* ([line (read-line handle)])
     (if (eof-object? line)
-        (unison-either-right (string->chunked-string ""))
-        (unison-either-right (string->chunked-string line))
+        (ref-either-right (string->chunked-string ""))
+        (ref-either-right (string->chunked-string line))
         )))
 
 (define-unison (getChar.impl.v1 handle)
   (let* ([char (read-char handle)])
     (if (eof-object? char)
-        (Exception 'isEOFError "End of file reached")
-        (unison-either-right char))))
+        (Exception
+          ref-iofailure:typelink
+          "End of file reached"
+          ref-unit-unit)
+        (ref-either-right char))))
 
 (define-unison (getSomeBytes.impl.v1 handle bytes)
   (let* ([buffer (make-bytes bytes)]
          [line (read-bytes-avail! buffer handle)])
     (if (eof-object? line)
-        (unison-either-right (bytes->chunked-bytes #""))
-        (unison-either-right (bytes->chunked-bytes buffer))
+        (ref-either-right (bytes->chunked-bytes #""))
+        (ref-either-right (bytes->chunked-bytes buffer))
         )))
 
 (define-unison (getBuffering.impl.v3 handle)
     (case (file-stream-buffer-mode handle)
-        [(none) (unison-either-right unison-buffermode-no-buffering)]
-        [(line) (unison-either-right
-                  unison-buffermode-line-buffering)]
-        [(block) (unison-either-right
-                   unison-buffermode-block-buffering)]
-        [(#f) (Exception 'IO "Unable to determine buffering mode of handle" '())]
-        [else (Exception 'IO "Unexpected response from file-stream-buffer-mode" '())]))
+        [(none) (ref-either-right ref-buffermode-no-buffering)]
+        [(line) (ref-either-right
+                  ref-buffermode-line-buffering)]
+        [(block) (ref-either-right
+                   ref-buffermode-block-buffering)]
+        [(#f) (Exception
+                ref-iofailure:typelink
+                "Unable to determine buffering mode of handle"
+                ref-unit-unit)]
+        [else (Exception
+                ref-iofailure:typelink
+                "Unexpected response from file-stream-buffer-mode"
+                ref-unit-unit)]))
 
 (define-unison (setBuffering.impl.v3 handle mode)
     (data-case mode
         (0 ()
             (file-stream-buffer-mode handle 'none)
-            (unison-either-right none))
+            (ref-either-right none))
         (1 ()
             (file-stream-buffer-mode handle 'line)
-            (unison-either-right none))
+            (ref-either-right none))
         (2 ()
             (file-stream-buffer-mode handle 'block)
-            (unison-either-right none))
+            (ref-either-right none))
         (3 (size)
-            (Exception 'IO "Sized block buffering not supported" '()))))
+            (Exception
+              ref-iofailure:typelink
+              "Sized block buffering not supported"
+              ref-unit-unit))))
 
 (define (with-buffer-mode port mode)
   (file-stream-buffer-mode port mode)
@@ -141,8 +157,11 @@
 
 (define-unison (getEcho.impl.v1 handle)
   (if (eq? handle stdin)
-      (unison-either-right (get-stdin-echo))
-      (Exception 'IO "getEcho only supported on stdin" '())))
+      (ref-either-right (get-stdin-echo))
+      (Exception
+        ref-iofailure:typelink
+        "getEcho only supported on stdin"
+        ref-unit-unit)))
 
 (define-unison (setEcho.impl.v1 handle echo)
   (if (eq? handle stdin)
@@ -150,23 +169,29 @@
         (if echo
             (system "stty echo")
             (system "stty -echo"))
-        (unison-either-right none))
-      (Exception 'IO "setEcho only supported on stdin" '())))
+        (ref-either-right none))
+      (Exception
+        ref-iofailure:typelink
+        "setEcho only supported on stdin"
+        ref-unit-unit)))
 
 (define (get-stdin-echo)
   (let ([current (with-output-to-string (lambda () (system "stty -a")))])
     (string-contains? current " echo ")))
 
 (define-unison (getArgs.impl.v1 unit)
-    (unison-either-right
+    (ref-either-right
       (vector->chunked-list
         (vector-map string->chunked-string (current-command-line-arguments)))))
 
 (define-unison (getEnv.impl.v1 key)
     (let ([value (environment-variables-ref (current-environment-variables) (string->bytes/utf-8 (chunked-string->string key)))])
         (if (false? value)
-            (Exception 'IO "environmental variable not found" key)
-            (unison-either-right
+            (Exception
+              ref-iofailure:typelink
+              "environmental variable not found"
+              key)
+            (ref-either-right
               (string->chunked-string (bytes->string/utf-8 value))))))
 
 ;; From https://github.com/sorawee/shlex/blob/5de06500e8c831cfc8dffb99d57a76decc02c569/main.rkt (MIT License)

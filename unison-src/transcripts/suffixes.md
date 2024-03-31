@@ -39,10 +39,9 @@ Type-based search also benefits from this, we can just say `Nat` rather than `.b
 .> find : Nat -> [a] -> [a]
 ```
 
-## Preferring names not in `lib`
+## Preferring names not in `lib.*.lib.*`
 
-Suffix-based resolution prefers names with fewer name segments that are equal to "lib". This
-has the effect of preferring names defined in your project to names from dependencies of your project, and names from indirect dependencies have even lower weight.
+Suffix-based resolution prefers names that are not in an indirect dependency.
 
 ```unison
 cool.abra.cadabra = "my project"
@@ -55,8 +54,11 @@ lib.distributed.lib.baz.qux = "indirect dependency"
 .> add
 ```
 
-```unison
+```unison:error
 > abra.cadabra
+```
+
+```unison
 > baz.qux
 ```
 

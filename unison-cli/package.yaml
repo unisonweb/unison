@@ -19,6 +19,7 @@ dependencies:
   - base
   - bytes
   - bytestring
+  - code-page
   - concurrent-output
   - configurator
   - containers >= 0.6.3
@@ -55,6 +56,7 @@ dependencies:
   - uri-encode
   - nonempty-containers
   - open-browser
+  - optparse-applicative >= 0.16.1.0
   - pretty-simple
   - process
   - random >= 1.2.0
@@ -65,7 +67,10 @@ dependencies:
   - semigroups
   - servant
   - servant-client
+  - shellmet
   - stm
+  - template-haskell
+  - temporary
   - text
   - text-builder
   - text-rope
@@ -99,13 +104,27 @@ dependencies:
   - witch
   - witherable
 
+internal-libraries:
+  unison-cli-lib:
+    source-dirs: src
+    when:
+      - condition: "!os(windows)"
+        dependencies: unix
+      - condition: false
+        other-modules: Paths_unison_cli
+
 library:
-  source-dirs: src
+  source-dirs: unison
   when:
-    - condition: '!os(windows)'
-      dependencies: unix
     - condition: false
       other-modules: Paths_unison_cli
+  dependencies:
+    - code-page
+    - optparse-applicative >= 0.16.1.0
+    - shellmet
+    - template-haskell
+    - temporary
+    - unison-cli-lib
 
 tests:
   cli-tests:
@@ -118,26 +137,11 @@ tests:
       - here
       - shellmet
       - temporary
-      - unison-cli
+      - unison-cli-lib
     main: Main.hs
     source-dirs: tests
 
 executables:
-  unison:
-    when:
-      - condition: false
-        other-modules: Paths_unison_cli
-    source-dirs: unison
-    main: Main.hs
-    ghc-options: -threaded -rtsopts "-with-rtsopts=-I0 -N -qn4 -qg1 -T" -optP-Wno-nonportable-include-path
-    dependencies:
-      - code-page
-      - optparse-applicative >= 0.16.1.0
-      - shellmet
-      - template-haskell
-      - temporary
-      - unison-cli
-
   transcripts:
     when:
       - condition: false
@@ -150,24 +154,8 @@ executables:
       - easytest
       - process
       - shellmet
-      - unison-cli
+      - unison-cli-lib
       - silently
-
-  cli-integration-tests:
-    when:
-      - condition: false
-        other-modules: Paths_unison_cli
-    source-dirs: integration-tests
-    main: Suite.hs
-    ghc-options: -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
-    dependencies:
-      - code-page
-      - easytest
-      - process
-      - shellmet
-      - time
-    build-tools:
-      - unison-cli:unison
 
 when:
   - condition: flag(optimized)

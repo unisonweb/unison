@@ -18,6 +18,7 @@
   (import (rnrs)
           (rnrs records syntactic)
           (unison data)
+          (unison data-info)
           (unison core)
           (unison chunked-seq)
           (rename
@@ -109,11 +110,33 @@
   (define (try-eval thunk)
     (with-handlers
       ([exn:break?
-        (lambda (e) (exception "ThreadKilledFailure" (string->chunked-string "thread killed") ()))]
-       [exn:io? (lambda (e) (exception "IOFailure" (exception->string e) ()))]
-       [exn:arith? (lambda (e) (exception "ArithmeticFailure" (exception->string e) ()))]
+        (lambda (e)
+          (exception
+            ref-threadkilledfailure:typelink
+            (string->chunked-string "thread killed")
+            ref-unit-unit))]
+       [exn:io?
+         (lambda (e)
+           (exception
+             ref-iofailure:typelink
+             (exception->string e) ref-unit-unit))]
+       [exn:arith?
+         (lambda (e)
+           (exception
+             ref-arithfailure:typelink
+             (exception->string e)
+             ref-unit-unit))]
        [exn:bug? (lambda (e) (exn:bug->exception e))]
-       [exn:fail? (lambda (e) (exception "RuntimeFailure" (exception->string e) ()))]
+       [exn:fail?
+         (lambda (e)
+           (exception
+             ref-runtimefailure:typelink
+             (exception->string e)
+             ref-unit-unit))]
        [(lambda (x) #t)
-        (lambda (e) (exception "MiscFailure" (string->chunked-string "unknown exception") e))])
+        (lambda (e)
+          (exception
+            ref-miscfailure:typelink
+            (exception->string e)
+            ref-unit-unit))])
       (right (thunk)))))

@@ -29,14 +29,16 @@ main = do
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
-    
+
       structural ability Break
-      unique type MyBool
+      type MyBool
       main   : '{IO, Exception} ()
       resume : Request {g, Break} x -> x
 
@@ -45,12 +47,12 @@ main = do
 .> add
 
   ⍟ I've added these definitions:
-  
+
     structural ability Break
-    unique type MyBool
+    type MyBool
     main   : '{IO, Exception} ()
     resume : Request {g, Break} x -> x
 
-.> compile main ./unison-cli/integration-tests/IntegrationTests/main
+.> compile main ./unison-cli-integration/integration-tests/IntegrationTests/main
 
 ```

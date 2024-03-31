@@ -210,10 +210,16 @@ foo = match 1 with
 
   Loading changes detected in scratch.u.
 
-  offset=8:
-  unexpected <outdent>
-  expecting ",", case match, or pattern guard
+  I got confused here:
+  
       3 | 
+  
+  I was surprised to find an end of section here.
+  I was expecting one of these instead:
+  
+  * ","
+  * case match
+  * pattern guard
 
 ```
 ```unison
@@ -250,10 +256,19 @@ x = match Some a with
 
   Loading changes detected in scratch.u.
 
-  offset=16:
-  unexpected <outdent>
-  expecting ",", blank, case match, false, pattern guard, or true
+  I got confused here:
+  
       7 | 
+  
+  I was surprised to find an end of section here.
+  I was expecting one of these instead:
+  
+  * ","
+  * blank
+  * case match
+  * false
+  * pattern guard
+  * true
 
 ```
 ```unison
@@ -268,11 +283,15 @@ x = match Some a with
 
   Loading changes detected in scratch.u.
 
-  offset=12:
-  unexpected ->
-  expecting newline or semicolon
+  I got confused here:
+  
       4 |            -> 2
   
+  
+  I was surprised to find a -> here.
+  I was expecting one of these instead:
+  
+  * newline or semicolon
 
 ```
 ```unison
@@ -286,11 +305,15 @@ x = match Some a with
 
   Loading changes detected in scratch.u.
 
-  offset=12:
-  unexpected |
-  expecting newline or semicolon
+  I got confused here:
+  
       4 |         | true -> 2
   
+  
+  I was surprised to find a '|' here.
+  I was expecting one of these instead:
+  
+  * newline or semicolon
 
 ```
 ### Watches
