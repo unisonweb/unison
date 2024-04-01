@@ -103,3 +103,17 @@ to `Tests.check` and `Tests.checkEqual`).
 ```ucm
 .> run.native tests.jit.only
 ```
+
+```unison
+foo = do
+  go : Nat ->{Exception} ()
+  go = cases
+    0 -> ()
+    n -> go (decrement n)
+  go 1000
+```
+
+```ucm
+.> run.native foo
+.> run.native foo
+```
