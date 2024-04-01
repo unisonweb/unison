@@ -758,8 +758,9 @@ prepareEvaluation ppe tm ctx = do
   pure (backrefAdd rbkr ctx', rgrp, rmn)
   where
     (rmn0, frem, rgrp0, rbkr) = intermediateTerm ppe ctx tm
-    int b r | b || Map.member r rgrp0 = r
-            | otherwise = toIntermed ctx r
+    int b r
+      | b || Map.member r rgrp0 = r
+      | otherwise = toIntermed ctx r
     (ctx', rrefs, rgrp) =
       performRehash
         ((fmap . overGroupLinks) int rgrp0)
