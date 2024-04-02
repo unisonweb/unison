@@ -1,5 +1,6 @@
 module Unison.Merge.TwoWayI
   ( TwoWayI (..),
+    forgetBoth,
   )
 where
 
@@ -7,6 +8,7 @@ import Data.Semialign (Semialign, alignWith)
 import Data.Semigroup.Generic (GenericSemigroupMonoid (..))
 import Data.These (These (..))
 import Data.Zip (Zip, zipWith)
+import Unison.Merge.TwoWay (TwoWay (..))
 import Unison.Prelude
 import Prelude hiding (zipWith)
 
@@ -28,3 +30,7 @@ instance Zip TwoWayI where
   zipWith :: (a -> b -> c) -> TwoWayI a -> TwoWayI b -> TwoWayI c
   zipWith f (TwoWayI x1 x2 x3) (TwoWayI y1 y2 y3) =
     TwoWayI (f x1 y1) (f x2 y2) (f x3 y3)
+
+forgetBoth :: TwoWayI a -> TwoWay a
+forgetBoth TwoWayI {alice, bob} =
+  TwoWay {alice, bob}
