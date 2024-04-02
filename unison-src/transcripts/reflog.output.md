@@ -63,17 +63,17 @@ y = 2
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #jpjvuobccr .old`   to make an old namespace
+    `fork #gpvnq2mlbn .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #jpjvuobccr`  to reset the root namespace and
+    `reset-root #gpvnq2mlbn`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
        When   Root Hash     Action
-  1.   now    #civ82mf97k   add
-  2.   now    #jpjvuobccr   add
-  3.   now    #i38nt50r1v   builtins.merge
+  1.   now    #919gfih828   add
+  2.   now    #gpvnq2mlbn   add
+  3.   now    #htl7ctb3ei   builtins.merge
   4.          #sg60bvjo91   history starts here
   
   Tip: Use `diff.namespace 1 7` to compare namespaces between

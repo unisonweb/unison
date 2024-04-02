@@ -54,7 +54,7 @@ The `builtins.merge` command adds the known builtins to a `builtin` subnamespace
   43. Optional            (type)
   44. Optional/           (2 terms)
   45. Pattern             (builtin type)
-  46. Pattern/            (8 terms)
+  46. Pattern/            (9 terms)
   47. Ref                 (builtin type)
   48. Ref/                (2 terms)
   49. Request             (builtin type)

@@ -1,6 +1,6 @@
-name: "release"
+name: release
 
-run-name: "release ${{inputs.version}}"
+run-name: release ${{inputs.version}}
 
 defaults:
   run:
@@ -13,30 +13,26 @@ on:
         description: Release version; e.g. `0.5.19`. We'll create tag `release/${version}`.
         required: true
         type: string
-      target:
-        description: Git ref to use for this release; defaults to `trunk`.
-        required: true
-        default: trunk
-        type: string
 
 jobs:
-  build-ucm:
-    uses: ./.github/workflows/build-optimized-ucm.yaml
+  bundle-ucm:
+    name: build and bundle ucm
+    uses: ./.github/workflows/bundle-ucm.yaml
     with:
-      ref: release/${{inputs.version}}
+      ref: ${{github.ref}}
 
   release:
     name: create release
     runs-on: ubuntu-20.04
     needs:
-      - build-ucm
+      - bundle-ucm
 
     steps:
       - name: make download dir
         run: mkdir /tmp/ucm
 
       - name: "download artifacts"
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4
         with:
           path: /tmp/ucm
 
@@ -44,8 +40,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          version="${{inputs.version}}"
-          target="${{inputs.target}}"
           prev_tag="$( \
             gh release view \
               --repo unisonweb/unison \
@@ -54,13 +48,12 @@ jobs:
           if [ -z "$prev_tag" ]; then echo "No previous release found"; exit 1; fi
 
           echo "Creating a release from these artifacts:"
-          ls -R /tmp/ucm
+          ls -R /tmp/ucm/**/ucm-*.{zip,tar.gz}
 
-
-          gh release create "release/${version}" \
+          gh release create "release/${{inputs.version}}" \
             --repo unisonweb/unison \
-            --target "${target}" \
+            --target "${{github.ref}}" \
             --generate-notes \
             --notes-start-tag "${prev_tag}" \
             \
-            /tmp/ucm/**/*.{zip,tar.gz}
+            /tmp/ucm/**/ucm-*.{zip,tar.gz}

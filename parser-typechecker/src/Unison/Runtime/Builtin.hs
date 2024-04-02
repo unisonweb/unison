@@ -3217,7 +3217,9 @@ declareForeigns = do
       _ -> die "Text.patterns.notCharIn: non-character closure"
     evaluate . TPat.cpattern . TPat.Char . TPat.Not $ TPat.CharSet cs
   declareForeign Untracked "Pattern.many" boxDirect . mkForeign $
-    \(TPat.CP p _) -> evaluate . TPat.cpattern $ TPat.Many p
+    \(TPat.CP p _) -> evaluate . TPat.cpattern $ TPat.Many False p
+  declareForeign Untracked "Pattern.many.corrected" boxDirect . mkForeign $
+    \(TPat.CP p _) -> evaluate . TPat.cpattern $ TPat.Many True p
   declareForeign Untracked "Pattern.capture" boxDirect . mkForeign $
     \(TPat.CP p _) -> evaluate . TPat.cpattern $ TPat.Capture p
   declareForeign Untracked "Pattern.captureAs" boxBoxDirect . mkForeign $

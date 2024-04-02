@@ -28,13 +28,13 @@ a = 5
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ 1. #84ho0ifat5
+  ⊙ 1. #matjo6b9c2
   
     + Adds / updates:
     
       a
   
-  □ 2. #i38nt50r1v (start of history)
+  □ 2. #htl7ctb3ei (start of history)
 
 .> reset 2
 
@@ -47,7 +47,7 @@ a = 5
   
   
   
-  □ 1. #i38nt50r1v (start of history)
+  □ 1. #htl7ctb3ei (start of history)
 
 ```
 ```unison
@@ -83,13 +83,13 @@ foo.a = 5
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ 1. #v4j1mnirpd
+  ⊙ 1. #okc86j6fft
   
     + Adds / updates:
     
       foo.a
   
-  □ 2. #i38nt50r1v (start of history)
+  □ 2. #htl7ctb3ei (start of history)
 
 .> reset 1 foo
 

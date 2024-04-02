@@ -106,7 +106,6 @@
     (or (exn:fail:contract:divide-by-zero? e)
         (exn:fail:contract:non-fixnum-result? e)))
 
-  ;; TODO Replace strings with proper type links once we have them
   (define (try-eval thunk)
     (with-handlers
       ([exn:break?

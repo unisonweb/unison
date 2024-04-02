@@ -509,6 +509,7 @@ builtinsSrc =
     B "Text.patterns.notCharIn" $ list char --> pat text,
     -- Pattern.many : Pattern a -> Pattern a
     B "Pattern.many" $ forall1 "a" (\a -> pat a --> pat a),
+    B "Pattern.many.corrected" $ forall1 "a" (\a -> pat a --> pat a),
     B "Pattern.replicate" $ forall1 "a" (\a -> nat --> nat --> pat a --> pat a),
     B "Pattern.capture" $ forall1 "a" (\a -> pat a --> pat a),
     B "Pattern.captureAs" $ forall1 "a" (\a -> a --> pat a --> pat a),

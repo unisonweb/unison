@@ -111,11 +111,11 @@ cradle:
     - path: "unison-cli/tests"
       component: "unison-cli:test:cli-tests"
 
-    - path: "unison-cli-main/integration-tests/Suite.hs"
-      component: "unison-cli-main:exe:cli-integration-tests"
+    - path: "unison-cli-integration/integration-tests/Suite.hs"
+      component: "unison-cli-integration:exe:cli-integration-tests"
 
-    - path: "unison-cli-main/integration-tests/IntegrationTests/ArgumentParsing.hs"
-      component: "unison-cli-main:exe:cli-integration-tests"
+    - path: "unison-cli-integration/integration-tests/IntegrationTests/ArgumentParsing.hs"
+      component: "unison-cli-integration:exe:cli-integration-tests"
 
     - path: "unison-cli-main/unison/Main.hs"
       component: "unison-cli-main:exe:unison"
