@@ -41,7 +41,7 @@ testServerAndClient = do
   setup = catchAll do
     UDP.server goodIp goodPort
   match setup with
-    Left e -> 
+    Left e ->
       Tests.fail "Unable to open a socket for UDP server" (Debug.evalToText e)
     Right ssocket ->
       serve = do
@@ -52,7 +52,7 @@ testServerAndClient = do
 
       serveResult = !Promise.new
       _ = fork do Promise.write serveResult (catchAll serve)
-      
+
       data = catchAll do
         csocket = UDP.client goodIp goodPort
         send csocket (toUtf8 fromClientMsg)
