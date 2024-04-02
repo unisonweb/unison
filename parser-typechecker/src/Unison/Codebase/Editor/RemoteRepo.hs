@@ -8,11 +8,11 @@ import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.ShortCausalHash qualified as SCH
+import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
 import Unison.Share.Types
 import Unison.Util.Monoid qualified as Monoid
-import qualified Unison.NameSegment as NameSegment
 
 data ReadRepo
   = ReadRepoGit ReadGitRepo

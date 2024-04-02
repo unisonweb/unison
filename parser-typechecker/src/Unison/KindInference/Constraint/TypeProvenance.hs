@@ -1,5 +1,5 @@
-module Unison.KindInference.Constraint.StarProvenance
-  ( StarProvenance (..),
+module Unison.KindInference.Constraint.TypeProvenance
+  ( TypeProvenance (..),
     prov,
   )
 where
@@ -11,15 +11,15 @@ import Unison.KindInference.Constraint.Provenance (Provenance)
 -- in constraint generation (in which case it will have a
 -- @Provenance@) and also in the solver through kind-defaulting on
 -- unconstrained unification variables.
-data StarProvenance v loc
+data TypeProvenance v loc
   = NotDefault (Provenance v loc)
   | Default
   deriving stock (Show, Eq, Ord)
 
 prov ::
   Traversal
-    (StarProvenance v loc)
-    (StarProvenance v loc')
+    (TypeProvenance v loc)
+    (TypeProvenance v loc')
     (Provenance v loc)
     (Provenance v loc')
 prov f = \case

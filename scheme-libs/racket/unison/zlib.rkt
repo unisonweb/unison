@@ -1,6 +1,7 @@
 ; Zlib
 #lang racket/base
 (require unison/data
+         unison/data-info
          unison/core
          (only-in unison/chunked-seq
             bytes->chunked-bytes
@@ -105,5 +106,14 @@
     (bytes->chunked-bytes (zlib-deflate-bytes (chunked-bytes->bytes bytes))))
 
 (define (zlib.decompress bytes)
-    (with-handlers [[exn:fail? (lambda (e) (exception "Zlib data corrupted" (exception->string e) '()))] ]
-        (right (bytes->chunked-bytes (zlib-inflate-bytes (chunked-bytes->bytes bytes))))))
+  (with-handlers
+    [[exn:fail?
+       (lambda (e)
+         (exception
+           ref-miscfailure:typelink
+           (exception->string e)
+           '()))]]
+  (right
+    (bytes->chunked-bytes
+      (zlib-inflate-bytes
+        (chunked-bytes->bytes bytes))))))

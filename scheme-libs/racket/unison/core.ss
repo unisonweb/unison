@@ -19,10 +19,19 @@
   (for-syntax raise-syntax-error)
 
   exception->string
+
+  exn:bug
+  make-exn:bug
+  exn:bug?
+  exn:bug->exception
+
   let-marks
   ref-mark
 
   chunked-string-foldMap-chunks
+
+  unison-tuple
+  list->unison-tuple
 
   freeze-bytevector!
   freeze-vector!
@@ -63,6 +72,7 @@
                 build-path
                 path->string
                 match
+                match*
                 for/fold)
           (string-copy! racket-string-copy!)
           (bytes-append bytevector-append)
@@ -74,6 +84,7 @@
   (only-in racket/fixnum fl->fx fx- fxand fxlshift fxrshift fxior)
   racket/unsafe/ops
   unison/data
+  unison/data-info
   unison/chunked-seq)
 
 (define (fx1- n) (fx- n 1))
@@ -177,12 +188,43 @@
          [sfx (if (<= l 10) "" "...")])
     (string-append "32x" (substring s 0 10) sfx)))
 
+(define (describe-tuple x)
+  (define (format-tuple l)
+    (for/fold
+      ([sep ")"]
+       [bits '()]
+       #:result (apply string-append (cons "(" bits)))
+      ([e l])
+      (values ", " (list* (describe-value e) sep bits))))
+
+  (define (format-non-tuple l)
+    (for/fold
+      ([result #f])
+      ([e l])
+      (let ([de (describe-value e)])
+        (if (not result) de
+          (string-append "Cons (" de ") (" result ")")))))
+
+  (let rec ([acc '()] [tup x])
+    (match tup
+      [(unison-data r t (list x y))
+       #:when (eq? r ref-tuple:typelink)
+       (rec (cons x acc) y)]
+      [(unison-data r t (list))
+       #:when (eq? r ref-unit:typelink)
+       (format-tuple acc)]
+      [else
+       (format-non-tuple (cons tup acc))])))
+
 (define (describe-value x)
   (match x
     [(unison-sum t fs)
      (let ([tt (number->string t)]
            [vs (describe-list-br fs)])
        (string-append "Sum " tt " " vs))]
+    [(unison-data r t fs)
+     #:when (eq? r ref-tuple:typelink)
+     (describe-tuple x)]
     [(unison-data r t fs)
      (let ([tt (number->string t)]
            [rt (describe-ref r)]
@@ -251,48 +293,158 @@
          [else sc]))]))
 
 ; universal-compares two lists of values lexicographically
-(define (lexico-compare ls rs)
+(define (lexico-compare ls rs cmp-ty)
   (let rec ([cls ls] [crs rs])
     (cond
       [(and (null? cls) (null? crs)) '=]
       [else
         (comparisons
-          (universal-compare (car cls) (car crs))
+          (universal-compare (car cls) (car crs) cmp-ty)
           (rec (cdr cls) (cdr crs)))])))
 
-(define (cmp-num l r)
+(define ((comparison e? l?) l r)
   (cond
-    [(= l r) '=]
-    [(< l r) '<]
+    [(e? l r) '=]
+    [(l? l r) '<]
     [else '>]))
 
-(define (universal-compare l r)
+(define compare-num (comparison = <))
+(define compare-char (comparison char=? char<?))
+(define compare-byte (comparison = <))
+(define compare-bytes (comparison bytes=? bytes<?))
+(define compare-string (comparison string=? string<?))
+
+(define (compare-typelink ll rl)
+  (match ll
+    [(unison-typelink-builtin lnm)
+     (match rl
+       [(unison-typelink-builtin rnm) (compare-string lnm rnm)]
+       [(? unison-typelink-derived?) '<])]
+    [(unison-typelink-derived lh i)
+     (match rl
+       [(unison-typelink-derived rh j)
+        (comparisons
+          (compare-bytes lh rh)
+          (compare-num i j))]
+       [(? unison-typelink-builtin?) '>])]))
+
+(define (compare-termlink ll rl)
+  (match ll
+    [(unison-termlink-builtin lnm)
+     (match rl
+       [(unison-termlink-builtin rnm)
+        (compare-string lnm rnm)]
+       [else '<])]
+    [(unison-termlink-derived lh i)
+     (match rl
+       [(unison-termlink-derived rh j)
+        (comparisons
+          (compare-bytes lh rh)
+          (compare-num i j))]
+       [(? unison-termlink-builtin?) '>]
+       [else '<])]
+    [(unison-termlink-con lr t)
+     (match rl
+       [(unison-termlink-con rr u)
+        (comparisons
+          (compare-typelink lr rr)
+          (compare-num t u))]
+       [else '>])]))
+
+(define (value->category v)
   (cond
-    [(equal? l r) '=]
-    [(and (number? l) (number? r)) (if (< l r) '< '>)]
-    [(and (chunked-list? l) (chunked-list? r)) (chunked-list-compare/recur l r universal-compare)]
+    [(procedure? v) 0]
+    [(unison-closure? v) 0]
+    [(number? v) 1]
+    [(char? v) 1]
+    [(boolean? v) 1]
+    [(unison-data? v) 1]
+    [(chunked-list? v) 3]
+    [(chunked-string? v) 3]
+    [(chunked-bytes? v) 3]
+    [(unison-termlink? v) 3]
+    [(unison-typelink? v) 3]
+    [(bytes? v) 5]))
+
+(define (compare-data l r cmp-ty)
+  (match* (l r)
+    [((unison-data lr lt lfs) (unison-data rr rt rfs))
+     (compare-data-stuff lr lt lfs rr rt rfs cmp-ty)]))
+
+(define (compare-data-stuff lr lt lfs rr rt rfs cmp-ty)
+  (define new-cmp-ty (or cmp-ty (eq? lr builtin-any:typelink)))
+  (comparisons
+    (if cmp-ty (compare-typelink lr rr) '=)
+    (compare-num lt rt)
+    (compare-num (length lfs) (length rfs))
+    (lexico-compare lfs rfs new-cmp-ty)))
+
+; gives links to compare values as pseudo- or actual data types.
+; This is how the interpreter works, so this is an attempt to obtain
+; the same ordering.
+(define (pseudo-data-link v)
+  (cond
+    [(boolean? v) builtin-boolean:typelink]
+    [(char? v) builtin-char:typelink]
+    [(flonum? v) builtin-float:typelink]
+    [(and (number? v) (negative? v)) builtin-int:typelink]
+    [(number? v) builtin-nat:typelink]
+    [(unison-data? v) (unison-data-ref v)]))
+
+(define (compare-proc l r cmp-ty)
+  (define (unpack v)
+    (if (procedure? v)
+      (values (lookup-function-link v) '())
+      (values
+        (lookup-function-link (unison-closure-code v))
+        (unison-closure-env v))))
+
+  (define-values (lnl envl) (unpack l))
+
+  (define-values (lnr envr) (unpack r))
+
+  (comparisons
+    (compare-termlink lnl lnr)
+    (lexico-compare envl envr cmp-ty)))
+
+(define (universal-compare l r [cmp-ty #f])
+  (define (u-proc? v)
+    (or (procedure? v) (unison-closure? v)))
+
+  (cond
+    [(eq? l r) '=] ; optimistic equality case
+    [(and (boolean? l) (boolean? r)) (if r '< '>)]
+    [(and (char? l) (char? r)) (if (char<? l r) '< '>)]
+    [(and (number? l) (number? r)) (compare-num l r)]
+    [(and (chunked-list? l) (chunked-list? r))
+     (chunked-list-compare/recur l r universal-compare)]
     [(and (chunked-string? l) (chunked-string? r))
-     (chunked-string-compare/recur l r (lambda (a b) (if (char<? a b) '< '>)))]
+     (chunked-string-compare/recur l r compare-char)]
     [(and (chunked-bytes? l) (chunked-bytes? r))
-     (chunked-bytes-compare/recur l r (lambda (a b) (if (< a b) '< '>)))]
-    [(and (bytes? l) (bytes? r))
-     (cond
-       [(bytes=? l r) '=]
-       [(bytes<? l r) '<]
-       [else '>])]
-    [(and (unison-data? l) (unison-data? r))
-     (let ([fls (unison-data-fields l)] [frs (unison-data-fields r)])
-       (comparisons
-         (cmp-num (unison-data-tag l) (unison-data-tag r))
-         (cmp-num (length fls) (length frs))
-         (lexico-compare fls frs)))]
+     (chunked-bytes-compare/recur l r compare-byte)]
+    [(and (unison-data? l) (unison-data? r)) (compare-data l r cmp-ty)]
+    [(and (bytes? r) (bytes? r)) (compare-bytes l r)]
+    [(and (u-proc? l) (u-proc? r)) (compare-proc l r)]
+    [(and (unison-termlink? l) (unison-termlink? r))
+     (compare-termlink l r)]
+    [(and (unison-typelink? l) (unison-typelink? r))
+     (compare-typelink l r)]
+    [(= 3 (value->category l) (value->category r))
+     (compare-typelink (pseudo-data-link l) (pseudo-data-link r))]
+    [(= (value->category l) (value->category r))
+     (raise
+       (make-exn:bug
+         "unsupported universal comparison of values"
+         (unison-tuple l r)))]
     [else
-      (let ([dl (describe-value l)]
-            [dr (describe-value r)])
-        (raise
-          (format
-            "universal-compare: unimplemented\n~a\n\n~a"
-            dl dr)))]))
+      (compare-num (value->category l) (value->category r))]))
+
+
+(define (list->unison-tuple l)
+  (foldr ref-tuple-pair ref-unit-unit l))
+
+(define (unison-tuple . l) (list->unison-tuple l))
+
 
 (define (chunked-string<? l r) (chunked-string=?/recur l r char<?))
 
@@ -358,3 +510,30 @@
         (begin
           (vector-set! dst i (vector-ref src (+ off i)))
           (next (fx1- i)))))))
+
+(define (write-exn:bug ex port mode)
+  (when mode
+    (write-string "<exn:bug " port))
+
+  (let ([recur (case mode
+                 [(#t) write]
+                 [(#f) display]
+                 [else (lambda (v port) (print v port mode))])])
+    (recur (chunked-string->string (exn:bug-msg ex)) port)
+    (if mode (write-string " " port) (newline port))
+    (write-string (describe-value (exn:bug-val ex)) port))
+
+  (when mode
+    (write-string ">")))
+
+(struct exn:bug (msg val)
+  #:constructor-name make-exn:bug
+  #:methods gen:custom-write
+  [(define write-proc write-exn:bug)])
+
+
+(define (exn:bug->exception b)
+  (exception
+    ref-runtimefailure:typelink
+    (exn:bug-msg b)
+    (exn:bug-val b)))

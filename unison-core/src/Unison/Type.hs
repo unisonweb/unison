@@ -15,18 +15,19 @@ import Unison.LabeledDependency qualified as LD
 import Unison.Name qualified as Name
 import Unison.Names.ResolutionResult qualified as Names
 import Unison.Prelude
-    ( join,
-      foldl',
-      Generic,
-      Generic1,
-      Map,
-      Text,
-      Const(Const, getConst),
-      ($>),
-      (<&>),
-      Set,
-      Identity(runIdentity),
-      sortOn )
+  ( Const (Const, getConst),
+    Generic,
+    Generic1,
+    Identity (runIdentity),
+    Map,
+    Set,
+    Text,
+    foldl',
+    join,
+    sortOn,
+    ($>),
+    (<&>),
+  )
 import Unison.Reference (Reference)
 import Unison.Reference qualified as Reference
 import Unison.Settings qualified as Settings

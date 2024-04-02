@@ -1,0 +1,58 @@
+
+linkstuff.termlinks =
+  [ termLink data.Map.adjust
+  , termLink data.Map.alter
+  , termLink data.Map.contains
+  , termLink data.Map.delete
+  , termLink data.Map.difference
+  , termLink data.List.any
+  , termLink data.List.apply
+  , termLink data.List.compare
+  , termLink data.List.contains
+  , termLink data.List.count
+  , termLink data.List.diagonal
+  , termLink data.List.distinct
+  , termLink data.NatSet.alter
+  , termLink data.NatSet.any
+  , termLink data.NatSet.empty
+  , termLink data.NatSet.filter
+  , termLink data.Tuple.at1
+  , termLink data.Tuple.at2
+  , termLink data.Tuple.at3
+  , termLink data.Tuple.bimap
+  , termLink data.Tuple.mapLeft
+  , termLink data.graph.SCC.map
+  ]
+
+linkstuff.typelinks =
+  [ typeLink data.Map
+  , typeLink Nat
+  , typeLink Char
+  , typeLink data.List
+  , typeLink data.NatSet
+  , typeLink data.Tuple
+  ]
+
+linkstuff.tmlpairs =
+  flatMap (l -> map (r -> (l,r)) termlinks) termlinks
+
+linkstuff.tylpairs =
+  flatMap (l -> map (r -> (l,r)) typelinks) typelinks
+
+linkstuff.tests : '{Tests,IO} ()
+linkstuff.tests = do
+  use Universal gteq
+  if all (cases (l,r) -> (l === r) || (l !== r)) tmlpairs
+  then pass "term link equality"
+  else fail "term link equality" ""
+  if all (cases (l,r) -> (l === r) || (l !== r)) tylpairs
+  then pass "type link equality"
+  else fail "type link equality" ""
+
+  if all (cases (l,r) -> gteq l r || gteq r l) tmlpairs
+  then pass "term link comparison"
+  else fail "term link comparison" ""
+  if all (cases (l,r) -> gteq l r || gteq r l) tylpairs
+  then pass "type link comparison"
+  else fail "type link comparison" ""
+

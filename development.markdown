@@ -2,7 +2,7 @@ These are commands that will likely be useful during development.
 
 __General:__ `./scripts/test.sh` compiles and builds the Haskell code and runs all tests. Recommended that you run this before pushing any code to a branch that others might be working on.
 
-_Disclaimer_ If you have trouble getting started, please get in touch via [Slack](https://unison-lang.org/community) so we can help.  If you have any fixes to the process, please send us a PR!
+_Disclaimer_ If you have trouble getting started, please get in touch via [Discord](https://unison-lang.org/discord) so we can help.  If you have any fixes to the process, please send us a PR!
 
 ## Running Unison
 
@@ -126,9 +126,9 @@ This is specified with the normal
 
 Some examples:
 ```
-nix build '.#unison-cli:lib:unison-cli'
-nix build '.#unison-syntax:test:syntax-tests'
-nix build '.#unison-cli:exe:transcripts'
+nix build '.#haskell-nix.unison-cli:lib:unison-cli'
+nix build '.#haskell-nix.unison-syntax:test:syntax-tests'
+nix build '.#haskell-nix.unison-cli:exe:transcripts'
 ```
 
 ### Development environments
@@ -154,7 +154,7 @@ all non-local haskell dependencies (including profiling dependencies)
 are provided in the nix shell.
 
 ```
-nix develop '.#local'
+nix develop '.#haskell-nix.local'
 ```
 
 #### Get into a development environment for building a specific package
@@ -164,17 +164,17 @@ all haskell dependencies of this package are provided by the nix shell
 (including profiling dependencies).
 
 ```
-nix develop '.#<package-name>'
+nix develop '.#haskell-nix.<package-name>'
 ```
 
 for example:
 
 ```
-nix develop '.#unison-cli'
+nix develop '.#haskell-nix.unison-cli'
 ```
 or
 ```
-nix develop '.#unison-parser-typechecker'
+nix develop '.#haskell-nix.unison-parser-typechecker'
 ```
 
 This is useful if you wanted to profile a package. For example, if you

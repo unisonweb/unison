@@ -21,17 +21,23 @@ cradle:
     - path: "codebase2/util-term/./"
       component: "unison-util-term:lib"
 
+    - path: "lib/orphans/network-uri-orphans-sqlite/src"
+      component: "network-uri-orphans-sqlite:lib"
+
     - path: "lib/orphans/unison-core-orphans-sqlite/src"
       component: "unison-core-orphans-sqlite:lib"
-
-    - path: "lib/unison-hash/src"
-      component: "unison-hash:lib"
 
     - path: "lib/orphans/unison-hash-orphans-aeson/src"
       component: "unison-hash-orphans-aeson:lib"
 
     - path: "lib/orphans/unison-hash-orphans-sqlite/src"
       component: "unison-hash-orphans-sqlite:lib"
+
+    - path: "lib/orphans/uuid-orphans-sqlite/src"
+      component: "uuid-orphans-sqlite:lib"
+
+    - path: "lib/unison-hash/src"
+      component: "unison-hash:lib"
 
     - path: "lib/unison-hashing/src"
       component: "unison-hashing:lib"
@@ -72,6 +78,9 @@ cradle:
     - path: "lib/unison-util-file-embed/src"
       component: "unison-util-file-embed:lib"
 
+    - path: "lib/unison-util-nametree/src"
+      component: "unison-util-nametree:lib"
+
     - path: "lib/unison-util-relation/src"
       component: "unison-util-relation:lib"
 
@@ -84,41 +93,35 @@ cradle:
     - path: "lib/unison-util-rope/src"
       component: "unison-util-rope:lib"
 
-    - path: "lib/orphans/uuid-orphans-sqlite/src"
-      component: "uuid-orphans-sqlite:lib"
-
     - path: "parser-typechecker/src"
       component: "unison-parser-typechecker:lib"
 
     - path: "parser-typechecker/tests"
       component: "unison-parser-typechecker:test:parser-typechecker-tests"
 
-    - path: "unison-cli/src"
+    - path: "unison-cli/unison"
       component: "unison-cli:lib"
 
-    - path: "unison-cli/integration-tests/Suite.hs"
-      component: "unison-cli:exe:cli-integration-tests"
-
-    - path: "unison-cli/integration-tests/IntegrationTests/ArgumentParsing.hs"
-      component: "unison-cli:exe:cli-integration-tests"
+    - path: "unison-cli/src"
+      component: "unison-cli:lib:unison-cli-lib"
 
     - path: "unison-cli/transcripts/Transcripts.hs"
       component: "unison-cli:exe:transcripts"
 
-    - path: "unison-cli/unison/Main.hs"
-      component: "unison-cli:exe:unison"
-
-    - path: "unison-cli/unison/ArgParse.hs"
-      component: "unison-cli:exe:unison"
-
-    - path: "unison-cli/unison/System/Path.hs"
-      component: "unison-cli:exe:unison"
-
-    - path: "unison-cli/unison/Version.hs"
-      component: "unison-cli:exe:unison"
-
     - path: "unison-cli/tests"
       component: "unison-cli:test:cli-tests"
+
+    - path: "unison-cli-integration/integration-tests/Suite.hs"
+      component: "unison-cli-integration:exe:cli-integration-tests"
+
+    - path: "unison-cli-integration/integration-tests/IntegrationTests/ArgumentParsing.hs"
+      component: "unison-cli-integration:exe:cli-integration-tests"
+
+    - path: "unison-cli-main/unison/Main.hs"
+      component: "unison-cli-main:exe:unison"
+
+    - path: "unison-cli-main/unison/Version.hs"
+      component: "unison-cli-main:exe:unison"
 
     - path: "unison-core/src"
       component: "unison-core1:lib"

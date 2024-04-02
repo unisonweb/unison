@@ -16,6 +16,7 @@ where
 
 import Control.Lens ((%~))
 import Control.Lens.Tuple (_1, _2, _3)
+import Data.Foldable qualified as Foldable
 import Data.Function (on)
 import Data.List (find, intersperse, sortBy)
 import Data.List.Extra (nubOrd)
@@ -47,7 +48,7 @@ import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.Reference qualified as R
-import Unison.Referent (Referent, toReference, pattern Ref)
+import Unison.Referent (Referent, pattern Ref)
 import Unison.Result (Note (..))
 import Unison.Result qualified as Result
 import Unison.Settings qualified as Settings
@@ -625,12 +626,7 @@ renderTypeError e env src = case e of
           foldr
             sep
             id
-            ( sortBy
-                ( comparing length <> compare
-                    `on` (Text.splitOn "." . C.suggestionName)
-                )
-                suggestions
-            )
+            (sortBy (comparing length <> compare `on` (Name.segments . C.suggestionName)) suggestions)
             ([], [], [])
         sep s@(C.Suggestion _ _ _ match) r =
           case match of
@@ -1186,19 +1182,16 @@ renderType env f t = renderType0 env f (0 :: Int) (cleanup t)
       where
         go = renderType0 env f
 
-renderSuggestion ::
-  (IsString s, Semigroup s, Var v) => Env -> C.Suggestion v loc -> s
+renderSuggestion :: (IsString s, Semigroup s, Var v) => Env -> C.Suggestion v loc -> s
 renderSuggestion env sug =
-  renderTerm
-    env
-    ( case C.suggestionReplacement sug of
-        Right ref -> Term.ref () (toReference ref)
-        Left v -> Term.var () v
-    )
+  renderTerm env term
     <> " : "
-    <> renderType'
-      env
-      (C.suggestionType sug)
+    <> renderType' env (C.suggestionType sug)
+  where
+    term =
+      case C.suggestionReplacement sug of
+        C.ReplacementRef ref -> Term.fromReferent () ref
+        C.ReplacementVar v -> Term.var () v
 
 spaces :: (IsString a, Monoid a) => (b -> a) -> [b] -> a
 spaces = intercalateMap " "
@@ -1490,20 +1483,50 @@ renderParseErrors s = \case
               "",
               excerpt
             ]
-        L.Opaque msg -> style ErrorSite msg
-  P.TrivialError errOffset unexpected expected ->
-    let (src, ranges) = case unexpected of
-          Just (P.Tokens (toList -> ts)) -> case ts of
-            [] -> (mempty, [])
-            _ ->
-              let rs = rangeForToken <$> ts
-               in (showSource s $ (\r -> (r, ErrorSite)) <$> rs, rs)
-          _ -> mempty
-        -- Same error that we just pattern matched on, but with a different error component (here Void) - we need one
-        -- with a ShowErrorComponent instance, which our error type doesn't have.
-        sameErr :: P.ParseError Parser.Input Void
-        sameErr = P.TrivialError errOffset unexpected expected
-     in [(fromString (P.parseErrorPretty sameErr) <> src, ranges)]
+        L.UnexpectedTokens msg ->
+          Pr.lines
+            [ "I got confused here:",
+              "",
+              excerpt,
+              "",
+              style ErrorSite msg
+            ]
+  P.TrivialError _errOffset unexpected expected ->
+    let unexpectedTokens :: Maybe (Nel.NonEmpty (L.Token L.Lexeme))
+        unexpectedTokenStrs :: Set String
+        (unexpectedTokens, unexpectedTokenStrs) = case unexpected of
+          Just (P.Tokens ts) ->
+            Foldable.toList ts
+              & fmap (L.displayLexeme . L.payload)
+              & Set.fromList
+              & (Just ts,)
+          Just (P.Label ts) -> (mempty, Set.singleton $ Foldable.toList ts)
+          Just (P.EndOfInput) -> (mempty, Set.singleton "end of input")
+          Nothing -> (mempty, mempty)
+        expectedTokenStrs :: Set String
+        expectedTokenStrs =
+          expected & foldMap \case
+            (P.Tokens ts) ->
+              Foldable.toList ts
+                & fmap (L.displayLexeme . L.payload)
+                & Set.fromList
+            (P.Label ts) -> Set.singleton $ Foldable.toList ts
+            (P.EndOfInput) -> Set.singleton "end of input"
+        ranges = case unexpectedTokens of
+          Nothing -> []
+          Just ts -> rangeForToken <$> Foldable.toList ts
+        excerpt = showSource s ((\r -> (r, ErrorSite)) <$> ranges)
+        msg = L.formatTrivialError unexpectedTokenStrs expectedTokenStrs
+     in [ ( Pr.lines
+              [ "I got confused here:",
+                "",
+                excerpt,
+                "",
+                style ErrorSite msg
+              ],
+            ranges
+          )
+        ]
   P.FancyError _sp fancyErrors ->
     (go' <$> Set.toList fancyErrors)
   where

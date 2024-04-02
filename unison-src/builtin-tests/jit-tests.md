@@ -2,8 +2,6 @@
 Note: This should be forked off of the codebase created by base.md
 
 ```ucm:hide
-.> compile.native.fetch
-.> compile.native.genlibs
 .> load unison-src/builtin-tests/testlib.u
 .> add
 ```
@@ -20,6 +18,11 @@ to `Tests.check` and `Tests.checkEqual`).
 
 ```ucm:hide
 .> load unison-src/builtin-tests/array-tests.u
+.> add
+```
+
+```ucm:hide
+.> load unison-src/builtin-tests/link-tests.u
 .> add
 ```
 
@@ -99,4 +102,18 @@ to `Tests.check` and `Tests.checkEqual`).
 
 ```ucm
 .> run.native tests.jit.only
+```
+
+```unison
+foo = do
+  go : Nat ->{Exception} ()
+  go = cases
+    0 -> ()
+    n -> go (decrement n)
+  go 1000
+```
+
+```ucm
+.> run.native foo
+.> run.native foo
 ```

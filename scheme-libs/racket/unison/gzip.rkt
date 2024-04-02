@@ -26,5 +26,9 @@
     (bytes->chunked-bytes (gzip-bytes (chunked-bytes->bytes bytes))))
 
 (define (gzip.decompress bytes)
-    (with-handlers [[exn:fail? (lambda (e) (exception "Gzip data corrupted" (exception->string e) '()))] ]
-        (right (bytes->chunked-bytes (gunzip-bytes (chunked-bytes->bytes bytes))))))
+  (with-handlers
+    [[exn:fail? (lambda (e) (left (exception->string e)))]]
+    (right
+      (bytes->chunked-bytes
+        (gunzip-bytes
+          (chunked-bytes->bytes bytes))))))

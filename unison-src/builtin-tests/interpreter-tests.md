@@ -22,6 +22,11 @@ to `Tests.check` and `Tests.checkEqual`).
 ```
 
 ```ucm:hide
+.> load unison-src/builtin-tests/link-tests.u
+.> add
+```
+
+```ucm:hide
 .> load unison-src/builtin-tests/math-tests.u
 .> add
 ```

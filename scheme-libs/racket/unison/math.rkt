@@ -1,8 +1,14 @@
 #lang racket/base
 
 (require math/base
-         rnrs/arithmetic/fixnums-6
-         (only-in unison/boot data-case define-unison))
+         racket/performance-hint
+         rnrs/arithmetic/bitwise-6
+         (only-in unison/boot
+                  clamp-integer
+                  clamp-natural
+                  data-case
+                  define-unison
+                  nbit63))
 
 (provide
     builtin-Float.exp
@@ -73,8 +79,8 @@
 (define-unison (builtin-Float.min n m) (min n m))
 (define-unison (builtin-Float.tan n) (tan n))
 (define-unison (builtin-Float.tanh n) (tanh n))
-(define-unison (builtin-Int.* n m) (* n m))
-(define-unison (builtin-Int.pow n m) (expt n m))
+(define-unison (builtin-Int.* n m) (clamp-integer (* n m)))
+(define-unison (builtin-Int.pow n m) (clamp-integer (expt n m)))
 (define-unison (builtin-Int.trailingZeros n) (TZRO n))
 (define-unison (builtin-Nat.trailingZeros n) (TZRO n))
 (define-unison (builtin-Nat.popCount n) (POPC n))
@@ -85,19 +91,19 @@
 (define ACOS acos)
 (define ACSH acosh)
 (define ADDF +)
-(define ADDI +)
+(define (ADDI i j) (clamp-integer (+ i j)))
 (define SUBF -)
-(define SUBI -)
+(define (SUBI i j) (clamp-integer (- i j)))
 (define (SGNI n) (if (< n 0) -1 (if (> n 0) +1 0)))
 (define MAXF max)
 (define MINF min)
 (define MULF *)
-(define MULI *)
-(define NEGI -)
+(define (MULI i j) (clamp-integer (* i j)))
+(define (NEGI i) (if (> i nbit63) (- i) i))
 (define NTOF exact->inexact)
 (define POWF expt)
-(define POWI expt)
-(define POWN expt)
+(define (POWI i j) (clamp-integer (expt i j)))
+(define (POWN i j) (clamp-natural (expt i j)))
 (define ASIN asin)
 (define ASNH asinh)
 (define ATAN atan)
@@ -106,7 +112,10 @@
 (define CEIL ceiling)
 (define FLOR floor)
 (define COSF cos)
-(define TRNF truncate)
+(define (TRNF f)
+  (cond
+    [(or (= f +inf.0) (= f -inf.0) (eqv? f +nan.0) (eqv? f +nan.f)) 0]
+    [else (clamp-integer (inexact->exact (truncate f)))]))
 (define RNDF round)
 (define SQRT sqrt)
 (define TANF tan)
@@ -115,19 +124,17 @@
 (define SINH sinh)
 (define COSH cosh)
 (define DIVF /)
-(define DIVI /)
+(define (DIVI i j) (floor (/ i j)))
 (define ITOF exact->inexact)
 (define (EQLF a b) (if (= a b) 1 0))
 (define (LEQF a b) (if (<= a b) 1 0))
 (define (EQLI a b) (if (= a b) 1 0))
 
 (define (POPC n)
-    (if (< n 0)
-        (+ 65 (fxbit-count n))
-        (fxbit-count n)))
+  (modulo (bitwise-bit-count n) 65))
 
 (define (TZRO n)
-    (let ([bit (fxfirst-bit-set n)])
+    (let ([bit (bitwise-first-bit-set n)])
         (if (eq? -1 bit)
             64
             bit)))

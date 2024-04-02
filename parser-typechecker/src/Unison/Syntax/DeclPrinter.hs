@@ -175,7 +175,10 @@ fieldNames env r name dd = do
     [(_, typ)] -> Just typ
     _ -> Nothing
   let vars :: [v]
-      vars = [Var.freshenId (fromIntegral n) (Var.named "_") | n <- [0 .. Type.arity typ - 1]]
+      -- We add `n` to the end of the variable name as a quick fix to #4752, but we suspect there's a more
+      -- fundamental fix to be made somewhere in the term printer to automatically suffix a var name with its
+      -- freshened id if it would be ambiguous otherwise.
+      vars = [Var.freshenId (fromIntegral n) (Var.named ("_" <> Text.pack (show n))) | n <- [0 .. Type.arity typ - 1]]
   hashes <- DD.hashFieldAccessors env (HQ.toVar name) vars r dd
   let names =
         [ (r, HQ.toText . PPE.termName env . Referent.Ref $ DerivedId r)

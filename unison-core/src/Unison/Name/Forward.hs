@@ -6,7 +6,7 @@ import Unison.Name qualified as Name
 import Unison.Name.Internal (Name)
 import Unison.NameSegment (NameSegment)
 
-newtype ForwardName = ForwardName { toList :: NonEmpty NameSegment } deriving (Eq, Ord, Show)
+newtype ForwardName = ForwardName {toList :: NonEmpty NameSegment} deriving (Eq, Ord, Show)
 
 -- | O(d)
 fromName :: Name -> ForwardName
