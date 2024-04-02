@@ -21,6 +21,10 @@ data TwoWayI a = TwoWayI
   deriving stock (Foldable, Functor, Generic)
   deriving (Semigroup) via (GenericSemigroupMonoid (TwoWayI a))
 
+instance Applicative TwoWayI where
+  pure x = TwoWayI x x x
+  TwoWayI f g h <*> TwoWayI x y z = TwoWayI (f x) (g y) (h z)
+
 instance Semialign TwoWayI where
   alignWith :: (These a b -> c) -> TwoWayI a -> TwoWayI b -> TwoWayI c
   alignWith f =

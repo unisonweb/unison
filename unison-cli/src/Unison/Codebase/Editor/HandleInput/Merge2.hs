@@ -162,6 +162,25 @@ handleMerge bobBranchName = do
             | Map.member name conflicts.types = id
             | otherwise = Map.upsert (fromMaybe ref) name
 
+  let pseudoTypeConflicts1 :: TwoWay (Set Name)
+      pseudoTypeConflicts1 =
+        Map.keysSet <$> pseudoTypeConflicts
+
+  let balooga :: TwoWayI (Map Name Referent) -> TwoWayI (Map Name Referent)
+      balooga changes =
+        TwoWayI
+          { alice = dropConstructorsIf alicesTypeIsConflicted changes.alice,
+            bob = dropConstructorsIf bobsTypeIsConflicted changes.bob,
+            both = dropConstructorsIf (\name -> alicesTypeIsConflicted name || bobsTypeIsConflicted name) changes.both
+          }
+        where
+          dropConstructorsIf :: (Name -> Bool) -> Map Name Referent -> Map Name Referent
+          dropConstructorsIf p =
+            Map.filterWithKey \name ref -> not (Referent'.isConstructor ref && p name)
+
+          alicesTypeIsConflicted name = Set.member (expectDeclName declNameLookups.alice name) pseudoTypeConflicts1.alice
+          bobsTypeIsConflicted name = Set.member (expectDeclName declNameLookups.bob name) pseudoTypeConflicts1.bob
+
   -- Honk on the conflicts
   let honkedConflicts = honkThoseConflicts declNameLookups conflicts
 
@@ -179,9 +198,9 @@ handleMerge bobBranchName = do
           f :: Unconflicts Referent -> Unconflicts Referent
           f x =
             Unconflicts
-              { adds = wundefined x.adds,
-                deletes = wundefined,
-                updates = wundefined
+              { adds = balooga x.adds,
+                deletes = x.deletes,
+                updates = balooga x.updates
               }
 
   -- Identify the dependents we need to pull into the Unison file (either first for typechecking, if there aren't
