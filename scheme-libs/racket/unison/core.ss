@@ -407,6 +407,11 @@
     (compare-termlink lnl lnr)
     (lexico-compare envl envr cmp-ty)))
 
+(define (compare-timespec l r)
+  (comparisons
+    (compare-num (unison-timespec-sec l) (unison-timespec-sec r))
+    (compare-num (unison-timespec-nsec l) (unison-timespec-nsec r))))
+
 (define (universal-compare l r [cmp-ty #f])
   (define (u-proc? v)
     (or (procedure? v) (unison-closure? v)))
@@ -429,6 +434,8 @@
      (compare-termlink l r)]
     [(and (unison-typelink? l) (unison-typelink? r))
      (compare-typelink l r)]
+    [(and (unison-timespec? l) (unison-timespec? r))
+     (compare-timespec l r)]
     [(= 3 (value->category l) (value->category r))
      (compare-typelink (pseudo-data-link l) (pseudo-data-link r))]
     [(= (value->category l) (value->category r))
