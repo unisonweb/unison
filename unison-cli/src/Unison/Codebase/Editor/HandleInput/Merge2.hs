@@ -138,70 +138,21 @@ handleMerge bobBranchName = do
     Cli.returnEarly (mergePreconditionViolationToOutput violation)
 
   -- Combine the LCA->Alice and LCA->Bob diffs together into the conflicted things and the unconflicted things
-  let (conflicts0, unconflicts) = combineDiffs diffs
+  let (conflicts0, unconflicts0) = combineDiffs diffs
   conflicts <-
     Cli.runTransactionWithRollback \abort -> do
       assertConflictsSatisfyPreconditions abort conflicts0
 
-  let pseudoTypeConflicts :: TwoWay (Map Name TypeReferenceId)
+  let pseudoTypeConflicts :: TwoWay (Set Name)
       pseudoTypeConflicts =
-        Map.foldlWithKey' f (TwoWay Map.empty Map.empty) conflicts.terms
-        where
-          f :: TwoWay (Map Name TypeReferenceId) -> Name -> TwoWay Referent.Id -> TwoWay (Map Name TypeReferenceId)
-          f acc name refs =
-            g name <$> declNameLookups <*> refs <*> acc
+        computePseudoTypeConflicts declNameLookups conflicts
 
-          g :: Name -> DeclNameLookup -> Referent.Id -> Map Name TypeReferenceId -> Map Name TypeReferenceId
-          g name declNameLookup = \case
-            Referent'.Con' (ConstructorReference ref _) _ -> h (expectDeclName declNameLookup name) ref
-            Referent'.Ref' _ -> id
-
-          h :: Name -> TypeReferenceId -> Map Name TypeReferenceId -> Map Name TypeReferenceId
-          h name ref
-            -- If the type is already conflicted, don't also include it in "pseudo" type conflicts
-            | Map.member name conflicts.types = id
-            | otherwise = Map.upsert (fromMaybe ref) name
-
-  let pseudoTypeConflicts1 :: TwoWay (Set Name)
-      pseudoTypeConflicts1 =
-        Map.keysSet <$> pseudoTypeConflicts
-
-  let balooga :: TwoWayI (Map Name Referent) -> TwoWayI (Map Name Referent)
-      balooga changes =
-        TwoWayI
-          { alice = dropConstructorsIf alicesTypeIsConflicted changes.alice,
-            bob = dropConstructorsIf bobsTypeIsConflicted changes.bob,
-            both = dropConstructorsIf (\name -> alicesTypeIsConflicted name || bobsTypeIsConflicted name) changes.both
-          }
-        where
-          dropConstructorsIf :: (Name -> Bool) -> Map Name Referent -> Map Name Referent
-          dropConstructorsIf p =
-            Map.filterWithKey \name ref -> not (Referent'.isConstructor ref && p name)
-
-          alicesTypeIsConflicted name = Set.member (expectDeclName declNameLookups.alice name) pseudoTypeConflicts1.alice
-          bobsTypeIsConflicted name = Set.member (expectDeclName declNameLookups.bob name) pseudoTypeConflicts1.bob
+  let unconflicts :: DefnsF Unconflicts Referent TypeReference
+      unconflicts =
+        Bifunctor.first (bogogo declNameLookups pseudoTypeConflicts) unconflicts0
 
   -- Honk on the conflicts
   let honkedConflicts = honkThoseConflicts declNameLookups conflicts
-
-  -- delete from unconflicts the conflicts that we honked
-  --
-  -- let's see... what do we actually use unconflicts for?
-  --
-  --   identifyDependents
-  --     1. Makes a TwoWay (Defns (Set Name) (Set Name)) of deleted and updated names
-  --     2. Separately, needs those sets deleted and updated names (not unioned together)
-  let unconflicts1 :: DefnsF Unconflicts Referent TypeReference
-      unconflicts1 =
-        Bifunctor.first f unconflicts
-        where
-          f :: Unconflicts Referent -> Unconflicts Referent
-          f x =
-            Unconflicts
-              { adds = balooga x.adds,
-                deletes = x.deletes,
-                updates = balooga x.updates
-              }
 
   -- Identify the dependents we need to pull into the Unison file (either first for typechecking, if there aren't
   -- conflicts, or else for manual conflict resolution without a typechecking step, if there are)
@@ -1109,6 +1060,48 @@ assertConflictsSatisfyPreconditions abort =
         case Reference.toId ref of
           Nothing -> abort (mergePreconditionViolationToOutput (Merge.ConflictInvolvingBuiltin name))
           Just refId -> pure refId
+
+computePseudoTypeConflicts ::
+  TwoWay DeclNameLookup ->
+  DefnsF (Map Name) (TwoWay Referent.Id) (TwoWay TypeReferenceId) ->
+  TwoWay (Set Name)
+computePseudoTypeConflicts declNameLookups conflicts =
+  Map.foldlWithKey' f (TwoWay Set.empty Set.empty) conflicts.terms
+  where
+    f :: TwoWay (Set Name) -> Name -> TwoWay Referent.Id -> TwoWay (Set Name)
+    f acc name refs =
+      g name <$> declNameLookups <*> refs <*> acc
+
+    g :: Name -> DeclNameLookup -> Referent.Id -> Set Name -> Set Name
+    g conName declNameLookup ref
+      -- If the type is already conflicted, don't also include it in "pseudo" type conflicts
+      | Referent'.isConstructor ref && Map.notMember declName conflicts.types = Set.insert declName
+      | otherwise = id
+      where
+        declName = expectDeclName declNameLookup conName
+
+bogogo :: TwoWay DeclNameLookup -> TwoWay (Set Name) -> Unconflicts Referent -> Unconflicts Referent
+bogogo declNameLookups pseudoTypeConflicts =
+  over #adds f . over #updates f
+  where
+    f = balooga declNameLookups pseudoTypeConflicts
+
+balooga ::
+  TwoWay DeclNameLookup ->
+  TwoWay (Set Name) ->
+  TwoWayI (Map Name Referent) ->
+  TwoWayI (Map Name Referent)
+balooga declNameLookups pseudoTypeConflicts =
+  over #alice (dropConstructorsIf alicesTypeIsConflicted)
+    . over #bob (dropConstructorsIf bobsTypeIsConflicted)
+    . over #both (dropConstructorsIf (\conName -> alicesTypeIsConflicted conName || bobsTypeIsConflicted conName))
+  where
+    dropConstructorsIf :: (Name -> Bool) -> Map Name Referent -> Map Name Referent
+    dropConstructorsIf shouldDrop =
+      Map.filterWithKey \name ref -> not (Referent'.isConstructor ref && shouldDrop name)
+
+    alicesTypeIsConflicted conName = Set.member (expectDeclName declNameLookups.alice conName) pseudoTypeConflicts.alice
+    bobsTypeIsConflicted conName = Set.member (expectDeclName declNameLookups.bob conName) pseudoTypeConflicts.bob
 
 -- Like `loadNamespaceInfo`, but for loading the LCA, which has fewer preconditions.
 --
