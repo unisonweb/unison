@@ -34,9 +34,9 @@ main = do
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-
+  
     ⍟ These new definitions are ok to `add`:
-
+    
       structural ability Break
       type MyBool
       main   : '{IO, Exception} ()
@@ -47,7 +47,7 @@ main = do
 .> add
 
   ⍟ I've added these definitions:
-
+  
     structural ability Break
     type MyBool
     main   : '{IO, Exception} ()
