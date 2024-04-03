@@ -173,6 +173,9 @@ instance ToJSONKey Name where
 instance ToSchema Name where
   declareNamedSchema _ = declareNamedSchema (Proxy @Text)
 
+instance ToJSON NameSegment where
+  toJSON = toJSON . NameSegment.toEscapedText
+
 deriving anyclass instance ToParamSchema ShortCausalHash
 
 instance ToParamSchema ShortHash where
