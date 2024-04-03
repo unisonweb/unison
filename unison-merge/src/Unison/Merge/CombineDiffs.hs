@@ -7,6 +7,7 @@ module Unison.Merge.CombineDiffs
 where
 
 import Control.Lens (over, view, (%~))
+import Data.Bitraversable (bitraverse)
 import Data.List qualified as List
 import Data.Map.Strict qualified as Map
 import Data.Semialign (alignWith)
@@ -22,7 +23,8 @@ import Unison.Merge.TwoWayI (TwoWayI (..))
 import Unison.Merge.Unconflicts (Unconflicts (..))
 import Unison.Name (Name)
 import Unison.Prelude hiding (catMaybes)
-import Unison.Reference (TermReference, TypeReference)
+import Unison.Reference (Reference, TermReference, TermReferenceId, TypeReference, TypeReferenceId)
+import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Referent' qualified as Referent'
@@ -49,28 +51,41 @@ data Flicts v = Flicts
   }
   deriving stock (Generic)
 
-data Flicts2 v = Flicts2
-  { conflicts :: !(Map Name (TwoWay v)),
-    adds :: !(TwoWayI (Map Name v)),
-    deletes :: !(TwoWayI (Map Name v)),
-    updates :: !(TwoWayI (Map Name v))
-  }
-  deriving stock (Generic)
-
 -- | Combine LCA->Alice diff and LCA->Bob diff, then partition into conflicted and unconflicted things.
 combineDiffs ::
   TwoWay DeclNameLookup ->
   TwoWay (BiMultimap Referent Name) ->
   TwoWay (DefnsF (Map Name) (DiffOp (Synhashed Referent)) (DiffOp (Synhashed TypeReference))) ->
-  ( TwoWay (DefnsF (Map Name) TermReference TypeReference),
-    DefnsF Unconflicts Referent TypeReference
-  )
-combineDiffs declNameLookups terms diffs =
-  let Flicts termConflicts termUnconflicts = partition2 (view #terms <$> diffs)
-      Flicts typeConflicts typeUnconflicts = partition2 (view #types <$> diffs)
-      conflicts1 = honkThoseTermConflicts declNameLookups termConflicts <> honkThoseTypeConflicts typeConflicts
-      conflicts2 = over #terms <$> snipsnap declNameLookups terms (view #types <$> conflicts1) <*> conflicts1
-   in (conflicts2, Defns termUnconflicts typeUnconflicts)
+  Either
+    Name
+    ( TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId),
+      DefnsF Unconflicts Referent TypeReference
+    )
+combineDiffs declNameLookups terms diffs = do
+  let termConflicts0 :: Map Name (TwoWay Referent)
+      termUnconflicts0 :: Unconflicts Referent
+      typeConflicts0 :: Map Name (TwoWay TypeReference)
+      typeUnconflicts0 :: Unconflicts TypeReference
+      Flicts termConflicts0 termUnconflicts0 = partition2 (justTheTerms diffs)
+      Flicts typeConflicts0 typeUnconflicts0 = partition2 (justTheTypes diffs)
+
+  let initialConflicts :: TwoWay (DefnsF (Map Name) TermReference TypeReference)
+      initialConflicts =
+        twiddleTermConflicts declNameLookups termConflicts0 <> justTypes (sequenceA typeConflicts0)
+
+  let moreTermConflicts :: TwoWay (DefnsF (Map Name) TermReference TypeReference)
+      moreTermConflicts =
+        justTerms (discoverTermConflicts declNameLookups terms (justTheTypes initialConflicts))
+
+  conflicts <- assertThereAreNoBuiltins (initialConflicts <> moreTermConflicts)
+
+  Right
+    ( conflicts,
+      Defns
+        { terms = dropConflictedUnconflictedTerms declNameLookups conflicts termUnconflicts0,
+          types = dropConflictedUnconflictedTypes (justTheTypes conflicts) typeUnconflicts0
+        }
+    )
 
 partition2 :: TwoWay (Map Name (DiffOp (Synhashed v))) -> Flicts v
 partition2 diffs =
@@ -159,12 +174,11 @@ xor2ior = \case
 --     }
 --   }
 
--- Honk them real good
-honkThoseTermConflicts ::
+twiddleTermConflicts ::
   TwoWay DeclNameLookup ->
   Map Name (TwoWay Referent) ->
   TwoWay (DefnsF (Map Name) TermReference TypeReference)
-honkThoseTermConflicts declNameLookups =
+twiddleTermConflicts declNameLookups =
   Map.foldlWithKey' f (let empty = Defns Map.empty Map.empty in TwoWay empty empty)
   where
     f ::
@@ -173,38 +187,33 @@ honkThoseTermConflicts declNameLookups =
       TwoWay Referent ->
       TwoWay (DefnsF (Map Name) TermReference TypeReference)
     f acc name referents =
-      g name <$> declNameLookups <*> referents <*> acc
+      twiddleTermConflict name <$> declNameLookups <*> referents <*> acc
 
-    g ::
-      Name ->
-      DeclNameLookup ->
-      Referent ->
-      DefnsF (Map Name) TermReference TypeReference ->
-      DefnsF (Map Name) TermReference TypeReference
-    g name declNameLookup = \case
-      Referent'.Con' (ConstructorReference ref _) _ -> over #types (Map.insert (expectDeclName declNameLookup name) ref)
-      Referent'.Ref' ref -> over #terms (Map.insert name ref)
+twiddleTermConflict ::
+  Name ->
+  DeclNameLookup ->
+  Referent ->
+  DefnsF (Map Name) TermReference TypeReference ->
+  DefnsF (Map Name) TermReference TypeReference
+twiddleTermConflict name declNameLookup = \case
+  Referent'.Con' (ConstructorReference ref _) _ -> over #types (Map.insert (expectDeclName declNameLookup name) ref)
+  Referent'.Ref' ref -> over #terms (Map.insert name ref)
 
-honkThoseTypeConflicts :: Map Name (TwoWay types) -> TwoWay (DefnsF (Map Name) terms types)
-honkThoseTypeConflicts =
-  fmap (\types -> Defns {terms = Map.empty, types}) . sequenceA
-
-snipsnap ::
+discoverTermConflicts ::
   TwoWay DeclNameLookup ->
   TwoWay (BiMultimap Referent Name) ->
   TwoWay (Map Name TypeReference) ->
-  TwoWay (Map Name TermReference -> Map Name TermReference)
-snipsnap declNameLookups terms typeConflicts =
+  TwoWay (Map Name TermReference)
+discoverTermConflicts declNameLookups terms typeConflicts =
   TwoWay.swap (f <$> declNameLookups <*> typeConflicts <*> TwoWay.swap terms)
   where
     f ::
       DeclNameLookup ->
       Map Name TypeReference ->
       BiMultimap Referent Name ->
-      Map Name TermReference ->
       Map Name TermReference
-    f myDeclNameLookup myTypeConflicts theirTerms theirTermConflicts =
-      Map.foldlWithKey' (g myDeclNameLookup theirTerms) theirTermConflicts myTypeConflicts
+    f myDeclNameLookup myTypeConflicts theirTerms =
+      Map.foldlWithKey' (g myDeclNameLookup theirTerms) Map.empty myTypeConflicts
 
     g ::
       DeclNameLookup ->
@@ -222,3 +231,82 @@ snipsnap declNameLookups terms typeConflicts =
         theirReferent <- BiMultimap.lookupRan myConName theirTerms
         theirTerm <- Referent.toTermReference theirReferent
         Just (Map.insert myConName theirTerm acc)
+
+assertThereAreNoBuiltins ::
+  TwoWay (DefnsF (Map Name) TermReference TypeReference) ->
+  Either Name (TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId))
+assertThereAreNoBuiltins =
+  traverse (bitraverse (Map.traverseWithKey assertTermIsntBuiltin) (Map.traverseWithKey assertTypeIsntBuiltin))
+  where
+    assertTermIsntBuiltin :: Name -> TermReference -> Either Name TermReferenceId
+    assertTermIsntBuiltin name ref =
+      case Reference.toId ref of
+        Nothing -> Left name
+        Just refId -> Right refId
+
+    -- Same body as above, but could be different some day (e.g. return value tells you what namespace)
+    assertTypeIsntBuiltin :: Name -> TypeReference -> Either Name TypeReferenceId
+    assertTypeIsntBuiltin name ref =
+      case Reference.toId ref of
+        Nothing -> Left name
+        Just refId -> Right refId
+
+------------------------------------------------------------------------------------------------------------------------
+-- Unconflict twiddling
+
+dropConflictedUnconflictedTerms ::
+  TwoWay DeclNameLookup ->
+  TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId) ->
+  Unconflicts Referent ->
+  Unconflicts Referent
+dropConflictedUnconflictedTerms declNameLookups conflicts =
+  over #adds f . over #updates f
+  where
+    f :: TwoWayI (Map Name Referent) -> TwoWayI (Map Name Referent)
+    f =
+      over #alice (Map.filterWithKey aliceIsConflicted)
+        . over #bob (Map.filterWithKey bobIsConflicted)
+        . over #both (Map.filterWithKey \name ref -> aliceIsConflicted name ref || bobIsConflicted name ref)
+      where
+        isConflicted :: DeclNameLookup -> DefnsF (Map Name) TermReferenceId TypeReferenceId -> Name -> Referent -> Bool
+        isConflicted declNameLookup conflicts name = \case
+          Referent'.Con' _ _ -> Map.notMember (expectDeclName declNameLookup name) conflicts.types
+          Referent'.Ref' _ -> Map.notMember name conflicts.terms
+
+        aliceIsConflicted = isConflicted declNameLookups.alice conflicts.alice
+        bobIsConflicted = isConflicted declNameLookups.bob conflicts.bob
+
+dropConflictedUnconflictedTypes ::
+  TwoWay (Map Name types) ->
+  Unconflicts TypeReference ->
+  Unconflicts TypeReference
+dropConflictedUnconflictedTypes conflicts =
+  over #adds f . over #updates f
+  where
+    f :: TwoWayI (Map Name Reference) -> TwoWayI (Map Name Reference)
+    f =
+      over #alice dropAliceConflicted
+        . over #bob dropBobConflicted
+        . over #both (dropAliceConflicted . dropBobConflicted)
+      where
+        dropAliceConflicted = (`Map.difference` conflicts.alice)
+        dropBobConflicted = (`Map.difference` conflicts.bob)
+
+------------------------------------------------------------------------------------------------------------------------
+-- Misc. helpers
+
+justTerms :: TwoWay (Map name terms) -> TwoWay (DefnsF (Map name) terms types)
+justTerms =
+  fmap (\terms -> Defns terms Map.empty)
+
+justTheTerms :: TwoWay (DefnsF (Map name) terms types) -> TwoWay (Map name terms)
+justTheTerms =
+  fmap (view #terms)
+
+justTypes :: TwoWay (Map name types) -> TwoWay (DefnsF (Map name) terms types)
+justTypes =
+  fmap (\types -> Defns Map.empty types)
+
+justTheTypes :: TwoWay (DefnsF (Map name) terms types) -> TwoWay (Map name types)
+justTheTypes =
+  fmap (view #types)

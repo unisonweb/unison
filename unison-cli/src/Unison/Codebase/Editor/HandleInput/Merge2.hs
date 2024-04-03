@@ -5,7 +5,7 @@ module Unison.Codebase.Editor.HandleInput.Merge2
   )
 where
 
-import Control.Lens (over, view)
+import Control.Lens (view)
 import Control.Monad.Reader (ask)
 import Data.Bifoldable (bifoldMap)
 import Data.Bitraversable (bitraverse)
@@ -20,7 +20,7 @@ import Data.These (These (..))
 import U.Codebase.Branch qualified as V2 (Branch (..), CausalBranch)
 import U.Codebase.Branch qualified as V2.Branch
 import U.Codebase.Causal qualified as V2.Causal
-import U.Codebase.Reference (Reference, TermReference, TermReferenceId, TypeReference, TypeReferenceId)
+import U.Codebase.Reference (Reference, TermReferenceId, TypeReference, TypeReferenceId)
 import U.Codebase.Referent qualified as V2 (Referent)
 import U.Codebase.Sqlite.DbId (ProjectId)
 import U.Codebase.Sqlite.Operations qualified as Operations
@@ -53,7 +53,7 @@ import Unison.ConstructorReference (ConstructorReference, GConstructorReference 
 import Unison.Merge.CombineDiffs (combineDiffs)
 import Unison.Merge.Database (MergeDatabase (..), makeMergeDatabase, referent2to1)
 import Unison.Merge.DeclCoherencyCheck (IncoherentDeclReason (..), checkDeclCoherency)
-import Unison.Merge.DeclNameLookup (DeclNameLookup (..))
+import Unison.Merge.DeclNameLookup (DeclNameLookup (..), expectConstructorNames)
 import Unison.Merge.Diff qualified as Merge
 import Unison.Merge.DiffOp (DiffOp)
 import Unison.Merge.DiffOp qualified as Merge
@@ -65,7 +65,6 @@ import Unison.Merge.ThreeWay qualified as ThreeWay
 import Unison.Merge.TwoOrThreeWay (TwoOrThreeWay (..))
 import Unison.Merge.TwoWay (TwoWay (..))
 import Unison.Merge.TwoWay qualified as TwoWay
-import Unison.Merge.TwoWayI (TwoWayI (..))
 import Unison.Merge.TwoWayI qualified as TwoWayI
 import Unison.Merge.Unconflicts (Unconflicts (..))
 import Unison.Name (Name)
@@ -137,18 +136,9 @@ handleMerge bobBranchName = do
     Cli.returnEarly (mergePreconditionViolationToOutput violation)
 
   -- Combine the LCA->Alice and LCA->Bob diffs together into the conflicted things and the unconflicted things
-  let (conflicts0, unconflicts0) = combineDiffs declNameLookups (view #terms <$> ThreeWay.forgetLca defns) diffs
-
-  conflicts <-
-    Cli.runTransactionWithRollback \abort -> do
-      assertConflictsSatisfyPreconditions abort conflicts0
-
-  let unconflicts :: DefnsF Unconflicts Referent TypeReference
-      unconflicts =
-        bimap
-          (dropConflictedUnconflictedTerms declNameLookups conflicts)
-          (dropConflictedUnconflictedTypes (view #types <$> conflicts))
-          unconflicts0
+  (conflicts, unconflicts) <-
+    combineDiffs declNameLookups (view #terms <$> ThreeWay.forgetLca defns) diffs & onLeft \name ->
+      Cli.returnEarly (mergePreconditionViolationToOutput (Merge.ConflictInvolvingBuiltin name))
 
   -- Identify the dependents we need to pull into the Unison file (either first for typechecking, if there aren't
   -- conflicts, or else for manual conflict resolution without a typechecking step, if there are)
@@ -363,18 +353,6 @@ makeConflictedUnisonFile declNameLookups conflicts dependents mergedDeclNameLook
         (bimap Relation.fromMap Relation.fromMap conflicts.bob)
     pure (foldr UnisonFile.semigroupMerge UnisonFile.emptyUnisonFile [unconflictedFile, aliceFile, bobFile])
 
-expectDeclName :: DeclNameLookup -> Name -> Name
-expectDeclName m x =
-  case Map.lookup x m.constructorToDecl of
-    Nothing -> error (reportBug "E246726" ("Expected constructor name key " <> show x <> " in decl name lookup"))
-    Just y -> y
-
-expectConstructorNames :: DeclNameLookup -> Name -> [Name]
-expectConstructorNames m x =
-  case Map.lookup x m.declToConstructors of
-    Nothing -> error (reportBug "E077058" ("Expected decl name key " <> show x <> " in decl name lookup"))
-    Just y -> y
-
 ------------------------------------------------------------------------------------------------------------------------
 --
 
@@ -556,7 +534,7 @@ identifyDependents ::
   TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId) ->
   DefnsF Unconflicts Referent TypeReference ->
   Transaction (DefnsF (Map Name) TermReferenceId TypeReferenceId)
-identifyDependents defns conflicts' unconflicts = do
+identifyDependents defns conflicts unconflicts = do
   let unconflictedSoloDeletedNames :: TwoWay (DefnsF Set Name Name)
       unconflictedSoloDeletedNames =
         bitraverse f f unconflicts
@@ -600,14 +578,19 @@ identifyDependents defns conflicts' unconflicts = do
             let f :: Foldable t => t Reference.Id -> Set Reference
                 f =
                   List.foldl' (\acc ref -> Set.insert (Reference.DerivedId ref) acc) Set.empty . Foldable.toList
-             in bifoldMap f f <$> conflicts'
+             in bifoldMap f f <$> conflicts
           ]
 
   dependents <-
     for ((,) <$> defns <*> dependencies) \(defns1, dependencies1) ->
       getNamespaceDependentsOf2 defns1 dependencies1
 
-  pure (mergeUnconflictedDependents (bimap Map.keysSet Map.keysSet <$> conflicts') unconflictedSoloDeletedNames unconflictedSoloUpdatedNames dependents)
+  pure $
+    mergeUnconflictedDependents
+      (bimap Map.keysSet Map.keysSet <$> conflicts)
+      unconflictedSoloDeletedNames
+      unconflictedSoloUpdatedNames
+      dependents
 
 -- Alice and Bob each separately have dependents that they would like to get into the scratch file. These dependents
 -- come from two sources (see "due to unconflicts" and "due to conflicts" above):
@@ -921,62 +904,6 @@ assertNamespaceSatisfiesPreconditions db abort branchName branch defns = do
       IncoherentDeclReason'MissingConstructorName name -> Merge.MissingConstructorName name
       IncoherentDeclReason'NestedDeclAlias name -> Merge.NestedDeclAlias name
       IncoherentDeclReason'StrayConstructor name -> Merge.StrayConstructor name
-
-assertConflictsSatisfyPreconditions ::
-  (forall void. Output -> Transaction void) ->
-  TwoWay (DefnsF (Map Name) TermReference TypeReference) ->
-  Transaction (TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId))
-assertConflictsSatisfyPreconditions abort =
-  traverse (bitraverse (Map.traverseWithKey assertTermIsntBuiltin) (Map.traverseWithKey assertTypeIsntBuiltin))
-  where
-    assertTermIsntBuiltin :: Name -> TermReference -> Transaction TermReferenceId
-    assertTermIsntBuiltin name ref =
-      Reference.toId ref & onNothing do
-        abort (mergePreconditionViolationToOutput (Merge.ConflictInvolvingBuiltin name))
-
-    -- Same body as above, but could be different some day (e.g. output message tells you what namespace)
-    assertTypeIsntBuiltin :: Name -> TypeReference -> Transaction TypeReferenceId
-    assertTypeIsntBuiltin name ref =
-      Reference.toId ref & onNothing do
-        abort (mergePreconditionViolationToOutput (Merge.ConflictInvolvingBuiltin name))
-
-dropConflictedUnconflictedTerms ::
-  TwoWay DeclNameLookup ->
-  TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId) ->
-  Unconflicts Referent ->
-  Unconflicts Referent
-dropConflictedUnconflictedTerms declNameLookups conflicts =
-  over #adds f . over #updates f
-  where
-    f :: TwoWayI (Map Name Referent) -> TwoWayI (Map Name Referent)
-    f =
-      over #alice (Map.filterWithKey aliceIsConflicted)
-        . over #bob (Map.filterWithKey bobIsConflicted)
-        . over #both (Map.filterWithKey \name ref -> aliceIsConflicted name ref || bobIsConflicted name ref)
-      where
-        isConflicted :: DeclNameLookup -> DefnsF (Map Name) TermReferenceId TypeReferenceId -> Name -> Referent -> Bool
-        isConflicted declNameLookup conflicts name = \case
-          Referent'.Con' _ _ -> Map.notMember (expectDeclName declNameLookup name) conflicts.types
-          Referent'.Ref' _ -> Map.notMember name conflicts.terms
-
-        aliceIsConflicted = isConflicted declNameLookups.alice conflicts.alice
-        bobIsConflicted = isConflicted declNameLookups.bob conflicts.bob
-
-dropConflictedUnconflictedTypes ::
-  TwoWay (Map Name types) ->
-  Unconflicts TypeReference ->
-  Unconflicts TypeReference
-dropConflictedUnconflictedTypes conflicts =
-  over #adds f . over #updates f
-  where
-    f :: TwoWayI (Map Name Reference) -> TwoWayI (Map Name Reference)
-    f =
-      over #alice dropAliceConflicted
-        . over #bob dropBobConflicted
-        . over #both (dropAliceConflicted . dropBobConflicted)
-      where
-        dropAliceConflicted = (`Map.difference` conflicts.alice)
-        dropBobConflicted = (`Map.difference` conflicts.bob)
 
 -- Like `loadNamespaceInfo`, but for loading the LCA, which has fewer preconditions.
 --
