@@ -454,7 +454,7 @@ getTermTag codebase r sig = do
   -- A term is a test if it has the type [test.Result]
   let isTest = case sig of
         Just t ->
-          Typechecker.isEqual t (Decls.testResultType mempty)
+          Typechecker.isEqual t (Decls.testResultListType mempty)
         Nothing -> False
   constructorType <- case r of
     V2Referent.Ref {} -> pure Nothing
