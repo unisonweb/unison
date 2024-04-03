@@ -2,7 +2,6 @@
 
 module Unison.Merge.Unconflicts
   ( Unconflicts (..),
-    deletedAndUpdatedNames,
   )
 where
 
@@ -22,16 +21,3 @@ data Unconflicts v = Unconflicts
     updates :: !(TwoWayI (Map Name v))
   }
   deriving stock (Foldable, Functor, Generic)
-
-deletedAndUpdatedNames :: Unconflicts v -> TwoWay (Set Name)
-deletedAndUpdatedNames unconflicts =
-  TwoWay
-    { alice = f OnlyAlice,
-      bob = f OnlyBob
-    }
-  where
-    f :: AliceIorBob -> Set Name
-    f who =
-      Set.union
-        (Map.keysSet (view (AliceIorBob.whoL who) unconflicts.deletes))
-        (Map.keysSet (view (AliceIorBob.whoL who) unconflicts.updates))

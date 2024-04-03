@@ -8,13 +8,13 @@ where
 import Control.Lens (over, view)
 import Control.Monad.Reader (ask)
 import Data.Bifoldable (bifoldMap)
-import Data.Bifunctor qualified as Bifunctor
 import Data.Bitraversable (bitraverse)
 import Data.Foldable qualified as Foldable
 import Data.List qualified as List
 import Data.List.NonEmpty (pattern (:|))
 import Data.Map.Merge.Strict qualified as Map
 import Data.Map.Strict qualified as Map
+import Data.Monoid (Endo (Endo, appEndo))
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.These (These (..))
@@ -149,16 +149,15 @@ handleMerge bobBranchName = do
 
   let unconflicts :: DefnsF Unconflicts Referent TypeReference
       unconflicts =
-        Bifunctor.first (bogogo declNameLookups pseudoTypeConflicts) unconflicts0
+        bimap (bogogo declNameLookups pseudoTypeConflicts) (bogogo2 pseudoTypeConflicts) unconflicts0
 
-  -- Honk on the conflicts
-  let honkedConflicts = honkThoseConflicts declNameLookups conflicts
+  let honkedConflicts = honkThoseConflicts declNameLookups (ThreeWay.forgetLca defns) conflicts
 
   -- Identify the dependents we need to pull into the Unison file (either first for typechecking, if there aren't
   -- conflicts, or else for manual conflict resolution without a typechecking step, if there are)
   dependents <-
     Cli.runTransaction do
-      identifyDependents (ThreeWay.forgetLca defns) conflicts unconflicts
+      identifyDependents (ThreeWay.forgetLca defns) honkedConflicts unconflicts
 
   let (newDefns, droppedDefns) =
         bumpLca defns.lca unconflicts (bimap Map.elemsSet Map.elemsSet dependents)
@@ -644,10 +643,12 @@ textualDescriptionOfMerge mergeInfo =
 --   }
 honkThoseConflicts ::
   TwoWay DeclNameLookup ->
+  TwoWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
   DefnsF (Map Name) (TwoWay Referent.Id) (TwoWay TypeReferenceId) ->
   TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId)
-honkThoseConflicts declNameLookups conflicts =
-  honkThoseTermConflicts declNameLookups conflicts.terms <> honkThoseTypeConflicts conflicts.types
+honkThoseConflicts declNameLookups defns conflicts =
+  (honkThoseTermConflicts declNameLookups conflicts.terms <> honkThoseTypeConflicts conflicts.types)
+    & snipsnap declNameLookups defns
 
 honkThoseTypeConflicts ::
   Map Name (TwoWay TypeReferenceId) ->
@@ -661,7 +662,7 @@ honkThoseTermConflicts ::
   Map Name (TwoWay Referent.Id) ->
   TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId)
 honkThoseTermConflicts declNameLookups =
-  Map.foldlWithKey' f (TwoWay (Defns Map.empty Map.empty) (Defns Map.empty Map.empty))
+  Map.foldlWithKey' f (let empty = Defns Map.empty Map.empty in TwoWay empty empty)
   where
     f ::
       TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId) ->
@@ -681,12 +682,51 @@ honkThoseTermConflicts declNameLookups =
       Referent'.Con' (ConstructorReference ref _) _ -> over #types (Map.insert (expectDeclName declNameLookup name) ref)
       Referent'.Ref' ref -> over #terms (Map.insert name ref)
 
+snipsnap ::
+  TwoWay DeclNameLookup ->
+  TwoWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
+  TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId) ->
+  TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId)
+snipsnap declNameLookups defns conflicts =
+  (\f -> over #terms (appEndo f))
+    <$> TwoWay.swap (f <$> declNameLookups <*> conflicts <*> TwoWay.swap defns)
+    <*> conflicts
+  where
+    f ::
+      DeclNameLookup ->
+      DefnsF (Map Name) TermReferenceId TypeReferenceId ->
+      Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
+      -- to apply to their conflicted terms
+      Endo (Map Name TermReferenceId)
+    f myDeclNameLookup myConflicts theirDefns =
+      Endo \theirConflictedTerms ->
+        Map.foldlWithKey' (g myDeclNameLookup theirDefns.terms) theirConflictedTerms myConflicts.types
+
+    g ::
+      DeclNameLookup ->
+      BiMultimap Referent Name ->
+      Map Name TermReferenceId ->
+      Name ->
+      TypeReferenceId ->
+      Map Name TermReferenceId
+    g myDeclNameLookup theirTerms acc myDeclName _ =
+      List.foldl' (h theirTerms) acc (expectConstructorNames myDeclNameLookup myDeclName)
+
+    h :: BiMultimap Referent Name -> Map Name TermReferenceId -> Name -> Map Name TermReferenceId
+    h theirTerms acc myConName =
+      fromMaybe acc do
+        theirReferent <- BiMultimap.lookupRan myConName theirTerms
+        -- FIXME whoops, handle the possibility that this could be a builtin
+        -- theirTerm <- Referent.toTermReference theirReferent
+        theirTerm <- Referent.toTermReferenceId theirReferent
+        Just (Map.insert myConName theirTerm acc)
+
 identifyDependents ::
   TwoWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
-  DefnsF (Map Name) (TwoWay Referent.Id) (TwoWay TypeReferenceId) ->
+  TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId) ->
   DefnsF Unconflicts Referent TypeReference ->
   Transaction (DefnsF (Map Name) TermReferenceId TypeReferenceId)
-identifyDependents defns conflicts unconflicts = do
+identifyDependents defns conflicts' unconflicts = do
   let unconflictedSoloDeletedNames :: TwoWay (DefnsF Set Name Name)
       unconflictedSoloDeletedNames =
         bitraverse f f unconflicts
@@ -727,25 +767,17 @@ identifyDependents defns conflicts unconflicts = do
             -- into the namespace / parsing context for the conflicted merge, because it has an unnamed reference on
             -- foo#alice. It rather ought to be in the scratchfile alongside the conflicted foo#alice and foo#bob, so
             -- that when that conflict is resolved, it will propagate to bar.
-            let conflicts1 :: TwoWay (DefnsF (Map Name) Referent.Id TypeReferenceId)
-                conflicts1 =
-                  bitraverse TwoWay.unzipMap TwoWay.unzipMap conflicts
-
-                f :: DefnsF (Map Name) Referent.Id TypeReferenceId -> Set Reference
+            let f :: Foldable t => t Reference.Id -> Set Reference
                 f =
-                  bifoldMap (h (Reference.DerivedId . Referent'.toReference')) (h Reference.DerivedId)
-
-                h :: Foldable t => (ref -> Reference) -> t ref -> Set Reference
-                h toReference =
-                  List.foldl' (\acc ref -> Set.insert (toReference ref) acc) Set.empty . Foldable.toList
-             in f <$> conflicts1
+                  List.foldl' (\acc ref -> Set.insert (Reference.DerivedId ref) acc) Set.empty . Foldable.toList
+             in bifoldMap f f <$> conflicts'
           ]
 
   dependents <-
     for ((,) <$> defns <*> dependencies) \(defns1, dependencies1) ->
       getNamespaceDependentsOf2 defns1 dependencies1
 
-  pure (mergeUnconflictedDependents conflicts unconflictedSoloDeletedNames unconflictedSoloUpdatedNames dependents)
+  pure (mergeUnconflictedDependents (bimap Map.keysSet Map.keysSet <$> conflicts') unconflictedSoloDeletedNames unconflictedSoloUpdatedNames dependents)
 
 -- Alice and Bob each separately have dependents that they would like to get into the scratch file. These dependents
 -- come from two sources (see "due to unconflicts" and "due to conflicts" above):
@@ -765,17 +797,28 @@ identifyDependents defns conflicts unconflicts = do
 --
 -- We have a few cases to consider when merging Alice and Bob's dependents together:
 --
---   1. Alice or Bob, but not both, have some dependent "foo".
+--   1. Alice has some dependent "foo", but Bob doesn't (or vice versa, of course).
 --
---     1a. The other person has deleted it; discard it.
+--     1a. It's conflicted on Alice's side. It will make its way It will make its way into the Unison file eventually,
+--         but this function can discard it, as we are only interested in outputting *unconflicted* dependents.
 --
---     1b. The other person has not deleted it; keep it.
+--         Note that it's possible something is conflicted on Alice's side but not Bob's; e.g. Alice's type named
+--         "Maybe" is conflicted because she has a constructor "Maybe.Just" where Bob has a smart constructor term
+--         called "Maybe.Just".
+--
+--     1b. It's not conflicted.
+--
+--       1b1. Alice updated it; keep it (ignoring Bob's delete, if any).
+--
+--       1b2. Alice didn't update it.
+--
+--         1b2a. Bob deleted it; discard it.
+--
+--         1b2b. Bob didn't delete it; keep it.
 --
 --   2. Alice and Bob both have some dependent "foo".
 --
---     2a. It's a conflict (i.e. Alice and Bob both explicitly updated it). It will make its way into the Unison file
---         eventually, but this function can discard it, as we are only interested in outputting *unconflicted*
---         dependents. (This is evident from the type - we only return one term or type underneath each name).
+--     2a. It's conflicted on Alice's or Bob's side. As (1a) above.
 --
 --     2b. It's not a conflict.
 --
@@ -786,19 +829,19 @@ identifyDependents defns conflicts unconflicts = do
 --
 --       2b3. Both Alice and Bob updated it to the same value. Keep either (obviously).
 mergeUnconflictedDependents ::
-  DefnsF (Map Name) terms0 types0 ->
+  TwoWay (DefnsF Set Name Name) ->
   TwoWay (DefnsF Set Name Name) ->
   TwoWay (DefnsF Set Name Name) ->
   TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId) ->
   DefnsF (Map Name) TermReferenceId TypeReferenceId
 mergeUnconflictedDependents conflicts unconflictedSoloDeletedNames unconflictedSoloUpdatedNames dependents =
   zipDefnsWith
-    (merge conflicts.terms (view #terms <$> unconflictedSoloDeletedNames) (view #terms <$> unconflictedSoloUpdatedNames))
-    (merge conflicts.types (view #types <$> unconflictedSoloDeletedNames) (view #types <$> unconflictedSoloUpdatedNames))
+    (merge (view #terms <$> conflicts) (view #terms <$> unconflictedSoloDeletedNames) (view #terms <$> unconflictedSoloUpdatedNames))
+    (merge (view #types <$> conflicts) (view #types <$> unconflictedSoloDeletedNames) (view #types <$> unconflictedSoloUpdatedNames))
     dependents.alice
     dependents.bob
   where
-    merge :: Map Name a -> TwoWay (Set Name) -> TwoWay (Set Name) -> Map Name v -> Map Name v -> Map Name v
+    merge :: TwoWay (Set Name) -> TwoWay (Set Name) -> TwoWay (Set Name) -> Map Name v -> Map Name v -> Map Name v
     merge conflicts deletes updates =
       Map.merge
         (Map.mapMaybeMissing whenOnlyAlice)
@@ -806,23 +849,34 @@ mergeUnconflictedDependents conflicts unconflictedSoloDeletedNames unconflictedS
         (Map.zipWithMaybeMatched whenBoth)
       where
         whenOnlyAlice :: Name -> v -> Maybe v
-        whenOnlyAlice name alice
-          | Set.member name deletes.bob = Nothing -- Case 1a
-          | otherwise = Just alice -- Case 1b
+        whenOnlyAlice =
+          whenOnlyMe conflicts.alice updates.alice deletes.bob
+
         whenOnlyBob :: Name -> v -> Maybe v
-        whenOnlyBob name bob
-          | Set.member name deletes.alice = Nothing -- Case 1a
-          | otherwise = Just bob -- Case 1b
+        whenOnlyBob =
+          whenOnlyMe conflicts.bob updates.bob deletes.alice
+
+        whenOnlyMe :: Set Name -> Set Name -> Set Name -> Name -> v -> Maybe v
+        whenOnlyMe myConflicts myUpdates theirDeletes name me
+          -- Case 1a
+          | Set.member name myConflicts = Nothing
+          -- Case 1b1
+          | Set.member name myUpdates = Just me
+          -- Case 1b2a
+          | Set.member name theirDeletes = Nothing
+          -- Case 1b2b
+          | otherwise = Just me
+
         whenBoth :: Name -> v -> v -> Maybe v
         whenBoth name alice bob
-          | conflicted = Nothing -- Case 2a
-          | updatedByAlice = Just alice -- Case 2b1
-          | updatedByBob = Just bob -- Case 2b1
-          | otherwise = Just alice -- Case 2b2 or 2b3, the choice doesn't matter
-          where
-            conflicted = Map.member name conflicts
-            updatedByAlice = Set.member name updates.alice
-            updatedByBob = Set.member name updates.bob
+          -- Case 2a
+          | Set.member name conflicts.alice || Set.member name conflicts.bob = Nothing
+          -- Case 2b1
+          | Set.member name updates.alice = Just alice
+          -- Case 2b1
+          | Set.member name updates.bob = Just bob
+          -- Case 2b2 or 2b3, the choice doesn't matter
+          | otherwise = Just alice
 
 restrictDefnsToNames ::
   DefnsF Set Name Name ->
@@ -1102,6 +1156,21 @@ balooga declNameLookups pseudoTypeConflicts =
 
     alicesTypeIsConflicted conName = Set.member (expectDeclName declNameLookups.alice conName) pseudoTypeConflicts.alice
     bobsTypeIsConflicted conName = Set.member (expectDeclName declNameLookups.bob conName) pseudoTypeConflicts.bob
+
+bogogo2 :: TwoWay (Set Name) -> Unconflicts TypeReference -> Unconflicts TypeReference
+bogogo2 pseudoTypeConflicts =
+  over #adds f . over #updates f
+  where
+    f = balooga2 pseudoTypeConflicts
+
+balooga2 ::
+  TwoWay (Set Name) ->
+  TwoWayI (Map Name TypeReference) ->
+  TwoWayI (Map Name TypeReference)
+balooga2 pseudoTypeConflicts =
+  over #alice (`Map.withoutKeys` pseudoTypeConflicts.alice)
+    . over #bob (`Map.withoutKeys` pseudoTypeConflicts.bob)
+    . over #both (`Map.withoutKeys` (Set.union pseudoTypeConflicts.alice pseudoTypeConflicts.bob))
 
 -- Like `loadNamespaceInfo`, but for loading the LCA, which has fewer preconditions.
 --
