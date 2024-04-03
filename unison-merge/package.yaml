@@ -22,6 +22,7 @@ dependencies:
   - semigroups
   - text
   - these
+  - transformers
   - unison-codebase
   - unison-codebase-sqlite
   - unison-codebase-sqlite-hashing-v2

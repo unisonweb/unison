@@ -21,6 +21,8 @@ library
       Unison.Merge.AliceIorBob
       Unison.Merge.CombineDiffs
       Unison.Merge.Database
+      Unison.Merge.DeclCoherencyCheck
+      Unison.Merge.DeclNameLookup
       Unison.Merge.Diff
       Unison.Merge.DiffOp
       Unison.Merge.Libdeps
@@ -85,6 +87,7 @@ library
     , semigroups
     , text
     , these
+    , transformers
     , unison-codebase
     , unison-codebase-sqlite
     , unison-codebase-sqlite-hashing-v2

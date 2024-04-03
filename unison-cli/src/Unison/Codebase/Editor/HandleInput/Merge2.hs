@@ -14,7 +14,6 @@ import Data.List qualified as List
 import Data.List.NonEmpty (pattern (:|))
 import Data.Map.Merge.Strict qualified as Map
 import Data.Map.Strict qualified as Map
-import Data.Monoid (Endo (Endo, appEndo))
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.These (These (..))
@@ -36,7 +35,6 @@ import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch0)
 import Unison.Codebase.Branch qualified as Branch
-import Unison.Codebase.Branch.DeclCoherencyCheck (DeclNameLookup (..), IncoherentDeclReason (..), checkDeclCoherency)
 import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.Editor.HandleInput.Branch qualified as HandleInput.Branch
 import Unison.Codebase.Editor.HandleInput.Update2
@@ -54,6 +52,8 @@ import Unison.Codebase.SqliteCodebase.Conversions qualified as Conversions
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.Merge.CombineDiffs (combineDiffs)
 import Unison.Merge.Database (MergeDatabase (..), makeMergeDatabase, referent2to1)
+import Unison.Merge.DeclCoherencyCheck (IncoherentDeclReason (..), checkDeclCoherency)
+import Unison.Merge.DeclNameLookup (DeclNameLookup (..))
 import Unison.Merge.Diff qualified as Merge
 import Unison.Merge.DiffOp (DiffOp)
 import Unison.Merge.DiffOp qualified as Merge
@@ -137,14 +137,11 @@ handleMerge bobBranchName = do
     Cli.returnEarly (mergePreconditionViolationToOutput violation)
 
   -- Combine the LCA->Alice and LCA->Bob diffs together into the conflicted things and the unconflicted things
-  let (conflicts0, unconflicts0) = combineDiffs diffs
-
-  let conflicts1 =
-        honkThoseConflicts declNameLookups (ThreeWay.forgetLca defns) conflicts0
+  let (conflicts0, unconflicts0) = combineDiffs declNameLookups (view #terms <$> ThreeWay.forgetLca defns) diffs
 
   conflicts <-
     Cli.runTransactionWithRollback \abort -> do
-      assertConflictsSatisfyPreconditions abort conflicts1
+      assertConflictsSatisfyPreconditions abort conflicts0
 
   let unconflicts :: DefnsF Unconflicts Referent TypeReference
       unconflicts =
@@ -553,107 +550,6 @@ textualDescriptionOfMerge :: MergeInfo -> Text
 textualDescriptionOfMerge mergeInfo =
   let bobBranchText = into @Text (ProjectAndBranch mergeInfo.project.name mergeInfo.projectBranches.bob.name)
    in "merge-" <> bobBranchText
-
--- returned maps don't necessarily have the same keys, e.g. if incoming conflict is
---
---   {
---     terms = {
---       "Maybe.Just" => {
---         alice = #Alice#0,
---         bob = #bob
---       }
---     }
---   }
---
--- (where Alice has a constructor and Bob has a term), then the outgoing maps will be
---
---   {
---     alice = {
---       types = {
---         "Maybe" => #Alice
---       }
---     },
---     bob = {
---       terms = {
---         "Maybe.Just" => #bob
---       }
---     }
---   }
-honkThoseConflicts ::
-  TwoWay DeclNameLookup ->
-  TwoWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
-  DefnsF (Map Name) (TwoWay Referent) (TwoWay TypeReference) ->
-  TwoWay (DefnsF (Map Name) TermReference TypeReference)
-honkThoseConflicts declNameLookups defns conflicts =
-  (honkThoseTermConflicts declNameLookups conflicts.terms <> honkThoseTypeConflicts conflicts.types)
-    & snipsnap declNameLookups defns
-
-honkThoseTypeConflicts :: Map Name (TwoWay types) -> TwoWay (DefnsF (Map Name) terms types)
-honkThoseTypeConflicts =
-  fmap (\types -> Defns {terms = Map.empty, types}) . sequenceA
-
--- Honk them real good
-honkThoseTermConflicts ::
-  TwoWay DeclNameLookup ->
-  Map Name (TwoWay Referent) ->
-  TwoWay (DefnsF (Map Name) TermReference TypeReference)
-honkThoseTermConflicts declNameLookups =
-  Map.foldlWithKey' f (let empty = Defns Map.empty Map.empty in TwoWay empty empty)
-  where
-    f ::
-      TwoWay (DefnsF (Map Name) TermReference TypeReference) ->
-      Name ->
-      TwoWay Referent ->
-      TwoWay (DefnsF (Map Name) TermReference TypeReference)
-    f acc name referents =
-      g name <$> declNameLookups <*> referents <*> acc
-
-    g ::
-      Name ->
-      DeclNameLookup ->
-      Referent ->
-      DefnsF (Map Name) TermReference TypeReference ->
-      DefnsF (Map Name) TermReference TypeReference
-    g name declNameLookup = \case
-      Referent'.Con' (ConstructorReference ref _) _ -> over #types (Map.insert (expectDeclName declNameLookup name) ref)
-      Referent'.Ref' ref -> over #terms (Map.insert name ref)
-
-snipsnap ::
-  TwoWay DeclNameLookup ->
-  TwoWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
-  TwoWay (DefnsF (Map Name) TermReference TypeReference) ->
-  TwoWay (DefnsF (Map Name) TermReference TypeReference)
-snipsnap declNameLookups defns conflicts =
-  (\f -> over #terms (appEndo f))
-    <$> TwoWay.swap (f <$> declNameLookups <*> conflicts <*> TwoWay.swap defns)
-    <*> conflicts
-  where
-    f ::
-      DeclNameLookup ->
-      DefnsF (Map Name) TermReference TypeReference ->
-      Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
-      -- to apply to their conflicted terms
-      Endo (Map Name TermReference)
-    f myDeclNameLookup myConflicts theirDefns =
-      Endo \theirConflictedTerms ->
-        Map.foldlWithKey' (g myDeclNameLookup theirDefns.terms) theirConflictedTerms myConflicts.types
-
-    g ::
-      DeclNameLookup ->
-      BiMultimap Referent Name ->
-      Map Name TermReference ->
-      Name ->
-      TypeReference ->
-      Map Name TermReference
-    g myDeclNameLookup theirTerms acc myDeclName _ =
-      List.foldl' (h theirTerms) acc (expectConstructorNames myDeclNameLookup myDeclName)
-
-    h :: BiMultimap Referent Name -> Map Name TermReference -> Name -> Map Name TermReference
-    h theirTerms acc myConName =
-      fromMaybe acc do
-        theirReferent <- BiMultimap.lookupRan myConName theirTerms
-        theirTerm <- Referent.toTermReference theirReferent
-        Just (Map.insert myConName theirTerm acc)
 
 identifyDependents ::
   TwoWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->

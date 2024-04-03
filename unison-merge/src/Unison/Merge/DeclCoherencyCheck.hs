@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedRecordDot #-}
+
 -- | The "decl coherency check": a type declaration in a namespace is "coherent" if it satisfies both of the following
 -- criteria.
 --
@@ -79,9 +81,8 @@
 --
 -- Note: once upon a time, decls could be "incoherent". Then, we decided we want decls to be "coherent". Thus, this
 -- machinery was invented.
-module Unison.Codebase.Branch.DeclCoherencyCheck
-  ( DeclNameLookup (..),
-    IncoherentDeclReason (..),
+module Unison.Merge.DeclCoherencyCheck
+  ( IncoherentDeclReason (..),
     checkDeclCoherency,
   )
 where
@@ -99,10 +100,10 @@ import Data.List qualified as List
 import Data.List.NonEmpty (pattern (:|))
 import Data.Map.Strict qualified as Map
 import Data.Maybe (fromJust)
-import Data.Semigroup.Generic (GenericSemigroupMonoid (..))
 import Data.Set qualified as Set
 import U.Codebase.Reference (Reference' (..), TypeReference, TypeReferenceId)
 import Unison.ConstructorReference (GConstructorReference (..))
+import Unison.Merge.DeclNameLookup (DeclNameLookup (..))
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
@@ -125,39 +126,9 @@ data IncoherentDeclReason
   | IncoherentDeclReason'NestedDeclAlias !Name
   | IncoherentDeclReason'StrayConstructor !Name
 
--- | A lookup from decl-to-constructor name and vice-versa.
---
--- For example, a type decl like
---
--- @
--- unique type Foo
---   = Bar Int
---   | Baz.Qux Nat Nat
--- @
---
--- is represented as
---
--- @
--- DeclNameLookup
---   { constructorToDecl = Map.fromList [("Foo.Bar", "Foo"), ("Foo.Baz.Qux", "Foo")]
---   , declToConstructors = Map.fromList [("Foo", ["Foo.Bar", "Foo.Baz.Qux"])]
---   }
--- @
---
--- Note that:
---
--- * Constructor names are given "in full", though they will all necessarily begin with the decl's name.
--- * In @declToConstructors@, the constructor names are given in their canonical ordering.
-data DeclNameLookup = DeclNameLookup
-  { constructorToDecl :: !(Map Name Name),
-    declToConstructors :: !(Map Name [Name])
-  }
-  deriving stock (Generic)
-  deriving (Semigroup) via (GenericSemigroupMonoid DeclNameLookup)
-
 checkDeclCoherency ::
   (TypeReferenceId -> Transaction Int) ->
-  (Nametree (DefnsF (Map NameSegment) Referent TypeReference)) ->
+  Nametree (DefnsF (Map NameSegment) Referent TypeReference) ->
   Transaction (Either IncoherentDeclReason DeclNameLookup)
 checkDeclCoherency loadDeclNumConstructors =
   Except.runExceptT
@@ -222,14 +193,14 @@ checkDeclCoherency loadDeclNumConstructors =
                   unMaybeConstructorNames maybeConstructorNames & onNothing do
                     Except.throwError (IncoherentDeclReason'MissingConstructorName typeName)
                 #expectedConstructors .= expectedConstructors1
-                #declNameLookup %= \DeclNameLookup {constructorToDecl, declToConstructors} ->
+                #declNameLookup %= \declNameLookup ->
                   DeclNameLookup
                     { constructorToDecl =
                         List.foldl'
                           (\acc constructorName -> Map.insert constructorName typeName acc)
-                          constructorToDecl
+                          declNameLookup.constructorToDecl
                           constructorNames,
-                      declToConstructors = Map.insert typeName constructorNames declToConstructors
+                      declToConstructors = Map.insert typeName constructorNames declNameLookup.declToConstructors
                     }
                 pure (Just name)
             where
