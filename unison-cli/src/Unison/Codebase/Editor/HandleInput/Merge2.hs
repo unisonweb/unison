@@ -153,6 +153,15 @@ handleMerge bobBranchName = do
 
   let honkedConflicts = honkThoseConflicts declNameLookups (ThreeWay.forgetLca defns) conflicts
 
+  let thisMergeHasConflicts =
+        -- Eh, they'd either both be null, or neither, but just check both maps anyway
+        or
+          [ not (Map.null honkedConflicts.alice.terms),
+            not (Map.null honkedConflicts.alice.types),
+            not (Map.null honkedConflicts.bob.terms),
+            not (Map.null honkedConflicts.bob.types)
+          ]
+
   -- Identify the dependents we need to pull into the Unison file (either first for typechecking, if there aren't
   -- conflicts, or else for manual conflict resolution without a typechecking step, if there are)
   dependents <-
@@ -167,7 +176,10 @@ handleMerge bobBranchName = do
       & onLeft wundefined
 
   -- Create the Unison file, which may have conflicts, in which case we don't bother trying to parse and typecheck it.
-  unisonFile <- makeUnisonFile declNameLookups conflicts dependents mergedDeclNameLookup
+  unisonFile <-
+    if thisMergeHasConflicts
+      then makeConflictedUnisonFile declNameLookups honkedConflicts dependents mergedDeclNameLookup
+      else makeUnconflictedUnisonFile dependents mergedDeclNameLookup
 
   -- Load and merge Alice's and Bob's libdeps
   libdeps <-
@@ -187,9 +199,9 @@ handleMerge bobBranchName = do
   parsingEnv <- makeParsingEnv currentPath mergedNames
 
   maybeTypecheckedUnisonFile <-
-    if defnsAreEmpty conflicts
-      then prettyParseTypecheck unisonFile pped parsingEnv <&> eitherToMaybe
-      else pure Nothing
+    if thisMergeHasConflicts
+      then pure Nothing
+      else prettyParseTypecheck unisonFile pped parsingEnv <&> eitherToMaybe
 
   case maybeTypecheckedUnisonFile of
     Nothing -> promptUser mergeInfo (Pretty.prettyUnisonFile pped unisonFile) newBranchIO
@@ -312,16 +324,6 @@ loadLibdeps branches = do
 ------------------------------------------------------------------------------------------------------------------------
 -- Creating Unison files
 
-makeUnisonFile ::
-  TwoWay DeclNameLookup ->
-  DefnsF (Map Name) (TwoWay Referent.Id) (TwoWay TypeReferenceId) ->
-  DefnsF (Map Name) TermReferenceId TypeReferenceId ->
-  DeclNameLookup ->
-  Cli (UnisonFile' [] Symbol Ann)
-makeUnisonFile declNameLookups conflicts dependents mergedDeclNameLookup
-  | defnsAreEmpty conflicts = makeUnconflictedUnisonFile dependents mergedDeclNameLookup
-  | otherwise = makeConflictedUnisonFile declNameLookups conflicts dependents mergedDeclNameLookup
-
 makeUnconflictedUnisonFile ::
   DefnsF (Map Name) TermReferenceId TypeReferenceId ->
   DeclNameLookup ->
@@ -337,7 +339,7 @@ makeUnconflictedUnisonFile dependents mergedDeclNameLookup = do
 
 makeConflictedUnisonFile ::
   TwoWay DeclNameLookup ->
-  DefnsF (Map Name) (TwoWay Referent.Id) (TwoWay TypeReferenceId) ->
+  TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId) ->
   DefnsF (Map Name) TermReferenceId TypeReferenceId ->
   DeclNameLookup ->
   Cli (UnisonFile' [] Symbol Ann)
@@ -355,18 +357,14 @@ makeConflictedUnisonFile declNameLookups conflicts dependents mergedDeclNameLook
         abort
         codebase
         (\_ name -> Right (expectConstructorNames declNameLookups.alice name))
-        conflicts1.alice
+        (bimap Relation.fromMap Relation.fromMap conflicts.alice)
     bobFile <-
       Update2.makeUnisonFile
         abort
         codebase
         (\_ name -> Right (expectConstructorNames declNameLookups.bob name))
-        conflicts1.bob
+        (bimap Relation.fromMap Relation.fromMap conflicts.bob)
     pure (foldr UnisonFile.semigroupMerge UnisonFile.emptyUnisonFile [unconflictedFile, aliceFile, bobFile])
-  where
-    conflicts1 :: TwoWay (DefnsF (Relation Name) TermReferenceId TypeReferenceId)
-    conflicts1 =
-      identifyConflictedReferences declNameLookups conflicts
 
 expectDeclName :: DeclNameLookup -> Name -> Name
 expectDeclName m x =
@@ -379,66 +377,6 @@ expectConstructorNames m x =
   case Map.lookup x m.declToConstructors of
     Nothing -> error (reportBug "E077058" ("Expected decl name key " <> show x <> " in decl name lookup"))
     Just y -> y
-
--- As input, we have a conflicted namespace laid out like
---
---   {
---     terms =
---       "foo"     => { alice = #fooAlice,   bob = #fooBob }
---       "Bar.Baz" => { alice = #BarAlice.0, bob = #BarBob.0 }
---     types =
---       "Qux"     => { alice = #QuxAlice,   bob = #QuxBob }
---   }
---
--- however, when a term (a referent) is conflicted, we want to extract the corresponding *reference* (i.e. if the
--- conflicted thing is actually a constructor, then we want to go fetch the type decl it belongs to). We also want to
--- repartition the conflicts by Alice's stuff and Bob's stuff. So,
---
---   {
---     alice =
---       terms =
---         "foo" <=> #fooAlice
---       types =
---         "Bar" <=> #BarAlice
---         "Qux" <=> #QuxAlice
---
---     bob =
---       terms =
---         "foo" <=> #fooBob
---       types =
---         "Bar" <=> #BarBob
---         "Qux" <=> #QuxBob
---  }
---
--- Note that the conflicted constructor Bar.Baz has "jumped" from the terms half to the types half (because, again, we
--- want to go off and fetch the type decls #BarAlice and #BarBob given that one of their constructors is conflicted).
-identifyConflictedReferences ::
-  TwoWay DeclNameLookup ->
-  DefnsF (Map Name) (TwoWay Referent.Id) (TwoWay TypeReferenceId) ->
-  TwoWay (DefnsF (Relation Name) TermReferenceId TypeReferenceId)
-identifyConflictedReferences declNameLookups =
-  bifoldMap
-    (Map.foldMapWithKey conflictedTerms)
-    (fmap typesToDefns . Map.foldMapWithKey conflictedTypes)
-  where
-    conflictedTerms ::
-      Name ->
-      TwoWay Referent.Id ->
-      TwoWay (DefnsF (Relation Name) TermReferenceId TypeReferenceId)
-    conflictedTerms name refs = f <$> declNameLookups <*> refs
-      where
-        f :: DeclNameLookup -> Referent.Id -> DefnsF (Relation Name) TermReferenceId TypeReferenceId
-        f declNameLookup = \case
-          Referent'.Ref' ref -> termsToDefns (Relation.singleton name ref)
-          Referent'.Con' (ConstructorReference ref _) _ ->
-            typesToDefns (Relation.singleton (expectDeclName declNameLookup name) ref)
-
-    conflictedTypes :: Name -> TwoWay TypeReferenceId -> TwoWay (Relation Name TypeReferenceId)
-    conflictedTypes name =
-      fmap (Relation.singleton name)
-
-    termsToDefns terms = Defns {terms, types = Relation.empty}
-    typesToDefns types = Defns {terms = Relation.empty, types}
 
 ------------------------------------------------------------------------------------------------------------------------
 --
