@@ -99,12 +99,17 @@ jobs:
           path: ${{env.ucm_local_bin}}
           key: ucm-${{ matrix.os }}-${{ hashFiles('**/stack.yaml', '**/package.yaml', '**/*.hs')}}
 
+      - name: set up test codebase cache vars
+        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
+        run: |
+          echo "runtime_tests_causalhash=$(scripts/get-share-hash.sh ${{env.runtime_tests_version}})" >> $GITHUB_ENV
+
       - name: cache unison-src test results
         id: cache-unison-src-test-results
         uses: actions/cache@v4
         with:
           path: ${{env.unison_src_test_results}}
-          key: unison-src-test-results-${{ matrix.os }}-${{ hashFiles('**/ci.yaml', '**/stack.yaml', '**/package.yaml', '**/*.hs')}}-${{ hashFiles('**/unison-src/**') }}
+          key: unison-src-test-results-${{ matrix.os }}-${{ hashFiles('**/ci.yaml', '**/stack.yaml', '**/package.yaml', '**/*.hs')}}-${{ hashFiles('**/unison-src/**') }}-${{env.runtime_tests_causalhash}}
 
       - name: restore stack caches
         if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
@@ -212,11 +217,6 @@ jobs:
       - name: verify stack ghci startup
         if: runner.os == 'macOS' && steps.cache-ucm-binaries.outputs.cache-hit != 'true'
         run: echo | stack ghci
-
-      - name: set up test codebase cache vars
-        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
-        run: |
-          echo "runtime_tests_causalhash=$(scripts/get-share-hash.sh ${{env.runtime_tests_version}})" >> $GITHUB_ENV
 
       - name: cache testing codebase
         id: cache-testing-codebase
