@@ -453,17 +453,6 @@ jobs:
           name: jit-binary-${{ matrix.os }}
           path: ${{ env.jit_dist }}/**
 
-      - name: download ucm
-        if: steps.restore-jit-binaries.outputs.cache-hit != 'true'
-        uses: actions/download-artifact@v4
-        with:
-          name: unison-${{ matrix.os }}
-          path: ${{ runner.temp }}
-
-      - name: set ucm permissions
-        if: steps.restore-jit-binaries.outputs.cache-hit != 'true'
-        run: chmod +x ${{ env.ucm }}
-
       - name: look up hash for runtime tests
         run: |
           echo "runtime_tests_causalhash=$(scripts/get-share-hash.sh ${{env.runtime_tests_version}})" >> $GITHUB_ENV
@@ -477,15 +466,26 @@ jobs:
 
       - name: cache testing codebase
         id: cache-testing-codebase
-        if: steps.restore-jit-binaries.outputs.cache-hit != 'true' || steps.cache-jit-test-results.outputs.cache-hit != 'true'
+        if: steps.cache-jit-test-results.outputs.cache-hit != 'true'
         uses: actions/cache@v4
         with:
           path: ${{ env.runtime_tests_codebase }}
           key: runtime-tests-codebase-${{env.runtime_tests_causalhash}}
           restore-keys: runtime-tests-codebase-
 
+      - name: download ucm
+        if: steps.cache-jit-test-results.outputs.cache-hit != 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: unison-${{ matrix.os }}
+          path: ${{ runner.temp }}
+
+      - name: set ucm permissions
+        if: steps.cache-jit-test-results.outputs.cache-hit != 'true'
+        run: chmod +x ${{ env.ucm }}
+
       - name: jit integration test ${{ matrix.os }}
-        if: runner.os != 'Windows' && (steps.restore-jit-binaries.outputs.cache-hit != 'true' || steps.cache-jit-test-results.outputs.cache-hit != 'true')
+        if: runner.os != 'Windows' && steps.cache-jit-test-results.outputs.cache-hit != 'true'
         run: |
           envsubst '${runtime_tests_version}' \
             < unison-src/builtin-tests/jit-tests.tpl.md \
