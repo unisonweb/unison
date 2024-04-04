@@ -1,7 +1,15 @@
 #!/bin/bash
 set -ex
 
-ucm=$(stack exec -- which unison)
+# the first arg is the path to the unison executable
+if [ -z "$1" ]; then
+  echo "Usage: $0 <path/flags for calling unison w/ jit>"
+  echo "Example: $0 ./unison --runtime-path ./runtime/bin/unison-runtime"
+  exit 1
+fi
+
+# call unison with all its args quoted
+ucm=("$@")
 
 runtime_tests_version="@unison/runtime-tests/main"
 echo $runtime_tests_version
@@ -19,5 +27,4 @@ runtime_tests_version="$runtime_tests_version" \
     < unison-src/builtin-tests/jit-tests.tpl.md \
     > unison-src/builtin-tests/jit-tests.md
 
-# this ought to have the --runtime-path flag passed appropriately
-time "$ucm" transcript.fork -C $codebase -S $codebase unison-src/builtin-tests/jit-tests.md
+time "${ucm[@]}" transcript.fork -C $codebase -S $codebase unison-src/builtin-tests/jit-tests.md
