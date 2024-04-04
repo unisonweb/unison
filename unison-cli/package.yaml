@@ -103,27 +103,19 @@ dependencies:
   - witch
   - witherable
 
-internal-libraries:
-  unison-cli-lib:
-    source-dirs: src
-    when:
-      - condition: "!os(windows)"
-        dependencies: unix
-      - condition: false
-        other-modules: Paths_unison_cli
-
 library:
-  source-dirs: unison
+  source-dirs: src
   when:
     - condition: false
       other-modules: Paths_unison_cli
+    - condition: "!os(windows)"
+      dependencies: unix
   dependencies:
     - code-page
     - optparse-applicative >= 0.16.1.0
     - shellmet
     - template-haskell
     - temporary
-    - unison-cli-lib
 
 tests:
   cli-tests:
@@ -136,7 +128,7 @@ tests:
       - here
       - shellmet
       - temporary
-      - unison-cli-lib
+      - unison-cli
     main: Main.hs
     source-dirs: tests
 
@@ -153,7 +145,7 @@ executables:
       - easytest
       - process
       - shellmet
-      - unison-cli-lib
+      - unison-cli
       - silently
 
 when:
