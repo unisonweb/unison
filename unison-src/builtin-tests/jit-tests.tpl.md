@@ -1,12 +1,12 @@
-```ucm:hide
+```ucm:hide:error
 .> delete.project nothing
 .> delete.project runtime-tests
 .> clone ${runtime_tests_version} runtime-tests/selected
 ```
 
 ```ucm
-runtime-tests/selected> run tests
-runtime-tests/selected> run tests.jit.only
+runtime-tests/selected> run.native tests
+runtime-tests/selected> run.native tests.jit.only
 ```
 
 Per Dan:

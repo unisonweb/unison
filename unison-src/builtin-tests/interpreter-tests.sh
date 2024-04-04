@@ -2,21 +2,16 @@
 set -ex
 
 ucm=$(stack exec -- which unison)
-echo $ucm
+echo "$ucm"
 
-base_codebase=${XDG_CACHE_HOME:-"$HOME/.cache"}/unisonlanguage/base.unison
+runtime_tests_version="@unison/runtime-tests/main"
+echo $runtime_tests_version
 
-if [ ! -d $base_codebase ]; then
-    echo !!!! Creating a codebase in $base_codebase
-    $ucm transcript -S $base_codebase unison-src/builtin-tests/base.md
-fi
+codebase=${XDG_CACHE_HOME:-"$HOME/.cache"}/unisonlanguage/runtime-tests.unison
 
-dir=${XDG_DATA_HOME:-"$HOME/.local/share"}/unisonlanguage/scheme-libs
-echo $dir
-
-mkdir -p $dir
-cp -r scheme-libs/* $dir/
-
-echo $ucm transcript.fork -c $base_codebase unison-src/builtin-tests/interpreter-tests.md
-time $ucm transcript.fork -c $base_codebase unison-src/builtin-tests/interpreter-tests.md
-
+runtime_tests_version="$runtime_tests_version" \
+    envsubst '$runtime_tests_version' \
+    < unison-src/builtin-tests/interpreter-tests.tpl.md \
+    > unison-src/builtin-tests/interpreter-tests.md
+echo "$ucm" transcript.fork -C $codebase -S $codebase unison-src/builtin-tests/interpreter-tests.md
+time "$ucm" transcript.fork -C $codebase -S $codebase unison-src/builtin-tests/interpreter-tests.md

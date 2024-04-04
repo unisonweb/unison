@@ -1,22 +1,16 @@
-
-Note: This should be forked off of the codebase created by base.md
-
-If you want to define more complex tests somewhere other than `tests.u`, just `load my-tests.u` then `add`,
-then reference those tests (which should be of type `'{IO,Exception,Tests} ()`, written using calls
-to `Tests.check` and `Tests.checkEqual`).
-
 ```ucm
-.> run.native tests
+runtime-tests/selected> run.native tests
+
+  ()
+
+runtime-tests/selected> run.native tests.jit.only
 
   ()
 
 ```
-```ucm
-.> run.native tests.jit.only
-
-  ()
-
-```
+Per Dan:
+It's testing a flaw in how we were sending code from a scratch file to the native runtime, when that happened multiple times.
+Related to the verifiable refs and recursive functions.
 ```unison
 foo = do
   go : Nat ->{Exception} ()
