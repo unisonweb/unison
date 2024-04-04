@@ -25,6 +25,7 @@
   (struct-out unison-typelink-derived)
   (struct-out unison-code)
   (struct-out unison-quote)
+  (struct-out unison-timespec)
 
   define-builtin-link
   declare-builtin-link
@@ -252,6 +253,26 @@
     [(clo . rest)
      (apply (unison-closure-code clo)
             (append (unison-closure-env clo) rest))]))
+
+(struct unison-timespec (sec nsec)
+  #:transparent
+  #:property prop:equal+hash
+  (let ()
+    (define (equal-proc tml tmr rec)
+      (match tml
+        [(unison-timespec sl nsl)
+         (match tmr
+           [(unison-timespec sr nsr)
+            (and (= sl sr) (= nsl nsr))])]))
+
+    (define ((hash-proc init) tm rec)
+      (match tm
+        [(unison-timespec s ns)
+         (fxxor (fx*/wraparound (rec s) 67)
+                (fx*/wraparound (rec ns) 71)
+                (fx*/wraparound init 73))]))
+
+    (list equal-proc (hash-proc 3) (hash-proc 5))))
 
 (define-syntax (define-builtin-link stx)
   (syntax-case stx ()
