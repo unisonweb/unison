@@ -241,11 +241,6 @@ jobs:
           cat unison-src/builtin-tests/interpreter-tests.output.md
           git diff --exit-code unison-src/builtin-tests/interpreter-tests.output.md
 
-      - name: Setup tmate session
-        uses: mxschmitt/action-tmate@v3
-        if: ${{ failure() }}
-        timeout-minutes: 15
-
       - name: mark transcripts as passing
         if: steps.cache-unison-src-test-results.outputs.cache-hit != 'true'
         run: |
