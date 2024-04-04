@@ -20,6 +20,9 @@ io.tests = Tests.main do
     !io.test_isFileOpen
     !io.test_ready
     !io.test_now
+    !io.test_monotonic
+    !io.test_processCPUTime
+    !io.test_threadCPUTime
     !io.test_isSeekable
     !io.test_handlePosition
     !io.test_renameDirectory
@@ -79,6 +82,29 @@ io.test_now = do
             else
                 Tests.fail "!now" "now is too small"
 
+io.test_threadCPUTime = do
+  match !threadCPUTime with
+    Duration s ns
+      | (s == +0) && (ns == 0) ->
+        Tests.pass "!threadCPUTime"
+      | otherwise ->
+        Tests.pass "!threadCPUTime"
+
+io.test_processCPUTime = do
+  match !processCPUTime with
+    Duration s ns
+      | (s == +0) && (ns == 0) ->
+        Tests.pass "!processCPUTime"
+      | otherwise ->
+        Tests.pass "!processCPUTime"
+
+io.test_monotonic = do
+  match !Clock.monotonic with
+    Duration s ns
+      | (s == +0) && (ns == 0) ->
+        Tests.pass "!Clock.monotonic"
+      | otherwise ->
+        Tests.pass "!Clock.monotonic"
 
 io.test_createTempDirectory = do
     tmp = (createTempDirectory (FilePath "prefix-"))

@@ -363,6 +363,7 @@ performRehash rgrp0 ctx =
     irs = remap $ intermedRemap ctx
     f b r
       | not b,
+        r `Map.notMember` rgrp0,
         r <- Map.findWithDefault r r frs,
         Just r <- Map.lookup r irs =
           r
@@ -757,7 +758,9 @@ prepareEvaluation ppe tm ctx = do
   pure (backrefAdd rbkr ctx', rgrp, rmn)
   where
     (rmn0, frem, rgrp0, rbkr) = intermediateTerm ppe ctx tm
-    int b r = if b then r else toIntermed ctx r
+    int b r
+      | b || Map.member r rgrp0 = r
+      | otherwise = toIntermed ctx r
     (ctx', rrefs, rgrp) =
       performRehash
         ((fmap . overGroupLinks) int rgrp0)

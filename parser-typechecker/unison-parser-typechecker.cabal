@@ -100,7 +100,7 @@ library
       Unison.KindInference.Constraint.Pretty
       Unison.KindInference.Constraint.Provenance
       Unison.KindInference.Constraint.Solved
-      Unison.KindInference.Constraint.StarProvenance
+      Unison.KindInference.Constraint.TypeProvenance
       Unison.KindInference.Constraint.Unsolved
       Unison.KindInference.Error
       Unison.KindInference.Error.Pretty

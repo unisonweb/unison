@@ -83,10 +83,10 @@
 (define (decode-term tm)
   (match tm
     [(unison-data _ t (list tms))
-     #:when (= t unison-schemeterm-sexpr:tag)
+     #:when (= t ref-schemeterm-sexpr:tag)
      (map decode-term (chunked-list->list tms))]
     [(unison-data _ t (list as h tms))
-     #:when (= t unison-schemeterm-handle:tag)
+     #:when (= t ref-schemeterm-handle:tag)
      `(handle
         ,(map
            (lambda (tx) (text->linkname tx))
@@ -94,27 +94,27 @@
         ,(text->ident h)
         ,@(map decode-term (chunked-list->list tms)))]
     [(unison-data _ t (list hd sc cs))
-     #:when (= t unison-schemeterm-cases:tag)
+     #:when (= t ref-schemeterm-cases:tag)
      (assemble-cases
        (text->ident hd)
        (decode-term sc)
        (map decode-term (chunked-list->list cs)))]
     [(unison-data _ t (list hd bs bd))
-     #:when (= t unison-schemeterm-binds:tag)
+     #:when (= t ref-schemeterm-binds:tag)
      `(,(text->ident hd)
         ,(map decode-binding (chunked-list->list bs))
         ,(decode-term bd))]
     [(unison-data _ t (list tx))
-     #:when (= t unison-schemeterm-ident:tag)
+     #:when (= t ref-schemeterm-ident:tag)
      (text->ident tx)]
     [(unison-data _ t (list tx))
-     #:when (= t unison-schemeterm-string:tag)
+     #:when (= t ref-schemeterm-string:tag)
      (chunked-string->string tx)]
     [(unison-data _ t (list tx))
-     #:when (= t unison-schemeterm-symbol:tag)
+     #:when (= t ref-schemeterm-symbol:tag)
      `(quote ,(text->ident tx))]
     [(unison-data _ t (list ns))
-     #:when (= t unison-schemeterm-bytevec:tag)
+     #:when (= t ref-schemeterm-bytevec:tag)
      (list->bytes (chunked-list->list ns))]
     [else
       (raise (format "decode-term: unimplemented case: ~a" tm))]))
@@ -131,13 +131,13 @@
 (define (decode-syntax dfn)
   (match dfn
     [(unison-data _ t (list nm vs bd))
-     #:when (= t unison-schemedefn-define:tag)
+     #:when (= t ref-schemedefn-define:tag)
      (let ([head (map text->ident
                       (cons nm (chunked-list->list vs)))]
            [body (decode-term bd)])
        (list 'define-unison head body))]
     [(unison-data _ t (list nm bd))
-     #:when (= t unison-schemedefn-alias:tag)
+     #:when (= t ref-schemedefn-alias:tag)
      (list 'define (text->ident nm) (decode-term bd))]
     [else
       (raise (format "decode-syntax: unimplemented case: ~a" dfn))]))
@@ -167,10 +167,10 @@
 (define (decode-ref rf)
   (match rf
     [(unison-data r t (list name))
-     #:when (= t unison-reference-builtin:tag)
+     #:when (= t ref-reference-builtin:tag)
      (sum 0 (chunked-string->string name))]
     [(unison-data r t (list id))
-     #:when (= t unison-reference-derived:tag)
+     #:when (= t ref-reference-derived:tag)
      (data-case id
        [0 (bs i) (sum 1 bs i)])]))
 
@@ -200,7 +200,7 @@
       [(_)
        #`(lambda (gr)
            (data-case (group-ref-ident gr)
-             [#,unison-schemeterm-ident:tag (name) name]
+             [#,ref-schemeterm-ident:tag (name) name]
              [else
                (raise
                  (format
@@ -242,10 +242,10 @@
 (define (termlink->reference rn)
   (match rn
     [(unison-termlink-builtin name)
-     (unison-reference-builtin
+     (ref-reference-builtin
        (string->chunked-string name))]
     [(unison-termlink-derived bs i)
-     (unison-reference-derived (unison-id-id bs i))]
+     (ref-reference-derived (ref-id-id bs i))]
     [else (raise "termlink->reference: con case")]))
 
 (define (group-reference gr)
@@ -260,19 +260,19 @@
 (define runtime-module-map (make-hash))
 
 (define (reflect-derived bs i)
-  (data unison-reference:typelink unison-reference-derived:tag
-    (data unison-id:typelink unison-id-id:tag bs i)))
+  (data ref-reference:typelink ref-reference-derived:tag
+    (data ref-id:typelink ref-id-id:tag bs i)))
 
 (define (function->groupref f)
   (match (lookup-function-link f)
     [(unison-termlink-derived h i)
-     (unison-groupref-group
-       (unison-reference-derived
-         (unison-id-id h i))
+     (ref-groupref-group
+       (ref-reference-derived
+         (ref-id-id h i))
        0)]
     [(unison-termlink-builtin name)
-     (unison-groupref-group
-       (unison-reference-builtin (string->chunked-string name))
+     (ref-groupref-group
+       (ref-reference-builtin (string->chunked-string name))
        0)]
     [else (raise "function->groupref: con case")]))
 
@@ -280,19 +280,19 @@
   (match vl
     [(unison-data _ t (list l))
      (cond
-       [(= t unison-vlit-bytes:tag) l]
-       [(= t unison-vlit-char:tag) l]
-       [(= t unison-vlit-bytearray:tag) l]
-       [(= t unison-vlit-text:tag) l]
-       [(= t unison-vlit-termlink:tag) (referent->termlink l)]
-       [(= t unison-vlit-typelink:tag) (reference->typelink l)]
-       [(= t unison-vlit-float:tag) l]
-       [(= t unison-vlit-pos:tag) l]
-       [(= t unison-vlit-neg:tag) (- l)]
-       [(= t unison-vlit-quote:tag) (unison-quote l)]
-       [(= t unison-vlit-code:tag) (unison-code l)]
-       [(= t unison-vlit-array:tag) (vector-map reify-value l)]
-       [(= t unison-vlit-seq:tag)
+       [(= t ref-vlit-bytes:tag) l]
+       [(= t ref-vlit-char:tag) l]
+       [(= t ref-vlit-bytearray:tag) l]
+       [(= t ref-vlit-text:tag) l]
+       [(= t ref-vlit-termlink:tag) (referent->termlink l)]
+       [(= t ref-vlit-typelink:tag) (reference->typelink l)]
+       [(= t ref-vlit-float:tag) l]
+       [(= t ref-vlit-pos:tag) l]
+       [(= t ref-vlit-neg:tag) (- l)]
+       [(= t ref-vlit-quote:tag) (unison-quote l)]
+       [(= t ref-vlit-code:tag) (unison-code l)]
+       [(= t ref-vlit-array:tag) (vector-map reify-value l)]
+       [(= t ref-vlit-seq:tag)
         ; TODO: better map over chunked list
         (vector->chunked-list
           (vector-map reify-value (chunked-list->vector l)))]
@@ -302,19 +302,19 @@
 (define (reify-value v)
   (match v
     [(unison-data _ t (list rf rt bs0))
-     #:when (= t unison-value-data:tag)
+     #:when (= t ref-value-data:tag)
      (let ([bs (map reify-value (chunked-list->list bs0))])
        (make-data (reference->typelink rf) rt bs))]
     [(unison-data _ t (list gr bs0))
-     #:when (= t unison-value-partial:tag)
+     #:when (= t ref-value-partial:tag)
      (let ([bs (map reify-value (chunked-list->list bs0))]
            [proc (resolve-proc gr)])
        (apply proc bs))]
     [(unison-data _ t (list vl))
-     #:when (= t unison-value-vlit:tag)
+     #:when (= t ref-value-vlit:tag)
      (reify-vlit vl)]
     [(unison-data _ t (list bs0 k))
-     #:when (= t unison-value-cont:tag)
+     #:when (= t ref-value-cont:tag)
      (raise "reify-value: unimplemented cont case")]
     [(unison-data r t fs)
      (raise "reify-value: unimplemented data case")]
@@ -324,75 +324,75 @@
 (define (reflect-typelink tl)
   (match tl
     [(unison-typelink-builtin name)
-     (unison-reference-builtin
+     (ref-reference-builtin
        (string->chunked-string name))]
     [(unison-typelink-derived h i)
-     (unison-reference-derived (unison-id-id h i))]))
+     (ref-reference-derived (ref-id-id h i))]))
 
 (define (reflect-termlink tl)
   (match tl
     [(unison-termlink-con r i)
-     (unison-referent-con (reflect-typelink r) i)]
+     (ref-referent-con (reflect-typelink r) i)]
     [(unison-termlink-builtin name)
-     (unison-referent-def
-       (unison-reference-builtin
+     (ref-referent-def
+       (ref-reference-builtin
          (string->chunked-string name)))]
     [(unison-termlink-derived h i)
-     (unison-referent-def
-       (unison-reference-derived
-         (unison-id-id h i)))]))
+     (ref-referent-def
+       (ref-reference-derived
+         (ref-id-id h i)))]))
 
 (define (number-reference n)
   (cond
     [(exact-nonnegative-integer? n)
-     (unison-reference-builtin (string->chunked-string "Nat"))]
+     (ref-reference-builtin (string->chunked-string "Nat"))]
     [(exact-integer? n)
-     (unison-reference-builtin (string->chunked-string "Int"))]
+     (ref-reference-builtin (string->chunked-string "Int"))]
     [else
-      (unison-reference-builtin (string->chunked-string "Float"))]))
+      (ref-reference-builtin (string->chunked-string "Float"))]))
 
 (define (reflect-value v)
   (match v
     [(? exact-nonnegative-integer?)
-     (unison-value-vlit (unison-vlit-pos v))]
+     (ref-value-vlit (ref-vlit-pos v))]
     [(? exact-integer?)
-     (unison-value-vlit (unison-vlit-neg (- v)))]
+     (ref-value-vlit (ref-vlit-neg (- v)))]
     [(? inexact-real?)
-     (unison-value-vlit (unison-vlit-float v))]
+     (ref-value-vlit (ref-vlit-float v))]
     [(? char?)
-     (unison-value-vlit (unison-vlit-char v))]
+     (ref-value-vlit (ref-vlit-char v))]
     [(? chunked-bytes?)
-     (unison-value-vlit (unison-vlit-bytes v))]
+     (ref-value-vlit (ref-vlit-bytes v))]
     [(? bytes?)
-     (unison-value-vlit (unison-vlit-bytearray v))]
+     (ref-value-vlit (ref-vlit-bytearray v))]
     [(? vector?)
-     (unison-value-vlit
-       (unison-vlit-array
+     (ref-value-vlit
+       (ref-vlit-array
          (vector-map reflect-value v)))]
     [(? chunked-string?)
-     (unison-value-vlit (unison-vlit-text v))]
+     (ref-value-vlit (ref-vlit-text v))]
     ; TODO: better map over chunked lists
     [(? chunked-list?)
-     (unison-value-vlit
-       (unison-vlit-seq
+     (ref-value-vlit
+       (ref-vlit-seq
          (list->chunked-list
            (map reflect-value (chunked-list->list v)))))]
     [(? unison-termlink?)
-     (unison-value-vlit (unison-vlit-termlink (reflect-termlink v)))]
+     (ref-value-vlit (ref-vlit-termlink (reflect-termlink v)))]
     [(? unison-typelink?)
-     (unison-value-vlit (unison-vlit-typelink (reflect-typelink v)))]
-    [(unison-code sg) (unison-value-vlit (unison-vlit-code sg))]
-    [(unison-quote q) (unison-value-vlit (unison-vlit-quote q))]
+     (ref-value-vlit (ref-vlit-typelink (reflect-typelink v)))]
+    [(unison-code sg) (ref-value-vlit (ref-vlit-code sg))]
+    [(unison-quote q) (ref-value-vlit (ref-vlit-quote q))]
     [(unison-closure f as)
-     (unison-value-partial
+     (ref-value-partial
        (function->groupref f)
        (list->chunked-list (map reflect-value as)))]
     [(? procedure?)
-     (unison-value-partial
+     (ref-value-partial
        (function->groupref v)
        empty-chunked-list)]
     [(unison-data rf t fs)
-     (unison-value-data
+     (ref-value-data
        (reflect-typelink rf)
        t
        (list->chunked-list (map reflect-value fs)))]))
@@ -428,8 +428,8 @@
 
      #:result
      (if (null? unkn)
-       (unison-either-right (list->chunked-list sdbx))
-       (unison-either-left (list->chunked-list unkn))))
+       (ref-either-right (list->chunked-list sdbx))
+       (ref-either-left (list->chunked-list unkn))))
 
     ([r (in-chunked-list (value-term-dependencies v))])
 
@@ -593,7 +593,7 @@
 
       ,@sdefs
 
-      (handle [unison-exception:typelink] top-exn-handler
+      (handle [ref-exception:typelink] top-exn-handler
               (,pname #f)))))
 
 (define (build-runtime-module mname tylinks tmlinks defs)
@@ -646,23 +646,22 @@
               [fdeps (filter need-dependency? deps)]
               [rdeps (remove* refs fdeps)])
          (cond
-           [(null? fdeps) #f]
+           [(null? fdeps) empty-chunked-list]
            [(null? rdeps)
-            (let ([ndefs (map gen-code udefs)] [sdefs (flatten (map gen-code udefs))]
+            (let ([ndefs (map gen-code udefs)]
+                  [sdefs (flatten (map gen-code udefs))]
                   [mname (or mname0 (generate-module-name tmlinks))])
               (expand-sandbox tmlinks (map-links depss))
               (register-code udefs)
               (add-module-associations tmlinks mname)
               (add-runtime-module mname tylinks tmlinks sdefs)
-              #f)]
-           [else (list->chunked-list rdeps)]))]
-      [else #f])))
+              empty-chunked-list)]
+           [else
+             (list->chunked-list
+               (map reference->termlink rdeps))]))]
+      [else empty-chunked-list])))
 
-(define (unison-POp-CACH dfns0)
-  (let ([result (add-runtime-code #f dfns0)])
-    (if result
-      (sum 1 result)
-      (sum 0 '()))))
+(define (unison-POp-CACH dfns0) (add-runtime-code #f dfns0))
 
 (define (unison-POp-LOAD v0)
   (let* ([val (unison-quote-val v0)]
@@ -671,14 +670,16 @@
          [fdeps (filter need-dependency? (chunked-list->list deps))])
     (if (null? fdeps)
       (sum 1 (reify-value val))
-        (sum 0 (list->chunked-list fdeps)))))
+        (sum 0
+             (list->chunked-list
+               (map reference->termlink fdeps))))))
 
 (define (unison-POp-LKUP tl) (lookup-code tl))
 
 (define-unison (builtin-Code.lookup tl)
   (match (lookup-code tl)
-    [(unison-sum 0 (list)) unison-optional-none]
-    [(unison-sum 1 (list co)) (unison-optional-some co)]))
+    [(unison-sum 0 (list)) ref-optional-none]
+    [(unison-sum 1 (list co)) (ref-optional-some co)]))
 
 (define-unison (builtin-validateSandboxed ok v)
   (let ([l (sandbox-scheme-value (chunked-list->list ok) v)])

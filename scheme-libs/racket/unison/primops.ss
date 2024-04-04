@@ -24,13 +24,6 @@
 #!r6rs
 (library (unison primops)
   (export
-    builtin-Any:typelink
-    builtin-Char:typelink
-    builtin-Float:typelink
-    builtin-Int:typelink
-    builtin-Nat:typelink
-    builtin-Text:typelink
-
     builtin-Float.*
     builtin-Float.*:termlink
     builtin-Float.>=
@@ -255,6 +248,8 @@
     builtin-Char.Class.is:termlink
     builtin-Pattern.captureAs
     builtin-Pattern.captureAs:termlink
+    builtin-Pattern.many.corrected
+    builtin-Pattern.many.corrected:termlink
     builtin-Pattern.isMatch
     builtin-Pattern.isMatch:termlink
     builtin-IO.fileExists.impl.v3
@@ -645,13 +640,6 @@
           (unison concurrent)
           (racket random))
 
-  (define builtin-Any:typelink unison-any:typelink)
-  (define builtin-Char:typelink unison-char:typelink)
-  (define builtin-Float:typelink unison-float:typelink)
-  (define builtin-Int:typelink unison-int:typelink)
-  (define builtin-Nat:typelink unison-nat:typelink)
-  (define builtin-Text:typelink unison-text:typelink)
-
   (define-builtin-link Float.*)
   (define-builtin-link Float.fromRepresentation)
   (define-builtin-link Float.toRepresentation)
@@ -754,6 +742,7 @@
   (define-builtin-link Universal.compare)
   (define-builtin-link Universal.murmurHash)
   (define-builtin-link Pattern.captureAs)
+  (define-builtin-link Pattern.many.corrected)
   (define-builtin-link Pattern.isMatch)
   (define-builtin-link Char.Class.is)
   (define-builtin-link Scope.bytearrayOf)
@@ -780,13 +769,13 @@
 
     (define-unison (builtin-List.splitLeft n s)
       (match (unison-POp-SPLL n s)
-        [(unison-sum 0 fs) unison-seqview-empty]
-        [(unison-sum 1 (list l r)) (unison-seqview-elem l r)]))
+        [(unison-sum 0 fs) ref-seqview-empty]
+        [(unison-sum 1 (list l r)) (ref-seqview-elem l r)]))
 
     (define-unison (builtin-List.splitRight n s)
       (match (unison-POp-SPLR n s)
-        [(unison-sum 0 fs) unison-seqview-empty]
-        [(unison-sum 1 (list l r)) (unison-seqview-elem l r)]))
+        [(unison-sum 0 fs) ref-seqview-empty]
+        [(unison-sum 1 (list l r)) (ref-seqview-elem l r)]))
 
     (define-unison (builtin-Float.> x y) (fl> x y))
     (define-unison (builtin-Float.< x y) (fl< x y))
@@ -876,6 +865,8 @@
     (define-unison (builtin-Pattern.captureAs c p)
       (capture-as c p))
 
+    (define-unison (builtin-Pattern.many.corrected p) (many p))
+
     (define-unison (builtin-Pattern.isMatch p s)
       (pattern-match? p s))
 
@@ -896,7 +887,7 @@
     (define (reify-exn thunk)
       (guard
         (e [else
-             (sum 0 '() (exception->string e) e)])
+             (sum 0 '() (exception->string e) ref-unit-unit)])
         (thunk)))
 
     ; Core implemented primops, upon which primops-in-unison can be built.
@@ -923,7 +914,7 @@
     (define (unison-POp-EQLT s t) (bool (equal? s t)))
     (define (unison-POp-LEQT s t) (bool (chunked-string<? s t)))
     (define (unison-POp-EQLU x y) (bool (universal=? x y)))
-    (define (unison-POp-EROR fnm x) ;; TODO raise the correct failure, use display
+    (define (unison-POp-EROR fnm x)
       (let-values ([(p g) (open-string-output-port)])
         (put-string p (chunked-string->string fnm))
         (put-string p ": ")
@@ -977,8 +968,8 @@
 
     (define (->optional v)
       (if v
-          (unison-optional-some v)
-          unison-optional-none))
+          (ref-optional-some v)
+          ref-optional-none))
 
     (define-unison (builtin-Text.indexOf n h)
       (->optional (chunked-string-index-of h n)))
@@ -1130,7 +1121,7 @@
         ([exn:fail:contract?
           (lambda (e)
             (exception
-              unison-iofailure:typelink
+              ref-iofailure:typelink
               (string->chunked-string
                 (string-append
                   "Invalid UTF-8 stream: "
@@ -1143,7 +1134,7 @@
       (bytes->chunked-bytes (string->bytes/utf-8 (chunked-string->string s))))
 
     (define-unison (builtin-IO.isFileEOF.impl.v3 p)
-      (unison-either-right (port-eof? p)))
+      (ref-either-right (port-eof? p)))
 
     (define (unison-FOp-IO.closeFile.impl.v3 h)
       (if (input-port? h)
@@ -1471,5 +1462,6 @@
   (declare-builtin-link builtin-Pattern.isMatch)
   (declare-builtin-link builtin-Scope.bytearrayOf)
   (declare-builtin-link builtin-Char.Class.is)
+  (declare-builtin-link builtin-Pattern.many.corrected)
   (declare-builtin-link builtin-unsafe.coerceAbilities)
   )

@@ -13,38 +13,39 @@
 #!racket/base
 (provide
   (all-from-out unison/data-info)
-  unison-any:typelink
-  unison-boolean:typelink
-  unison-bytes:typelink
-  unison-char:typelink
-  unison-float:typelink
-  unison-int:typelink
-  unison-nat:typelink
-  unison-text:typelink
-  unison-code:typelink
-  unison-mvar:typelink
-  unison-pattern:typelink
-  unison-promise:typelink
-  unison-sequence:typelink
-  unison-socket:typelink
-  unison-tls:typelink
-  unison-timespec:typelink
-  unison-threadid:typelink
+  builtin-any:typelink
+  builtin-boolean:typelink
+  builtin-bytes:typelink
+  builtin-char:typelink
+  builtin-float:typelink
+  builtin-int:typelink
+  builtin-nat:typelink
+  builtin-text:typelink
+  builtin-code:typelink
+  builtin-mvar:typelink
+  builtin-pattern:typelink
+  builtin-promise:typelink
+  builtin-sequence:typelink
+  builtin-socket:typelink
+  builtin-tls:typelink
+  builtin-timespec:typelink
+  builtin-threadid:typelink
+  builtin-value:typelink
 
-  unison-crypto.hashalgorithm:typelink
-  unison-char.class:typelink
-  unison-immutablearray:typelink
-  unison-immutablebytearray:typelink
-  unison-mutablearray:typelink
-  unison-mutablebytearray:typelink
-  unison-processhandle:typelink
-  unison-ref.ticket:typelink
-  unison-tls.cipher:typelink
-  unison-tls.clientconfig:typelink
-  unison-tls.privatekey:typelink
-  unison-tls.serverconfig:typelink
-  unison-tls.signedcert:typelink
-  unison-tls.version:typelink
+  builtin-crypto.hashalgorithm:typelink
+  builtin-char.class:typelink
+  builtin-immutablearray:typelink
+  builtin-immutablebytearray:typelink
+  builtin-mutablearray:typelink
+  builtin-mutablebytearray:typelink
+  builtin-processhandle:typelink
+  builtin-ref.ticket:typelink
+  builtin-tls.cipher:typelink
+  builtin-tls.clientconfig:typelink
+  builtin-tls.privatekey:typelink
+  builtin-tls.serverconfig:typelink
+  builtin-tls.signedcert:typelink
+  builtin-tls.version:typelink
 
   bytevector
   bytes
@@ -495,62 +496,54 @@
 (define (reference->termlink rf)
   (match rf
     [(unison-data _ t (list nm))
-     #:when (= t unison-reference-builtin:tag)
+     #:when (= t ref-reference-builtin:tag)
      (unison-termlink-builtin (chunked-string->string nm))]
     [(unison-data _ t (list id))
-     #:when (= t unison-reference-derived:tag)
+     #:when (= t ref-reference-derived:tag)
      (match id
        [(unison-data _ t (list rf i))
-        #:when (= t unison-id-id:tag)
+        #:when (= t ref-id-id:tag)
         (unison-termlink-derived rf i)])]))
 
 (define (referent->termlink rn)
   (match rn
     [(unison-data _ t (list rf i))
-     #:when (= t unison-referent-con:tag)
+     #:when (= t ref-referent-con:tag)
      (unison-termlink-con (reference->typelink rf) i)]
     [(unison-data _ t (list rf))
-     #:when (= t unison-referent-def:tag)
+     #:when (= t ref-referent-def:tag)
      (reference->termlink rf)]))
 
 (define (reference->typelink rf)
   (match rf
     [(unison-data _ t (list nm))
-     #:when (= t unison-reference-builtin:tag)
+     #:when (= t ref-reference-builtin:tag)
      (unison-typelink-builtin (chunked-string->string nm))]
     [(unison-data _ t (list id))
-     #:when (= t unison-reference-derived:tag)
+     #:when (= t ref-reference-derived:tag)
      (match id
        [(unison-data _ t (list rf i))
-        #:when (= t unison-id-id:tag)
+        #:when (= t ref-id-id:tag)
         (unison-typelink-derived rf i)])]))
 
 (define (typelink->reference tl)
   (match tl
     [(unison-typelink-builtin nm)
-     (unison-reference-builtin (string->chunked-string nm))]
+     (ref-reference-builtin (string->chunked-string nm))]
     [(unison-typelink-derived hs i)
-     (unison-reference-derived
-       (unison-id-id hs i))]))
+     (ref-reference-derived (ref-id-id hs i))]))
 
 (define (termlink->referent tl)
   (match tl
     [(unison-termlink-builtin nm)
-     (unison-referent-def
-       (unison-reference-builtin nm))]
+     (ref-referent-def
+       (ref-reference-builtin nm))]
     [(unison-termlink-derived rf i)
-     (unison-referent-def
-       (unison-reference-derived
-         (unison-id-id rf i)))]
+     (ref-referent-def
+       (ref-reference-derived
+         (ref-id-id rf i)))]
     [(unison-termlink-con tyl i)
-     (unison-referent-con
-       (typelink->reference tyl)
-       i)]))
-
-(define (list->unison-tuple l)
-  (foldr unison-tuple-pair unison-unit-unit l))
-
-(define (unison-tuple . l) (list->unison-tuple l))
+     (ref-referent-con (typelink->reference tyl) i)]))
 
 (define (unison-seq . l)
   (vector->chunked-list (list->vector l)))
@@ -564,13 +557,13 @@
     [pure (x)
       (match x
         [(unison-data r 0 (list))
-         (eq? r unison-unit:typelink)
+         (eq? r ref-unit:typelink)
          (display "")]
         [else
           (display (describe-value x))])]
-    [unison-exception:typelink
+    [ref-exception:typelink
       [0 (f)
-       (control unison-exception:typelink k
+       (control ref-exception:typelink k
          (let ([disp (describe-value f)])
            (raise (make-exn:bug "builtin.bug" disp))))]]))
 

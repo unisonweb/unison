@@ -30,21 +30,22 @@
       [[exn:fail:network?
          (lambda (e)
            (exception
-             unison-iofailure:typelink
-             (exception->string e) '()))]
+             ref-iofailure:typelink
+             (exception->string e)
+             ref-unit-unit))]
        [exn:fail:contract?
          (lambda (e)
            (exception
-             unison-miscfailure:typelink
+             ref-miscfailure:typelink
              (exception->string e)
-             '()))]
+             ref-unit-unit))]
        [(lambda _ #t)
         (lambda (e)
           (exception
-            unison-miscfailure:typelink
+            ref-miscfailure:typelink
             (chunked-string->string
               (format "Unknown exception ~a" (exn->string e)))
-            e))]]
+            ref-unit-unit))]]
     (fn)))
 
 (define (closeSocket.impl.v3 socket)
@@ -66,9 +67,9 @@
 (define (socketSend.impl.v3 socket data) ; socket bytes -> ()
   (if (not (socket-pair? socket))
       (exception
-        unison-iofailure:typelink
-        "Cannot send on a server socket"
-        '())
+        ref-iofailure:typelink
+        (string->chunked-string "Cannot send on a server socket")
+        ref-unit-unit)
       (begin
         (write-bytes (chunked-bytes->bytes data) (socket-pair-output socket))
         (flush-output (socket-pair-output socket))
@@ -77,8 +78,8 @@
 (define (socketReceive.impl.v3 socket amt) ; socket int -> bytes
   (if (not (socket-pair? socket))
       (exception
-        unison-iofailure:typelink
-        "Cannot receive on a server socket")
+        ref-iofailure:typelink
+        (string->chunked-string "Cannot receive on a server socket"))
       (handle-errors
        (lambda ()
          (begin
@@ -106,20 +107,21 @@
           [[exn:fail:network?
              (lambda (e)
                (exception
-                 unison-iofailure:typelink
-                 (exception->string e) '()))]
+                 ref-iofailure:typelink
+                 (exception->string e)
+                 ref-unit-unit))]
            [exn:fail:contract?
              (lambda (e)
                (exception
-                 unison-iofailure:typelink
+                 ref-iofailure:typelink
                  (exception->string e)
-                 '()))]
+                 ref-unit-unit))]
            [(lambda _ #t)
             (lambda (e)
               (exception
-                unison-miscfailure:typelink
+                ref-miscfailure:typelink
                 (string->chunked-string "Unknown exception")
-                e))] ]
+                ref-unit-unit))] ]
         (let ([listener (tcp-listen (string->number port ) 4 #f (if (equal? 0 hostname) #f hostname))])
           (right listener))))))
 
@@ -135,9 +137,9 @@
 (define (socketAccept.impl.v3 listener)
   (if (socket-pair? listener)
       (exception
-        unison-iofailure:typelink
+        ref-iofailure:typelink
         (string->chunked-string "Cannot accept on a non-server socket")
-        '())
+        ref-unit-unit)
       (begin
         (let-values ([(input output) (tcp-accept listener)])
           (right (socket-pair input output))))))

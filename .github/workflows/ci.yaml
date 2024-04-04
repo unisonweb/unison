@@ -21,7 +21,7 @@ env:
   ormolu_version: "0.5.2.0"
   racket_version: "8.7"
   ucm_local_bin: "ucm-local-bin"
-  jit_version: "@unison/internal/releases/0.0.12"
+  jit_version: "@unison/internal/releases/0.0.13"
   jit_src_scheme: "unison-jit-src/scheme-libs/racket"
   jit_dist: "unison-jit-dist"
   jit_generator_os: ubuntu-20.04
@@ -29,15 +29,6 @@ env:
 
   # refers to all tests that depend on **/unison-src/**
   unison_src_test_results: "unison-src-test-results"
-
-  # cache key versions, increment to invalidate one, though you aren't expected to have to.
-  ucm-binaries-cache-key-version: 1
-  unison-src-test-results-cache-key-version: 1
-  stack-cache-key-version: 1
-  stack-work-cache-key-version: 1
-  base-codebase-cache-key-version: 1
-  jit-src-cache-key-version: 1
-  jit-dist-cache-key-version: 1
 
 jobs:
   ormolu:
@@ -59,7 +50,7 @@ jobs:
           mode: inplace
           pattern: ${{ steps.changed-files.outputs.all_changed_files }}
       - name: apply formatting changes
-        uses: stefanzweifel/git-auto-commit-action@v4
+        uses: stefanzweifel/git-auto-commit-action@v5
         # Only try to commit formatting changes if we're running within the repo containing the PR,
         # and not on a protected branch.
         # The job doesn't have permission to push back to contributor forks on contributor PRs.
@@ -105,25 +96,25 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{env.ucm_local_bin}}
-          key: ucm-${{env.ucm-binaries-cache-key-version}}_${{ matrix.os }}-${{ hashFiles('**/stack.yaml', '**/package.yaml', '**/*.hs')}}
+          key: ucm-${{ matrix.os }}-${{ hashFiles('**/stack.yaml', '**/package.yaml', '**/*.hs')}}
 
       - name: cache unison-src test results
         id: cache-unison-src-test-results
         uses: actions/cache@v4
         with:
           path: ${{env.unison_src_test_results}}
-          key: unison-src-test-results-${{env.unison-src-test-results-cache-key-version}}_${{ matrix.os }}-${{ hashFiles('**/ci.yaml', '**/stack.yaml', '**/package.yaml', '**/*.hs')}}-${{ hashFiles('**/unison-src/**') }}
+          key: unison-src-test-results-${{ matrix.os }}-${{ hashFiles('**/ci.yaml', '**/stack.yaml', '**/package.yaml', '**/*.hs')}}-${{ hashFiles('**/unison-src/**') }}
 
       - name: restore stack caches
         if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
         id: restore-stack-caches
-        uses: ./.github/workflows/actions/restore-stack-cache
+        uses: unisonweb/actions/stack/cache/restore@main
         with:
-          cache-prefix: ci${{env.stack-cache-key-version}}
+          cache-prefix: ci
 
       - name: install stack
         if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
-        uses: ./.github/workflows/actions/install-stack
+        uses: unisonweb/actions/stack/install@main
 
       # One of the transcripts fails if the user's git name hasn't been set.
       ## (Which transcript? -AI)
@@ -227,7 +218,7 @@ jobs:
         with:
           path: ${{ env.base-codebase }}
           # key = base transcript contents + sqlite schema version
-          key: base.unison-${{env.base-codebase-cache-key-version}}_${{hashFiles('**/unison-src/builtin-tests/base.md', '**/codebase2/codebase-sqlite/U/Codebase/Sqlite/Queries.hs')}}.
+          key: base.unison-${{hashFiles('**/unison-src/builtin-tests/base.md', '**/codebase2/codebase-sqlite/U/Codebase/Sqlite/Queries.hs')}}.
 
       - name: create base.md codebase
         if: steps.cache-base-codebase.outputs.cache-hit != 'true'
@@ -261,9 +252,9 @@ jobs:
           !cancelled()
             && steps.restore-stack-caches.outputs.cache-hit != 'true'
             && steps.cache-ucm-binaries.outputs.cache-hit != 'true'
-        uses: ./.github/workflows/actions/save-stack-cache
+        uses: unisonweb/actions/stack/cache/save@main
         with:
-          cache-prefix: ci${{env.stack-cache-key-version}}
+          cache-prefix: ci
 
   generate-jit-source:
     if: always() && needs.build-ucm.result == 'success'
@@ -277,13 +268,13 @@ jobs:
           echo "ucm=${{ runner.temp }}/unison" >> $GITHUB_ENV
       - uses: actions/cache@v4
         name: cache jit source
-        if: runner.os == 'Linux'
         with:
           path: ${{ env.jit_src_scheme }}
-          key: jit_src_scheme-${{env.jit-src-cache-key-version}}.racket_${{env.racket_version}}.jit_${{env.jit_version}}
+          key: jit_src_scheme-racket_${{env.racket_version}}.jit_${{env.jit_version}}-${{hashFiles('**/scheme-libs/**')}}
 
       - name: check source exists
         id: jit_src_exists
+        if: steps.cache-jit-source.outputs.cache-hit != 'true'
         run: |
           files=(data-info boot-generated simple-wrappers builtin-generated compound-wrappers)
           all_exist=true
@@ -396,7 +387,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.jit_dist }}
-          key: jit_dist-${{env.jit-dist-cache-key-version}}.racket_${{ env.racket_version }}.jit_${{ env.jit_version }}
+          key: jit_dist-racket_${{ env.racket_version }}.jit_${{ env.jit_version }}
 
       - name: Cache Racket dependencies
         if: steps.restore-jit-binaries.outputs.cache-hit != 'true'
@@ -460,7 +451,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ${{ env.base-codebase}}
-          key: base.unison-${{env.base-codebase-cache-key-version}}_${{hashFiles('**/unison-src/builtin-tests/base.md', '**/codebase2/codebase-sqlite/U/Codebase/Sqlite/Queries.hs')}}.
+          key: base.unison-${{hashFiles('**/unison-src/builtin-tests/base.md', '**/codebase2/codebase-sqlite/U/Codebase/Sqlite/Queries.hs')}}.
 
       - name: jit integration test ${{ matrix.os }}
         if: runner.os != 'Windows' && steps.restore-jit-binaries.outputs.cache-hit != 'true'

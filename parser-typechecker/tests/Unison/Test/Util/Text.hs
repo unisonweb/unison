@@ -114,12 +114,12 @@ test =
         expect' (P.run (P.Char (P.CharSet "0123")) "3ab" == Just ([], "ab"))
         expect' (P.run (P.Char (P.Not (P.CharSet "0123"))) "a3b" == Just ([], "3b"))
         expect' (P.run (P.Capture (P.Char (P.Not (P.CharSet "0123")))) "a3b" == Just (["a"], "3b"))
-        expect' (P.run (P.Many (P.Char (P.CharSet "abcd"))) "babbababac123" == Just ([], "123"))
-        expect' (P.run (P.Capture (P.Many (P.Char (P.CharSet "abcd")))) "babbababac123" == Just (["babbababac"], "123"))
-        expect' (P.run (P.Capture (P.Many (P.Char (P.CharClass P.Number)))) "012345abc" == Just (["012345"], "abc"))
-        expect' (P.run (P.Join [P.Capture (P.Many (P.Char (P.CharClass P.Number))), P.Literal ",", P.Capture (P.Many (P.Char P.Any))]) "012345,abc" == Just (["012345", "abc"], ""))
+        expect' (P.run (P.Many True (P.Char (P.CharSet "abcd"))) "babbababac123" == Just ([], "123"))
+        expect' (P.run (P.Capture (P.Many True (P.Char (P.CharSet "abcd")))) "babbababac123" == Just (["babbababac"], "123"))
+        expect' (P.run (P.Capture (P.Many True (P.Char (P.CharClass P.Number)))) "012345abc" == Just (["012345"], "abc"))
+        expect' (P.run (P.Join [P.Capture (P.Many True (P.Char (P.CharClass P.Number))), P.Literal ",", P.Capture (P.Many True (P.Char P.Any))]) "012345,abc" == Just (["012345", "abc"], ""))
         expect'
-          ( P.run (P.Many (P.Join [P.Capture (P.Many (P.Char (P.CharClass P.Number))), P.Many (P.Char (P.CharClass P.Whitespace))])) "01 10 20 1123 292 110 10"
+          ( P.run (P.Many True (P.Join [P.Capture (P.Many True (P.Char (P.CharClass P.Number))), P.Many True (P.Char (P.CharClass P.Whitespace))])) "01 10 20 1123 292 110 10"
               == Just (["01", "10", "20", "1123", "292", "110", "10"], "")
           )
         expect' $

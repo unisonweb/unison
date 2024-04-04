@@ -110,7 +110,7 @@
     [[exn:fail?
        (lambda (e)
          (exception
-           unison-miscfailure:typelink
+           ref-miscfailure:typelink
            (exception->string e)
            '()))]]
   (right

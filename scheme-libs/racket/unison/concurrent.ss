@@ -106,37 +106,36 @@
     (or (exn:fail:contract:divide-by-zero? e)
         (exn:fail:contract:non-fixnum-result? e)))
 
-  ;; TODO Replace strings with proper type links once we have them
   (define (try-eval thunk)
     (with-handlers
       ([exn:break?
         (lambda (e)
           (exception
-            unison-threadkilledfailure:typelink
+            ref-threadkilledfailure:typelink
             (string->chunked-string "thread killed")
-            ()))]
+            ref-unit-unit))]
        [exn:io?
          (lambda (e)
            (exception
-             unison-iofailure:typelink
-             (exception->string e) ()))]
+             ref-iofailure:typelink
+             (exception->string e) ref-unit-unit))]
        [exn:arith?
          (lambda (e)
            (exception
-             unison-arithfailure:typelink
+             ref-arithfailure:typelink
              (exception->string e)
-             ()))]
+             ref-unit-unit))]
        [exn:bug? (lambda (e) (exn:bug->exception e))]
        [exn:fail?
          (lambda (e)
            (exception
-             unison-runtimefailure:typelink
+             ref-runtimefailure:typelink
              (exception->string e)
-             ()))]
+             ref-unit-unit))]
        [(lambda (x) #t)
         (lambda (e)
           (exception
-            unison-miscfailure:typelink
-            (string->chunked-string "unknown exception")
-            e))])
+            ref-miscfailure:typelink
+            (exception->string e)
+            ref-unit-unit))])
       (right (thunk)))))

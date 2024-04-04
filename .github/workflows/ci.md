@@ -24,15 +24,6 @@ Some cached directories:
 `jit_generator_os: ubuntu-20.04`
   - afaik, the jit sources are generated in a platform-independent way, so we just choose one platform to generate them on.
 
-`*-cache-key-version` — increment one of these to invalidate its corresponding cache, though you shouldn't have to:
-  - `ucm-binaries`
-  - `unison-src-test-results`
-  - `stack`
-  - `stack-work`
-  - `base-codebase`
-  - `jit-src`
-  - `jit-dist`
-
 ### Cached directories:
 
 One reason for this change is to reduce the CI time for commits that only change docs, or yaml or other uninteresting things.

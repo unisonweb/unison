@@ -54,7 +54,7 @@
   (let ([bs (grab-bytes)])
     (match (builtin-Value.deserialize (bytes->chunked-bytes bs))
       [(unison-data _ t (list q))
-       (= t unison-either-right:tag)
+       (= t ref-either-right:tag)
        (apply
          values
          (unison-tuple->list (reify-value (unison-quote-val q))))]
@@ -67,7 +67,7 @@
 (define (do-evaluate)
   (let-values ([(code main-ref) (decode-input)])
     (add-runtime-code 'unison-main code)
-    (handle [unison-exception:typelink] top-exn-handler
+    (handle [ref-exception:typelink] top-exn-handler
             ((termlink->proc main-ref))
             (data 'unit 0))))
 

@@ -20,20 +20,20 @@ jobs:
           path: unison
 
       - name: restore stack caches
-        uses: ./unison/.github/workflows/actions/restore-stack-cache
+        uses: unisonweb/actions/stack/cache/restore@main
         with:
           cache-prefix: haddocks
           stack-yaml-dir: unison
 
       - name: install stack
-        uses: ./unison/.github/workflows/actions/install-stack
+        uses: unisonweb/actions/stack/install@main
 
       - name: build with haddocks
         working-directory: unison
         run: stack build --fast --haddock
 
       - name: save stack caches
-        uses: ./unison/.github/workflows/actions/save-stack-cache
+        uses: unisonweb/actions/stack/cache/save@main
         with:
           cache-prefix: haddocks
           stack-yaml-dir: unison
@@ -42,11 +42,18 @@ jobs:
       - name: Checkout haddocks branch
         uses: actions/checkout@v4
         with:
-          ref: 'haddocks'
-          path: 'haddocks'
+          ref: haddocks
+          path: haddocks
+
+      # Needed for `git commit` below
+      - name: set git user info
+        working-directory: unison
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
 
       - name: Copy haddocks
-        working-directory: 'unison'
+        working-directory: unison
         run: |
           docs_root="$(stack path --local-doc-root)"
           # Erase any stale files

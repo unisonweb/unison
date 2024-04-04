@@ -4,6 +4,7 @@ Some tests of pattern behavior.
 p1 = join [literal "blue", literal "frog"]
 
 > Pattern.run (many p1) "bluefrogbluegoat" 
+> Pattern.run (many.corrected p1) "bluefrogbluegoat"
 ```
 
 ```ucm
@@ -22,6 +23,10 @@ p1 = join [literal "blue", literal "frog"]
   `>`)... Ctrl+C cancels.
 
     3 | > Pattern.run (many p1) "bluefrogbluegoat" 
+          ⧩
+          Some ([], "goat")
+  
+    4 | > Pattern.run (many.corrected p1) "bluefrogbluegoat"
           ⧩
           Some ([], "bluegoat")
 

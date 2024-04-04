@@ -63,8 +63,9 @@
     (if (= 1 (length certs))
         (right bytes)
         (exception
-          unison-tlsfailure:typelink
-          (string->chunked-string "nope") certs)))) ; TODO passing certs is wrong, should either be converted to chunked-list or removed
+          ref-tlsfailure:typelink
+          (string->chunked-string "nope")
+          bytes))))
 
 ; We don't actually "decode" certificates, we just validate them
 (define (encodeCert bytes) bytes)
@@ -112,42 +113,41 @@
 (define (ClientConfig.certificates.set certs config) ; list tlsSignedCert tlsClientConfig -> tlsClientConfig
   (client-config (client-config-host config) certs))
 
-; TODO: have someone familiar with TLS verify these exception
-; classifications
 (define (handle-errors fn)
   (with-handlers
       [[exn:fail:network?
          (lambda (e)
            (exception
-             unison-iofailure:typelink
-             (exception->string e) '()))]
+             ref-iofailure:typelink
+             (exception->string e)
+             ref-unit-unit))]
        [exn:fail:contract?
         (lambda (e)
           (exception
-            unison-miscfailure:typelink
+            ref-miscfailure:typelink
             (exception->string e)
-            '()))]
+            ref-unit-unit))]
        [(lambda err
           (string-contains? (exn->string err) "not valid for hostname"))
         (lambda (e)
           (exception
-            unison-tlsfailure:typelink
+            ref-tlsfailure:typelink
             (string->chunked-string "NameMismatch")
-            '()))]
+            ref-unit-unit))]
        [(lambda err
           (string-contains? (exn->string err) "certificate verify failed"))
         (lambda (e)
           (exception
-            unison-tlsfailure:typelink
+            ref-tlsfailure:typelink
             (string->chunked-string "certificate verify failed")
-            '()))]
+            ref-unit-unit))]
        [(lambda _ #t)
         (lambda (e)
           (exception
-            unison-miscfailure:typelink
+            ref-miscfailure:typelink
             (string->chunked-string
               (format "Unknown exception ~a" (exn->string e)))
-            e))]]
+            ref-unit-unit))]]
     (fn)))
 
 (define (newClient.impl.v3 config socket)
