@@ -52,8 +52,6 @@ import Unison.Reference (Reference)
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
 import Unison.Referent' qualified as Referent'
-import Unison.Term (Term)
-import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.Type qualified as Type
 import Unison.Var (Var)
