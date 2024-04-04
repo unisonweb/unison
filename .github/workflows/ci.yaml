@@ -234,7 +234,7 @@ jobs:
             && (steps.cache-ucm-binaries.outputs.cache-hit != 'true'
                 || steps.cache-unison-src-test-results.outputs.cache-hit != 'true')
         run: |
-          envsubst '$runtime_test_version' \
+          envsubst '${runtime_test_version}' \
             < unison-src/builtin-tests/interpreter-tests.tpl.md \
             > unison-src/builtin-tests/interpreter-tests.md
           ${{ env.ucm }} transcript.fork -C ${{ env.runtime_tests_codebase }} unison-src/builtin-tests/interpreter-tests.md
@@ -473,7 +473,7 @@ jobs:
       - name: jit integration test ${{ matrix.os }}
         if: runner.os != 'Windows' && steps.restore-jit-binaries.outputs.cache-hit != 'true'
         run: |
-          envsubst '$runtime_test_version' \
+          envsubst '${runtime_test_version}' \
             < unison-src/builtin-tests/jit-tests.tpl.md \
             > unison-src/builtin-tests/jit-tests.md
           ${{ env.ucm }} transcript.fork --runtime-path ${{ env.jit_dist_exe }} -C ${{env.runtime_tests_codebase}} unison-src/builtin-tests/jit-tests.md
