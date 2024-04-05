@@ -203,9 +203,6 @@ jobs:
     name: Run transcripts
     needs: build-ucm
     runs-on: ${{ matrix.os }}
-    env:
-      transcripts: ${{ needs.build-ucm.outputs.transcripts }}
-      ucm_local_bin: ${{ needs.build-ucm.outputs.ucm_local_bin }}
     strategy:
       # Run each build to completion, regardless of if any have failed
       fail-fast: false
@@ -287,9 +284,6 @@ jobs:
           - macOS-12
           # - windows-2019
           # - windows-2022
-    env:
-      ucm: ${{ needs.build-ucm.outputs.ucm }}
-      ucm_local_bin: ${{ needs.build-ucm.outputs.ucm_local_bin }}
     steps:
       - uses: actions/checkout@v4
       - name: tweak environment
