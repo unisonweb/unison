@@ -23,7 +23,6 @@ module Unison.DataDeclaration
     declFields,
     typeDependencies,
     labeledTypeDependencies,
-    generateRecordAccessors,
     unhashComponent,
     mkDataDecl',
     mkEffectDecl',
@@ -39,8 +38,6 @@ where
 
 import Control.Lens (Iso', Lens', imap, iso, lens, over, _3)
 import Control.Monad.State (evalState)
-import Data.List.NonEmpty (pattern (:|))
-import Data.List.NonEmpty qualified as List (NonEmpty)
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Unison.ABT qualified as ABT
@@ -50,14 +47,11 @@ import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.LabeledDependency qualified as LD
 import Unison.Name qualified as Name
 import Unison.Names.ResolutionResult qualified as Names
-import Unison.Pattern qualified as Pattern
 import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
 import Unison.Referent' qualified as Referent'
-import Unison.Term (Term)
-import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.Type qualified as Type
 import Unison.Var (Var)
@@ -145,92 +139,6 @@ withEffectDeclM ::
   EffectDeclaration v a ->
   f (EffectDeclaration v' a')
 withEffectDeclM f = fmap EffectDeclaration . f . toDataDecl
-
--- propose to move this code to some very feature-specific module —AI
-generateRecordAccessors ::
-  (Semigroup a, Var v) =>
-  (List.NonEmpty v -> v) ->
-  (a -> a) ->
-  [(v, a)] ->
-  v ->
-  Reference ->
-  [(v, a, Term v a)]
-generateRecordAccessors namespaced generatedAnn fields typename typ =
-  join [tm t i | (t, i) <- fields `zip` [(0 :: Int) ..]]
-  where
-    argname = Var.uncapitalize typename
-    tm (fname, fieldAnn) i =
-      [ (namespaced (typename :| [fname]), ann, get),
-        (namespaced (typename :| [fname, Var.named "set"]), ann, set),
-        (namespaced (typename :| [fname, Var.named "modify"]), ann, modify)
-      ]
-      where
-        ann = generatedAnn fieldAnn
-        -- example: `point -> case point of Point x _ -> x`
-        get =
-          Term.lam (generatedAnn fieldAnn) argname $
-            Term.match
-              ann
-              (Term.var ann argname)
-              [Term.MatchCase pat Nothing rhs]
-          where
-            pat = Pattern.Constructor ann (ConstructorReference typ 0) cargs
-            cargs =
-              [ if j == i then Pattern.Var ann else Pattern.Unbound ann
-                | (_, j) <- fields `zip` [0 ..]
-              ]
-            rhs = ABT.abs' ann fname (Term.var ann fname)
-        -- example: `x point -> case point of Point _ y -> Point x y`
-        set =
-          Term.lam' (generatedAnn ann) [fname', argname] $
-            Term.match
-              ann
-              (Term.var ann argname)
-              [Term.MatchCase pat Nothing rhs]
-          where
-            fname' =
-              Var.named . Var.name $
-                Var.freshIn (Set.fromList $ [argname] <> (fst <$> fields)) fname
-            pat = Pattern.Constructor ann (ConstructorReference typ 0) cargs
-            cargs =
-              [ if j == i then Pattern.Unbound ann else Pattern.Var ann
-                | (_, j) <- fields `zip` [0 ..]
-              ]
-            rhs =
-              foldr
-                (ABT.abs' ann)
-                (Term.constructor ann (ConstructorReference typ 0) `Term.apps'` vargs)
-                [f | ((f, _), j) <- fields `zip` [0 ..], j /= i]
-            vargs =
-              [ if j == i then Term.var ann fname' else Term.var ann v
-                | ((v, _), j) <- fields `zip` [0 ..]
-              ]
-        -- example: `f point -> case point of Point x y -> Point (f x) y`
-        modify =
-          Term.lam' (generatedAnn ann) [fname', argname] $
-            Term.match
-              ann
-              (Term.var ann argname)
-              [Term.MatchCase pat Nothing rhs]
-          where
-            fname' =
-              Var.named . Var.name $
-                Var.freshIn
-                  (Set.fromList $ [argname] <> (fst <$> fields))
-                  (Var.named "f")
-            pat = Pattern.Constructor ann (ConstructorReference typ 0) cargs
-            cargs = replicate (length fields) $ Pattern.Var ann
-            rhs =
-              foldr
-                (ABT.abs' ann)
-                (Term.constructor ann (ConstructorReference typ 0) `Term.apps'` vargs)
-                (fst <$> fields)
-            vargs =
-              [ if j == i
-                  then Term.apps' (Term.var ann fname') [Term.var ann v]
-                  else Term.var ann v
-                | ((v, _), j) <- fields `zip` [0 ..]
-              ]
 
 constructorTypes :: DataDeclaration v a -> [Type v a]
 constructorTypes = (snd <$>) . constructors
