@@ -201,7 +201,7 @@ fieldNames env r hqTypename dd = do
   --   "Pt._11.set"    => ( #sety    , y pt -> match pt with Pt x _ -> Pt x y     , Int -> Pt -> Pt          )
   --   "Pt._11.modify" => ( #modifyy , f pt -> match pt with Pt x y -> Pt x (f y) , (Int -> Int) -> Pt -> Pt )
   -- }
-  let hashes = DD.hashFieldAccessors env (Name.toVar typename) vars r dd
+  hashes <- DD.hashFieldAccessors env (Name.toVar typename) vars r dd
 
   -- [
   --   ( #getx    , "Pt.x"        )
