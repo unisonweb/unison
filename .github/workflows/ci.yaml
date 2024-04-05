@@ -248,7 +248,7 @@ jobs:
         if: steps.cache-transcript-test-results.outputs.cache-hit != 'true'
         with:
           path: ${{env.ucm_local_bin}}
-          key: ucm-${{ matrix.os }}-${{ hashFiles('**/stack.yaml', '**/package.yaml', '**/*.hs')}}-${{env.runtime_tests_causalhash}}
+          key: ucm-${{ matrix.os }}-${{ hashFiles('**/stack.yaml', '**/package.yaml', '**/*.hs')}}
           fail-on-cache-miss: true
       # # One of the transcripts fails if the user's git name hasn't been set.
       # ## (Which transcript? -AI)
@@ -309,7 +309,7 @@ jobs:
         if: steps.cache-interpreter-test-results.outputs.cache-hit != 'true'
         with:
           path: ${{env.ucm_local_bin}}
-          key: ucm-${{ matrix.os }}-${{ hashFiles('**/stack.yaml', '**/package.yaml', '**/*.hs')}}-${{env.runtime_tests_causalhash}}
+          key: ucm-${{ matrix.os }}-${{ hashFiles('**/stack.yaml', '**/package.yaml', '**/*.hs')}}
           fail-on-cache-miss: true
       - name: interpreter tests
         # this one should be re-run if the ucm binaries have changed or unison-src/ has changed
