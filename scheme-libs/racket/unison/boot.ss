@@ -81,6 +81,7 @@
   exn:bug?
   exn:bug->exception
   exception->string
+  raise-unison-exception
 
   request
   request-case
@@ -565,7 +566,10 @@
       [0 (f)
        (control ref-exception:typelink k
          (let ([disp (describe-value f)])
-           (raise (make-exn:bug "builtin.bug" disp))))]]))
+           (raise
+             (make-exn:bug
+               (string->chunked-string "builtin.bug")
+               disp))))]]))
 
 (begin-encourage-inline
   (define mask64 #xffffffffffffffff)
@@ -594,3 +598,14 @@
     (if (and (fixnum? n) (exact-nonnegative-integer? n)) n
       (modulo n bit64))))
 
+(define (raise-unison-exception ty msg val)
+  (request
+    ref-exception:typelink
+    0
+    (ref-failure-failure ty msg (unison-any-any val))))
+
+(define (exn:bug->exception b)
+  (raise-unison-exception
+    ref-runtimefailure:typelink
+    (exn:bug-msg b)
+    (exn:bug-val b)))

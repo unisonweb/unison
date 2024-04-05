@@ -12,8 +12,7 @@
     promise-try-read
     fork
     kill
-    sleep
-    try-eval)
+    sleep)
 
   (import (rnrs)
           (rnrs records syntactic)
@@ -37,13 +36,7 @@
                  sleep
                  printf
                  with-handlers
-                 exn:break?
-                 exn:fail?
-                 exn:fail:read?
-                 exn:fail:filesystem?
-                 exn:fail:network?
-                 exn:fail:contract:divide-by-zero?
-                 exn:fail:contract:non-fixnum-result?)
+                 exn:break?)
            (box ref-new)
            (unbox ref-read)
            (set-box! ref-write)
@@ -96,46 +89,4 @@
   (define (kill threadId)
     (break-thread threadId)
     (right unit))
-
-  (define (exn:io? e)
-    (or (exn:fail:read? e)
-        (exn:fail:filesystem? e)
-        (exn:fail:network? e)))
-
-  (define (exn:arith? e)
-    (or (exn:fail:contract:divide-by-zero? e)
-        (exn:fail:contract:non-fixnum-result? e)))
-
-  (define (try-eval thunk)
-    (with-handlers
-      ([exn:break?
-        (lambda (e)
-          (exception
-            ref-threadkilledfailure:typelink
-            (string->chunked-string "thread killed")
-            ref-unit-unit))]
-       [exn:io?
-         (lambda (e)
-           (exception
-             ref-iofailure:typelink
-             (exception->string e) ref-unit-unit))]
-       [exn:arith?
-         (lambda (e)
-           (exception
-             ref-arithfailure:typelink
-             (exception->string e)
-             ref-unit-unit))]
-       [exn:bug? (lambda (e) (exn:bug->exception e))]
-       [exn:fail?
-         (lambda (e)
-           (exception
-             ref-runtimefailure:typelink
-             (exception->string e)
-             ref-unit-unit))]
-       [(lambda (x) #t)
-        (lambda (e)
-          (exception
-            ref-miscfailure:typelink
-            (exception->string e)
-            ref-unit-unit))])
-      (right (thunk)))))
+  )

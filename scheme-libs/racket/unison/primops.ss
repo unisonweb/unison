@@ -140,6 +140,8 @@
     builtin-Bytes.indexOf:termlink
     builtin-IO.randomBytes
     builtin-IO.randomBytes:termlink
+    builtin-IO.tryEval
+    builtin-IO.tryEval:termlink
 
     builtin-Scope.bytearrayOf
     builtin-Scope.bytearrayOf:termlink
@@ -388,7 +390,6 @@
     unison-FOp-IO.delay.impl.v3
     unison-POp-FORK
     unison-FOp-IO.kill.impl.v3
-    unison-POp-TFRC
 
     unison-FOp-Handle.toText
     unison-FOp-Socket.toText
@@ -602,7 +603,14 @@
                  vector-copy!
                  bytes-copy!
                  sub1
-                 add1)
+                 add1
+                 exn:break?
+                 exn:fail?
+                 exn:fail:read?
+                 exn:fail:filesystem?
+                 exn:fail:network?
+                 exn:fail:contract:divide-by-zero?
+                 exn:fail:contract:non-fixnum-result?)
            (car icar) (cdr icdr))
           (only (racket string)
                 string-contains?
@@ -618,6 +626,8 @@
                 clamp-integer
                 clamp-natural
                 wrap-natural
+                exn:bug->exception
+                raise-unison-exception
                 bit64
                 bit63
                 nbit63)
@@ -698,6 +708,7 @@
   (define-builtin-link Text.!=)
   (define-builtin-link Bytes.indexOf)
   (define-builtin-link IO.randomBytes)
+  (define-builtin-link IO.tryEval)
   (define-builtin-link List.splitLeft)
   (define-builtin-link List.splitRight)
   (define-builtin-link Value.toBuiltin)
@@ -827,33 +838,9 @@
     (define-unison (builtin-Scope.bytearrayOf i n)
       (make-bytevector n i))
 
-    (define (hash-string hs)
-      (string-append "#" (bytevector->base32-string b32h hs)))
-
-    (define (ix-string i)
-      (if (= i 0)
-        ""
-        (string-append "." (number->string i))))
-
-    (define (typelink->string ln)
-      (match ln
-        [(unison-typelink-builtin name)
-         (string-append "##" name)]
-        [(unison-typelink-derived hs i)
-         (string-append (hash-string hs) (ix-string i))]))
-
     (define-builtin-link Link.Type.toText)
     (define-unison (builtin-Link.Type.toText ln)
       (string->chunked-string (typelink->string ln)))
-
-    (define (termlink->string ln)
-      (match ln
-        [(unison-termlink-builtin name)
-         (string-append "##" name)]
-        [(unison-termlink-derived hs i)
-         (string-append (hash-string hs) (ix-string i))]
-        [(unison-termlink-con rf t)
-         (string-append (typelink->string rf) "#" (number->string t))]))
 
     (define-builtin-link Link.Term.toText)
     (define-unison (builtin-Link.Term.toText ln)
@@ -1343,7 +1330,6 @@
     (define unison-FOp-ImmutableArray.size vector-length)
 
     (define (unison-POp-FORK thunk) (fork thunk))
-    (define (unison-POp-TFRC thunk) (try-eval thunk))
     (define (unison-FOp-IO.delay.impl.v3 micros) (sleep micros))
     (define (unison-FOp-IO.kill.impl.v3 threadId) (kill threadId))
     (define (unison-FOp-Scope.ref a) (ref-new a))
@@ -1358,6 +1344,50 @@
     (define (unison-FOp-Promise.tryRead promise) (promise-try-read promise))
     (define (unison-FOp-Promise.write promise a) (promise-write promise a)))
 
+
+  (define (exn:io? e)
+    (or (exn:fail:read? e)
+        (exn:fail:filesystem? e)
+        (exn:fail:network? e)))
+
+  (define (exn:arith? e)
+    (or (exn:fail:contract:divide-by-zero? e)
+        (exn:fail:contract:non-fixnum-result? e)))
+
+  (define-unison (builtin-IO.tryEval thunk)
+    (with-handlers
+      ([exn:break?
+        (lambda (e)
+          (raise-unison-exception
+            ref-threadkilledfailure:typelink
+            (string->chunked-string "thread killed")
+            ref-unit-unit))]
+       [exn:io?
+         (lambda (e)
+           (raise-unison-exception
+             ref-iofailure:typelink
+             (exception->string e)
+             ref-unit-unit))]
+       [exn:arith?
+         (lambda (e)
+           (raise-unison-exception
+             ref-arithfailure:typelink
+             (exception->string e)
+             ref-unit-unit))]
+       [exn:bug? (lambda (e) (exn:bug->exception e))]
+       [exn:fail?
+         (lambda (e)
+           (raise-unison-exception
+             ref-runtimefailure:typelink
+             (exception->string e)
+             ref-unit-unit))]
+       [(lambda (x) #t)
+        (lambda (e)
+          (raise-unison-exception
+            ref-miscfailure:typelink
+            (exception->string e)
+            ref-unit-unit))])
+      (thunk ref-unit-unit)))
   
   (declare-builtin-link builtin-Float.*)
   (declare-builtin-link builtin-Float.fromRepresentation)
@@ -1417,6 +1447,7 @@
   (declare-builtin-link builtin-Text.!=)
   (declare-builtin-link builtin-Bytes.indexOf)
   (declare-builtin-link builtin-IO.randomBytes)
+  (declare-builtin-link builtin-IO.tryEval)
   (declare-builtin-link builtin-List.splitLeft)
   (declare-builtin-link builtin-List.splitRight)
   (declare-builtin-link builtin-Value.toBuiltin)
