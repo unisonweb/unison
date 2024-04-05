@@ -66,10 +66,6 @@ jobs:
   build-ucm:
     name: Build UCM ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
-    outputs:
-      ucm: ${{ steps.tweak-environment.outputs.ucm }}
-      transcripts: ${{ steps.tweak-environment.outputs.transcripts }}
-      ucm_local_bin: ${{ steps.tweak-environment.outputs.ucm_local_bin }}
     strategy:
       # Run each build to completion, regardless of if any have failed
       fail-fast: false
@@ -96,9 +92,6 @@ jobs:
             echo "ucm=$ucm_local_bin/unison" >> $GITHUB_ENV
             echo "transcripts=$ucm_local_bin/transcripts" >> $GITHUB_ENV
           fi
-          echo "ucm=$ucm" >> $GITHUB_OUTPUT
-          echo "transcripts=$transcripts" >> $GITHUB_OUTPUT
-          echo "ucm_local_bin=$ucm_local_bin" >> $GITHUB_OUTPUT
 
       - name: cache ucm binaries
         id: cache-ucm-binaries
@@ -236,7 +229,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: tweak environment
-        run: echo transcript_test_results="${RUNNER_TEMP//\\//}/${transcript_test_results}" >> $GITHUB_ENV
+        run: |
+          transcript_test_results="${RUNNER_TEMP//\\//}/${transcript_test_results}"
+          echo "transcript_test_results=$transcript_test_results" >> $GITHUB_ENV
+
+          ucm_local_bin="${RUNNER_TEMP//\\//}/${ucm_local_bin}"
+          echo "ucm_local_bin=$ucm_local_bin" >> $GITHUB_ENV
+
+          if [[ ${{runner.os}} = "Windows" ]]; then
+            echo "ucm=$ucm_local_bin/unison.exe" >> $GITHUB_ENV
+            echo "transcripts=$ucm_local_bin/transcripts.exe" >> $GITHUB_ENV
+          else
+            echo "ucm=$ucm_local_bin/unison" >> $GITHUB_ENV
+            echo "transcripts=$ucm_local_bin/transcripts" >> $GITHUB_ENV
+          fi
+
       - name: cache unison-src test results
         id: cache-transcript-test-results
         uses: actions/cache@v4
@@ -287,7 +294,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: tweak environment
-        run: echo interpreter_test_results="${RUNNER_TEMP//\\//}/${interpreter_test_results}" >> $GITHUB_ENV
+        run: |
+          interpreter_test_results="${RUNNER_TEMP//\\//}/${interpreter_test_results}"
+          echo "interpreter_test_results=$interpreter_test_results" >> $GITHUB_ENV
+
+          ucm_local_bin="${RUNNER_TEMP//\\//}/${ucm_local_bin}"
+          echo "ucm_local_bin=$ucm_local_bin" >> $GITHUB_ENV
+
+          if [[ ${{runner.os}} = "Windows" ]]; then
+            echo "ucm=$ucm_local_bin/unison.exe" >> $GITHUB_ENV
+            echo "transcripts=$ucm_local_bin/transcripts.exe" >> $GITHUB_ENV
+          else
+            echo "ucm=$ucm_local_bin/unison" >> $GITHUB_ENV
+            echo "transcripts=$ucm_local_bin/transcripts" >> $GITHUB_ENV
+          fi
       - name: look up hash for runtime tests
         run: echo "runtime_tests_causalhash=$(scripts/get-share-hash.sh ${{env.runtime_tests_version}})" >> $GITHUB_ENV
       - name: cache interpreter test results
