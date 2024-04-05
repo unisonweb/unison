@@ -28,8 +28,8 @@ env:
   runtime_tests_version: "@unison/runtime-tests/main"
   runtime_tests_codebase: "~/.cache/unisonlanguage/runtime-tests.unison"
 
-  # refers to all tests that depend on **/unison-src/**
-  unison_src_test_results: "unison-src-test-results"
+  # locations of some files that will indicate whether we need to re-run certain steps
+  transcript_test_results: "transcript-test-results"
   interpreter_test_results: "interpreter-test-results"
   jit_test_results: "jit-test-results"
 
@@ -66,6 +66,10 @@ jobs:
   build-ucm:
     name: Build UCM ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    outputs:
+      ucm: ${{ steps.tweak-environment.outputs.ucm }}
+      transcripts: ${{ steps.tweak-environment.outputs.transcripts }}
+      ucm_local_bin: ${{ steps.tweak-environment.outputs.ucm_local_bin }}
     strategy:
       # Run each build to completion, regardless of if any have failed
       fail-fast: false
@@ -76,16 +80,15 @@ jobs:
           - macOS-12
           - windows-2019
           # - windows-2022
-
     steps:
       - uses: actions/checkout@v4
 
       - name: tweak environment
+        id: tweak-environment
         run: |
           ucm_local_bin="${RUNNER_TEMP//\\//}/${ucm_local_bin}"
-          unison_src_test_results="${RUNNER_TEMP//\\//}/${unison_src_test_results}"
-
           echo "ucm_local_bin=$ucm_local_bin" >> $GITHUB_ENV
+
           if [[ ${{runner.os}} = "Windows" ]]; then
             echo "ucm=$ucm_local_bin/unison.exe" >> $GITHUB_ENV
             echo "transcripts=$ucm_local_bin/transcripts.exe" >> $GITHUB_ENV
@@ -93,6 +96,9 @@ jobs:
             echo "ucm=$ucm_local_bin/unison" >> $GITHUB_ENV
             echo "transcripts=$ucm_local_bin/transcripts" >> $GITHUB_ENV
           fi
+          echo "ucm=$ucm" >> $GITHUB_OUTPUT
+          echo "transcripts=$transcripts" >> $GITHUB_OUTPUT
+          echo "ucm_local_bin=$ucm_local_bin" >> $GITHUB_OUTPUT
 
       - name: cache ucm binaries
         id: cache-ucm-binaries
@@ -100,25 +106,6 @@ jobs:
         with:
           path: ${{env.ucm_local_bin}}
           key: ucm-${{ matrix.os }}-${{ hashFiles('**/stack.yaml', '**/package.yaml', '**/*.hs')}}
-
-      - name: look up hash for runtime tests
-        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
-        run: |
-          echo "runtime_tests_causalhash=$(scripts/get-share-hash.sh ${{env.runtime_tests_version}})" >> $GITHUB_ENV
-
-      - name: cache unison-src test results
-        id: cache-unison-src-test-results
-        uses: actions/cache@v4
-        with:
-          path: ${{env.unison_src_test_results}}
-          key: unison-src-test-results-${{ matrix.os }}-${{ hashFiles('**/ci.yaml', '**/stack.yaml', '**/package.yaml', '**/*.hs')}}-${{ hashFiles('**/unison-src/**') }}
-
-      - name: cache interpreter test results
-        id: cache-interpreter-test-results
-        uses: actions/cache@v4
-        with:
-          path: ${{env.interpreter_test_results}}
-          key: interpreter-test-results-${{ matrix.os }}-${{ hashFiles('**/ci.yaml', '**/stack.yaml', '**/package.yaml', '**/*.hs')}}-${{ hashFiles('**/interpreter-tests.tpl.md') }}-${{env.runtime_tests_causalhash}}
 
       - name: restore stack caches
         if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
@@ -130,13 +117,6 @@ jobs:
       - name: install stack
         if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
         uses: unisonweb/actions/stack/install@main
-
-      # One of the transcripts fails if the user's git name hasn't been set.
-      ## (Which transcript? -AI)
-      - name: set git user info
-        run: |
-          git config --global user.name "GitHub Actions"
-          git config --global user.email "actions@github.com"
 
       # Build deps, then build local code. Splitting it into two steps just allows us to see how much time each step
       # takes.
@@ -212,18 +192,6 @@ jobs:
             unison-src/transcripts-round-trip/main.output.md \
             unison-src/transcripts-manual/rewrites.output.md
 
-      - name: transcripts
-        if: steps.cache-unison-src-test-results.outputs.cache-hit != 'true'
-        run: |
-          ${{env.transcripts}}
-          # Fail if any transcripts cause git diffs.
-          git diff --ignore-cr-at-eol --exit-code unison-src/transcripts
-
-      - name: mark transcripts as passing
-        if: steps.cache-unison-src-test-results.outputs.cache-hit != 'true'
-        run: |
-          echo "passing=true" >> "${{env.unison_src_test_results}}"
-
       - name: cli-integration-tests
         if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
         run: stack exec cli-integration-tests
@@ -231,33 +199,6 @@ jobs:
       - name: verify stack ghci startup
         if: runner.os == 'macOS' && steps.cache-ucm-binaries.outputs.cache-hit != 'true'
         run: echo | stack ghci
-
-      - name: cache testing codebase
-        id: cache-testing-codebase
-        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.runtime_tests_codebase }}
-          key: runtime-tests-codebase-${{env.runtime_tests_causalhash}}
-          restore-keys: runtime-tests-codebase-
-
-      - name: interpreter tests
-        # this one should be re-run if the ucm binaries have changed or unison-src/ has changed
-        if: |
-          runner.os != 'Windows'
-            && (steps.cache-ucm-binaries.outputs.cache-hit != 'true'
-                || steps.cache-unison-src-test-results.outputs.cache-hit != 'true')
-        run: |
-          envsubst '${runtime_tests_version}' \
-            < unison-src/builtin-tests/interpreter-tests.tpl.md \
-            > unison-src/builtin-tests/interpreter-tests.md
-          ${{ env.ucm }} transcript.fork -C ${{ env.runtime_tests_codebase }} unison-src/builtin-tests/interpreter-tests.md
-          cat unison-src/builtin-tests/interpreter-tests.output.md
-          git diff --exit-code unison-src/builtin-tests/interpreter-tests.output.md
-
-      - name: mark interpreter tests as passing
-        run: |
-          echo "passing=true" >> "${{env.interpreter_test_results}}"
 
       - name: save ucm artifact
         uses: actions/upload-artifact@v4
@@ -274,6 +215,115 @@ jobs:
         uses: unisonweb/actions/stack/cache/save@main
         with:
           cache-prefix: ci
+
+  transcripts:
+    name: Run transcripts
+    needs: build-ucm
+    runs-on: ${{ matrix.os }}
+    env:
+      transcripts: ${{ needs.build-ucm.outputs.transcripts }}
+      ucm_local_bin: ${{ needs.build-ucm.outputs.ucm_local_bin }}
+    strategy:
+      # Run each build to completion, regardless of if any have failed
+      fail-fast: false
+      matrix:
+        os:
+          # While iterating on this file, you can disable one or more of these to speed things up
+          - ubuntu-20.04
+          - macOS-12
+          - windows-2019
+          # - windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - name: tweak environment
+        run: echo transcript_test_results="${RUNNER_TEMP//\\//}/${transcript_test_results}" >> $GITHUB_ENV
+      - name: cache unison-src test results
+        id: cache-transcript-test-results
+        uses: actions/cache@v4
+        with:
+          path: ${{env.transcript_test_results}}
+          key: transcripts-results-${{ matrix.os }}-${{ hashFiles('**/stack.yaml', '**/package.yaml', '**/*.hs')}}-${{ hashFiles('**/unison-src/**/*.md') }}
+      - name: restore binaries
+        uses: actions/cache/restore@v4
+        if: steps.cache-transcript-test-results.outputs.cache-hit != 'true'
+        with:
+          path: ${{env.ucm_local_bin}}
+          key: ucm-${{ matrix.os }}-${{ hashFiles('**/stack.yaml', '**/package.yaml', '**/*.hs')}}-${{env.runtime_tests_causalhash}}
+          fail-on-cache-miss: true
+      # # One of the transcripts fails if the user's git name hasn't been set.
+      # ## (Which transcript? -AI)
+      # - name: set git user info
+      #   run: |
+      #     git config --global user.name "GitHub Actions"
+      #     git config --global user.email "actions@github.com"
+      - name: transcripts
+        if: steps.cache-transcript-test-results.outputs.cache-hit != 'true'
+        run: |
+          ${{env.transcripts}}
+          # Fail if any transcripts cause git diffs.
+          git diff --ignore-cr-at-eol --exit-code unison-src/transcripts
+      - name: mark transcripts as passing
+        if: steps.cache-transcript-test-results.outputs.cache-hit != 'true'
+        run: |
+          echo "passing=true" >> "${{env.transcript_test_results}}"
+
+  interpreter-tests:
+    name: Run interpreter tests
+    needs: build-ucm
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # Run each build to completion, regardless of if any have failed
+      fail-fast: false
+      matrix:
+        os:
+          # While iterating on this file, you can disable one or more of these to speed things up
+          - ubuntu-20.04
+          - macOS-12
+          # - windows-2019
+          # - windows-2022
+    env:
+      ucm: ${{ needs.build-ucm.outputs.ucm }}
+      ucm_local_bin: ${{ needs.build-ucm.outputs.ucm_local_bin }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: tweak environment
+        run: echo interpreter_test_results="${RUNNER_TEMP//\\//}/${interpreter_test_results}" >> $GITHUB_ENV
+      - name: look up hash for runtime tests
+        run: echo "runtime_tests_causalhash=$(scripts/get-share-hash.sh ${{env.runtime_tests_version}})" >> $GITHUB_ENV
+      - name: cache interpreter test results
+        id: cache-interpreter-test-results
+        uses: actions/cache@v4
+        with:
+          path: ${{env.interpreter_test_results}}
+          key: interpreter-test-results-${{ matrix.os }}-${{ hashFiles('**/stack.yaml', '**/package.yaml', '**/*.hs')}}-${{ hashFiles('**/interpreter-tests.tpl.md') }}-${{env.runtime_tests_causalhash}}
+      - name: cache testing codebase
+        id: cache-testing-codebase
+        if: steps.cache-interpreter-test-results.outputs.cache-hit != 'true'
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.runtime_tests_codebase }}
+          key: runtime-tests-codebase-${{env.runtime_tests_causalhash}}
+          restore-keys: runtime-tests-codebase-
+      - name: restore binaries
+        uses: actions/cache/restore@v4
+        if: steps.cache-interpreter-test-results.outputs.cache-hit != 'true'
+        with:
+          path: ${{env.ucm_local_bin}}
+          key: ucm-${{ matrix.os }}-${{ hashFiles('**/stack.yaml', '**/package.yaml', '**/*.hs')}}-${{env.runtime_tests_causalhash}}
+          fail-on-cache-miss: true
+      - name: interpreter tests
+        # this one should be re-run if the ucm binaries have changed or unison-src/ has changed
+        if: steps.cache-interpreter-test-results.outputs.cache-hit != 'true'
+        run: |
+          envsubst '${runtime_tests_version}' \
+            < unison-src/builtin-tests/interpreter-tests.tpl.md \
+            > unison-src/builtin-tests/interpreter-tests.md
+          ${{ env.ucm }} transcript.fork -C ${{ env.runtime_tests_codebase }} unison-src/builtin-tests/interpreter-tests.md
+          cat unison-src/builtin-tests/interpreter-tests.output.md
+          git diff --exit-code unison-src/builtin-tests/interpreter-tests.output.md
+      - name: mark interpreter tests as passing
+        run: |
+          echo "passing=true" >> "${{env.interpreter_test_results}}"
 
   generate-jit-source:
     if: always() && needs.build-ucm.result == 'success'
