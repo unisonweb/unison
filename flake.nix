@@ -116,7 +116,7 @@
           };
 
           apps = haskell-nix-flake.apps // {
-            default = self.apps."${system}"."unison-cli:exe:unison";
+            default = self.apps."${system}"."unison-cli-main:exe:unison";
           };
 
           devShells = nixpkgs-devShells // {

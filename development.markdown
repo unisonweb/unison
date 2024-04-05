@@ -178,12 +178,12 @@ nix develop '.#haskell-nix.unison-parser-typechecker'
 ```
 
 This is useful if you wanted to profile a package. For example, if you
-want to profile `unison-cli:exe:unison` then you could get into one of these
+want to profile `unison-cli-main:exe:unison` then you could get into one of these
 shells, cd into its directory, then run the program with
 profiling.
 
 ```
 nix develop '.#unison-parser-typechecker'
 cd unison-cli
-cabal run --enable-profiling unison-cli:exe:unison -- +RTS -p
+cabal run --enable-profiling unison-cli-main:exe:unison -- +RTS -p
 ```
