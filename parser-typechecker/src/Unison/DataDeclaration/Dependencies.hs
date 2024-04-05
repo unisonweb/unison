@@ -14,7 +14,6 @@ import Control.Lens
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Set.Lens (setOf)
-import U.Codebase.Reference qualified as V2Reference
 import Unison.DataDeclaration qualified as DD
 import Unison.DataDeclaration.Records (generateRecordAccessors)
 import Unison.Hashing.V2.Convert qualified as Hashing
@@ -22,18 +21,17 @@ import Unison.LabeledDependency qualified as LD
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import Unison.PrettyPrintEnv qualified as PPE
-import Unison.Reference (Reference)
-import Unison.Reference qualified as Reference
+import Unison.Reference (TermReferenceId, TypeReference)
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Result qualified as Result
 import Unison.Syntax.Var qualified as Var (namespaced)
 import Unison.Term (Term)
-import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.Type qualified as Type
 import Unison.Typechecker qualified as Typechecker
 import Unison.Typechecker.TypeLookup (TypeLookup (..))
+import Unison.Util.Tuple qualified as Tuple
 import Unison.Var (Var)
 import Unison.Var qualified as Var
 
@@ -42,7 +40,7 @@ import Unison.Var qualified as Var
 --
 -- Note that we can't actually tell whether the Decl was originally a record or not, so we
 -- include all possible accessors, but they may or may not exist in the codebase.
-labeledDeclDependenciesIncludingSelfAndFieldAccessors :: Var v => V2Reference.TypeReference -> (DD.Decl v a) -> Set LD.LabeledDependency
+labeledDeclDependenciesIncludingSelfAndFieldAccessors :: Var v => TypeReference -> (DD.Decl v a) -> Set LD.LabeledDependency
 labeledDeclDependenciesIncludingSelfAndFieldAccessors selfRef decl =
   DD.labeledDeclDependenciesIncludingSelf selfRef decl
     <> case decl of
@@ -53,8 +51,9 @@ labeledDeclDependenciesIncludingSelfAndFieldAccessors selfRef decl =
 
 -- | Generate Referents for all possible field accessors of a Decl.
 --
--- Returns Nothing if this couldn't be a record because it doesn't contain exactly one constructor.
-fieldAccessorRefs :: forall v a. (Var v) => Reference -> DD.DataDeclaration v a -> Maybe (Set Referent)
+-- Returns @Nothing@ if this couldn't be a record because it doesn't contain exactly one constructor, or because the
+-- record contains a field with a higher rank type (and thus fails type inference).
+fieldAccessorRefs :: forall v a. (Var v) => TypeReference -> DD.DataDeclaration v a -> Maybe (Set Referent)
 fieldAccessorRefs declRef dd = do
   [(_, typ)] <- Just (DD.constructors dd)
 
@@ -67,38 +66,51 @@ fieldAccessorRefs declRef dd = do
       -- fundamental fix to be made somewhere in the term printer to automatically suffix a var name with its
       -- freshened id if it would be ambiguous otherwise.
       vars = [Var.freshenId (fromIntegral n) (Var.named ("_" <> tShow n)) | n <- [0 .. Type.arity typ - 1]]
-  hashFieldAccessors PPE.empty typeName vars declRef dd
-    & Map.elems
-    & setOf (folded . _1 . to (Reference.DerivedId >>> Referent.Ref))
-    & Just
+
+  accessors <- hashFieldAccessors PPE.empty typeName vars declRef dd
+
+  Just (setOf (folded . _1 . to Referent.fromTermReferenceId) accessors)
 
 -- | Generate Referents for all possible field accessors of a Decl.
+--
+-- Returns @Nothing@ if inferring/typechecking of any accessor fails, which shouldn't normally happen, but does when
+-- record fields are higher rank, because the higher rank types can't be inferred.
+--
+-- See https://github.com/unisonweb/unison/issues/498
 hashFieldAccessors ::
   forall v a.
   (Var.Var v) =>
   PrettyPrintEnv ->
   v ->
   [v] ->
-  Reference ->
+  TypeReference ->
   DD.DataDeclaration v a ->
-  Map v (Reference.Id, Term.Term v (), Type.Type v ())
-hashFieldAccessors ppe declName vars declRef dd =
-  generateRecordAccessors Var.namespaced id (map (,()) vars) declName declRef
-    & map (\(v, _a, term) -> (v, (term, typecheck term, ())))
+  Maybe (Map v (TermReferenceId, Term v (), Type v ()))
+hashFieldAccessors ppe declName vars declRef dd = do
+  let accessors :: [(v, (), Term v ())]
+      accessors =
+        generateRecordAccessors Var.namespaced id (map (,()) vars) declName declRef
+
+  typecheckedAccessors <-
+    for accessors \(v, _a, term) -> do
+      typ <- typecheck term
+      Just (v, (term, typ, ()))
+
+  typecheckedAccessors
     & Map.fromList
     & Hashing.hashTermComponents
-    & fmap (\(rid, trm, typ, _a) -> (rid, trm, typ))
+    & Map.map Tuple.drop4th
+    & Just
   where
-    typecheck :: Term v () -> Type v ()
-    typecheck term =
-      case Typechecker.synthesize ppe Typechecker.PatternMatchCoverageCheckAndKindInferenceSwitch'Disabled typecheckingEnv term of
-        Result.Result _notes Nothing ->
-          error (reportBug "E497674" ("Generated record accessors of " ++ show declRef ++ " didn't typecheck"))
-        -- Note: Typechecker.synthesize doesn't normalize the output
-        -- type. We do so here using `Type.cleanup`, mirroring what's
-        -- done when typechecking a whole file and ensuring we get the
-        -- same inferred type.
-        Result.Result _notes (Just typ) -> Type.cleanup typ
+    typecheck :: Term v () -> Maybe (Type v ())
+    typecheck term = do
+      typ <- Result.result (Typechecker.synthesize ppe Typechecker.PatternMatchCoverageCheckAndKindInferenceSwitch'Disabled typecheckingEnv term)
+      -- Note: Typechecker.synthesize doesn't normalize the output
+      -- type. We do so here using `Type.cleanup`, mirroring what's
+      -- done when typechecking a whole file and ensuring we get the
+      -- same inferred type.
+      Just (Type.cleanup typ)
+
     typecheckingEnv :: Typechecker.Env v ()
     typecheckingEnv =
       Typechecker.Env
