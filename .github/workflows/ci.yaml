@@ -142,6 +142,13 @@ jobs:
             --local-bin-path ${{env.ucm_local_bin}} \
             --copy-bins
 
+      # The unison-cli test requires a git user.
+      - name: set git user info
+        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+
       # Run each test suite (tests and transcripts)
       - name: unison-cli test
         if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
