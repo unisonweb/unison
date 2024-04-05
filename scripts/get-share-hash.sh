@@ -39,8 +39,8 @@ getHash() {
     echo "$hash"
 }
 
-# print usage if there are no arguments
-if [ $# -eq 0 ]; then
+# print usage if there's not exactly 1 argument
+if [ $# -ne 1 ]; then
     # print to the EOF
     cat <<EOF
 Example usage:
