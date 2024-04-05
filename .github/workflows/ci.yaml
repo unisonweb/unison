@@ -234,7 +234,7 @@ jobs:
             echo "transcripts=$ucm_local_bin/transcripts" >> $GITHUB_ENV
           fi
 
-      - name: cache unison-src test results
+      - name: cache transcript test results
         id: cache-transcript-test-results
         uses: actions/cache@v4
         with:
