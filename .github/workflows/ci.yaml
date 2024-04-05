@@ -175,16 +175,6 @@ jobs:
         if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
         run: stack build --fast --test unison-util-relation
 
-      - name: round-trip-tests
-        if: steps.cache-unison-src-test-results.outputs.cache-hit != 'true'
-        run: |
-          ${{env.ucm}} transcript unison-src/transcripts-round-trip/main.md
-          ${{env.ucm}} transcript unison-src/transcripts-manual/rewrites.md
-          # Fail if any transcripts cause git diffs.
-          git diff --ignore-cr-at-eol --exit-code \
-            unison-src/transcripts-round-trip/main.output.md \
-            unison-src/transcripts-manual/rewrites.output.md
-
       - name: cli-integration-tests
         if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
         run: stack exec cli-integration-tests
@@ -263,6 +253,15 @@ jobs:
       #   run: |
       #     git config --global user.name "GitHub Actions"
       #     git config --global user.email "actions@github.com"
+      - name: round-trip-tests
+        if: steps.cache-unison-src-test-results.outputs.cache-hit != 'true'
+        run: |
+          ${{env.ucm}} transcript unison-src/transcripts-round-trip/main.md
+          ${{env.ucm}} transcript unison-src/transcripts-manual/rewrites.md
+          # Fail if any transcripts cause git diffs.
+          git diff --ignore-cr-at-eol --exit-code \
+            unison-src/transcripts-round-trip/main.output.md \
+            unison-src/transcripts-manual/rewrites.output.md
       - name: transcripts
         if: steps.cache-transcript-test-results.outputs.cache-hit != 'true'
         run: |
