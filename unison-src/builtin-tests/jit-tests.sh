@@ -1,17 +1,20 @@
 #!/bin/bash
 set -ex
 
-ucm=$(stack exec -- which unison)
-
-base_codebase=${XDG_CACHE_HOME:-"$HOME/.cache"}/unisonlanguage/base.unison
-
-if [ ! -d $base_codebase ]; then
-    echo !!!! Creating a codebase in $base_codebase
-    $ucm transcript -S $base_codebase unison-src/builtin-tests/base.md
-else
-    echo !!!! Updating the codebase in $base_codebase
-    $ucm transcript.fork -c $base_codebase -S $base_codebase unison-src/builtin-tests/base.md
+# the first arg is the path to the unison executable
+if [ -z "$1" ]; then
+  echo "Usage: $0 <path/flags for calling unison w/ jit>"
+  echo "Example: $0 ./unison --runtime-path ./runtime/bin/unison-runtime"
+  exit 1
 fi
+
+# call unison with all its args quoted
+ucm=("$@")
+
+runtime_tests_version="@unison/runtime-tests/main"
+echo $runtime_tests_version
+
+codebase=${XDG_CACHE_HOME:-"$HOME/.cache"}/unisonlanguage/runtime-tests.unison
 
 dir=${XDG_DATA_HOME:-"$HOME/.local/share"}/unisonlanguage/scheme-libs
 echo $dir
@@ -19,4 +22,9 @@ echo $dir
 mkdir -p $dir
 cp -r scheme-libs/* $dir/
 
-time $ucm transcript.fork -c $base_codebase unison-src/builtin-tests/jit-tests.md
+runtime_tests_version="$runtime_tests_version" \
+    envsubst '$runtime_tests_version' \
+    < unison-src/builtin-tests/jit-tests.tpl.md \
+    > unison-src/builtin-tests/jit-tests.md
+
+time "${ucm[@]}" transcript.fork -C $codebase -S $codebase unison-src/builtin-tests/jit-tests.md

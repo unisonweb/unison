@@ -22,7 +22,7 @@ You'll also need to install `x509-lib` with `raco pkg install x509-lib`
 To run the test suite, first `stack build` (or `stack build --fast`), then:
 
 ```
-./unison-src/builtin-tests/jit-tests.sh
+./unison-src/builtin-tests/jit-tests.sh $(stack exec which unison) --runtime-path <path>
 ```
 
 OR if you want to run the same tests in interpreted mode:

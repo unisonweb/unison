@@ -70,7 +70,7 @@ let
     } // localPackageDevShells;
 in
 haskell-nix-flake // {
-  defaultPackage = haskell-nix-flake.packages."unison-cli:exe:unison";
+  defaultPackage = haskell-nix-flake.packages."unison-cli-main:exe:unison";
   inherit (pkgs) unison-project;
   inherit devShells localPackageNames;
 }

@@ -118,17 +118,38 @@
     (ref-either-right (inexact->exact (* 1000 (current-inexact-milliseconds)))))
 
 (define (threadCPUTime.v1)
-    (right (current-process-milliseconds (current-thread))))
+  (right
+    (integer->time
+      (current-process-milliseconds (current-thread)))))
+
 (define (processCPUTime.v1)
-    (right (current-process-milliseconds 'process)))
+  (right
+    (integer->time
+      (current-process-milliseconds #f))))
+
 (define (realtime.v1)
-    (right (current-inexact-milliseconds)))
+  (right
+    (float->time
+      (current-inexact-milliseconds))))
+
 (define (monotonic.v1)
-    (right (current-inexact-monotonic-milliseconds)))
+  (right
+    (float->time
+      (current-inexact-monotonic-milliseconds))))
+
+(define (integer->time msecs)
+  (unison-timespec
+    (truncate (/ msecs 1000))
+    (* (modulo msecs 1000) 1000000)))
+
+(define (float->time msecs)
+  (unison-timespec
+    (trunc (/ msecs 1000))
+    (trunc (* (flmod msecs 1000.0) 1000000))))
 
 ;
-(define (flt f) (fl->exact-integer (fltruncate f)))
+(define (trunc f) (inexact->exact (truncate f)))
 
-(define (sec.v1 ts) (flt (/ ts 1000)))
+(define sec.v1 unison-timespec-sec)
 
-(define (nsec.v1 ts) (flt (* (flmod ts 1000.0) 1000000)))
+(define nsec.v1 unison-timespec-nsec)
