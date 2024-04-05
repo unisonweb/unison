@@ -5,6 +5,10 @@ transcript-*
 scratch.u
 unisonLocal.zip
 
+# Auto-generated
+jit-tests.md
+interpreter-tests.md
+
 # Stack
 .stack-work
 

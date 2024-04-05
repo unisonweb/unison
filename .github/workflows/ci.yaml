@@ -25,10 +25,13 @@ env:
   jit_src_scheme: "unison-jit-src/scheme-libs/racket"
   jit_dist: "unison-jit-dist"
   jit_generator_os: ubuntu-20.04
-  base-codebase: "~/.cache/unisonlanguage/base.unison"
+  runtime_tests_version: "@unison/runtime-tests/main"
+  runtime_tests_codebase: "~/.cache/unisonlanguage/runtime-tests.unison"
 
   # refers to all tests that depend on **/unison-src/**
   unison_src_test_results: "unison-src-test-results"
+  interpreter_test_results: "interpreter-test-results"
+  jit_test_results: "jit-test-results"
 
 jobs:
   ormolu:
@@ -98,12 +101,24 @@ jobs:
           path: ${{env.ucm_local_bin}}
           key: ucm-${{ matrix.os }}-${{ hashFiles('**/stack.yaml', '**/package.yaml', '**/*.hs')}}
 
+      - name: look up hash for runtime tests
+        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
+        run: |
+          echo "runtime_tests_causalhash=$(scripts/get-share-hash.sh ${{env.runtime_tests_version}})" >> $GITHUB_ENV
+
       - name: cache unison-src test results
         id: cache-unison-src-test-results
         uses: actions/cache@v4
         with:
           path: ${{env.unison_src_test_results}}
           key: unison-src-test-results-${{ matrix.os }}-${{ hashFiles('**/ci.yaml', '**/stack.yaml', '**/package.yaml', '**/*.hs')}}-${{ hashFiles('**/unison-src/**') }}
+
+      - name: cache interpreter test results
+        id: cache-interpreter-test-results
+        uses: actions/cache@v4
+        with:
+          path: ${{env.interpreter_test_results}}
+          key: interpreter-test-results-${{ matrix.os }}-${{ hashFiles('**/ci.yaml', '**/stack.yaml', '**/package.yaml', '**/*.hs')}}-${{ hashFiles('**/interpreter-tests.tpl.md') }}-${{env.runtime_tests_causalhash}}
 
       - name: restore stack caches
         if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
@@ -204,6 +219,11 @@ jobs:
           # Fail if any transcripts cause git diffs.
           git diff --ignore-cr-at-eol --exit-code unison-src/transcripts
 
+      - name: mark transcripts as passing
+        if: steps.cache-unison-src-test-results.outputs.cache-hit != 'true'
+        run: |
+          echo "passing=true" >> "${{env.unison_src_test_results}}"
+
       - name: cli-integration-tests
         if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
         run: stack exec cli-integration-tests
@@ -212,17 +232,14 @@ jobs:
         if: runner.os == 'macOS' && steps.cache-ucm-binaries.outputs.cache-hit != 'true'
         run: echo | stack ghci
 
-      - name: cache base codebase
-        id: cache-base-codebase
+      - name: cache testing codebase
+        id: cache-testing-codebase
+        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
         uses: actions/cache@v4
         with:
-          path: ${{ env.base-codebase }}
-          # key = base transcript contents + sqlite schema version
-          key: base.unison-${{hashFiles('**/unison-src/builtin-tests/base.md', '**/codebase2/codebase-sqlite/U/Codebase/Sqlite/Queries.hs')}}.
-
-      - name: create base.md codebase
-        if: steps.cache-base-codebase.outputs.cache-hit != 'true'
-        run: ${{env.ucm}} transcript.fork -C ${{env.base-codebase}} -S ${{env.base-codebase}} unison-src/builtin-tests/base.md
+          path: ${{ env.runtime_tests_codebase }}
+          key: runtime-tests-codebase-${{env.runtime_tests_causalhash}}
+          restore-keys: runtime-tests-codebase-
 
       - name: interpreter tests
         # this one should be re-run if the ucm binaries have changed or unison-src/ has changed
@@ -231,14 +248,16 @@ jobs:
             && (steps.cache-ucm-binaries.outputs.cache-hit != 'true'
                 || steps.cache-unison-src-test-results.outputs.cache-hit != 'true')
         run: |
-          ${{ env.ucm }} transcript.fork -c ${{env.base-codebase}} unison-src/builtin-tests/interpreter-tests.md
+          envsubst '${runtime_tests_version}' \
+            < unison-src/builtin-tests/interpreter-tests.tpl.md \
+            > unison-src/builtin-tests/interpreter-tests.md
+          ${{ env.ucm }} transcript.fork -C ${{ env.runtime_tests_codebase }} unison-src/builtin-tests/interpreter-tests.md
           cat unison-src/builtin-tests/interpreter-tests.output.md
           git diff --exit-code unison-src/builtin-tests/interpreter-tests.output.md
 
-      - name: mark transcripts as passing
-        if: steps.cache-unison-src-test-results.outputs.cache-hit != 'true'
+      - name: mark interpreter tests as passing
         run: |
-          echo "passing=true" >> "${{env.unison_src_test_results}}"
+          echo "passing=true" >> "${{env.interpreter_test_results}}"
 
       - name: save ucm artifact
         uses: actions/upload-artifact@v4
@@ -342,7 +361,6 @@ jobs:
           path: ${{ env.jit_src_scheme }}/**
           if-no-files-found: error
 
-
   build-jit-binary:
     if: always() && needs.generate-jit-source.result == 'success'
     name: Build JIT binary ${{ matrix.os }}
@@ -400,9 +418,9 @@ jobs:
       - uses: Bogdanp/setup-racket@v1.11
         if: steps.restore-jit-binaries.outputs.cache-hit != 'true'
         with:
-          architecture: 'x64'
-          distribution: 'full'
-          variant: 'CS'
+          architecture: x64
+          distribution: full
+          variant: CS
           version: ${{env.racket_version}}
       - uses: awalsh128/cache-apt-pkgs-action@latest
         if: runner.os == 'Linux' && steps.restore-jit-binaries.outputs.cache-hit != 'true'
@@ -435,30 +453,50 @@ jobs:
           name: jit-binary-${{ matrix.os }}
           path: ${{ env.jit_dist }}/**
 
+      - name: look up hash for runtime tests
+        run: |
+          echo "runtime_tests_causalhash=$(scripts/get-share-hash.sh ${{env.runtime_tests_version}})" >> $GITHUB_ENV
+
+      - name: cache jit test results
+        id: cache-jit-test-results
+        uses: actions/cache@v4
+        with:
+          path: ${{env.jit_test_results}}
+          key: jit-test-results.racket_${{ env.racket_version }}.jit_${{ env.jit_version }}.tests_${{env.runtime_tests_causalhash}}
+
+      - name: cache testing codebase
+        id: cache-testing-codebase
+        if: steps.cache-jit-test-results.outputs.cache-hit != 'true'
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.runtime_tests_codebase }}
+          key: runtime-tests-codebase-${{env.runtime_tests_causalhash}}
+          restore-keys: runtime-tests-codebase-
+
       - name: download ucm
-        if: steps.restore-jit-binaries.outputs.cache-hit != 'true'
+        if: steps.cache-jit-test-results.outputs.cache-hit != 'true'
         uses: actions/download-artifact@v4
         with:
           name: unison-${{ matrix.os }}
           path: ${{ runner.temp }}
 
       - name: set ucm permissions
-        if: steps.restore-jit-binaries.outputs.cache-hit != 'true'
+        if: steps.cache-jit-test-results.outputs.cache-hit != 'true'
         run: chmod +x ${{ env.ucm }}
 
-      - name: get base codebase
-        if: steps.restore-jit-binaries.outputs.cache-hit != 'true'
-        uses: actions/cache/restore@v4
-        with:
-          path: ${{ env.base-codebase}}
-          key: base.unison-${{hashFiles('**/unison-src/builtin-tests/base.md', '**/codebase2/codebase-sqlite/U/Codebase/Sqlite/Queries.hs')}}.
-
       - name: jit integration test ${{ matrix.os }}
-        if: runner.os != 'Windows' && steps.restore-jit-binaries.outputs.cache-hit != 'true'
+        if: runner.os != 'Windows' && steps.cache-jit-test-results.outputs.cache-hit != 'true'
         run: |
-          ${{ env.ucm }} transcript.fork --runtime-path ${{ env.jit_dist_exe }} -c ${{env.base-codebase}} unison-src/builtin-tests/jit-tests.md
+          envsubst '${runtime_tests_version}' \
+            < unison-src/builtin-tests/jit-tests.tpl.md \
+            > unison-src/builtin-tests/jit-tests.md
+          ${{ env.ucm }} transcript.fork --runtime-path ${{ env.jit_dist_exe }} -C ${{env.runtime_tests_codebase}} unison-src/builtin-tests/jit-tests.md
           cat unison-src/builtin-tests/jit-tests.output.md
           git diff --exit-code unison-src/builtin-tests/jit-tests.output.md
+
+      - name: mark jit tests as passing
+        run: |
+          echo "passing=true" >> "${{env.jit_test_results}}"
 
       # - name: Setup tmate session
       #   uses: mxschmitt/action-tmate@v3
