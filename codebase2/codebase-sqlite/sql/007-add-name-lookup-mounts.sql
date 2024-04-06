@@ -3,7 +3,7 @@
 
 -- This table is used to associate a mount point with a particular name lookup index.
 CREATE TABLE name_lookup_mounts (
-    -- The the parent index we're mounting inside of.
+    -- The parent index we're mounting inside of.
     parent_root_branch_hash_id INTEGER NOT NULL REFERENCES name_lookups(root_branch_hash_id) ON DELETE CASCADE,
     -- The index we're mounting.
     -- Don't allow deleting a mounted name lookup while it's still mounted in some other index,
