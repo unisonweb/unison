@@ -411,7 +411,7 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
                     liftIO (outputEcho $ show s)
                     liftIO (writeIORef allowErrors errOk)
                     -- Open a ucm block which will contain the output from UCM
-                    -- after processing the the UnisonFileChanged event.
+                    -- after processing the UnisonFileChanged event.
                     liftIO (output "```ucm\n")
                     -- Close the ucm block after processing the UnisonFileChanged event.
                     atomically . Q.enqueue cmdQueue $ Nothing
