@@ -142,6 +142,13 @@ jobs:
             --local-bin-path ${{env.ucm_local_bin}} \
             --copy-bins
 
+      # The unison-cli test requires a git user.
+      - name: set git user info
+        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+
       # Run each test suite (tests and transcripts)
       - name: unison-cli test
         if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
@@ -244,12 +251,12 @@ jobs:
           path: ${{env.ucm_local_bin}}
           key: ucm-${{ matrix.os }}-${{ hashFiles('**/stack.yaml', '**/package.yaml', '**/*.hs')}}
           fail-on-cache-miss: true
-      # # One of the transcripts fails if the user's git name hasn't been set.
-      # ## (Which transcript? -AI)
-      # - name: set git user info
-      #   run: |
-      #     git config --global user.name "GitHub Actions"
-      #     git config --global user.email "actions@github.com"
+      # One of the transcripts fails if the user's git name hasn't been set.
+      ## (Which transcript? -AI)
+      - name: set git user info
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
       - name: round-trip-tests
         if: steps.cache-transcript-test-results.outputs.cache-hit != 'true'
         run: |
