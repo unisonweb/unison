@@ -282,7 +282,7 @@ filePathRef = Reference.Builtin "FilePath"
 threadIdRef = Reference.Builtin "ThreadId"
 socketRef = Reference.Builtin "Socket"
 
-udpSocketRef, udpListenSocketRef, udpClientSockAddrRef :: Reference
+udpSocketRef, udpListenSocketRef, udpClientSockAddrRef :: TypeReference
 udpSocketRef = Reference.Builtin "UDPSocket"
 udpListenSocketRef = Reference.Builtin "ListenSocket"
 udpClientSockAddrRef = Reference.Builtin "ClientSockAddr"
