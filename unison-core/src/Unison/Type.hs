@@ -28,7 +28,7 @@ import Unison.Prelude
     ($>),
     (<&>),
   )
-import Unison.Reference (Reference)
+import Unison.Reference (TypeReference)
 import Unison.Reference qualified as Reference
 import Unison.Settings qualified as Settings
 import Unison.Util.List qualified as List
@@ -37,7 +37,7 @@ import Unison.Var qualified as Var
 
 -- | Base functor for types in the Unison language
 data F a
-  = Ref Reference
+  = Ref TypeReference
   | Arrow a a
   | Ann a K.Kind
   | App a a
@@ -49,7 +49,7 @@ data F a
   -- variables
   deriving (Foldable, Functor, Generic, Generic1, Eq, Ord, Traversable)
 
-_Ref :: Prism' (F a) Reference
+_Ref :: Prism' (F a) TypeReference
 _Ref = _Ctor @"Ref"
 
 -- | Types are represented as ABTs over the base functor F, with variables in `v`
@@ -62,14 +62,14 @@ freeVars :: Type v a -> Set v
 freeVars = ABT.freeVars
 
 bindExternal ::
-  (ABT.Var v) => [(v, Reference)] -> Type v a -> Type v a
+  (ABT.Var v) => [(v, TypeReference)] -> Type v a -> Type v a
 bindExternal bs = ABT.substsInheritAnnotation [(v, ref () r) | (v, r) <- bs]
 
 bindReferences ::
   (Var v) =>
   (v -> Name.Name) ->
   Set v ->
-  Map Name.Name Reference ->
+  Map Name.Name TypeReference ->
   Type v a ->
   Names.ResolutionResult v a (Type v a)
 bindReferences unsafeVarToName keepFree ns t =
@@ -98,7 +98,7 @@ arity (Ann' a _) = arity a
 arity _ = 0
 
 -- some smart patterns
-pattern Ref' :: Reference -> ABT.Term F v a
+pattern Ref' :: TypeReference -> ABT.Term F v a
 pattern Ref' r <- ABT.Tm' (Ref r)
 
 pattern Arrow' :: ABT.Term F v a -> ABT.Term F v a -> ABT.Term F v a
@@ -247,7 +247,7 @@ isArrow _ = False
 
 -- some smart constructors
 
-ref :: (Ord v) => a -> Reference -> Type v a
+ref :: (Ord v) => a -> TypeReference -> Type v a
 ref a = ABT.tm' a . Ref
 
 refId :: (Ord v) => a -> Reference.Id -> Type v a
@@ -259,10 +259,10 @@ termLink a = ABT.tm' a . Ref $ termLinkRef
 typeLink :: (Ord v) => a -> Type v a
 typeLink a = ABT.tm' a . Ref $ typeLinkRef
 
-derivedBase32Hex :: (Ord v) => Reference -> a -> Type v a
+derivedBase32Hex :: (Ord v) => TypeReference -> a -> Type v a
 derivedBase32Hex r a = ref a r
 
-intRef, natRef, floatRef, booleanRef, textRef, charRef, listRef, bytesRef, effectRef, termLinkRef, typeLinkRef :: Reference
+intRef, natRef, floatRef, booleanRef, textRef, charRef, listRef, bytesRef, effectRef, termLinkRef, typeLinkRef :: TypeReference
 intRef = Reference.Builtin "Int"
 natRef = Reference.Builtin "Nat"
 floatRef = Reference.Builtin "Float"
@@ -275,7 +275,7 @@ effectRef = Reference.Builtin "Effect"
 termLinkRef = Reference.Builtin "Link.Term"
 typeLinkRef = Reference.Builtin "Link.Type"
 
-builtinIORef, fileHandleRef, filePathRef, threadIdRef, socketRef :: Reference
+builtinIORef, fileHandleRef, filePathRef, threadIdRef, socketRef :: TypeReference
 builtinIORef = Reference.Builtin "IO"
 fileHandleRef = Reference.Builtin "Handle"
 filePathRef = Reference.Builtin "FilePath"
@@ -287,72 +287,72 @@ udpSocketRef = Reference.Builtin "UDPSocket"
 udpListenSocketRef = Reference.Builtin "ListenSocket"
 udpClientSockAddrRef = Reference.Builtin "ClientSockAddr"
 
-processHandleRef :: Reference
+processHandleRef :: TypeReference
 processHandleRef = Reference.Builtin "ProcessHandle"
 
-scopeRef, refRef :: Reference
+scopeRef, refRef :: TypeReference
 scopeRef = Reference.Builtin "Scope"
 refRef = Reference.Builtin "Ref"
 
-iarrayRef, marrayRef :: Reference
+iarrayRef, marrayRef :: TypeReference
 iarrayRef = Reference.Builtin "ImmutableArray"
 marrayRef = Reference.Builtin "MutableArray"
 
-ibytearrayRef, mbytearrayRef :: Reference
+ibytearrayRef, mbytearrayRef :: TypeReference
 ibytearrayRef = Reference.Builtin "ImmutableByteArray"
 mbytearrayRef = Reference.Builtin "MutableByteArray"
 
-mvarRef, tvarRef :: Reference
+mvarRef, tvarRef :: TypeReference
 mvarRef = Reference.Builtin "MVar"
 tvarRef = Reference.Builtin "TVar"
 
-ticketRef :: Reference
+ticketRef :: TypeReference
 ticketRef = Reference.Builtin "Ref.Ticket"
 
-promiseRef :: Reference
+promiseRef :: TypeReference
 promiseRef = Reference.Builtin "Promise"
 
-tlsRef :: Reference
+tlsRef :: TypeReference
 tlsRef = Reference.Builtin "Tls"
 
-stmRef :: Reference
+stmRef :: TypeReference
 stmRef = Reference.Builtin "STM"
 
-patternRef :: Reference
+patternRef :: TypeReference
 patternRef = Reference.Builtin "Pattern"
 
-charClassRef :: Reference
+charClassRef :: TypeReference
 charClassRef = Reference.Builtin "Char.Class"
 
-tlsClientConfigRef :: Reference
+tlsClientConfigRef :: TypeReference
 tlsClientConfigRef = Reference.Builtin "Tls.ClientConfig"
 
-tlsServerConfigRef :: Reference
+tlsServerConfigRef :: TypeReference
 tlsServerConfigRef = Reference.Builtin "Tls.ServerConfig"
 
-tlsSignedCertRef :: Reference
+tlsSignedCertRef :: TypeReference
 tlsSignedCertRef = Reference.Builtin "Tls.SignedCert"
 
-tlsPrivateKeyRef :: Reference
+tlsPrivateKeyRef :: TypeReference
 tlsPrivateKeyRef = Reference.Builtin "Tls.PrivateKey"
 
-tlsCipherRef :: Reference
+tlsCipherRef :: TypeReference
 tlsCipherRef = Reference.Builtin "Tls.Cipher"
 
-tlsVersionRef :: Reference
+tlsVersionRef :: TypeReference
 tlsVersionRef = Reference.Builtin "Tls.Version"
 
-hashAlgorithmRef :: Reference
+hashAlgorithmRef :: TypeReference
 hashAlgorithmRef = Reference.Builtin "crypto.HashAlgorithm"
 
-codeRef, valueRef :: Reference
+codeRef, valueRef :: TypeReference
 codeRef = Reference.Builtin "Code"
 valueRef = Reference.Builtin "Value"
 
-anyRef :: Reference
+anyRef :: TypeReference
 anyRef = Reference.Builtin "Any"
 
-timeSpecRef :: Reference
+timeSpecRef :: TypeReference
 timeSpecRef = Reference.Builtin "TimeSpec"
 
 any :: (Ord v) => a -> Type v a
@@ -569,7 +569,7 @@ unforall' :: Type v a -> ([v], Type v a)
 unforall' (ForallsNamed' vs t) = (vs, t)
 unforall' t = ([], t)
 
-dependencies :: (Ord v) => Type v a -> Set Reference
+dependencies :: (Ord v) => Type v a -> Set TypeReference
 dependencies t = Set.fromList . Writer.execWriter $ ABT.visit' f t
   where
     f t@(Ref r) = Writer.tell [r] $> t
@@ -578,7 +578,7 @@ dependencies t = Set.fromList . Writer.execWriter $ ABT.visit' f t
 labeledDependencies :: (Ord v) => Type v a -> Set LD.LabeledDependency
 labeledDependencies = Set.map LD.TypeReference . dependencies
 
-updateDependencies :: (Ord v) => Map Reference Reference -> Type v a -> Type v a
+updateDependencies :: (Ord v) => Map TypeReference TypeReference -> Type v a -> Type v a
 updateDependencies typeUpdates = ABT.rebuildUp go
   where
     go (Ref r) = Ref (Map.findWithDefault r r typeUpdates)
@@ -838,7 +838,7 @@ cleanup :: (Var v) => Type v a -> Type v a
 cleanup t | not Settings.cleanupTypes = t
 cleanup t = normalizeForallOrder . removePureEffects True . cleanupVars1 . cleanupAbilityLists $ t
 
-builtinAbilities :: Set Reference
+builtinAbilities :: Set TypeReference
 builtinAbilities = Set.fromList [builtinIORef, stmRef]
 
 instance (Show a) => Show (F a) where

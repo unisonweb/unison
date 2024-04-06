@@ -66,7 +66,7 @@ hashTermComponents ::
   forall v a extra.
   (Var v) =>
   Map v (Memory.Term.Term v a, Memory.Type.Type v a, extra) ->
-  Map v (Memory.Reference.Id, Memory.Term.Term v a, Memory.Type.Type v a, extra)
+  Map v (Memory.Reference.TermReferenceId, Memory.Term.Term v a, Memory.Type.Type v a, extra)
 hashTermComponents mTerms =
   case h2mTermMap mTerms of
     (hTerms, constructorTypes) -> h2mTermResult (constructorTypes Map.!) <$> Hashing.hashTermComponents hTerms
@@ -81,7 +81,7 @@ hashTermComponents mTerms =
         Memory.ConstructorType.ConstructorType
       ) ->
       (Hashing.ReferenceId, Hashing.Term v a, Hashing.Type v a, extra) ->
-      (Memory.Reference.Id, Memory.Term.Term v a, Memory.Type.Type v a, extra)
+      (Memory.Reference.TermReferenceId, Memory.Term.Term v a, Memory.Type.Type v a, extra)
     h2mTermResult getCtorType (id, tm, typ, extra) = (h2mReferenceId id, h2mTerm getCtorType tm, h2mType typ, extra)
 
 -- | This shouldn't be used when storing terms in the codebase, as it doesn't incorporate the type into the hash.
@@ -91,12 +91,16 @@ hashTermComponentsWithoutTypes ::
   forall v a.
   (Var v) =>
   Map v (Memory.Term.Term v a) ->
-  Map v (Memory.Reference.Id, Memory.Term.Term v a)
+  Map v (Memory.Reference.TermReferenceId, Memory.Term.Term v a)
 hashTermComponentsWithoutTypes mTerms =
   case Writer.runWriter (traverse m2hTerm mTerms) of
     (hTerms, constructorTypes) -> h2mTermResult (constructorTypes Map.!) <$> Hashing.hashTermComponentsWithoutTypes hTerms
   where
-    h2mTermResult :: (Ord v) => (Memory.Reference.Reference -> Memory.ConstructorType.ConstructorType) -> (Hashing.ReferenceId, Hashing.Term v a) -> (Memory.Reference.Id, Memory.Term.Term v a)
+    h2mTermResult ::
+      (Ord v) =>
+      (Memory.Reference.Reference -> Memory.ConstructorType.ConstructorType) ->
+      (Hashing.ReferenceId, Hashing.Term v a) ->
+      (Memory.Reference.TermReferenceId, Memory.Term.Term v a)
     h2mTermResult getCtorType (id, tm) = (h2mReferenceId id, h2mTerm getCtorType tm)
 
 hashClosedTerm :: (Var v) => Memory.Term.Term v a -> Memory.Reference.Id

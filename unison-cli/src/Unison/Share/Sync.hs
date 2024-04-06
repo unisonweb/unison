@@ -602,7 +602,7 @@ completeTempEntities httpClient unisonShareUrl connect repoInfo downloadedCallba
                     workers <- readTVar workerCount
                     check (workers < maxSimultaneousPullDownloaders + 2)
                     -- we do need to record the downloader as working outside of the worker thread, not inside.
-                    -- otherwise, we might erroneously fall through the the teardown logic below and conclude there's
+                    -- otherwise, we might erroneously fall through the teardown logic below and conclude there's
                     -- nothing more for the dispatcher to do, when in fact a downloader thread just hasn't made it as
                     -- far as recording its own existence
                     recordWorking workerCount

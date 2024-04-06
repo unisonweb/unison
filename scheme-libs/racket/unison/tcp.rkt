@@ -122,7 +122,11 @@
                 ref-miscfailure:typelink
                 (string->chunked-string "Unknown exception")
                 ref-unit-unit))] ]
-        (let ([listener (tcp-listen (string->number port ) 4 #f (if (equal? 0 hostname) #f hostname))])
+        (let ([listener (tcp-listen
+                          (string->number port)
+                          4
+                          #t
+                          (if (equal? 0 hostname) #f hostname))])
           (right listener))))))
 
 ; NOTE: This is a no-op because racket's public TCP stack doesn't have separate operations for
