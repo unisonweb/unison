@@ -835,8 +835,10 @@ nativeEvalInContext executable _ ctx codes base = do
         UnliftIO.hClose pin
         let unit = Data RF.unitRef 0 [] []
             sunit = Data RF.pairRef 0 [] [unit, unit]
-        waitForProcess ph
-        decodeResult $ Right sunit
+        waitForProcess ph >>= \case
+          ExitSuccess -> decodeResult $ Right sunit
+          ExitFailure _ ->
+            pure . Left $ "native evaluation failed"
       -- TODO: actualy receive output from subprocess
       -- decodeResult . deserializeValue =<< BS.hGetContents pout
       callout _ _ _ _ =
