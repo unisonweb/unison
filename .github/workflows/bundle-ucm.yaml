@@ -160,10 +160,13 @@ jobs:
           variant: "CS"
           version: ${{env.racket_version}}
       - uses: awalsh128/cache-apt-pkgs-action@latest
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' && steps.cache-racket-deps.outputs.cache-hit != 'true'
         with:
           packages: libb2-dev
           version: 1.0 # cache key version afaik
+      - if: runner.os == 'MacOS' && steps.cache-racket-deps.outputs.cache-hit != 'true'
+        run: |
+          brew install libb2 openssl@3
       - name: install unison racket lib
         if: steps.cache-racket-deps.outputs.cache-hit != 'true'
         run: raco pkg install --auto scheme-libs/racket/unison.zip
