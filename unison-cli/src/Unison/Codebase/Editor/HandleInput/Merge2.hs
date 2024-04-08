@@ -183,6 +183,7 @@ handleMerge bobBranchName = do
   let pped = PPED.makePPED (PPE.namer ppedNames) (PPE.suffixifyByName ppedNames)
 
   currentPath <- Cli.getCurrentPath
+
   parsingEnv <- makeParsingEnv currentPath mergedNames
 
   maybeTypecheckedUnisonFile <-
@@ -195,6 +196,7 @@ handleMerge bobBranchName = do
     Just tuf -> do
       mergedBranchPlusTuf <-
         Cli.runTransactionWithRollback \abort -> do
+          Codebase.addDefsToCodebase codebase tuf
           updates <- typecheckedUnisonFileToBranchUpdates abort undefined tuf
           pure (Branch.batchUpdates updates newBranchIO)
       Cli.stepAt
