@@ -218,7 +218,7 @@ mapTerms f (UnisonFileId datas effects terms watches) =
 --   rule2 = @rewrite term (x -> f x) ==> f
 --
 -- Here, `rule1` introduces a variable `f`, which can stand for
--- any definition. Whereas `rule2` refers to the the top-level `f`
+-- any definition. Whereas `rule2` refers to the top-level `f`
 -- function in the file.
 --
 -- This function returns a tuple of: (prepareRule, preparedFile, finish)

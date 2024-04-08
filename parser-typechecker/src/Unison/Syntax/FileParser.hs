@@ -13,6 +13,7 @@ import Text.Megaparsec qualified as P
 import Unison.ABT qualified as ABT
 import Unison.DataDeclaration (DataDeclaration)
 import Unison.DataDeclaration qualified as DD
+import Unison.DataDeclaration.Records (generateRecordAccessors)
 import Unison.Name qualified as Name
 import Unison.Names qualified as Names
 import Unison.Names.ResolutionResult qualified as Names
@@ -54,7 +55,7 @@ file = do
     Left es -> resolutionFailures (toList es)
   let accessors :: [[(v, Ann, Term v Ann)]]
       accessors =
-        [ DD.generateRecordAccessors Var.namespaced Ann.GeneratedFrom (toPair <$> fields) (L.payload typ) r
+        [ generateRecordAccessors Var.namespaced Ann.GeneratedFrom (toPair <$> fields) (L.payload typ) r
           | (typ, fields) <- parsedAccessors,
             (r, _) <- fromMaybe [] (Map.lookup (L.payload typ) (UF.datas env))
         ]
@@ -68,7 +69,7 @@ file = do
   --
   -- There's some more complicated logic below to have suffix-based name resolution
   -- make use of _terms_ from the local file.
-  local (\e -> e {names = Names.push locals namesStart}) $ do
+  local (\e -> e {names = Names.push locals namesStart}) do
     names <- asks names
     stanzas0 <- sepBy semi stanza
     let stanzas = fmap (TermParser.substImports names imports) <$> stanzas0

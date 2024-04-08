@@ -99,11 +99,8 @@ cradle:
     - path: "parser-typechecker/tests"
       component: "unison-parser-typechecker:test:parser-typechecker-tests"
 
-    - path: "unison-cli/unison"
-      component: "unison-cli:lib"
-
     - path: "unison-cli/src"
-      component: "unison-cli:lib:unison-cli-lib"
+      component: "unison-cli:lib"
 
     - path: "unison-cli/transcripts/Transcripts.hs"
       component: "unison-cli:exe:transcripts"

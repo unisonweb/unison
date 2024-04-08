@@ -20,10 +20,7 @@
 
   exception->string
 
-  exn:bug
-  make-exn:bug
-  exn:bug?
-  exn:bug->exception
+  (struct-out exn:bug)
 
   let-marks
   ref-mark
@@ -46,15 +43,10 @@
   decode-value
   describe-value
 
-  bytevector->base32-string
-  b32
-  b32h
-
   bytevector->string/utf-8
   string->bytevector/utf-8)
 
 (require
-  racket/base
   (rename-in (only-in racket
                 current-inexact-milliseconds
                 directory-list
@@ -73,6 +65,7 @@
                 path->string
                 match
                 match*
+                string-append*
                 for/fold)
           (string-copy! racket-string-copy!)
           (bytes-append bytevector-append)
@@ -83,6 +76,7 @@
   racket/exn
   (only-in racket/fixnum fl->fx fx- fxand fxlshift fxrshift fxior)
   racket/unsafe/ops
+  unison/bytevector
   unison/data
   unison/data-info
   unison/chunked-seq)
@@ -108,48 +102,6 @@
             (string-set! out (+ o 1) (b16 c1))
             (rec (+ i 1) (+ o 2)))]))))
 
-; code should convert 5-bit numbers to the corresponding character
-(define (bytevector->base32-string code bs)
-  (let* ([ilen (bytes-length bs)]
-         [olen (* 8 (div (+ ilen 4) 5))]
-         [out (make-string olen #\=)])
-
-    (define (fill n k o)
-      (if (>= k 0)
-        (let ([m (fxand n 31)])
-          (string-set! out (+ o k) (code m))
-          (fill (fxrshift n 5) (- k 1) o))
-        #f))
-
-    (define (fixup i)
-      (if (= i 0) (values 0 -1)
-        (let ([bys (+ 1 (mod (- i 1) 5))])
-          (let-values ([(d m) (div-and-mod (* 8 bys) 5)])
-            (if (= m 0) (values m (- d 1))
-              (values (- 5 m) d))))))
-
-    (let rec ([acc 0] [i 0] [o 0])
-      (cond
-        [(>= i ilen)
-         (let-values ([(n k) (fixup i)])
-           (fill (fxlshift acc n) k o)
-           out)]
-        [(and (> i 0) (= 0 (mod i 5)))
-         (fill acc 7 o)
-         (rec (bytes-ref bs i) (+ i 1) (+ o 8))]
-        [else
-          (let ([sacc (fxlshift acc 8)]
-                [by (bytes-ref bs i)])
-            (rec (fxior sacc by) (+ i 1) o))]))))
-
-; 65 = #\A
-; 24 = #\2 - 26
-(define (b32 n) (integer->char (+ n (if (< n 26) 65 24))))
-
-; 48 = #\0
-; 87 = #\a - 10
-(define (b32h n) (integer->char (+ n (if (< n 10) 48 87))))
-
 
 (define (describe-list op cl l)
   (let rec ([pre (string op)] [post (string op cl)] [cur l])
@@ -164,7 +116,7 @@
 (define (describe-list-br l) (describe-list #\{ #\} l))
 
 (define (describe-hash h)
-  (substring (bytevector->base32-string b32h h) 0 8))
+  (substring (bytevector->base32-string h #:alphabet 'hex) 0 8))
 
 (define (describe-derived h i)
   (let ([th (describe-hash h)]
@@ -183,7 +135,7 @@
     [(unison-termlink-derived hash i) (describe-derived hash i)]))
 
 (define (describe-bytes bs)
-  (let* ([s (bytevector->base32-string b32h bs)]
+  (let* ([s (bytevector->base32-string bs #:alphabet 'hex)]
          [l (string-length s)]
          [sfx (if (<= l 10) "" "...")])
     (string-append "32x" (substring s 0 10) sfx)))
@@ -216,6 +168,9 @@
       [else
        (format-non-tuple (cons tup acc))])))
 
+(define (describe-applied f args)
+  (string-append f " "))
+
 (define (describe-value x)
   (match x
     [(unison-sum t fs)
@@ -229,22 +184,26 @@
      (let ([tt (number->string t)]
            [rt (describe-ref r)]
            [vs (describe-list-br fs)])
-       (string-append "Data " rt " " tt " " vs))]
+       (string-append "{Data " rt " " tt " " vs "}"))]
     [(unison-pure v)
      (string-append "Pure " (describe-list-br (list v)))]
-    [(unison-termlink-con r t)
-     (let ([rt (describe-ref r)]
-           [tt (number->string t)])
-       (string-append "{Con " r " " t "}"))]
-    [(unison-termlink-builtin name) (string-append "##" name)]
-    [(unison-termlink-derived hash i) (describe-derived hash i)]
-    [(unison-typelink-builtin nm)
-     (string-append "##" nm)]
-    [(unison-typelink-derived hs i) (describe-derived hs i)]
+    [(? unison-termlink?) (termlink->string x #t)]
+    [(? unison-typelink?) (typelink->string x #t)]
     [(unison-quote v)
      (string-append "{Value " (describe-value v) "}")]
     [(unison-code v)
-     (string-append "Code (" (describe-value v) ")")]
+     (string-append "{Code " (describe-value v) "}")]
+    [(unison-closure code env)
+     (define dc
+       (termlink->string (lookup-function-link code) #t))
+     (define (f v)
+       (string-append " " (describe-value v)))
+
+     (string-append* dc (map f env))]
+    [(? procedure?)
+     (string-append
+       "ref"
+       (termlink->string (lookup-function-link x) #t))]
     [(? chunked-list?)
      (describe-list-sq (vector->list (chunked-list->vector x)))]
     [(? chunked-string?)
@@ -503,8 +462,6 @@
       ([c (in-chunked-string-chunks s)])
     (f acc (string->chunked-string (m c)))))
 
-(define freeze-bytevector! unsafe-bytes->immutable-bytes!)
-
 (define freeze-vector! unsafe-vector*->immutable-vector!)
 
 (define (freeze-subvector src off len)
@@ -538,9 +495,3 @@
   #:methods gen:custom-write
   [(define write-proc write-exn:bug)])
 
-
-(define (exn:bug->exception b)
-  (exception
-    ref-runtimefailure:typelink
-    (exn:bug-msg b)
-    (exn:bug-val b)))

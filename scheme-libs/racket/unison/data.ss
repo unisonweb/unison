@@ -96,12 +96,16 @@
   builtin-tls.signedcert:typelink
   builtin-tls.version:typelink
 
-  unison-tuple->list)
+  unison-tuple->list
+
+  typelink->string
+  termlink->string)
 
 (require
   racket
   racket/fixnum
-  (only-in "vector-trie.rkt" ->fx/wraparound))
+  (only-in "vector-trie.rkt" ->fx/wraparound)
+  unison/bytevector)
 
 (struct unison-data
   (ref tag fields)
@@ -153,6 +157,9 @@
 (struct unison-termlink ()
   #:transparent
   #:reflection-name 'termlink
+  #:methods gen:custom-write
+  [(define (write-proc tl port mode)
+     (write-string (termlink->string tl #t) port))]
   #:property prop:equal+hash
   (let ()
     (define (equal-proc lnl lnr rec)
@@ -204,6 +211,9 @@
 (struct unison-typelink ()
   #:transparent
   #:reflection-name 'typelink
+  #:methods gen:custom-write
+  [(define (write-proc tl port mode)
+     (write-string (typelink->string tl #t) port))]
   #:property prop:equal+hash
   (let ()
     (define (equal-proc lnl lnr rec)
@@ -244,9 +254,57 @@
 (struct unison-code (rep))
 (struct unison-quote (val))
 
+(define (write-procedure f port mode)
+  (cond
+    [(hash-has-key? function-associations f)
+     (define tl (lookup-function-link f))
+     (write-string (termlink->string tl #t) port)]
+    [else
+     (case mode
+       [(#f) (display f port)]
+       [(#t) (write f port)]
+       [else (print f port mode)])]))
+
+(define (write-sequence s port mode)
+  (define rec
+    (case mode
+      [(#f) display]
+      [(#t) write]
+      [else (lambda (e port) (print e port mode))]))
+
+  (write-string "'(" port)
+
+  (define first #t)
+
+  (for ([e s])
+    (unless first
+      (write-string " " port)
+      (set! first #f))
+
+    (if (procedure? e)
+      (write-procedure e port mode)
+      (rec e port)))
+  (write-string ")" port))
+
 (struct unison-closure
   (code env)
   #:transparent
+  #:methods gen:custom-write
+  [(define (write-proc clo port mode)
+     (define code-tl
+       (lookup-function-link (unison-closure-code clo)))
+
+     (define rec
+       (case mode
+         [(#t) write]
+         [(#f) display]
+         [else (lambda (v port) (print v port mode))]))
+
+     (write-string "(unison-closure " port)
+     (write-procedure (unison-closure-code clo) port mode)
+     (write-string " " port)
+     (write-sequence (unison-closure-env clo) port mode)
+     (write-string ")" port))]
   #:property prop:procedure
   (case-lambda
     [(clo) clo]
@@ -416,9 +474,9 @@
 (define (failure typeLink msg any)
   (sum 0 typeLink msg any))
 
-; Type -> Text -> a ->{Exception} b
+; Type -> Text -> a -> (type, text, a) + b
 (define (exception typeLink msg a)
-  (failure typeLink msg (unison-any-any a)))
+  (failure typeLink msg a))
 
 ; A counter for internally numbering declared data, so that the
 ; entire reference doesn't need to be stored in every data record.
@@ -477,3 +535,35 @@
        (cons (car fs) (unison-tuple->list (cadr fs)))]
       [else
         (raise "unison-tuple->list: unexpected value")])))
+
+(define (hash-string hs)
+  (string-append
+    "#"
+    (bytevector->base32-string hs #:alphabet 'hex)))
+
+(define (ix-string i)
+  (if (= i 0)
+    ""
+    (string-append "." (number->string i))))
+
+(define (typelink->string ln [short #f])
+  (define (clip s) (if short (substring s 0 8) s))
+
+  (match ln
+    [(unison-typelink-builtin name)
+     (string-append "##" name)]
+    [(unison-typelink-derived hs i)
+     (string-append (clip (hash-string hs)) (ix-string i))]))
+
+(define (termlink->string ln [short #f])
+  (define (clip s) (if short (substring s 0 8) s))
+
+  (match ln
+    [(unison-termlink-builtin name)
+     (string-append "##" name)]
+    [(unison-termlink-derived hs i)
+     (string-append (clip (hash-string hs)) (ix-string i))]
+    [(unison-termlink-con rf t)
+     (string-append
+       (typelink->string rf short) "#" (number->string t))]))
+

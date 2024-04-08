@@ -486,7 +486,7 @@ splitMatrix v rf cons (PM rs) =
     mmap = fmap (\(t, fs) -> (t, splitRow v rf t fs =<< rs)) cons
 
 -- Monad for pattern preparation. It is a state monad carrying a fresh
--- variable source, the list of variables bound the the pattern being
+-- variable source, the list of variables bound the pattern being
 -- prepared, and a variable renaming mapping.
 type PPM v a = State (Word64, [v], Map v v) a
 

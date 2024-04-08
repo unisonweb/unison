@@ -1,4 +1,11 @@
-module Unison.Syntax.DeclPrinter (prettyDecl, prettyDeclW, prettyDeclHeader, prettyDeclOrBuiltinHeader, AccessorName) where
+module Unison.Syntax.DeclPrinter
+  ( prettyDecl,
+    prettyDeclW,
+    prettyDeclHeader,
+    prettyDeclOrBuiltinHeader,
+    AccessorName,
+  )
+where
 
 import Control.Monad.Writer (Writer, runWriter, tell)
 import Data.List.NonEmpty (pattern (:|))
@@ -16,10 +23,11 @@ import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (..))
 import Unison.PrettyPrintEnvDecl qualified as PPED
-import Unison.Reference (Reference, Reference' (DerivedId))
+import Unison.Reference (Reference, Reference' (DerivedId), TypeReference)
 import Unison.Referent qualified as Referent
-import Unison.Syntax.HashQualified qualified as HQ (toText, toVar, unsafeParseText)
-import Unison.Syntax.NamePrinter (styleHashQualified'')
+import Unison.Syntax.HashQualified qualified as HQ (toText)
+import Unison.Syntax.Name qualified as Name
+import Unison.Syntax.NamePrinter (prettyName, styleHashQualified'')
 import Unison.Syntax.TypePrinter (runPretty)
 import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Syntax.Var qualified as Var (namespaced)
@@ -37,7 +45,7 @@ type AccessorName = HQ.HashQualified Name
 prettyDeclW ::
   (Var v) =>
   PrettyPrintEnvDecl ->
-  Reference ->
+  TypeReference ->
   HQ.HashQualified Name ->
   DD.Decl v a ->
   Writer [AccessorName] (Pretty SyntaxText)
@@ -48,7 +56,7 @@ prettyDeclW ppe r hq d = case d of
 prettyDecl ::
   (Var v) =>
   PrettyPrintEnvDecl ->
-  Reference ->
+  TypeReference ->
   HQ.HashQualified Name ->
   DD.Decl v a ->
   Pretty SyntaxText
@@ -57,7 +65,7 @@ prettyDecl ppe r hq d = fst . runWriter $ prettyDeclW ppe r hq d
 prettyEffectDecl ::
   (Var v) =>
   PrettyPrintEnvDecl ->
-  Reference ->
+  TypeReference ->
   HQ.HashQualified Name ->
   EffectDeclaration v a ->
   Pretty SyntaxText
@@ -67,7 +75,7 @@ prettyGADT ::
   (Var v) =>
   PrettyPrintEnvDecl ->
   CT.ConstructorType ->
-  Reference ->
+  TypeReference ->
   HQ.HashQualified Name ->
   DataDeclaration v a ->
   Pretty SyntaxText
@@ -105,7 +113,7 @@ prettyPattern env ctorType namespace ref =
 prettyDataDecl ::
   (Var v) =>
   PrettyPrintEnvDecl ->
-  Reference ->
+  TypeReference ->
   HQ.HashQualified Name ->
   DataDeclaration v a ->
   Writer [AccessorName] (Pretty SyntaxText)
@@ -133,7 +141,7 @@ prettyDataDecl (PrettyPrintEnvDecl unsuffixifiedPPE suffixifiedPPE) r name dd =
                 Nothing -> HQ.NameOnly $ declName `Name.joinDot` fieldName
                 Just accessor -> HQ.NameOnly $ declName `Name.joinDot` fieldName `Name.joinDot` accessor
               | HQ.NameOnly declName <- [name],
-                HQ.NameOnly fieldName <- fs,
+                fieldName <- fs,
                 accessor <- [Nothing, Just (Name.fromSegment "set"), Just (Name.fromSegment "modify")]
             ]
           pure . P.group $
@@ -144,7 +152,7 @@ prettyDataDecl (PrettyPrintEnvDecl unsuffixifiedPPE suffixifiedPPE) r name dd =
               <> fmt S.DelimiterChar " }"
     field (fname, typ) =
       P.group $
-        styleHashQualified'' (fmt (S.TypeReference r)) fname
+        fmt (S.TypeReference r) (prettyName fname)
           <> fmt S.TypeAscriptionColon " :"
             `P.hang` runPretty suffixifiedPPE (TypePrinter.prettyRaw Map.empty (-1) typ)
     header = prettyDataHeader name dd <> fmt S.DelimiterChar (" = " `P.orElse` "\n  = ")
@@ -166,31 +174,63 @@ fieldNames ::
   forall v a.
   (Var v) =>
   PrettyPrintEnv ->
-  Reference ->
+  TypeReference ->
   HQ.HashQualified Name ->
   DataDeclaration v a ->
-  Maybe [HQ.HashQualified Name]
-fieldNames env r name dd = do
-  typ <- case DD.constructors dd of
-    [(_, typ)] -> Just typ
-    _ -> Nothing
+  Maybe [Name]
+fieldNames env r hqTypename dd = do
+  -- If we only have a hash for the decl, then we can't know where in the namespace to look for the generated accessors,
+  -- so we just give up trying to infer whether this was a record (even if it was one).
+  typename <- HQ.toName hqTypename
+
+  -- Records have exactly one constructor
+  [(_, typ)] <- Just (DD.constructors dd)
+
+  -- [ "_0", "_1"-1 ]
   let vars :: [v]
       -- We add `n` to the end of the variable name as a quick fix to #4752, but we suspect there's a more
       -- fundamental fix to be made somewhere in the term printer to automatically suffix a var name with its
       -- freshened id if it would be ambiguous otherwise.
       vars = [Var.freshenId (fromIntegral n) (Var.named ("_" <> Text.pack (show n))) | n <- [0 .. Type.arity typ - 1]]
-  hashes <- DD.hashFieldAccessors env (HQ.toVar name) vars r dd
+
+  -- {
+  --   "Pt._0"         => ( #getx    ,   pt -> match pt with Pt x _ -> x          , Pt -> Int                )
+  --   "Pt._0.set"     => ( #setx    , x pt -> match pt with Pt _ y -> Pt x y     , Int -> Pt -> Pt          )
+  --   "Pt._0.modify"  => ( #modifyx , f pt -> match pt with Pt x y -> Pt (f x) y , (Int -> Int) -> Pt -> Pt )
+  --   "Pt._11"        => ( #gety    ,   pt -> match pt with Pt _ y -> y          , Pt -> Int                )
+  --   "Pt._11.set"    => ( #sety    , y pt -> match pt with Pt x _ -> Pt x y     , Int -> Pt -> Pt          )
+  --   "Pt._11.modify" => ( #modifyy , f pt -> match pt with Pt x y -> Pt x (f y) , (Int -> Int) -> Pt -> Pt )
+  -- }
+  hashes <- DD.hashFieldAccessors env (Name.toVar typename) vars r dd
+
+  -- [
+  --   ( #getx    , "Pt.x"        )
+  --   ( #setx    , "Pt.x.set"    )
+  --   ( #modifyx , "Pt.x.modify" )
+  --   ( #gety    , "Pt.y"        )
+  --   ( #sety    , "Pt.y.set"    )
+  --   ( #modifyy , "Pt.y.modify" )
+  -- ]
   let names =
         [ (r, HQ.toText . PPE.termName env . Referent.Ref $ DerivedId r)
           | r <- (\(refId, _trm, _typ) -> refId) <$> Map.elems hashes
         ]
+
+  -- {
+  --   #getx    => "x"
+  --   #setx    => "x"
+  --   #modifyx => "x"
+  --   #gety    => "y"
+  --   #sety    => "y"
+  --   #modifyy => "y"
+  -- }
   let fieldNames =
         Map.fromList
           [ (r, f)
             | (r, n) <- names,
-              typename <- pure (HQ.toText name),
-              typename `Text.isPrefixOf` n,
-              rest <- pure $ Text.drop (Text.length typename + 1) n,
+              let typenameText = Name.toText typename,
+              typenameText `Text.isPrefixOf` n,
+              let rest = Text.drop (Text.length typenameText + 1) n,
               (f, rest) <- pure $ Text.span (/= '.') rest,
               rest `elem` ["", ".set", ".modify"]
           ]
@@ -198,9 +238,12 @@ fieldNames env r name dd = do
   if Map.size fieldNames == length names
     then
       Just
-        [ HQ.unsafeParseText name
-          | v <- vars,
-            Just (ref, _, _) <- [Map.lookup (Var.namespaced (HQ.toVar name :| [v])) hashes],
+        [ Name.unsafeParseText name
+          | -- "_0"
+            v <- vars,
+            -- #getx
+            Just (ref, _, _) <- [Map.lookup (Var.namespaced (Name.toVar typename :| [v])) hashes],
+            -- "x"
             Just name <- [Map.lookup ref fieldNames]
         ]
     else Nothing

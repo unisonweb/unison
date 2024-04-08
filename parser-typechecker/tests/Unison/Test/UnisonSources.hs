@@ -142,7 +142,7 @@ resultTest rt uf filepath = do
               uf
       case term of
         Right tm -> do
-          -- compare the the watch expression from the .u with the expr in .ur
+          -- compare the watch expression from the .u with the expr in .ur
           let watchResult = head (view _5 <$> Map.elems watches)
               tm' = Term.letRec' False (bindings <&> \(sym, tm) -> (sym, (), tm)) watchResult
           -- note . show $ tm'

@@ -9,7 +9,7 @@
          racket/vector
          unison/boot
          unison/boot-generated
-         (only-in unison/core bytevector->base32-string b32h)
+         (only-in unison/bytevector bytevector->base32-string)
          unison/data
          unison/data-info
          unison/chunked-seq
@@ -220,7 +220,7 @@
     [(unison-termlink-builtin name)
      (string-append "builtin-" name)]
     [(unison-termlink-derived bs i)
-     (let ([hs (bytevector->base32-string b32h bs)]
+     (let ([hs (bytevector->base32-string bs #:alphabet 'hex)]
            [po (if (= i 0) "" (string-append "." (number->string i)))])
        (string->symbol
          (string-append "ref-" (substring hs 0 8) po)))]))

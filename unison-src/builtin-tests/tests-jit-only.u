@@ -1,5 +1,0 @@
-tests.jit.only : '{IO,Exception} ()
-tests.jit.only = Tests.main do
-  check "example jit-only test" do true
-  !tls.cert.codec
-  !tls.private.codec
