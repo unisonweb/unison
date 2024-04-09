@@ -484,7 +484,7 @@ jobs:
           path: |
             ~/.cache/racket
             ~/.local/share/racket
-          key: ${{ runner.os }}-racket-${{env.racket_version}}
+          key: ${{ matrix.os }}-racket-${{env.racket_version}}
 
       - uses: Bogdanp/setup-racket@v1.11
         if: steps.restore-jit-binaries.outputs.cache-hit != 'true'
@@ -503,7 +503,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{env.jit_test_results}}
-          key: jit-test-results.racket_${{ env.racket_version }}.jit_${{ env.jit_version }}.tests_${{env.runtime_tests_causalhash}}
+          key: jit-test-results.${{ matrix.os }}.racket_${{ env.racket_version }}.jit_${{ env.jit_version }}.tests_${{env.runtime_tests_causalhash}}
 
       - uses: awalsh128/cache-apt-pkgs-action@latest
         if: |
@@ -546,8 +546,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.runtime_tests_codebase }}
-          key: runtime-tests-codebase-${{env.runtime_tests_causalhash}}
-          restore-keys: runtime-tests-codebase-
+          key: runtime-tests-codebase-${{ matrix.os }}-${{env.runtime_tests_causalhash}}
+          restore-keys: runtime-tests-codebase-${{ matrix.os }}-
 
       - name: download ucm
         if: steps.cache-jit-test-results.outputs.cache-hit != 'true'
