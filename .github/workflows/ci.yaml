@@ -475,7 +475,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.jit_dist }}
-          key: jit_dist-racket_${{ matrix.os }}.${{ env.racket_version }}.jit_${{ env.jit_version }}
+          key: jit_dist-${{ matrix.os }}.racket_${{ env.racket_version }}.jit_${{ env.jit_version }}
 
       - name: Cache Racket dependencies
         if: steps.cache-jit-binaries.outputs.cache-hit != 'true'
