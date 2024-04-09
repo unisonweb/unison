@@ -505,16 +505,22 @@ jobs:
           path: ${{env.jit_test_results}}
           key: jit-test-results.${{ matrix.os }}.racket_${{ env.racket_version }}.jit_${{ env.jit_version }}.tests_${{env.runtime_tests_causalhash}}
 
-      - uses: awalsh128/cache-apt-pkgs-action@latest
+      - name: install libb2 (linux)
+        uses: awalsh128/cache-apt-pkgs-action@latest
         if: |
           runner.os == 'Linux'
-            && (steps.restore-jit-binaries.outputs.cache-hit != 'true'
-                || steps.cache-jit-test-results.outputs.cache-hit != 'true')
+            && steps.cache-jit-test-results.outputs.cache-hit != 'true'
         # read this if a package isn't installing correctly
         # https://github.com/awalsh128/cache-apt-pkgs-action#caveats
         with:
           packages: libb2-dev
           version: 1.0 # cache key version afaik
+
+      - name: install libb2 (macos)
+        if: |
+          runner.os == 'macOS'
+            && steps.cache-jit-test-results.outputs.cache-hit != 'true'
+        run: brew install libb2
 
       - name: download jit source
         if: steps.restore-jit-binaries.outputs.cache-hit != 'true'
@@ -563,7 +569,6 @@ jobs:
       - name: jit integration test ${{ matrix.os }}
         if: runner.os != 'Windows' && steps.cache-jit-test-results.outputs.cache-hit != 'true'
         run: |
-          if [[ ${{runner.os}} = 'macOS' ]]; then brew install libb2; fi
           envsubst '${runtime_tests_version}' \
             < unison-src/builtin-tests/jit-tests.tpl.md \
             > unison-src/builtin-tests/jit-tests.md
