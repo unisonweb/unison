@@ -508,7 +508,7 @@ jobs:
       - uses: awalsh128/cache-apt-pkgs-action@latest
         if: |
           runner.os == 'Linux'
-            && (steps.restore-jit-binaries.outputs.cache-hit != 'true' \
+            && (steps.restore-jit-binaries.outputs.cache-hit != 'true'
                 || steps.cache-jit-test-results.outputs.cache-hit != 'true')
         # read this if a package isn't installing correctly
         # https://github.com/awalsh128/cache-apt-pkgs-action#caveats
