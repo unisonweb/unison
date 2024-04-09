@@ -8,11 +8,11 @@ import Unison.Hash (Hash)
 -- | A small utility type that represents a syntactic-hashed thing.
 --
 -- The `Eq` and `Ord` instances only compares syntactic hashes.
-data Synhashed a
-  = Synhashed
-  { hash :: !Hash
-  , value :: !a
+data Synhashed a = Synhashed
+  { hash :: !Hash,
+    value :: !a
   }
+  deriving stock (Show)
 
 instance Eq (Synhashed a) where
   Synhashed x _ == Synhashed y _ =

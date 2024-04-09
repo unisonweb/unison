@@ -12,3 +12,4 @@ data DiffOp a
   = Added !a
   | Deleted !a
   | Updated !a !a -- old, new
+  deriving stock (Functor, Show)
