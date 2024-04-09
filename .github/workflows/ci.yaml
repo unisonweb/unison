@@ -494,6 +494,12 @@ jobs:
           variant: CS
           version: ${{env.racket_version}}
 
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            scripts/get-share-hash.sh
+            scheme-libs
+
       - name: look up hash for runtime tests
         run: |
           echo "runtime_tests_causalhash=$(scripts/get-share-hash.sh ${{env.runtime_tests_version}})" >> $GITHUB_ENV
@@ -528,8 +534,6 @@ jobs:
         with:
           name: jit-source
           path: ${{ env.jit_src_scheme }}
-
-      - uses: actions/checkout@v4 # checkout scheme-libs from unison repo
 
       - name: build jit binary
         if: steps.restore-jit-binaries.outputs.cache-hit != 'true'
