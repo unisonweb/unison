@@ -563,6 +563,7 @@ jobs:
       - name: jit integration test ${{ matrix.os }}
         if: runner.os != 'Windows' && steps.cache-jit-test-results.outputs.cache-hit != 'true'
         run: |
+          if [[ ${{runner.os}} = 'macOS' ]]; then brew install libb2; fi
           envsubst '${runtime_tests_version}' \
             < unison-src/builtin-tests/jit-tests.tpl.md \
             > unison-src/builtin-tests/jit-tests.md
