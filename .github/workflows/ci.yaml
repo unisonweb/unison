@@ -499,6 +499,7 @@ jobs:
           sparse-checkout: |
             scripts/get-share-hash.sh
             scheme-libs
+            unison-src/builtin-tests/jit-tests.tpl.md
 
       - name: look up hash for runtime tests
         run: |
