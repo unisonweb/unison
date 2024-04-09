@@ -342,6 +342,7 @@ jobs:
           cat unison-src/builtin-tests/interpreter-tests.output.md
           git diff --exit-code unison-src/builtin-tests/interpreter-tests.output.md
       - name: mark interpreter tests as passing
+        if: steps.cache-interpreter-test-results.outputs.cache-hit != 'true'
         run: |
           echo "passing=true" >> "${{env.interpreter_test_results}}"
 
@@ -583,6 +584,7 @@ jobs:
           git diff --exit-code unison-src/builtin-tests/jit-tests.output.md
 
       - name: mark jit tests as passing
+        if: runner.os != 'Windows' && steps.cache-jit-test-results.outputs.cache-hit != 'true'
         run: |
           echo "passing=true" >> "${{env.jit_test_results}}"
 
