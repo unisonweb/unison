@@ -500,6 +500,7 @@ jobs:
             scripts/get-share-hash.sh
             scheme-libs
             unison-src/builtin-tests/jit-tests.tpl.md
+            unison-src/transcripts-using-base/serialized-cases/case-00.v4.ser
 
       - name: look up hash for runtime tests
         run: |
