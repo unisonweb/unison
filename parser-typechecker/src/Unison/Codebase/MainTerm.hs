@@ -81,4 +81,4 @@ builtinIOTestTypes a =
     )
   where
     delayed = Type.arrow a (Type.ref a DD.unitRef)
-    delayedResultWithEffects es = delayed (Type.effect a es (DD.testResultType a))
+    delayedResultWithEffects es = delayed (Type.effect a es (DD.testResultListType a))
