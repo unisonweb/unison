@@ -470,15 +470,15 @@ jobs:
           echo "jit_dist_exe=$jit_dist_exe" >> $GITHUB_ENV
           echo "ucm=$ucm" >> $GITHUB_ENV
 
-      - name: restore jit binaries
-        id: restore-jit-binaries
+      - name: cache jit binaries
+        id: cache-jit-binaries
         uses: actions/cache@v4
         with:
           path: ${{ env.jit_dist }}
-          key: jit_dist-racket_${{ env.racket_version }}.jit_${{ env.jit_version }}
+          key: jit_dist-racket_${{ matrix.os }}.${{ env.racket_version }}.jit_${{ env.jit_version }}
 
       - name: Cache Racket dependencies
-        if: steps.restore-jit-binaries.outputs.cache-hit != 'true'
+        if: steps.cache-jit-binaries.outputs.cache-hit != 'true'
         uses: actions/cache@v4
         with:
           path: |
@@ -487,7 +487,7 @@ jobs:
           key: ${{ matrix.os }}-racket-${{env.racket_version}}
 
       - uses: Bogdanp/setup-racket@v1.11
-        if: steps.restore-jit-binaries.outputs.cache-hit != 'true'
+        if: steps.cache-jit-binaries.outputs.cache-hit != 'true'
         with:
           architecture: x64
           distribution: full
@@ -531,14 +531,14 @@ jobs:
         run: brew install libb2
 
       - name: download jit source
-        if: steps.restore-jit-binaries.outputs.cache-hit != 'true'
+        if: steps.cache-jit-binaries.outputs.cache-hit != 'true'
         uses: actions/download-artifact@v4
         with:
           name: jit-source
           path: ${{ env.jit_src_scheme }}
 
       - name: build jit binary
-        if: steps.restore-jit-binaries.outputs.cache-hit != 'true'
+        if: steps.cache-jit-binaries.outputs.cache-hit != 'true'
         shell: bash
         run: |
           cp -R scheme-libs/racket/* "$jit_src_scheme"
