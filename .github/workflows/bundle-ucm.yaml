@@ -166,6 +166,7 @@ jobs:
           packages: libb2-dev
           version: 1.0 # cache key version afaik
       - name: install libb2 (macos)
+        if: runner.os == 'macOS'
         run: brew install libb2
       - name: install unison racket lib
         if: steps.cache-racket-deps.outputs.cache-hit != 'true'
