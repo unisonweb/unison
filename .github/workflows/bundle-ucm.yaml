@@ -178,7 +178,7 @@ jobs:
           mkdir runtime
           if [[ ${{runner.os}} = 'Windows' ]]; then exe=".exe"; else exe=""; fi
           raco distribute runtime scheme-libs/racket/unison-runtime$exe
-          ls -l runtime/
+          find runtime/
       - name: upload unison-runtime
         uses: actions/upload-artifact@v4
         with:
