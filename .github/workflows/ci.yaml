@@ -64,7 +64,7 @@ jobs:
         with:
           commit_message: automatically run ormolu
   build-ucm:
-    name: Build UCM ${{ matrix.os }}
+    name: build ucm
     runs-on: ${{ matrix.os }}
     strategy:
       # Run each build to completion, regardless of if any have failed
@@ -207,7 +207,7 @@ jobs:
           cache-prefix: ci
 
   transcripts:
-    name: Run transcripts
+    name: run transcripts
     needs: build-ucm
     runs-on: ${{ matrix.os }}
     strategy:
@@ -278,7 +278,7 @@ jobs:
           echo "passing=true" >> "${{env.transcript_test_results}}"
 
   interpreter-tests:
-    name: Run interpreter tests
+    name: run interpreter tests
     needs: build-ucm
     runs-on: ${{ matrix.os }}
     strategy:
@@ -348,7 +348,7 @@ jobs:
 
   generate-jit-source:
     if: always() && needs.build-ucm.result == 'success'
-    name: Generate JIT source
+    name: generate jit source
     needs: build-ucm
     runs-on: ubuntu-20.04
     steps:
@@ -434,7 +434,7 @@ jobs:
 
   build-jit-binary:
     if: always() && needs.generate-jit-source.result == 'success'
-    name: Build JIT binary ${{ matrix.os }}
+    name: build jit binary
     needs: generate-jit-source
     runs-on: ${{ matrix.os }}
     strategy:
