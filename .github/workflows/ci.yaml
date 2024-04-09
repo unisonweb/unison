@@ -485,6 +485,7 @@ jobs:
             ~/.cache/racket
             ~/.local/share/racket
           key: ${{ runner.os }}-racket-${{env.racket_version}}
+
       - uses: Bogdanp/setup-racket@v1.11
         if: steps.restore-jit-binaries.outputs.cache-hit != 'true'
         with:
@@ -492,13 +493,29 @@ jobs:
           distribution: full
           variant: CS
           version: ${{env.racket_version}}
+
+      - name: look up hash for runtime tests
+        run: |
+          echo "runtime_tests_causalhash=$(scripts/get-share-hash.sh ${{env.runtime_tests_version}})" >> $GITHUB_ENV
+
+      - name: cache jit test results
+        id: cache-jit-test-results
+        uses: actions/cache@v4
+        with:
+          path: ${{env.jit_test_results}}
+          key: jit-test-results.racket_${{ env.racket_version }}.jit_${{ env.jit_version }}.tests_${{env.runtime_tests_causalhash}}
+
       - uses: awalsh128/cache-apt-pkgs-action@latest
-        if: runner.os == 'Linux' && steps.restore-jit-binaries.outputs.cache-hit != 'true'
+        if: |
+          runner.os == 'Linux'
+            && (steps.restore-jit-binaries.outputs.cache-hit != 'true' \
+                || steps.cache-jit-test-results.outputs.cache-hit != 'true')
         # read this if a package isn't installing correctly
         # https://github.com/awalsh128/cache-apt-pkgs-action#caveats
         with:
           packages: libb2-dev
           version: 1.0 # cache key version afaik
+
       - name: download jit source
         if: steps.restore-jit-binaries.outputs.cache-hit != 'true'
         uses: actions/download-artifact@v4
@@ -522,17 +539,6 @@ jobs:
         with:
           name: jit-binary-${{ matrix.os }}
           path: ${{ env.jit_dist }}/**
-
-      - name: look up hash for runtime tests
-        run: |
-          echo "runtime_tests_causalhash=$(scripts/get-share-hash.sh ${{env.runtime_tests_version}})" >> $GITHUB_ENV
-
-      - name: cache jit test results
-        id: cache-jit-test-results
-        uses: actions/cache@v4
-        with:
-          path: ${{env.jit_test_results}}
-          key: jit-test-results.racket_${{ env.racket_version }}.jit_${{ env.jit_version }}.tests_${{env.runtime_tests_causalhash}}
 
       - name: cache testing codebase
         id: cache-testing-codebase
