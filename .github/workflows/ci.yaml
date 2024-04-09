@@ -577,7 +577,6 @@ jobs:
           git diff --exit-code unison-src/builtin-tests/jit-tests.output.md
 
       - name: mark jit tests as passing
-        if: success()
         run: |
           echo "passing=true" >> "${{env.jit_test_results}}"
 
