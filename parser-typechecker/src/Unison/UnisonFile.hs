@@ -110,7 +110,7 @@ typecheckingTerm uf =
     bindings =
       terms uf <> testWatches <> watchesOfOtherKinds TestWatch uf
     -- we make sure each test has type Test.Result
-    f w = let wa = ABT.annotation w in Term.ann wa w (DD.testResultType wa)
+    f w = let wa = ABT.annotation w in Term.ann wa w (DD.testResultListType wa)
     testWatches = map (second f) $ watchesOfKind TestWatch uf
 
 -- backwards compatibility with the old data type

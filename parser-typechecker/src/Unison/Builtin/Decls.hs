@@ -12,7 +12,7 @@ import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration (DataDeclaration (..), Modifier (Structural, Unique))
 import Unison.DataDeclaration qualified as DD
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
-import Unison.Hashing.V2.Convert (hashDataDecls)
+import Unison.Hashing.V2.Convert (hashDataDecls, typeToReference)
 import Unison.Pattern qualified as Pattern
 import Unison.Reference (Reference)
 import Unison.Reference qualified as Reference
@@ -46,7 +46,7 @@ pairRef = lookupDeclRef "Tuple"
 optionalRef = lookupDeclRef "Optional"
 eitherRef = lookupDeclRef "Either"
 
-testResultRef, linkRef, docRef, ioErrorRef, stdHandleRef :: Reference
+testResultRef, testResultListRef, linkRef, docRef, ioErrorRef, stdHandleRef :: Reference
 failureRef, ioFailureRef, tlsFailureRef, arrayFailureRef :: Reference
 cryptoFailureRef :: Reference
 exceptionRef, tlsSignedCertRef, tlsPrivateKeyRef :: Reference
@@ -56,6 +56,9 @@ isPropagatedRef = lookupDeclRef "IsPropagated"
 isTestRef = lookupDeclRef "IsTest"
 
 testResultRef = lookupDeclRef "Test.Result"
+
+-- Reference for [Test.Result]
+testResultListRef = typeToReference @Symbol (testResultListType ())
 
 linkRef = lookupDeclRef "Link"
 
@@ -723,7 +726,7 @@ pattern LinkType ty <- Term.App' (Term.Constructor' (ConstructorReference LinkRe
 unitType,
   pairType,
   optionalType,
-  testResultType,
+  testResultListType,
   eitherType,
   ioErrorType,
   fileModeType,
@@ -739,7 +742,7 @@ unitType a = Type.ref a unitRef
 -- used for the type of the argument to force a thunk
 thunkArgType = unitType
 pairType a = Type.ref a pairRef
-testResultType a = Type.app a (Type.list a) (Type.ref a testResultRef)
+testResultListType a = Type.app a (Type.list a) (Type.ref a testResultRef)
 optionalType a = Type.ref a optionalRef
 eitherType a = Type.ref a eitherRef
 ioErrorType a = Type.ref a ioErrorRef

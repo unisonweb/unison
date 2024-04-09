@@ -54,7 +54,7 @@ showDefinitions outputLoc pped terms types misses = do
       Cli.respond $ DisplayDefinitions renderedCodePretty
     Just fp -> do
       -- We build an 'isTest' check to prepend "test>" to tests in a scratch file.
-      testRefs <- Cli.runTransaction (Codebase.filterTermsByReferenceIdHavingType codebase (DD.testResultType mempty) (Map.keysSet terms & Set.mapMaybe Reference.toId))
+      testRefs <- Cli.runTransaction (Codebase.filterTermsByReferenceIdHavingType codebase (DD.testResultListType mempty) (Map.keysSet terms & Set.mapMaybe Reference.toId))
       let isTest r = Set.member r testRefs
       let isSourceFile = True
       let renderedCodePretty = renderCodePretty pped isSourceFile isTest terms types
