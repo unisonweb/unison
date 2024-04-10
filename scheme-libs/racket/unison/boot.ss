@@ -78,7 +78,7 @@
   declare-function-link
   declare-code
 
-  exn:bug?
+  (struct-out exn:bug)
   exn:bug->exception
   exception->string
   raise-unison-exception
@@ -568,7 +568,7 @@
          (let ([disp (describe-value f)])
            (raise
              (make-exn:bug
-               (string->chunked-string "builtin.bug")
+               (string->chunked-string "unhandled top level exception")
                disp))))]]))
 
 (begin-encourage-inline

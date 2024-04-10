@@ -37,10 +37,10 @@
 ;
 ;  - 4 bytes indicating how many bytes follow
 ;  - the actual payload, with size matching the above
-(define (grab-bytes)
-  (let* ([size-bytes (read-bytes 4)]
+(define (grab-bytes port)
+  (let* ([size-bytes (read-bytes 4 port)]
          [size (integer-bytes->integer size-bytes #f #t 0 4)])
-    (read-bytes size)))
+    (read-bytes size port)))
 
 ; Reads and decodes the input. First uses `grab-bytes` to read the
 ; payload, then uses unison functions to deserialize the `Value` that
@@ -50,8 +50,8 @@
 ; definition should be executed. In unison types, it is:
 ;
 ;   ([(Link.Term, Code)], Link.Term)
-(define (decode-input)
-  (let ([bs (grab-bytes)])
+(define (decode-input port)
+  (let ([bs (grab-bytes port)])
     (match (builtin-Value.deserialize (bytes->chunked-bytes bs))
       [(unison-data _ t (list q))
        (= t ref-either-right:tag)
@@ -61,15 +61,40 @@
       [else
         (raise "unexpected input")])))
 
+(define (encode-output tag result port)
+  (let* ([val (unison-quote (reflect-value result))]
+         [bs (chunked-bytes->bytes (builtin-Value.serialize val))])
+    (write-bytes tag port)
+    (write-bytes bs port)
+    (void)))
+
+(define (encode-success result port)
+  (encode-output #"0000" result port))
+
+(define (encode-error fail port)
+  (match fail
+    [(exn:bug msg val)
+     (encode-output #"0001" fail port)]))
+
+(define ((eval-exn-handler port) rq)
+  (request-case rq
+    [pure (result) (encode-success result port)]
+    [ref-exception:typelink
+      [0 (fail)
+        (control ref-exception:typelink k
+          (encode-error fail port))]]))
+
 ; Implements the evaluation mode of operation. First decodes the
 ; input. Then uses the dynamic loading machinery to add the code to
 ; the runtime. Finally executes a specified main reference.
-(define (do-evaluate)
-  (let-values ([(code main-ref) (decode-input)])
+(define (do-evaluate in out)
+  (let-values ([(code main-ref) (decode-input in)])
     (add-runtime-code 'unison-main code)
-    (handle [ref-exception:typelink] top-exn-handler
-            ((termlink->proc main-ref))
-            (data 'unit 0))))
+    (with-handlers
+      ([exn:bug? (lambda (e) (encode-error e out))])
+
+      (handle [ref-exception:typelink] (eval-exn-handler out)
+              ((termlink->proc main-ref))))))
 
 ; Uses racket pretty printing machinery to instead generate a file
 ; containing the given code, and which executes the main definition on
@@ -89,11 +114,12 @@
 
 ; Decodes input and writes a module to the specified file.
 (define (do-generate srcf)
-  (define-values (icode main-ref) (decode-input))
+  (define-values (icode main-ref) (decode-input (current-input-port)))
   (write-module srcf main-ref icode))
 
 (define generate-to (make-parameter #f))
 (define show-version (make-parameter #f))
+(define use-port-num (make-parameter #f))
 
 (define (handle-command-line)
   (command-line
@@ -102,6 +128,10 @@
     ["--version"
      "display version"
      (show-version #t)]
+    [("-p" "--port")
+     port-num
+     "runtime communication port"
+     (use-port-num port-num)]
     [("-G" "--generate-file")
        file
        "generate code to <file>"
@@ -112,4 +142,10 @@
   (cond
     [(show-version) (displayln "unison-runtime version 0.0.11")]
     [(generate-to) (do-generate (generate-to))]
-    [else (do-evaluate)]))
+    [(use-port-num)
+     (let-values ([(in out) (tcp-connect "localhost" (use-port-num))])
+       (do-evaluate in out)
+       (close-output-port out)
+       (close-input-port in))]
+    [else
+      (do-evaluate (current-input-port) (open-output-bytes))]))
