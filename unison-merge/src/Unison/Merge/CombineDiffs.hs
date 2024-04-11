@@ -6,20 +6,24 @@ module Unison.Merge.CombineDiffs
   )
 where
 
-import Control.Lens (over, view, (%~))
+import Control.Lens (Lens', over, view, (%~), (.~), _1, _2)
+import Data.Bifoldable (binull)
 import Data.Bitraversable (bitraverse)
 import Data.List qualified as List
 import Data.Map.Strict qualified as Map
 import Data.Semialign (alignWith)
 import Data.These (These (..))
 import Unison.ConstructorReference (GConstructorReference (..))
-import Unison.Merge.AliceIorBob (AliceIorBob (..), whoL)
+import Unison.Merge.AliceIorBob (AliceIorBob (..))
+import Unison.Merge.AliceXorBob (AliceXorBob (..))
+import Unison.Merge.AliceXorBob qualified as AliceXorBob
 import Unison.Merge.DeclNameLookup (DeclNameLookup, expectConstructorNames, expectDeclName)
 import Unison.Merge.DiffOp (DiffOp (..))
 import Unison.Merge.Synhashed (Synhashed (..))
-import Unison.Merge.TwoWay (TwoWay (..))
+import Unison.Merge.TwoWay (TwoWay (..), twoWay)
 import Unison.Merge.TwoWay qualified as TwoWay
 import Unison.Merge.TwoWayI (TwoWayI (..))
+import Unison.Merge.TwoWayI qualified as TwoWayI
 import Unison.Merge.Unconflicts (Unconflicts (..))
 import Unison.Name (Name)
 import Unison.Prelude hiding (catMaybes)
@@ -31,11 +35,6 @@ import Unison.Referent' qualified as Referent'
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Defns (Defns (..), DefnsF)
-
--- Alice exclusive-or Bob?
-data AliceXorBob
-  = Alice
-  | Bob
 
 -- | The combined result of two diffs on the same thing.
 data DiffOp2 v
@@ -54,20 +53,18 @@ data Flicts v = Flicts
 -- | Combine LCA->Alice diff and LCA->Bob diff, then partition into conflicted and unconflicted things.
 combineDiffs ::
   TwoWay DeclNameLookup ->
-  TwoWay (BiMultimap Referent Name) ->
+  TwoWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
   TwoWay (DefnsF (Map Name) (DiffOp (Synhashed Referent)) (DiffOp (Synhashed TypeReference))) ->
   Either
     Name
     ( TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId),
       DefnsF Unconflicts Referent TypeReference
     )
-combineDiffs declNameLookups terms diffs = do
-  let termConflicts0 :: Map Name (TwoWay Referent)
-      termUnconflicts0 :: Unconflicts Referent
-      typeConflicts0 :: Map Name (TwoWay TypeReference)
-      typeUnconflicts0 :: Unconflicts TypeReference
-      Flicts termConflicts0 termUnconflicts0 = partition2 (justTheTerms diffs)
-      Flicts typeConflicts0 typeUnconflicts0 = partition2 (justTheTypes diffs)
+combineDiffs declNameLookups defns diffs = do
+  let honk = oingoBoingo declNameLookups defns (bimap partition2' partition2' (TwoWay.sequenceDefns diffs))
+
+  let (termConflicts0, termUnconflicts0) = partition2 (TwoWay.justTheTerms diffs)
+      (typeConflicts0, typeUnconflicts0) = partition2 (TwoWay.justTheTypes diffs)
 
   let initialConflicts :: TwoWay (DefnsF (Map Name) TermReference TypeReference)
       initialConflicts =
@@ -75,49 +72,162 @@ combineDiffs declNameLookups terms diffs = do
 
   let moreTermConflicts :: TwoWay (DefnsF (Map Name) TermReference TypeReference)
       moreTermConflicts =
-        justTerms (discoverTermConflicts declNameLookups terms (justTheTypes initialConflicts))
+        justTerms (discoverTermConflicts declNameLookups (view #terms <$> defns) (TwoWay.justTheTypes initialConflicts))
 
   conflicts <- assertThereAreNoBuiltins (initialConflicts <> moreTermConflicts)
 
-  Right
-    ( conflicts,
-      Defns
-        { terms = dropConflictedUnconflictedTerms declNameLookups conflicts termUnconflicts0,
-          types = dropConflictedUnconflictedTypes (justTheTypes conflicts) typeUnconflicts0
-        }
-    )
+  let termUnconflicts = dropConflictedUnconflictedTerms declNameLookups conflicts termUnconflicts0
+  let typeUnconflicts = dropConflictedUnconflictedTypes (TwoWay.justTheTypes conflicts) typeUnconflicts0
 
-partition2 :: TwoWay (Map Name (DiffOp (Synhashed v))) -> Flicts v
-partition2 diffs =
-  partition (alignWith (combine Alice Bob) diffs.alice diffs.bob)
+  Right (conflicts, Defns termUnconflicts typeUnconflicts)
 
-partition :: Map Name (DiffOp2 v) -> Flicts v
+oingoBoingo ::
+  TwoWay DeclNameLookup ->
+  TwoWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
+  Defns (Map Name (DiffOp2 Referent)) (Map Name (DiffOp2 TypeReference)) ->
+  TwoWay (DefnsF (Map Name) TermReference TypeReference)
+oingoBoingo declNameLookups defns diff =
+  let initialQueues :: TwoWay (DefnsF [] Name Name)
+      initialQueues =
+        bitraverse honkTerms honkTypes diff
+
+      honkTerms :: Map Name (DiffOp2 term) -> TwoWay [Name]
+      honkTerms =
+        Map.foldlWithKey' f (TwoWay [] [])
+        where
+          f :: TwoWay [Name] -> Name -> DiffOp2 term -> TwoWay [Name]
+          f acc name = \case
+            Conflict _ -> (name :) <$> acc
+            -- FIXME are these right? just dealing with conflicts for now, then will circle back and think
+            Added2 _ _ -> acc
+            Deleted2 _ _ -> acc
+            Updated2 _ _ -> acc
+
+      -- FIXME same as honkTerms, forever tho?
+      honkTypes :: Map Name (DiffOp2 typ) -> TwoWay [Name]
+      honkTypes =
+        Map.foldlWithKey' f (TwoWay [] [])
+        where
+          f :: TwoWay [Name] -> Name -> DiffOp2 typ -> TwoWay [Name]
+          f acc name = \case
+            Conflict _ -> (name :) <$> acc
+            -- FIXME are these right? just dealing with conflicts for now, then will circle back and think
+            Added2 _ _ -> acc
+            Deleted2 _ _ -> acc
+            Updated2 _ _ -> acc
+   in boingo2
+        declNameLookups
+        defns
+        S
+          { me = Alice,
+            conflicts = mempty,
+            stacks = initialQueues
+          }
+
+data S = S
+  { me :: !AliceXorBob,
+    conflicts :: !(TwoWay (DefnsF (Map Name) TermReference TypeReference)),
+    stacks :: !(TwoWay (DefnsF [] Name Name))
+  }
+  deriving stock (Generic)
+
+boingo2 ::
+  TwoWay DeclNameLookup ->
+  TwoWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
+  S ->
+  TwoWay (DefnsF (Map Name) TermReference TypeReference)
+boingo2 declNameLookups defns =
+  loop
+  where
+    loop :: S -> TwoWay (DefnsF (Map Name) TermReference TypeReference)
+    loop s =
+      case (view myTermStack_ s, view myTypeStack_ s, binull (view theirStacks_ s)) of
+        (name : names, _, _) -> loop (poppedTerm name (s & myTermStack_ .~ names))
+        ([], name : names, _) -> loop (poppedType name (s & myTypeStack_ .~ names))
+        ([], [], False) -> loop (s & #me %~ AliceXorBob.swap)
+        ([], [], True) -> s.conflicts
+      where
+        poppedTerm name =
+          case BiMultimap.lookupRan name (view (me_ . #terms) defns) of
+            Nothing -> id
+            Just (Referent.Ref ref) -> over myTermConflicts_ (Map.insert name ref)
+            Just (Referent.Con _ _) -> over myTypeStack_ (expectDeclName myDeclNameLookup name :)
+
+        poppedType name =
+          case BiMultimap.lookupRan name (view (me_ . #types) defns) of
+            Nothing -> id
+            Just ref ->
+              (foldr (.) id)
+                [ over myTypeConflicts_ (Map.insert name ref),
+                  over theirTermStack_ (expectConstructorNames myDeclNameLookup name ++)
+                ]
+
+        me_ :: Lens' (TwoWay a) a
+        me_ = TwoWay.who_ s.me
+
+        myConflicts_ :: Lens' S (DefnsF (Map Name) TermReference TypeReference)
+        myConflicts_ = #conflicts . me_
+
+        myTermConflicts_ :: Lens' S (Map Name TermReference)
+        myTermConflicts_ = myConflicts_ . #terms
+
+        myTypeConflicts_ :: Lens' S (Map Name TermReference)
+        myTypeConflicts_ = myConflicts_ . #types
+
+        myStacks_ :: Lens' S (DefnsF [] Name Name)
+        myStacks_ = #stacks . me_
+
+        myTermStack_ :: Lens' S [Name]
+        myTermStack_ = myStacks_ . #terms
+
+        myTypeStack_ :: Lens' S [Name]
+        myTypeStack_ = myStacks_ . #types
+
+        myDeclNameLookup :: DeclNameLookup
+        myDeclNameLookup = view me_ declNameLookups
+
+        them_ :: Lens' (TwoWay a) a
+        them_ = TwoWay.who_ (AliceXorBob.swap s.me)
+
+        theirStacks_ :: Lens' S (DefnsF [] Name Name)
+        theirStacks_ = #stacks . them_
+
+        theirTermStack_ :: Lens' S [Name]
+        theirTermStack_ = theirStacks_ . #terms
+
+partition2 :: TwoWay (Map Name (DiffOp (Synhashed v))) -> (Map Name (TwoWay v), Unconflicts v)
+partition2 =
+  partition . twoWay (alignWith (combine Alice Bob))
+
+partition2' :: TwoWay (Map Name (DiffOp (Synhashed v))) -> Map Name (DiffOp2 v)
+partition2' =
+  twoWay (alignWith (combine Alice Bob))
+
+partition :: Map Name (DiffOp2 v) -> (Map Name (TwoWay v), Unconflicts v)
 partition =
   Map.foldlWithKey'
     (\s k v -> insert k v s)
-    Flicts
-      { unconflicts =
-          let empty = TwoWayI Map.empty Map.empty Map.empty
-           in Unconflicts empty empty empty,
-        conflicts = Map.empty
-      }
+    ( Map.empty,
+      let empty = TwoWayI Map.empty Map.empty Map.empty
+       in Unconflicts empty empty empty
+    )
   where
-    insert :: Name -> DiffOp2 v -> Flicts v -> Flicts v
+    insert :: Name -> DiffOp2 v -> (Map Name (TwoWay v), Unconflicts v) -> (Map Name (TwoWay v), Unconflicts v)
     insert k = \case
-      Added2 who v -> #unconflicts . #adds . whoL who %~ Map.insert k v
-      Deleted2 who v -> #unconflicts . #deletes . whoL who %~ Map.insert k v
-      Updated2 who v -> #unconflicts . #updates . whoL who %~ Map.insert k v
-      Conflict v -> #conflicts %~ Map.insert k v
+      Conflict v -> _1 %~ Map.insert k v
+      Added2 who v -> _2 . #adds . TwoWayI.who_ who %~ Map.insert k v
+      Deleted2 who v -> _2 . #deletes . TwoWayI.who_ who %~ Map.insert k v
+      Updated2 who v -> _2 . #updates . TwoWayI.who_ who %~ Map.insert k v
 
 combine :: AliceXorBob -> AliceXorBob -> These (DiffOp (Synhashed v)) (DiffOp (Synhashed v)) -> DiffOp2 v
 combine this that = \case
   This x -> one this x
   That x -> one that x
   These (Added x) (Added y)
-    | x /= y -> Conflict (twoWay this x.value y.value)
+    | x /= y -> Conflict (two this x.value y.value)
     | otherwise -> Added2 AliceAndBob x.value
   These (Updated _ x) (Updated _ y)
-    | x /= y -> Conflict (twoWay this x.value y.value)
+    | x /= y -> Conflict (two this x.value y.value)
     | otherwise -> Updated2 AliceAndBob x.value
   -- Not a conflict, perhaps only temporarily, because it's easier to implement (we ignore these deletes):
   These (Updated _ x) (Deleted _) -> Updated2 (xor2ior this) x.value
@@ -128,17 +238,17 @@ combine this that = \case
   These (Updated _ _) (Added _) -> error "impossible"
   These (Added _) (Deleted _) -> error "impossible"
   These (Added _) (Updated _ _) -> error "impossible"
+  where
+    one :: AliceXorBob -> DiffOp (Synhashed v) -> DiffOp2 v
+    one who = \case
+      Added x -> Added2 (xor2ior who) x.value
+      Deleted x -> Deleted2 (xor2ior who) x.value
+      Updated _ x -> Updated2 (xor2ior who) x.value
 
-one :: AliceXorBob -> DiffOp (Synhashed v) -> DiffOp2 v
-one who = \case
-  Added x -> Added2 (xor2ior who) x.value
-  Deleted x -> Deleted2 (xor2ior who) x.value
-  Updated _ x -> Updated2 (xor2ior who) x.value
-
--- Make a two way, given who is on the left.
-twoWay :: AliceXorBob -> v -> v -> TwoWay v
-twoWay Alice alice bob = TwoWay {alice, bob}
-twoWay Bob bob alice = TwoWay {alice, bob}
+    -- Make a two way, given who is on the left.
+    two :: AliceXorBob -> v -> v -> TwoWay v
+    two Alice alice bob = TwoWay {alice, bob}
+    two Bob bob alice = TwoWay {alice, bob}
 
 xor2ior :: AliceXorBob -> AliceIorBob
 xor2ior = \case
@@ -299,14 +409,6 @@ justTerms :: TwoWay (Map name terms) -> TwoWay (DefnsF (Map name) terms types)
 justTerms =
   fmap (\terms -> Defns terms Map.empty)
 
-justTheTerms :: TwoWay (DefnsF (Map name) terms types) -> TwoWay (Map name terms)
-justTheTerms =
-  fmap (view #terms)
-
 justTypes :: TwoWay (Map name types) -> TwoWay (DefnsF (Map name) terms types)
 justTypes =
   fmap (\types -> Defns Map.empty types)
-
-justTheTypes :: TwoWay (DefnsF (Map name) terms types) -> TwoWay (Map name types)
-justTheTypes =
-  fmap (view #types)

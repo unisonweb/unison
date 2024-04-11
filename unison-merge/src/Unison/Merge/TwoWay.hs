@@ -1,15 +1,23 @@
 module Unison.Merge.TwoWay
   ( TwoWay (..),
+    justTheTerms,
+    justTheTypes,
+    sequenceDefns,
     swap,
+    twoWay,
     unzipMap,
+    who_,
   )
 where
 
+import Control.Lens (Lens', view)
 import Data.Semialign (Semialign, alignWith)
 import Data.Semigroup.Generic (GenericSemigroupMonoid (..))
 import Data.These (These (These))
 import Data.Zip (Zip, unzipWith, zipWith)
+import Unison.Merge.AliceXorBob (AliceXorBob (..))
 import Unison.Prelude
+import Unison.Util.Defns (Defns (..))
 import Prelude hiding (zipWith)
 
 data TwoWay a = TwoWay
@@ -33,15 +41,38 @@ instance Zip TwoWay where
   zipWith f (TwoWay x1 x2) (TwoWay y1 y2) =
     TwoWay (f x1 y1) (f x2 y2)
 
+justTheTerms :: TwoWay (Defns terms types) -> TwoWay terms
+justTheTerms =
+  fmap (view #terms)
+
+justTheTypes :: TwoWay (Defns terms types) -> TwoWay types
+justTheTypes =
+  fmap (view #types)
+
+sequenceDefns :: TwoWay (Defns terms types) -> Defns (TwoWay terms) (TwoWay types)
+sequenceDefns defns =
+  Defns (justTheTerms defns) (justTheTypes defns)
+
 -- | Swap who's considered Alice and who's considered Bob. Usually nonsense, but sometimes what you need!
 swap :: TwoWay a -> TwoWay a
 swap (TwoWay x y) =
   TwoWay y x
 
+twoWay :: (a -> a -> b) -> TwoWay a -> b
+twoWay f TwoWay {alice, bob} =
+  f alice bob
+
 -- | Unzip a @Map k (TwoWay v)@ into a @TwoWay (Map k v)@.
 unzipMap :: Ord k => Map k (TwoWay v) -> TwoWay (Map k v)
 unzipMap =
   fromPair . unzipWith (\TwoWay {alice, bob} -> (alice, bob))
+
+who_ :: AliceXorBob -> Lens' (TwoWay a) a
+who_ = \case
+  Alice -> #alice
+  Bob -> #bob
+
+--
 
 fromPair :: (a, a) -> TwoWay a
 fromPair (alice, bob) =

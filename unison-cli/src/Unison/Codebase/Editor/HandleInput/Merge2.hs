@@ -145,7 +145,7 @@ handleMerge bobBranchName = do
 
   -- Combine the LCA->Alice and LCA->Bob diffs together into the conflicted things and the unconflicted things
   (conflicts, unconflicts) <-
-    combineDiffs declNameLookups (view #terms <$> ThreeWay.forgetLca defns) diffs & onLeft \name ->
+    combineDiffs declNameLookups (ThreeWay.forgetLca defns) diffs & onLeft \name ->
       Cli.returnEarly (mergePreconditionViolationToOutput (Merge.ConflictInvolvingBuiltin name))
 
   debugCombinedDiffs conflicts unconflicts
