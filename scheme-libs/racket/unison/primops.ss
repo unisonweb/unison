@@ -645,6 +645,7 @@
           (unison murmurhash)
           (unison tls)
           (unison tcp)
+          (unison udp)
           (unison gzip)
           (unison zlib)
           (unison concurrent)
