@@ -35,6 +35,7 @@ import Unison.Referent' qualified as Referent'
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Defns (Defns (..), DefnsF)
+import Unison.Util.Map qualified as Map
 
 -- | The combined result of two diffs on the same thing.
 data DiffOp2 v
@@ -90,6 +91,35 @@ oingoBoingo declNameLookups defns diff =
   let initialQueues :: TwoWay (DefnsF [] Name Name)
       initialQueues =
         bitraverse honkTerms honkTypes diff
+
+      -- added term: we keep the add
+      -- added constructor:
+      --   - if its type is me-conflicted then we drop the add
+      --   - else if its type is them-conflicted then we promote our type to me-conflicted
+      --     - example:
+      --         LCA:   type Foo = Foo | Bar
+      --         Alice: type Foo = Foo | Bar | Baz
+      --         Bob:   type Foo = Foo | Oink
+      --
+      --       Alice diff:
+      --         updated type Foo
+      --         updated con Foo.Bar
+      --         updated con Foo.Baz
+      --
+      --       Bob diff:
+      --         deleted con Foo.Bar
+      --         added con Foo.Oink
+      --
+      --       in this example, "Foo.Oink" is added in Bob, "Foo" is not conflicted in Bob, but
+      --
+      --
+      -- after finding an initial batch of type conflicts,
+      --
+      -- 1. some constructor adds/updates will be for types that are conflicted. we can drop these!
+      -- 2. others will be for types that are updates, but aren't conflicted. we keep these!
+      -- 3. others will be for types that haven't been updated, but we only keep these if the other person's type isn't
+      --    conflicted or updated; if it is, then our changes to the type's constructor essentially promote the type to
+      --    conflicted! uh oh! this can cascade... so what order do we do these checks in?
 
       honkTerms :: Map Name (DiffOp2 term) -> TwoWay [Name]
       honkTerms =
@@ -203,6 +233,14 @@ partition2' :: TwoWay (Map Name (DiffOp (Synhashed v))) -> Map Name (DiffOp2 v)
 partition2' =
   twoWay (alignWith (combine Alice Bob))
 
+partition2'terms :: TwoWay (Map Name (DiffOp (Synhashed Referent))) -> Map Name (DiffOp2 Referent)
+partition2'terms =
+  twoWay (alignWith (combine Alice Bob))
+
+partition2'types :: TwoWay DeclNameLookup -> TwoWay (Map Name (DiffOp (Synhashed TypeReference))) -> Map Name (DiffOp2 TypeReference)
+partition2'types declNameLookups =
+  twoWay (Map.alignWithKey (combine'types declNameLookups))
+
 partition :: Map Name (DiffOp2 v) -> (Map Name (TwoWay v), Unconflicts v)
 partition =
   Map.foldlWithKey'
@@ -249,6 +287,57 @@ combine this that = \case
     two :: AliceXorBob -> v -> v -> TwoWay v
     two Alice alice bob = TwoWay {alice, bob}
     two Bob bob alice = TwoWay {alice, bob}
+
+combine'types ::
+  TwoWay DeclNameLookup ->
+  Name ->
+  These (DiffOp (Synhashed TypeReference)) (DiffOp (Synhashed TypeReference)) ->
+  DiffOp2 TypeReference
+combine'types declNameLookups name = \case
+  This x -> one OnlyAlice x
+  That x -> one OnlyBob x
+  These (Added x) (Added y)
+    | conflicting name x y -> Conflict TwoWay {alice = x.value, bob = y.value}
+    | otherwise -> Added2 AliceAndBob x.value
+  These (Updated _ x) (Updated _ y)
+    | conflicting name x y -> Conflict TwoWay {alice = x.value, bob = y.value}
+    | otherwise -> Updated2 AliceAndBob x.value
+  -- Not a conflict, perhaps only temporarily, because it's easier to implement (we ignore these deletes):
+  These (Updated _ x) (Deleted _) -> Updated2 OnlyAlice x.value
+  These (Deleted _) (Updated _ y) -> Updated2 OnlyBob y.value
+  These (Deleted x) (Deleted _) -> Deleted2 AliceAndBob x.value
+  -- These don't make sense - e.g. someone can't update or delete something that wasn't there
+  These (Added _) (Deleted _) -> error "impossible"
+  These (Added _) (Updated _ _) -> error "impossible"
+  These (Deleted _) (Added _) -> error "impossible"
+  These (Updated _ _) (Added _) -> error "impossible"
+  where
+    one :: AliceIorBob -> DiffOp (Synhashed v) -> DiffOp2 v
+    one who = \case
+      Added x -> Added2 who x.value
+      Deleted x -> Deleted2 who x.value
+      Updated _ x -> Updated2 who x.value
+
+    -- We consider type decls in conflict if they are different (obviously) *or* if they don't have the exact same names
+    -- for all of the constructors.
+    --
+    -- This is, in a sense, a conservative definition of "conflicted" - surely Alice ought to be able to rename one
+    -- constructor, and Bob another.
+    --
+    -- However, it simplifies two cases, and possibly more, to just throw this kind of thing back to the user to
+    -- resolve:
+    --
+    --   1. Alice and Bob each rename the same constructor to two different things, resulting in a decl that violates
+    --      the condition that each constructor has one name.
+    --
+    --   2. Alice updates a type decl while Bob merely renames one of its constructors.
+    conflicting :: Name -> Synhashed TypeReference -> Synhashed TypeReference -> Bool
+    conflicting name alice bob =
+      differentTypeDefinitions || differentNamingsOfConstructors
+      where
+        differentTypeDefinitions = alice /= bob
+        differentNamingsOfConstructors =
+          expectConstructorNames declNameLookups.alice name /= expectConstructorNames declNameLookups.bob name
 
 xor2ior :: AliceXorBob -> AliceIorBob
 xor2ior = \case

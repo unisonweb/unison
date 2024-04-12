@@ -1,6 +1,7 @@
 -- | @Map@ utilities.
 module Unison.Util.Map
-  ( bimap,
+  ( alignWithKey,
+    bimap,
     bitraverse,
     bitraversed,
     deleteLookup,
@@ -32,9 +33,18 @@ import Data.Map.Internal qualified as Map (Map (Bin, Tip))
 import Data.Map.Merge.Strict qualified as Map
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
+import Data.These (These (..))
 import Data.Vector (Vector)
 import Data.Vector qualified as Vector
 import Unison.Prelude hiding (bimap, foldM, for_)
+
+-- | A common case of @Map.merge@. Like @alignWith@, but includes the key.
+alignWithKey :: Ord k => (k -> These a b -> c) -> Map k a -> Map k b -> Map k c
+alignWithKey f =
+  Map.merge
+    (Map.mapMissing \k x -> f k (This x))
+    (Map.mapMissing \k y -> f k (That y))
+    (Map.zipWithMatched \k x y -> f k (These x y))
 
 bimap :: (Ord a') => (a -> a') -> (b -> b') -> Map a b -> Map a' b'
 bimap fa fb = Map.fromList . map (B.bimap fa fb) . Map.toList
