@@ -20,6 +20,7 @@ import Unison.Merge.AliceXorBob qualified as AliceXorBob
 import Unison.Merge.DeclNameLookup (DeclNameLookup, expectConstructorNames, expectDeclName)
 import Unison.Merge.DiffOp (DiffOp (..))
 import Unison.Merge.Synhashed (Synhashed (..))
+import Unison.Merge.TwoDiffOps (TwoDiffOps (..), combineTwoDiffOps)
 import Unison.Merge.TwoWay (TwoWay (..), twoWay)
 import Unison.Merge.TwoWay qualified as TwoWay
 import Unison.Merge.TwoWayI (TwoWayI (..))
@@ -62,7 +63,15 @@ combineDiffs ::
       DefnsF Unconflicts Referent TypeReference
     )
 combineDiffs declNameLookups defns diffs = do
-  let honk = oingoBoingo declNameLookups defns (bimap partition2' partition2' (TwoWay.sequenceDefns diffs))
+  let honk =
+        oingoBoingo
+          declNameLookups
+          defns
+          ( bimap
+              (twoWay (alignWith combine'terms))
+              (twoWay (Map.alignWithKey (combine'types declNameLookups)))
+              (TwoWay.sequenceDefns diffs)
+          )
 
   let (termConflicts0, termUnconflicts0) = partition2 (TwoWay.justTheTerms diffs)
       (typeConflicts0, typeUnconflicts0) = partition2 (TwoWay.justTheTypes diffs)
@@ -229,18 +238,6 @@ partition2 :: TwoWay (Map Name (DiffOp (Synhashed v))) -> (Map Name (TwoWay v), 
 partition2 =
   partition . twoWay (alignWith (combine Alice Bob))
 
-partition2' :: TwoWay (Map Name (DiffOp (Synhashed v))) -> Map Name (DiffOp2 v)
-partition2' =
-  twoWay (alignWith (combine Alice Bob))
-
-partition2'terms :: TwoWay (Map Name (DiffOp (Synhashed Referent))) -> Map Name (DiffOp2 Referent)
-partition2'terms =
-  twoWay (alignWith (combine Alice Bob))
-
-partition2'types :: TwoWay DeclNameLookup -> TwoWay (Map Name (DiffOp (Synhashed TypeReference))) -> Map Name (DiffOp2 TypeReference)
-partition2'types declNameLookups =
-  twoWay (Map.alignWithKey (combine'types declNameLookups))
-
 partition :: Map Name (DiffOp2 v) -> (Map Name (TwoWay v), Unconflicts v)
 partition =
   Map.foldlWithKey'
@@ -261,63 +258,77 @@ combine :: AliceXorBob -> AliceXorBob -> These (DiffOp (Synhashed v)) (DiffOp (S
 combine this that = \case
   This x -> one this x
   That x -> one that x
-  These (Added x) (Added y)
+  These (DiffOp'Add x) (DiffOp'Add y)
     | x /= y -> Conflict (two this x.value y.value)
     | otherwise -> Added2 AliceAndBob x.value
-  These (Updated _ x) (Updated _ y)
+  These (DiffOp'Update _ x) (DiffOp'Update _ y)
     | x /= y -> Conflict (two this x.value y.value)
     | otherwise -> Updated2 AliceAndBob x.value
   -- Not a conflict, perhaps only temporarily, because it's easier to implement (we ignore these deletes):
-  These (Updated _ x) (Deleted _) -> Updated2 (xor2ior this) x.value
-  These (Deleted x) (Deleted _) -> Deleted2 AliceAndBob x.value
+  These (DiffOp'Update _ x) (DiffOp'Delete _) -> Updated2 (xor2ior this) x.value
+  These (DiffOp'Delete x) (DiffOp'Delete _) -> Deleted2 AliceAndBob x.value
   -- Handle delete+update the same as update+delete
-  These x@(Deleted _) y -> combine that this (These y x)
+  These x@(DiffOp'Delete _) y -> combine that this (These y x)
   -- These don't make sense - e.g. someone can't update something that wasn't there
-  These (Updated _ _) (Added _) -> error "impossible"
-  These (Added _) (Deleted _) -> error "impossible"
-  These (Added _) (Updated _ _) -> error "impossible"
+  These (DiffOp'Update _ _) (DiffOp'Add _) -> error "impossible"
+  These (DiffOp'Add _) (DiffOp'Delete _) -> error "impossible"
+  These (DiffOp'Add _) (DiffOp'Update _ _) -> error "impossible"
   where
     one :: AliceXorBob -> DiffOp (Synhashed v) -> DiffOp2 v
     one who = \case
-      Added x -> Added2 (xor2ior who) x.value
-      Deleted x -> Deleted2 (xor2ior who) x.value
-      Updated _ x -> Updated2 (xor2ior who) x.value
+      DiffOp'Add x -> Added2 (xor2ior who) x.value
+      DiffOp'Delete x -> Deleted2 (xor2ior who) x.value
+      DiffOp'Update _ x -> Updated2 (xor2ior who) x.value
 
     -- Make a two way, given who is on the left.
     two :: AliceXorBob -> v -> v -> TwoWay v
     two Alice alice bob = TwoWay {alice, bob}
     two Bob bob alice = TwoWay {alice, bob}
 
+combine'terms :: These (DiffOp (Synhashed term)) (DiffOp (Synhashed term)) -> DiffOp2 term
+combine'terms =
+  combineTwoDiffOps >>> \case
+    TwoDiffOps'Add who x -> Added2 (xor2ior who) x.value
+    TwoDiffOps'Delete who x -> Deleted2 (xor2ior who) x.value
+    TwoDiffOps'Update who _old new -> Updated2 (xor2ior who) new.value
+    TwoDiffOps'AddAdd TwoWay {alice, bob}
+      | alice /= bob -> Conflict TwoWay {alice = alice.value, bob = bob.value}
+      | otherwise -> Added2 AliceAndBob alice.value
+    TwoDiffOps'DeleteDelete x -> Deleted2 AliceAndBob x.value
+    -- These two are not a conflicts, perhaps only temporarily, because it's easier to implement. We just ignore these
+    -- deletes and keep the updates.
+    TwoDiffOps'DeleteUpdate _old new -> Updated2 OnlyBob new.value
+    TwoDiffOps'UpdateDelete _old new -> Updated2 OnlyAlice new.value
+    TwoDiffOps'UpdateUpdate _old TwoWay {alice, bob}
+      | alice /= bob -> Conflict TwoWay {alice = alice.value, bob = bob.value}
+      | otherwise -> Updated2 AliceAndBob alice.value
+
 combine'types ::
   TwoWay DeclNameLookup ->
   Name ->
-  These (DiffOp (Synhashed TypeReference)) (DiffOp (Synhashed TypeReference)) ->
-  DiffOp2 TypeReference
-combine'types declNameLookups name = \case
-  This x -> one OnlyAlice x
-  That x -> one OnlyBob x
-  These (Added x) (Added y)
-    | conflicting name x y -> Conflict TwoWay {alice = x.value, bob = y.value}
-    | otherwise -> Added2 AliceAndBob x.value
-  These (Updated _ x) (Updated _ y)
-    | conflicting name x y -> Conflict TwoWay {alice = x.value, bob = y.value}
-    | otherwise -> Updated2 AliceAndBob x.value
-  -- Not a conflict, perhaps only temporarily, because it's easier to implement (we ignore these deletes):
-  These (Updated _ x) (Deleted _) -> Updated2 OnlyAlice x.value
-  These (Deleted _) (Updated _ y) -> Updated2 OnlyBob y.value
-  These (Deleted x) (Deleted _) -> Deleted2 AliceAndBob x.value
-  -- These don't make sense - e.g. someone can't update or delete something that wasn't there
-  These (Added _) (Deleted _) -> error "impossible"
-  These (Added _) (Updated _ _) -> error "impossible"
-  These (Deleted _) (Added _) -> error "impossible"
-  These (Updated _ _) (Added _) -> error "impossible"
+  These (DiffOp (Synhashed typ)) (DiffOp (Synhashed typ)) ->
+  DiffOp2 typ
+combine'types declNameLookups name =
+  combineTwoDiffOps >>> \case
+    TwoDiffOps'Add who x -> Added2 (xor2ior who) x.value
+    TwoDiffOps'Delete who x -> Deleted2 (xor2ior who) x.value
+    -- Treat one person updating a type and the other just moving constructors around as a conflict
+    TwoDiffOps'Update who old new
+      | differentNamesForConstructors ->
+          TwoWay {alice = new.value, bob = old.value}
+            & (case who of Alice -> id; Bob -> TwoWay.swap)
+            & Conflict
+      | otherwise -> Updated2 (xor2ior who) new.value
+    TwoDiffOps'AddAdd TwoWay {alice, bob}
+      | conflicting alice bob -> Conflict TwoWay {alice = alice.value, bob = bob.value}
+      | otherwise -> Added2 AliceAndBob alice.value
+    TwoDiffOps'DeleteDelete x -> Deleted2 AliceAndBob x.value
+    TwoDiffOps'DeleteUpdate _old new -> Updated2 OnlyBob new.value
+    TwoDiffOps'UpdateDelete _old new -> Updated2 OnlyAlice new.value
+    TwoDiffOps'UpdateUpdate _old TwoWay {alice, bob}
+      | conflicting alice bob -> Conflict TwoWay {alice = alice.value, bob = bob.value}
+      | otherwise -> Updated2 AliceAndBob alice.value
   where
-    one :: AliceIorBob -> DiffOp (Synhashed v) -> DiffOp2 v
-    one who = \case
-      Added x -> Added2 who x.value
-      Deleted x -> Deleted2 who x.value
-      Updated _ x -> Updated2 who x.value
-
     -- We consider type decls in conflict if they are different (obviously) *or* if they don't have the exact same names
     -- for all of the constructors.
     --
@@ -331,13 +342,13 @@ combine'types declNameLookups name = \case
     --      the condition that each constructor has one name.
     --
     --   2. Alice updates a type decl while Bob merely renames one of its constructors.
-    conflicting :: Name -> Synhashed TypeReference -> Synhashed TypeReference -> Bool
-    conflicting name alice bob =
-      differentTypeDefinitions || differentNamingsOfConstructors
-      where
-        differentTypeDefinitions = alice /= bob
-        differentNamingsOfConstructors =
-          expectConstructorNames declNameLookups.alice name /= expectConstructorNames declNameLookups.bob name
+    conflicting :: Synhashed typ -> Synhashed typ -> Bool
+    conflicting alice bob =
+      alice /= bob || differentNamesForConstructors
+
+    differentNamesForConstructors :: Bool
+    differentNamesForConstructors =
+      expectConstructorNames declNameLookups.alice name /= expectConstructorNames declNameLookups.bob name
 
 xor2ior :: AliceXorBob -> AliceIorBob
 xor2ior = \case

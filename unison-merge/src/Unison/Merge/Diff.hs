@@ -83,11 +83,11 @@ diffNamespaceDefns oldDefns newDefns =
       where
         f :: Eq x => These x x -> Maybe (DiffOp x)
         f = \case
-          This x -> Just (Deleted x)
-          That y -> Just (Added y)
+          This x -> Just (DiffOp'Delete x)
+          That y -> Just (DiffOp'Add y)
           These x y
             | x == y -> Nothing
-            | otherwise -> Just (Updated x y)
+            | otherwise -> Just (DiffOp'Update x y)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Pretty-print env helpers

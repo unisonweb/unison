@@ -37,6 +37,7 @@ dependencies:
   - unison-util-nametree
   - unison-util-relation
   - vector
+  - witherable
 
 library:
   # exposed-modules:

@@ -8,11 +8,16 @@ where
 
 import Data.Map.Merge.Strict qualified as Map
 import Data.Map.Strict qualified as Map
+import Data.Semialign (alignWith)
 import Data.Set qualified as Set
+import Data.These (These (..))
 import Unison.Merge.DiffOp (DiffOp (..))
 import Unison.Merge.ThreeWay (ThreeWay (..))
-import Unison.Prelude
+import Unison.Merge.TwoDiffOps (TwoDiffOps (..), combineTwoDiffOps)
+import Unison.Merge.TwoWay (TwoWay (..))
+import Unison.Prelude hiding (catMaybes)
 import Unison.Util.Map qualified as Map
+import Witherable (catMaybes)
 
 -- | Perform a three-way merge on two collections of library dependencies.
 mergeLibdeps ::
@@ -42,12 +47,12 @@ mergeLibdeps freshen libdeps =
 diff :: (Ord k, Eq v) => Map k v -> Map k v -> Map k (DiffOp v)
 diff =
   Map.merge
-    (Map.mapMissing \_ -> Deleted)
-    (Map.mapMissing \_ -> Added)
+    (Map.mapMissing \_ -> DiffOp'Delete)
+    (Map.mapMissing \_ -> DiffOp'Add)
     ( Map.zipWithMaybeMatched \_ old new ->
         if old == new
           then Nothing
-          else Just (Updated old new)
+          else Just (DiffOp'Update old new)
     )
 
 -- Merge two library dependency diffs together:
@@ -63,11 +68,30 @@ mergeDiffs ::
   Map k (DiffOp v) ->
   -- The merged library dependencies diff.
   Map k (LibdepDiffOp v)
-mergeDiffs =
-  Map.merge
-    (Map.mapMaybeMissing (const liftDiffOp))
-    (Map.mapMaybeMissing (const liftDiffOp))
-    (Map.zipWithMatched (const combineDiffOps))
+mergeDiffs alice bob =
+  catMaybes (alignWith combineDiffOps alice bob)
+
+combineDiffOps :: Eq v => These (DiffOp v) (DiffOp v) -> Maybe (LibdepDiffOp v)
+combineDiffOps =
+  combineTwoDiffOps >>> \case
+    TwoDiffOps'Add _who new -> Just (AddLibdep new)
+    -- If Alice deletes a dep and Bob doesn't touch it, ignore the delete, since Bob may still be using it.
+    TwoDiffOps'Delete _who _old -> Nothing
+    -- If Alice updates a dep and Bob doesn't touch it, keep the old one around too, since Bob may still be using it.
+    TwoDiffOps'Update _who old new -> Just (AddBothLibdeps old new)
+    TwoDiffOps'AddAdd TwoWay {alice, bob}
+      | alice == bob -> Just (AddLibdep alice)
+      | otherwise -> Just (AddBothLibdeps alice bob)
+    -- If Alice and Bob both delete something, delete it.
+    TwoDiffOps'DeleteDelete _ -> Just DeleteLibdep
+    -- If Alice updates a dependency and Bob deletes the old one, ignore the delete and keep Alice's, and vice versa.
+    TwoDiffOps'DeleteUpdate _old bob -> Just (AddLibdep bob)
+    TwoDiffOps'UpdateDelete _old alice -> Just (AddLibdep alice)
+    -- combineDiffOps (Deleted _) (Updated _ bob) = AddLibdep bob
+    -- combineDiffOps (Updated _ alice) (Deleted _) = AddLibdep alice
+    TwoDiffOps'UpdateUpdate _old TwoWay {alice, bob}
+      | alice == bob -> Just (AddLibdep alice)
+      | otherwise -> Just (AddBothLibdeps alice bob)
 
 -- Apply a library dependencies diff to the LCA.
 applyDiff ::
@@ -96,32 +120,3 @@ data LibdepDiffOp a
   = AddLibdep !a
   | AddBothLibdeps !a !a
   | DeleteLibdep
-
--- "Lift" a diff op from Alice, where Bob didn't have a diff, to a libdep diff op.
-liftDiffOp :: DiffOp v -> Maybe (LibdepDiffOp v)
-liftDiffOp = \case
-  Added new -> Just (AddLibdep new)
-  -- If Alice deletes a dep and Bob doesn't touch it, ignore the delete, since Bob may still be using it.
-  Deleted _ -> Nothing
-  -- If Alice updates a dep and Bob doesn't touch it, keep the old and new deps, since Bob may still be using
-  -- the old one.
-  Updated old new -> Just (AddBothLibdeps old new)
-
-combineDiffOps :: Eq v => DiffOp v -> DiffOp v -> LibdepDiffOp v
-combineDiffOps (Added alice) (Added bob)
-  | alice == bob = AddLibdep alice
-  | otherwise = AddBothLibdeps alice bob
-combineDiffOps (Updated _ alice) (Updated _ bob)
-  | alice == bob = AddLibdep alice
-  | otherwise = AddBothLibdeps alice bob
--- If Alice updates a dependency and Bob deletes the old one, ignore the delete and keep Alice's, and vice versa.
-combineDiffOps (Deleted _) (Updated _ bob) = AddLibdep bob
-combineDiffOps (Updated _ alice) (Deleted _) = AddLibdep alice
--- If Alice and Bob both delete something, delete it.
-combineDiffOps (Deleted _) (Deleted _) = DeleteLibdep
--- These are all nonsense: if one person's change was classified as an add, then it didn't exist in the LCA, so
--- the other person's change to the same name couldn't be classified as an update/delete
-combineDiffOps (Added _) (Deleted _) = undefined
-combineDiffOps (Added _) (Updated _ _) = undefined
-combineDiffOps (Deleted _) (Added _) = undefined
-combineDiffOps (Updated _ _) (Added _) = undefined

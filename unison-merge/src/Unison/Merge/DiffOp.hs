@@ -9,7 +9,7 @@ where
 --   * A delete (of the thing that was)
 --   * An update (from old to new)
 data DiffOp a
-  = Added !a
-  | Deleted !a
-  | Updated !a !a -- old, new
+  = DiffOp'Add !a
+  | DiffOp'Delete !a
+  | DiffOp'Update !a !a -- old, new
   deriving stock (Functor, Show)

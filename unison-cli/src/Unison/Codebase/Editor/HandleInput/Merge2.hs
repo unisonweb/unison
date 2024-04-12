@@ -57,8 +57,7 @@ import Unison.Merge.Database (MergeDatabase (..), makeMergeDatabase, referent2to
 import Unison.Merge.DeclCoherencyCheck (IncoherentDeclReason (..), checkDeclCoherency)
 import Unison.Merge.DeclNameLookup (DeclNameLookup (..), expectConstructorNames)
 import Unison.Merge.Diff qualified as Merge
-import Unison.Merge.DiffOp (DiffOp)
-import Unison.Merge.DiffOp qualified as Merge
+import Unison.Merge.DiffOp (DiffOp (..))
 import Unison.Merge.Libdeps qualified as Merge
 import Unison.Merge.PreconditionViolation qualified as Merge
 import Unison.Merge.Synhashed (Synhashed (..))
@@ -1038,9 +1037,9 @@ findConflictedAlias defns diff =
         f :: (Name, DiffOp (Synhashed ref)) -> Maybe (Name, Name)
         f (name, op) =
           case op of
-            Merge.Added _ -> Nothing
-            Merge.Deleted _ -> Nothing
-            Merge.Updated _ hashed1 ->
+            DiffOp'Add _ -> Nothing
+            DiffOp'Delete _ -> Nothing
+            DiffOp'Update _ hashed1 ->
               BiMultimap.lookupPreimage name namespace
                 & Set.delete name
                 & Set.toList
@@ -1050,7 +1049,7 @@ findConflictedAlias defns diff =
             g :: Synhashed ref -> Name -> Maybe (Name, Name)
             g hashed1 alias =
               case Map.lookup alias diff of
-                Just (Merge.Updated _ hashed2) | hashed1 == hashed2 -> Nothing
+                Just (DiffOp'Update _ hashed2) | hashed1 == hashed2 -> Nothing
                 _ -> Just (name, alias)
 
 -- Given a name like "base", try "base__1", then "base__2", etc, until we find a name that doesn't
