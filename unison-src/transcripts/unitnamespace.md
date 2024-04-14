@@ -3,7 +3,8 @@ foo = "bar"
 ```
 
 ```ucm
-.> cd `()`
 .`()`> add
+.> find
+.> find-in `()`
 .> delete.namespace `()`
 ```

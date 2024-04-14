@@ -16,8 +16,6 @@ foo = "bar"
 
 ```
 ```ucm
-.> cd `()`
-
   ☝️  The namespace .`()` is empty.
 
 .`()`> add
@@ -25,6 +23,16 @@ foo = "bar"
   ⍟ I've added these definitions:
   
     foo : ##Text
+
+.> find
+
+  1. `()`.foo : ##Text
+  
+
+.> find-in `()`
+
+  1. foo : ##Text
+  
 
 .> delete.namespace `()`
 

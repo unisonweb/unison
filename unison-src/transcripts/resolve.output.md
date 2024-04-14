@@ -50,7 +50,7 @@ We'll also make a second fork `c` which we'll use as the target for our patch la
 Now let's make a change to `foo` in the `a` namespace:
 
 ```ucm
-.example.resolve> cd a
+.example.resolve> deprecated.cd a
 
 ```
 ```unison
@@ -82,7 +82,7 @@ foo = 43
 And make a different change in the `b` namespace:
 
 ```ucm
-.example.resolve> cd .example.resolve.b
+.example.resolve> deprecated.cd .example.resolve.b
 
 ```
 ```unison
@@ -114,7 +114,7 @@ foo = 44
 The `a` and `b` namespaces now each contain a patch named `patch`. We can view these:
 
 ```ucm
-.example.resolve.b> cd .example.resolve
+.example.resolve.b> deprecated.cd .example.resolve
 
 .example.resolve> view.patch a.patch
 
@@ -188,7 +188,7 @@ Let's now merge these namespaces into `c`:
 The namespace `c` now has an edit conflict, since the term `foo` was edited in two different ways.
 
 ```ucm
-.example.resolve> cd c
+.example.resolve> deprecated.cd c
 
 .example.resolve.c> todo
 

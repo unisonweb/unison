@@ -971,8 +971,8 @@ notifyUser dir = \case
     pure . P.warnCallout . P.lines $
       [ "Are you sure you want to clear away everything?",
         "You could use "
-          <> IP.makeExample' IP.cd
-          <> " to switch to a new namespace instead."
+          <> IP.makeExample' IP.projectCreate
+          <> " to switch to a new project instead."
       ]
   DeleteBranchConfirmation _uniqueDeletions -> error "todo"
   -- let

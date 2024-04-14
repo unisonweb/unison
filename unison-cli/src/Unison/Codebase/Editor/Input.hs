@@ -35,7 +35,7 @@ import Data.These (These)
 import U.Codebase.HashTags (CausalHash)
 import Unison.Codebase.Branch.Merge qualified as Branch
 import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteGitRepo, WriteRemoteNamespace)
-import Unison.Codebase.Path (Path')
+import Unison.Codebase.Path (Path, Path')
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Path.Parse qualified as Path
 import Unison.Codebase.PushBehavior (PushBehavior)
@@ -315,6 +315,7 @@ data OutputLocation
 data FindScope
   = FindLocal
   | FindLocalAndDeps
+  | FindLocalSubnamespace Path
   | FindGlobal
   deriving stock (Eq, Show)
 

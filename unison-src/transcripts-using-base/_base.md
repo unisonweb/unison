@@ -12,7 +12,6 @@ transcripts which contain less boilerplate.
 ```ucm:hide
 .> builtins.merge
 .> builtins.mergeio
-.> cd builtin
 .> load unison-src/transcripts-using-base/base.u
 .> add
 ```
@@ -55,4 +54,3 @@ testAutoClean _ =
 .> add
 .> io.test testAutoClean
 ```
-

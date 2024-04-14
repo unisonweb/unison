@@ -24,7 +24,7 @@ y = 2
 
 If we `reset-root` to its previous value, `y` disappears.
 ```ucm
-.> reset-root 2
+.> deprecated.reset-root 2
 ```
 ```ucm:error
 .> view y

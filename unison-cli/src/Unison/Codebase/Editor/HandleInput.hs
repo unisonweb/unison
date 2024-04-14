@@ -1437,6 +1437,12 @@ handleFindI isVerbose fscope ws input = do
       -- results may contain things in lib.
       pped <- Cli.currentPrettyPrintEnvDecl
       pure (pped, names)
+    FindLocalSubnamespace p -> do
+      path <- Cli.resolvePath p
+      branch0 <- Cli.getBranch0At path
+      let names = Branch.toNames branch0
+      pped <- Cli.currentPrettyPrintEnvDecl
+      pure (pped, names)
     FindLocalAndDeps -> do
       let names = Branch.toNames (Branch.withoutTransitiveLibs currentBranch0)
       -- Don't exclude anything from the pretty printer, since the type signatures we print for

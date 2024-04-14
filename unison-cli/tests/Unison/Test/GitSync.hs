@@ -286,7 +286,7 @@ test =
                       ```ucm
                       .> pull git(${repo})
                       .> history
-                      .> reset-root #l43v9nr16v
+                      .> deprecated.reset-root #l43v9nr16v
                       .> history
                       ```
                   |] -- Not sure why this hash is here.
