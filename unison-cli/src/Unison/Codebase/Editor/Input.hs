@@ -156,7 +156,7 @@ data Input
   | AddI (Set Name)
   | PreviewAddI (Set Name)
   | UpdateI OptionalPatch (Set Name)
-  | Update2I
+  | Update2I (Maybe Path')
   | PreviewUpdateI (Set Name)
   | TodoI (Maybe PatchPath) Path'
   | PropagatePatchI PatchPath Path'

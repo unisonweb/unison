@@ -45,7 +45,7 @@ import Unison.Codebase.Branch.Type (Branch0)
 import Unison.Codebase.BranchUtil qualified as BranchUtil
 import Unison.Codebase.Editor.Output (Output)
 import Unison.Codebase.Editor.Output qualified as Output
-import Unison.Codebase.Path (Path)
+import Unison.Codebase.Path (Path, Path')
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Type (Codebase)
 import Unison.ConstructorReference (GConstructorReference (ConstructorReference))
@@ -95,15 +95,15 @@ import Unison.Util.Relation qualified as Relation
 import Unison.Var (Var)
 import Unison.WatchKind qualified as WK
 
-handleUpdate2 :: Cli ()
-handleUpdate2 = do
+handleUpdate2 :: Maybe Path' -> Cli ()
+handleUpdate2 op' = do
   Cli.Env {codebase, writeSource} <- ask
   tuf <- Cli.expectLatestTypecheckedFile
   let termAndDeclNames = getTermAndDeclNames tuf
-  currentPath <- Cli.getCurrentPath
-  currentBranch0 <- Cli.getBranch0At currentPath
-  let namesIncludingLibdeps = Branch.toNames currentBranch0
-  let namesExcludingLibdeps = Branch.toNames (currentBranch0 & over Branch.children (Map.delete NameSegment.libSegment))
+  path <- maybe Cli.getCurrentPath Cli.resolvePath' op'
+  branch0 <- Cli.getBranch0At path
+  let namesIncludingLibdeps = Branch.toNames branch0
+  let namesExcludingLibdeps = Branch.toNames (branch0 & over Branch.children (Map.delete NameSegment.libSegment))
   let ctorNames = forwardCtorNames namesExcludingLibdeps
 
   Cli.respond Output.UpdateLookingForDependents
@@ -135,6 +135,9 @@ handleUpdate2 = do
       then pure tuf
       else do
         Cli.respond Output.UpdateStartTypechecking
+        currentPath <- Cli.getCurrentPath
+        currentBranch0 <- Cli.getBranch0At currentPath
+        let namesIncludingLibdeps = Branch.toNames currentBranch0
         parsingEnv <- makeParsingEnv currentPath namesIncludingLibdeps
         secondTuf <-
           prettyParseTypecheck bigUf pped parsingEnv & onLeftM \prettyUf -> do
@@ -144,7 +147,7 @@ handleUpdate2 = do
         Cli.respond Output.UpdateTypecheckingSuccess
         pure secondTuf
 
-  saveTuf (findCtorNamesMaybe Output.UOUUpdate namesExcludingLibdeps ctorNames Nothing) secondTuf
+  saveTuf (findCtorNamesMaybe Output.UOUUpdate namesExcludingLibdeps ctorNames Nothing) secondTuf path
   Cli.respond Output.Success
 
 -- TODO: find a better module for this function, as it's used in a couple places
@@ -184,10 +187,9 @@ makeParsingEnv path names = do
       }
 
 -- save definitions and namespace
-saveTuf :: (Name -> Either Output (Maybe [Name])) -> TypecheckedUnisonFile Symbol Ann -> Cli ()
-saveTuf getConstructors tuf = do
+saveTuf :: (Name -> Either Output (Maybe [Name])) -> TypecheckedUnisonFile Symbol Ann -> Path.Absolute -> Cli ()
+saveTuf getConstructors tuf currentPath = do
   Cli.Env {codebase} <- ask
-  currentPath <- Cli.getCurrentPath
   branchUpdates <-
     Cli.runTransactionWithRollback \abort -> do
       Codebase.addDefsToCodebase codebase tuf

@@ -244,8 +244,28 @@ update =
             <> "for your review.",
       parse =
         maybeToEither (I.help update) . \case
-          [] -> Just Input.Update2I
+          [] -> Just (Input.Update2I Nothing)
           _ -> Nothing
+    }
+
+updateIn :: InputPattern
+updateIn =
+  InputPattern
+    { patternName = "update-in",
+      aliases = [],
+      visibility = I.Visible,
+      args = [("namespace", Required, namespaceArg)],
+      help =
+        P.wrap $
+          "Adds everything in the most recently typechecked file to the specified namespace,"
+            <> "replacing existing definitions having the same name, and attempts to update all the existing dependents accordingly. If the process"
+            <> "can't be completed automatically, the dependents will be added back to the scratch file"
+            <> "for your review.",
+      parse = \case
+        [p] -> first P.text do
+          p <- Path.parsePath' p
+          pure . Input.Update2I $ Just p
+        _ -> Left (I.help updateIn)
     }
 
 updateOldNoPatch :: InputPattern
@@ -3043,6 +3063,7 @@ validInputs =
       undo,
       up,
       update,
+      updateIn,
       updateBuiltins,
       updateOld,
       updateOldNoPatch,
