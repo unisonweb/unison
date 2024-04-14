@@ -202,8 +202,8 @@ data Input
   | ShowDefinitionByPrefixI OutputLocation [HQ.HashQualified Name]
   | ShowReflogI
   | UpdateBuiltinsI
-  | MergeBuiltinsI
-  | MergeIOBuiltinsI
+  | MergeBuiltinsI (Maybe Path)
+  | MergeIOBuiltinsI (Maybe Path)
   | ListDependenciesI (HQ.HashQualified Name)
   | ListDependentsI (HQ.HashQualified Name)
   | -- | List all external dependencies of a given namespace, or the current namespace if

@@ -967,7 +967,7 @@ loop e = do
             --   stepAt updateBuiltins
             --   checkTodo
 
-            MergeBuiltinsI -> do
+            MergeBuiltinsI opath -> do
               Cli.Env {codebase} <- ask
               description <- inputDescription input
               -- these were added once, but maybe they've changed and need to be
@@ -983,10 +983,13 @@ loop e = do
               -- due to builtin terms; so we don't just reuse `uf` above.
               let srcb = BranchUtil.fromNames Builtin.names
               currentPath <- Cli.getCurrentPath
-              _ <- Cli.updateAtM description (currentPath `snoc` "builtin") \destb ->
+              let destPath = case opath of
+                    Just path -> Path.resolve currentPath (Path.Relative path)
+                    Nothing -> currentPath `snoc` "builtin"
+              _ <- Cli.updateAtM description destPath \destb ->
                 liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge srcb destb)
               Cli.respond Success
-            MergeIOBuiltinsI -> do
+            MergeIOBuiltinsI opath -> do
               Cli.Env {codebase} <- ask
               description <- inputDescription input
               -- these were added once, but maybe they've changed and need to be
@@ -1007,7 +1010,10 @@ loop e = do
               let names0 = Builtin.names <> UF.typecheckedToNames IOSource.typecheckedFile'
               let srcb = BranchUtil.fromNames names0
               currentPath <- Cli.getCurrentPath
-              _ <- Cli.updateAtM description (currentPath `snoc` "builtin") \destb ->
+              let destPath = case opath of
+                    Just path -> Path.resolve currentPath (Path.Relative path)
+                    Nothing -> currentPath `snoc` "builtin"
+              _ <- Cli.updateAtM description destPath \destb ->
                 liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge srcb destb)
               Cli.respond Success
             ListEditsI maybePath -> do
@@ -1305,8 +1311,10 @@ inputDescription input =
     IOTestI hq -> pure ("io.test " <> HQ.toText hq)
     IOTestAllI -> pure "io.test.all"
     UpdateBuiltinsI -> pure "builtins.update"
-    MergeBuiltinsI -> pure "builtins.merge"
-    MergeIOBuiltinsI -> pure "builtins.mergeio"
+    MergeBuiltinsI Nothing -> pure "builtins.merge"
+    MergeBuiltinsI (Just path) -> ("builtins.merge " <>) <$> p path
+    MergeIOBuiltinsI Nothing -> pure "builtins.mergeio"
+    MergeIOBuiltinsI (Just path) -> ("builtins.mergeio " <>) <$> p path
     MakeStandaloneI out nm -> pure ("compile " <> Text.pack out <> " " <> HQ.toText nm)
     ExecuteSchemeI nm args ->
       pure $ "run.native " <> Text.unwords (nm : fmap Text.pack args)
@@ -1395,6 +1403,8 @@ inputDescription input =
   where
     hp' :: Either SCH.ShortCausalHash Path' -> Cli Text
     hp' = either (pure . Text.pack . show) p'
+    p :: Path -> Cli Text
+    p = fmap tShow . Cli.resolvePath
     p' :: Path' -> Cli Text
     p' = fmap tShow . Cli.resolvePath'
     brp :: BranchRelativePath -> Cli Text

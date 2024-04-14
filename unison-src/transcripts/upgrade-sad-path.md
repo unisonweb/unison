@@ -1,7 +1,6 @@
 ```ucm:hide
 .> project.create-empty proj
-proj/main> builtins.merge
-proj/main> move.namespace builtin lib.builtin
+proj/main> builtins.merge lib.builtin
 ```
 
 ```unison
@@ -17,4 +16,3 @@ proj/main> add
 ```ucm:error
 proj/main> upgrade old new
 ```
-

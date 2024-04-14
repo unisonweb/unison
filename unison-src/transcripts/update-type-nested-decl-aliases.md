@@ -1,6 +1,5 @@
 ```ucm:hide
-.> builtins.merge
-.> move.namespace builtin lib.builtin
+.> builtins.merge lib.builtin
 ```
 
 ```unison
@@ -25,4 +24,3 @@ file to stare at.
 ```ucm:error
 .> update
 ```
-

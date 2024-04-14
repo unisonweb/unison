@@ -105,9 +105,14 @@ mergeBuiltins =
     "builtins.merge"
     []
     I.Hidden
-    []
-    "Adds the builtins to `builtins.` in the current namespace (excluding `io` and misc)."
-    (const . pure $ Input.MergeBuiltinsI)
+    [("namespace", Optional, namespaceArg)]
+    "Adds the builtins to `builtin.` or to the specified namespace (excluding `io` and misc)."
+    \case
+      [] -> pure . Input.MergeBuiltinsI $ Nothing
+      [p] -> first P.text do
+        p <- Path.parsePath p
+        pure . Input.MergeBuiltinsI $ Just p
+      _ -> Left (I.help mergeBuiltins)
 
 mergeIOBuiltins :: InputPattern
 mergeIOBuiltins =
@@ -115,9 +120,14 @@ mergeIOBuiltins =
     "builtins.mergeio"
     []
     I.Hidden
-    []
-    "Adds all the builtins to `builtins.` in the current namespace, including `io` and misc."
-    (const . pure $ Input.MergeIOBuiltinsI)
+    [("namespace", Optional, namespaceArg)]
+    "Adds all the builtins to `builtin.` or to the specified namespace, including `io` and misc."
+    \case
+      [] -> pure . Input.MergeIOBuiltinsI $ Nothing
+      [p] -> first P.text do
+        p <- Path.parsePath p
+        pure . Input.MergeIOBuiltinsI $ Just p
+      _ -> Left (I.help mergeBuiltins)
 
 updateBuiltins :: InputPattern
 updateBuiltins =
