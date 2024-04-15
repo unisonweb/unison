@@ -1,9 +1,5 @@
 Test for new Text -> Bytes conversions explicitly using UTF-8 as the encoding
 
-```ucm:hide
-.> builtins.merge
-```
-
 Unison has function for converting between `Text` and a UTF-8 `Bytes` encoding of the Text.
 
 ```ucm
