@@ -609,7 +609,7 @@ findIn =
       p : args -> first P.text do
         p <- Path.parsePath p
         pure (Input.FindI False (FindLocalSubnamespace p) args)
-      _ -> Left (I.help updateIn)
+      _ -> Left (I.help findIn)
 
 findHelp :: P.Pretty CT.ColorText
 findHelp =
