@@ -97,6 +97,7 @@ unique type RuntimeError =
   The program halted with an unhandled exception:
   
     Failure (typeLink RuntimeError) "oh noes!" (Any ())
+  
   Stack trace:
     ##raise
 

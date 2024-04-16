@@ -1073,7 +1073,7 @@ bugMsg ppe tr name (errs, tm) =
 
 stackTrace :: PrettyPrintEnv -> [(Reference, Int)] -> Pretty ColorText
 stackTrace _ [] = mempty
-stackTrace ppe tr = "Stack trace:\n" <> P.indentN 2 (P.lines $ f <$> tr)
+stackTrace ppe tr = "\nStack trace:\n" <> P.indentN 2 (P.lines $ f <$> tr)
   where
     f (rf, n) = name <> count
       where
@@ -1223,8 +1223,8 @@ tabulateErrors :: Set DecompError -> Error
 tabulateErrors errs | null errs = mempty
 tabulateErrors errs =
   P.indentN 2 . P.lines $
-    P.wrap "The following errors occured while decompiling:"
-      : (listErrors errs)
+    "" : P.wrap "The following errors occured while decompiling:"
+       : (listErrors errs)
 
 restoreCache :: StoredCache -> IO CCache
 restoreCache (SCache cs crs trs ftm fty int rtm rty sbs) =

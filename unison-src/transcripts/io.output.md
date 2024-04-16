@@ -615,6 +615,7 @@ Calling our examples with the wrong number of args will error.
   The program halted with an unhandled exception:
   
     Failure (typeLink IOFailure) "called with args" (Any ())
+  
   Stack trace:
     ##raise
 
@@ -627,6 +628,7 @@ Calling our examples with the wrong number of args will error.
   The program halted with an unhandled exception:
   
     Failure (typeLink IOFailure) "called with no args" (Any ())
+  
   Stack trace:
     ##raise
 
@@ -640,6 +642,7 @@ Calling our examples with the wrong number of args will error.
   
     Failure
       (typeLink IOFailure) "called with too many args" (Any ())
+  
   Stack trace:
     ##raise
 
@@ -652,6 +655,7 @@ Calling our examples with the wrong number of args will error.
   The program halted with an unhandled exception:
   
     Failure (typeLink IOFailure) "called with no args" (Any ())
+  
   Stack trace:
     ##raise
 
