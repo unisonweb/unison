@@ -27,7 +27,7 @@ import Data.Binary.Get (runGetOrFail)
 -- import Data.Bits (shiftL)
 import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as BL
-import Data.Bytes.Get (MonadGet, runGetS, getWord8)
+import Data.Bytes.Get (MonadGet, getWord8, runGetS)
 import Data.Bytes.Put (MonadPut, putWord32be, runPutL, runPutS)
 import Data.Bytes.Serial
 import Data.Foldable
@@ -44,7 +44,7 @@ import Data.Set as Set
     (\\),
   )
 import Data.Set qualified as Set
-import Data.Text as Text (isPrefixOf, unpack, pack)
+import Data.Text as Text (isPrefixOf, pack, unpack)
 import GHC.IO.Exception (IOErrorType (NoSuchThing, OtherError, PermissionDenied), IOException (ioe_description, ioe_type))
 import GHC.Stack (callStack)
 import Network.Simple.TCP (Socket, acceptFork, listen, recv, send)
@@ -87,8 +87,8 @@ import Unison.Runtime.ANF as ANF
 import Unison.Runtime.ANF.Rehash as ANF (rehashGroups)
 import Unison.Runtime.ANF.Serialize as ANF
   ( getGroup,
-    putGroup,
     getVersionedValue,
+    putGroup,
     serializeValue,
   )
 import Unison.Runtime.Builtin
@@ -465,9 +465,16 @@ nativeEval executable ctxVar cl ppe tm = catchInternalErrors $ do
   writeIORef ctxVar ctx
   -- Note: port 0 mean choosing an arbitrary available port.
   -- We then ask what port was actually chosen.
-  listen "127.0.0.1" "0" $ \(serv, _) -> socketPort serv >>= \port ->
-    nativeEvalInContext
-      executable ppe ctx serv port (codes ++ tcodes) base
+  listen "127.0.0.1" "0" $ \(serv, _) ->
+    socketPort serv >>= \port ->
+      nativeEvalInContext
+        executable
+        ppe
+        ctx
+        serv
+        port
+        (codes ++ tcodes)
+        base
 
 interpEval ::
   ActiveThreads ->
@@ -814,10 +821,12 @@ ucrCompileProc executable args =
     }
 
 receiveAll :: Socket -> IO ByteString
-receiveAll sock = read [] where
-  read acc = recv sock 4096 >>= \case
-    Just chunk -> read (chunk:acc)
-    Nothing -> pure . BS.concat $ reverse acc
+receiveAll sock = read []
+  where
+    read acc =
+      recv sock 4096 >>= \case
+        Just chunk -> read (chunk : acc)
+        Nothing -> pure . BS.concat $ reverse acc
 
 data NativeResult
   = Success Value
@@ -825,13 +834,15 @@ data NativeResult
   | Error Text
 
 deserializeNativeResponse :: ByteString -> NativeResult
-deserializeNativeResponse = run $ getWord8 >>= \case
-  0 -> Success <$> getVersionedValue
-  1 -> Bug <$> getText <*> getVersionedValue
-  2 -> Error <$> getText
-  _ -> pure $ Error "Unexpected result bytes tag"
+deserializeNativeResponse =
+  run $
+    getWord8 >>= \case
+      0 -> Success <$> getVersionedValue
+      1 -> Bug <$> getText <*> getVersionedValue
+      2 -> Error <$> getText
+      _ -> pure $ Error "Unexpected result bytes tag"
   where
-  run e bs = either (Error . pack) id (runGetS e bs)
+    run e bs = either (Error . pack) id (runGetS e bs)
 
 -- Note: this currently does not support yielding values; instead it
 -- just produces a result appropriate for unitary `run` commands. The
@@ -1061,7 +1072,7 @@ bugMsg ppe tr name (errs, tm) =
     ]
 
 stackTrace :: PrettyPrintEnv -> [(Reference, Int)] -> Pretty ColorText
-stackTrace _   [] = mempty
+stackTrace _ [] = mempty
 stackTrace ppe tr = "Stack trace:\n" <> P.indentN 2 (P.lines $ f <$> tr)
   where
     f (rf, n) = name <> count
