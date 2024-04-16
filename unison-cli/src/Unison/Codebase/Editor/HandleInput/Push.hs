@@ -8,7 +8,6 @@ where
 import Control.Concurrent.STM (atomically, modifyTVar', newTVarIO, readTVar, readTVarIO)
 import Control.Lens (over, view, (.~), (^.), _1, _2)
 import Control.Monad.Reader (ask)
-import Data.List.NonEmpty qualified as Nel
 import Data.Set.NonEmpty qualified as Set.NonEmpty
 import Data.Text as Text
 import Data.These (These (..))
@@ -18,7 +17,6 @@ import Text.Builder qualified
 import U.Codebase.HashTags (CausalHash (..))
 import U.Codebase.Sqlite.DbId
 import U.Codebase.Sqlite.Operations qualified as Operations
-import U.Codebase.Sqlite.Operations qualified as Ops
 import U.Codebase.Sqlite.Project qualified as Sqlite (Project)
 import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite (ProjectBranch)
 import U.Codebase.Sqlite.Queries qualified as Queries
@@ -32,7 +30,6 @@ import Unison.Codebase (PushGitBranchOpts (..))
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch (..))
 import Unison.Codebase.Branch qualified as Branch
-import Unison.Codebase.Editor.HandleInput.AuthLogin (ensureAuthenticatedWithCodeserver)
 import Unison.Codebase.Editor.HandleInput.AuthLogin qualified as AuthLogin
 import Unison.Codebase.Editor.Input
   ( GistInput (..),
@@ -46,13 +43,11 @@ import Unison.Codebase.Editor.Output.PushPull (PushPull (Push))
 import Unison.Codebase.Editor.RemoteRepo
   ( ReadGitRemoteNamespace (..),
     ReadRemoteNamespace (..),
-    ShareUserHandle (..),
     WriteGitRemoteNamespace (..),
     WriteRemoteNamespace (..),
     WriteShareRemoteNamespace (..),
     writeToReadGit,
   )
-import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.PushBehavior (PushBehavior)
 import Unison.Codebase.PushBehavior qualified as PushBehavior
@@ -231,77 +226,8 @@ pushLooseCodeToGitLooseCode localPath gitRemotePath pushBehavior syncMode = do
 
 -- Push a local namespace ("loose code") to a Share-hosted remote namespace ("loose code").
 pushLooseCodeToShareLooseCode :: Path.Absolute -> WriteShareRemoteNamespace -> PushBehavior -> Cli ()
-pushLooseCodeToShareLooseCode localPath remote@WriteShareRemoteNamespace {server, repo, path = remotePath} behavior = do
-  let codeserver = Codeserver.resolveCodeserver server
-  let baseURL = codeserverBaseURL codeserver
-  let sharePath = Share.Path (shareUserHandleToText repo Nel.:| pathToSegments remotePath)
-  _ <- ensureAuthenticatedWithCodeserver codeserver
-
-  localCausalHash <-
-    Cli.runTransaction (Ops.loadCausalHashAtPath Nothing (pathToSegments (Path.unabsolute localPath))) & onNothingM do
-      Cli.returnEarly (EmptyLooseCodePush (Path.absoluteToPath' localPath))
-
-  let checkAndSetPush :: Maybe Hash32 -> Cli (Maybe Int)
-      checkAndSetPush remoteHash =
-        if Just (Hash32.fromHash (unCausalHash localCausalHash)) == remoteHash
-          then pure Nothing
-          else do
-            let push =
-                  Cli.with withEntitiesUploadedProgressCallback \(uploadedCallback, getNumUploaded) -> do
-                    result <-
-                      Share.checkAndSetPush
-                        baseURL
-                        sharePath
-                        remoteHash
-                        localCausalHash
-                        uploadedCallback
-                    numUploaded <- liftIO getNumUploaded
-                    pure (result, numUploaded)
-            push >>= \case
-              (Left err, _) -> pushError ShareErrorCheckAndSetPush err
-              (Right (), numUploaded) -> pure (Just numUploaded)
-
-  case behavior of
-    PushBehavior.ForcePush -> do
-      maybeHashJwt <-
-        Share.getCausalHashByPath baseURL sharePath & onLeftM \err0 ->
-          (Cli.returnEarly . Output.ShareError) case err0 of
-            Share.SyncError err -> ShareErrorGetCausalHashByPath err
-            Share.TransportError err -> ShareErrorTransport err
-      maybeNumUploaded <- checkAndSetPush (Share.API.hashJWTHash <$> maybeHashJwt)
-      whenJust maybeNumUploaded (Cli.respond . Output.UploadedEntities)
-      Cli.respond (ViewOnShare (Left remote))
-    PushBehavior.RequireEmpty -> do
-      maybeNumUploaded <- checkAndSetPush Nothing
-      whenJust maybeNumUploaded (Cli.respond . Output.UploadedEntities)
-      Cli.respond (ViewOnShare (Left remote))
-    PushBehavior.RequireNonEmpty -> do
-      let push :: Cli (Either (Share.SyncError Share.FastForwardPushError) (), Int)
-          push =
-            Cli.with withEntitiesUploadedProgressCallback \(uploadedCallback, getNumUploaded) -> do
-              result <-
-                Share.fastForwardPush
-                  baseURL
-                  sharePath
-                  localCausalHash
-                  uploadedCallback
-              numUploaded <- liftIO getNumUploaded
-              pure (result, numUploaded)
-      push >>= \case
-        (Left err, _) -> pushError ShareErrorFastForwardPush err
-        (Right (), numUploaded) -> do
-          Cli.respond (UploadedEntities numUploaded)
-          Cli.respond (ViewOnShare (Left remote))
-  where
-    pathToSegments :: Path -> [Text]
-    pathToSegments =
-      coerce Path.toList
-
-    pushError :: (a -> Output.ShareError) -> Share.SyncError a -> Cli b
-    pushError f err0 = do
-      Cli.returnEarly case err0 of
-        Share.SyncError err -> Output.ShareError (f err)
-        Share.TransportError err -> Output.ShareError (ShareErrorTransport err)
+pushLooseCodeToShareLooseCode _ _ _ = do
+  Cli.returnEarly LooseCodePushDeprecated
 
 -- Push a local namespace ("loose code") to a remote project branch.
 pushLooseCodeToProjectBranch :: Bool -> Path.Absolute -> ProjectAndBranch ProjectName ProjectBranchName -> Cli ()

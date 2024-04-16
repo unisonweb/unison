@@ -394,6 +394,7 @@ data Output
   | UpdateIncompleteConstructorSet UpdateOrUpgrade Name (Map ConstructorId Name) (Maybe Int)
   | UpgradeFailure !FilePath !NameSegment !NameSegment
   | UpgradeSuccess !NameSegment !NameSegment
+  | LooseCodePushDeprecated
 
 data UpdateOrUpgrade = UOUUpdate | UOUUpgrade
 
@@ -622,6 +623,7 @@ isFailure o = case o of
   ProjectHasNoReleases {} -> True
   UpgradeFailure {} -> True
   UpgradeSuccess {} -> False
+  LooseCodePushDeprecated -> True
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case
