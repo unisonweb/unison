@@ -480,7 +480,7 @@ jobs:
             unison-src/transcripts-using-base/serialized-cases/case-00.v4.ser
 
       - name: cache/restore jit binaries
-        id: restore-jit-binaries
+        id: cache-jit-binaries
         uses: actions/cache/restore@v4
         with:
           path: ${{ env.jit_dist }}
