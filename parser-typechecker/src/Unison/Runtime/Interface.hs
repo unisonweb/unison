@@ -1223,8 +1223,9 @@ tabulateErrors :: Set DecompError -> Error
 tabulateErrors errs | null errs = mempty
 tabulateErrors errs =
   P.indentN 2 . P.lines $
-    "" : P.wrap "The following errors occured while decompiling:"
-       : (listErrors errs)
+    ""
+      : P.wrap "The following errors occured while decompiling:"
+      : (listErrors errs)
 
 restoreCache :: StoredCache -> IO CCache
 restoreCache (SCache cs crs trs ftm fty int rtm rty sbs) =
