@@ -47,7 +47,7 @@ import Data.Set qualified as Set
 import Data.Text as Text (isPrefixOf, unpack, pack)
 import GHC.IO.Exception (IOErrorType (NoSuchThing, OtherError, PermissionDenied), IOException (ioe_description, ioe_type))
 import GHC.Stack (callStack)
-import Network.Simple.TCP (Socket, accept, listen, recv, send)
+import Network.Simple.TCP (Socket, acceptFork, listen, recv, send)
 import Network.Socket (PortNumber, socketPort)
 import System.Directory
   ( XdgDirectory (XdgCache),
@@ -869,14 +869,20 @@ nativeEvalInContext executable ppe ctx serv port codes base = do
           Right cl -> case decompileCtx crs ctx cl of
             (errs, dv) -> pure $ Right (listErrors errs, dv)
 
-      callout _ _ _ ph = accept serv \(sock, _) -> do
+      comm mv (sock, _) = do
         send sock . runPutS . putWord32be . fromIntegral $ BS.length bytes
         send sock bytes
-        rbytes <- receiveAll sock
+        UnliftIO.putMVar mv =<< receiveAll sock
+
+      callout _ _ _ ph = do
+        mv <- UnliftIO.newEmptyMVar
+        tid <- acceptFork serv $ comm mv
         waitForProcess ph >>= \case
           ExitSuccess ->
-            decodeResult . deserializeNativeResponse $ rbytes
-          ExitFailure _ ->
+            decodeResult . deserializeNativeResponse
+              =<< UnliftIO.takeMVar mv
+          ExitFailure _ -> do
+            UnliftIO.killThread tid
             pure . Left $ "native evaluation failed"
       p = ucrEvalProc executable ["-p", show port]
       ucrError (e :: IOException) = pure $ Left (runtimeErrMsg (cmdspec p) (Right e))
@@ -988,7 +994,7 @@ bugMsg ::
   Pretty ColorText
 bugMsg ppe tr name (errs, tm)
   | name == "blank expression" =
-      P.callout icon . P.lines $
+      P.callout icon . P.linesNonEmpty $
         [ P.wrap
             ( "I encountered a"
                 <> P.red (P.text name)
@@ -1000,7 +1006,7 @@ bugMsg ppe tr name (errs, tm)
           stackTrace ppe tr
         ]
   | "pattern match failure" `isPrefixOf` name =
-      P.callout icon . P.lines $
+      P.callout icon . P.linesNonEmpty $
         [ P.wrap
             ( "I've encountered a"
                 <> P.red (P.text name)
@@ -1015,7 +1021,7 @@ bugMsg ppe tr name (errs, tm)
           stackTrace ppe tr
         ]
   | name == "builtin.raise" =
-      P.callout icon . P.lines $
+      P.callout icon . P.linesNonEmpty $
         [ P.wrap ("The program halted with an unhandled exception:"),
           "",
           P.indentN 2 $ pretty ppe tm,
@@ -1025,7 +1031,7 @@ bugMsg ppe tr name (errs, tm)
   | name == "builtin.bug",
     RF.TupleTerm' [Tm.Text' msg, x] <- tm,
     "pattern match failure" `isPrefixOf` msg =
-      P.callout icon . P.lines $
+      P.callout icon . P.linesNonEmpty $
         [ P.wrap
             ( "I've encountered a"
                 <> P.red (P.text msg)
@@ -1040,7 +1046,7 @@ bugMsg ppe tr name (errs, tm)
           stackTrace ppe tr
         ]
 bugMsg ppe tr name (errs, tm) =
-  P.callout icon . P.lines $
+  P.callout icon . P.linesNonEmpty $
     [ P.wrap
         ( "I've encountered a call to"
             <> P.red (P.text name)
@@ -1053,6 +1059,7 @@ bugMsg ppe tr name (errs, tm) =
     ]
 
 stackTrace :: PrettyPrintEnv -> [(Reference, Int)] -> Pretty ColorText
+stackTrace _   [] = mempty
 stackTrace ppe tr = "Stack trace:\n" <> P.indentN 2 (P.lines $ f <$> tr)
   where
     f (rf, n) = name <> count
@@ -1200,7 +1207,7 @@ listErrors :: Set DecompError -> [Error]
 listErrors = fmap (P.indentN 2 . renderDecompError) . toList
 
 tabulateErrors :: Set DecompError -> Error
-tabulateErrors errs | null errs = "\n"
+tabulateErrors errs | null errs = mempty
 tabulateErrors errs =
   P.indentN 2 . P.lines $
     P.wrap "The following errors occured while decompiling:"
