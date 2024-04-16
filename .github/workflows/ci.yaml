@@ -471,6 +471,14 @@ jobs:
           echo "jit_dist_exe=$jit_dist_exe" >> $GITHUB_ENV
           echo "ucm=$ucm" >> $GITHUB_ENV
 
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            scripts/get-share-hash.sh
+            scheme-libs
+            unison-src/builtin-tests/jit-tests.tpl.md
+            unison-src/transcripts-using-base/serialized-cases/case-00.v4.ser
+
       - name: cache/restore jit binaries
         id: restore-jit-binaries
         uses: actions/cache/restore@v4
@@ -494,14 +502,6 @@ jobs:
           distribution: full
           variant: CS
           version: ${{env.racket_version}}
-
-      - uses: actions/checkout@v4
-        with:
-          sparse-checkout: |
-            scripts/get-share-hash.sh
-            scheme-libs
-            unison-src/builtin-tests/jit-tests.tpl.md
-            unison-src/transcripts-using-base/serialized-cases/case-00.v4.ser
 
       - name: look up hash for runtime tests
         run: |
