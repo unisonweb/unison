@@ -5,14 +5,19 @@ module Unison.Merge.Diff
   )
 where
 
+import Control.Lens (over)
+import Data.Bitraversable (bitraverse)
 import Data.Map.Strict qualified as Map
 import Data.Semialign (alignWith)
 import Data.Set qualified as Set
 import Data.These (These (..))
 import U.Codebase.Reference (TypeReference)
+import Unison.DataDeclaration (Decl)
+import Unison.DataDeclaration qualified as DD
 import Unison.Hash (Hash)
 import Unison.HashQualified' qualified as HQ'
 import Unison.Merge.Database (MergeDatabase (..))
+import Unison.Merge.DeclNameLookup (DeclNameLookup, expectConstructorNames)
 import Unison.Merge.DiffOp (DiffOp (..))
 import Unison.Merge.Synhash qualified as Synhash
 import Unison.Merge.Synhashed (Synhashed (..))
@@ -22,11 +27,15 @@ import Unison.Name (Name)
 import Unison.Prelude hiding (catMaybes)
 import Unison.PrettyPrintEnv (PrettyPrintEnv (..))
 import Unison.PrettyPrintEnv qualified as Ppe
+import Unison.Reference (TypeReferenceId)
 import Unison.Referent (Referent)
 import Unison.Sqlite (Transaction)
+import Unison.Syntax.Name qualified as Name
+import Unison.Type (Type)
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Defns (Defns (..), DefnsF)
+import Unison.Var (Var)
 
 -- | @nameBasedNamespaceDiff db defns@ returns Alice's and Bob's name-based namespace diffs, each in the form:
 --
@@ -40,6 +49,7 @@ import Unison.Util.Defns (Defns (..), DefnsF)
 -- branches is considered an add.
 nameBasedNamespaceDiff ::
   MergeDatabase ->
+  ThreeWay DeclNameLookup ->
   ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
   Transaction
     ( TwoWay
@@ -49,23 +59,46 @@ nameBasedNamespaceDiff ::
             (DiffOp (Synhashed TypeReference))
         )
     )
-nameBasedNamespaceDiff db defns = do
-  lca <- synhashDefns defns.lca
-  alice <- synhashDefns defns.alice
-  bob <- synhashDefns defns.bob
-  pure (diffNamespaceDefns lca <$> TwoWay {alice, bob})
+nameBasedNamespaceDiff db declNameLookups defns = do
+  diffs <- sequence (synhashDefns <$> declNameLookups <*> defns)
+  pure (diffNamespaceDefns diffs.lca <$> TwoWay {alice = diffs.alice, bob = diffs.bob})
   where
     synhashDefns ::
+      DeclNameLookup ->
       Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
       Transaction (DefnsF (Map Name) (Synhashed Referent) (Synhashed TypeReference))
-    synhashDefns =
+    synhashDefns declNameLookup =
       -- FIXME: use cache so we only synhash each thing once
-      synhashDefnsWith (Synhash.hashTerm db.loadV1Term ppe) (Synhash.hashDecl db.loadV1Decl ppe)
+      synhashDefnsWith
+        (Synhash.hashTerm db.loadV1Term ppe)
+        ( \name ->
+            Synhash.hashDecl
+              (withAccurateConstructorNames db.loadV1Decl declNameLookup name)
+              ppe
+              name
+        )
       where
         ppe :: PrettyPrintEnv
         ppe =
           -- The order isn't important here for syntactic hashing
           (deepNamespaceDefinitionsToPpe defns.alice `Ppe.addFallback` deepNamespaceDefinitionsToPpe defns.bob)
+
+withAccurateConstructorNames ::
+  forall a v.
+  Var v =>
+  (TypeReferenceId -> Transaction (Decl v a)) ->
+  DeclNameLookup ->
+  Name ->
+  TypeReferenceId ->
+  Transaction (Decl v a)
+withAccurateConstructorNames load declNameLookup name ref = do
+  load ref <&> over (DD.declAsDataDecl_ . DD.constructors_) setConstructorNames
+  where
+    setConstructorNames :: [(a, v, Type v a)] -> [(a, v, Type v a)]
+    setConstructorNames =
+      zipWith
+        (\realConName (ann, _junkConName, typ) -> (ann, Name.toVar realConName, typ))
+        (expectConstructorNames declNameLookup name)
 
 diffNamespaceDefns ::
   DefnsF (Map Name) (Synhashed Referent) (Synhashed TypeReference) ->
@@ -110,18 +143,18 @@ deepNamespaceDefinitionsToPpe Defns {terms, types} =
 synhashDefnsWith ::
   Monad m =>
   (term -> m Hash) ->
-  (typ -> m Hash) ->
+  (Name -> typ -> m Hash) ->
   Defns (BiMultimap term Name) (BiMultimap typ Name) ->
   m (DefnsF (Map Name) (Synhashed term) (Synhashed typ))
-synhashDefnsWith hashTerm hashType defns = do
-  terms <- BiMultimap.range <$> BiMultimap.unsafeTraverseDom hashTerm1 defns.terms
-  types <- BiMultimap.range <$> BiMultimap.unsafeTraverseDom hashType1 defns.types
-  pure Defns {terms, types}
+synhashDefnsWith hashTerm hashType = do
+  bitraverse
+    (traverse hashTerm1 . BiMultimap.range)
+    (Map.traverseWithKey hashType1 . BiMultimap.range)
   where
     hashTerm1 term = do
       hash <- hashTerm term
       pure (Synhashed hash term)
 
-    hashType1 typ = do
-      hash <- hashType typ
+    hashType1 name typ = do
+      hash <- hashType name typ
       pure (Synhashed hash typ)

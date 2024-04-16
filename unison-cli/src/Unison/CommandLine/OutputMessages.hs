@@ -1660,10 +1660,12 @@ notifyUser dir = \case
       "There's a merge conflict on"
         <> P.group (prettyName name <> ",")
         <> "but it's a builtin on one or both branches. We can't yet handle merge conflicts on builtins."
-  MergeConstructorAlias branch name1 name2 ->
+  MergeConstructorAlias maybeBranch name1 name2 ->
     pure . P.wrap $
       "On"
-        <> P.group (prettyProjectBranchName branch <> ",")
+        <> case maybeBranch of
+          Nothing -> "the LCA,"
+          Just branch -> P.group (prettyProjectBranchName branch <> ",")
         <> prettyName name1
         <> "and"
         <> prettyName name2

@@ -12,7 +12,11 @@ data ThreeWay a = ThreeWay
     alice :: !a,
     bob :: !a
   }
-  deriving stock (Functor, Generic)
+  deriving stock (Foldable, Functor, Generic, Traversable)
+
+instance Applicative ThreeWay where
+  pure x = ThreeWay x x x
+  ThreeWay f g h <*> ThreeWay x y z = ThreeWay (f x) (g y) (h z)
 
 forgetLca :: ThreeWay a -> TwoWay a
 forgetLca ThreeWay {alice, bob} =

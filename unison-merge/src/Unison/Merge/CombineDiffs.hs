@@ -102,6 +102,7 @@ oingoBoingo declNameLookups defns diff =
         bitraverse honkTerms honkTypes diff
 
       -- added term: we keep the add
+      --
       -- added constructor:
       --   - if its type is me-conflicted then we drop the add
       --   - else if its type is them-conflicted then we promote our type to me-conflicted

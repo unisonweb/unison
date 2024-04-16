@@ -134,7 +134,7 @@ handleMerge bobBranchName = do
   -- Diff LCA->Alice and LCA->Bob
   diffs <-
     Cli.runTransaction do
-      Merge.nameBasedNamespaceDiff db defns
+      Merge.nameBasedNamespaceDiff db declNameLookups defns
 
   debugDiffs diffs
 
@@ -144,7 +144,7 @@ handleMerge bobBranchName = do
 
   -- Combine the LCA->Alice and LCA->Bob diffs together into the conflicted things and the unconflicted things
   (conflicts, unconflicts) <-
-    combineDiffs declNameLookups (ThreeWay.forgetLca defns) diffs & onLeft \name ->
+    combineDiffs (ThreeWay.forgetLca declNameLookups) (ThreeWay.forgetLca defns) diffs & onLeft \name ->
       Cli.returnEarly (mergePreconditionViolationToOutput (Merge.ConflictInvolvingBuiltin name))
 
   debugCombinedDiffs conflicts unconflicts
@@ -158,7 +158,12 @@ handleMerge bobBranchName = do
   debugDependents dependents
 
   let (newDefns, droppedDefns) =
-        bumpLca declNameLookups conflicts unconflicts (bimap Map.elemsSet Map.elemsSet dependents) defns.lca
+        bumpLca
+          (ThreeWay.forgetLca declNameLookups)
+          conflicts
+          unconflicts
+          (bimap Map.elemsSet Map.elemsSet dependents)
+          defns.lca
 
   debugMergedDefns newDefns droppedDefns
 
@@ -180,7 +185,12 @@ handleMerge bobBranchName = do
   -- Create the Unison file, which may have conflicts, in which case we don't bother trying to parse and typecheck it.
   unisonFile <-
     if thisMergeHasConflicts
-      then makeConflictedUnisonFile declNameLookups conflicts dependents mergedDeclNameLookup
+      then
+        makeConflictedUnisonFile
+          (ThreeWay.forgetLca declNameLookups)
+          conflicts
+          dependents
+          mergedDeclNameLookup
       else makeUnconflictedUnisonFile dependents mergedDeclNameLookup
 
   -- Load and merge Alice's and Bob's libdeps
@@ -283,22 +293,27 @@ loadDefns ::
   (forall a. Output -> Transaction a) ->
   MergeDatabase ->
   MergeInfo ->
-  (TwoOrThreeWay (V2.Branch Transaction)) ->
-  Transaction (TwoWay DeclNameLookup, ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)))
+  TwoOrThreeWay (V2.Branch Transaction) ->
+  Transaction
+    ( ThreeWay DeclNameLookup,
+      ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name))
+    )
 loadDefns abort0 db info branches = do
-  lcaDefns <-
+  lcaDefns0 <-
     case branches.lca of
-      Nothing -> pure (Defns BiMultimap.empty BiMultimap.empty)
-      Just lcaBranch -> loadLcaDefinitions abort (referent2to1 db) lcaBranch
+      Nothing -> pure Nametree {value = Defns Map.empty Map.empty, children = Map.empty}
+      Just lcaBranch -> loadNamespaceInfo abort db lcaBranch
+  (lcaDeclNameLookup, lcaDefns1) <-
+    assertNamespaceSatisfiesPreconditions db abort Nothing (fromMaybe V2.Branch.empty branches.lca) lcaDefns0
   aliceDefns0 <- loadNamespaceInfo abort db branches.alice
   (aliceDeclNameLookup, aliceDefns1) <-
-    assertNamespaceSatisfiesPreconditions db abort info.projectBranches.alice.name branches.alice aliceDefns0
+    assertNamespaceSatisfiesPreconditions db abort (Just info.projectBranches.alice.name) branches.alice aliceDefns0
   bobDefns0 <- loadNamespaceInfo abort db branches.bob
   (bobDeclNameLookup, bobDefns1) <-
-    assertNamespaceSatisfiesPreconditions db abort info.projectBranches.bob.name branches.bob bobDefns0
+    assertNamespaceSatisfiesPreconditions db abort (Just info.projectBranches.bob.name) branches.bob bobDefns0
   pure
-    ( TwoWay {alice = aliceDeclNameLookup, bob = bobDeclNameLookup},
-      ThreeWay {lca = lcaDefns, alice = aliceDefns1, bob = bobDefns1}
+    ( ThreeWay {lca = lcaDeclNameLookup, alice = aliceDeclNameLookup, bob = bobDeclNameLookup},
+      ThreeWay {lca = lcaDefns1, alice = aliceDefns1, bob = bobDefns1}
     )
   where
     abort :: Merge.PreconditionViolation -> Transaction void
@@ -929,7 +944,7 @@ mergePreconditionViolationToOutput = \case
   Merge.ConflictedTermName name refs -> Output.MergeConflictedTermName name refs
   Merge.ConflictedTypeName name refs -> Output.MergeConflictedTypeName name refs
   Merge.ConflictInvolvingBuiltin name -> Output.MergeConflictInvolvingBuiltin name
-  Merge.ConstructorAlias branch name1 name2 -> Output.MergeConstructorAlias branch name1 name2
+  Merge.ConstructorAlias maybeBranch name1 name2 -> Output.MergeConstructorAlias maybeBranch name1 name2
   Merge.DefnsInLib -> Output.MergeDefnsInLib
   Merge.MissingConstructorName name -> Output.MergeMissingConstructorName name
   Merge.NestedDeclAlias name -> Output.MergeNestedDeclAlias name
@@ -943,11 +958,11 @@ mergePreconditionViolationToOutput = \case
 assertNamespaceSatisfiesPreconditions ::
   MergeDatabase ->
   (forall void. Merge.PreconditionViolation -> Transaction void) ->
-  ProjectBranchName ->
+  Maybe ProjectBranchName ->
   V2.Branch Transaction ->
   Nametree (DefnsF (Map NameSegment) Referent TypeReference) ->
   Transaction (DeclNameLookup, Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name))
-assertNamespaceSatisfiesPreconditions db abort branchName branch defns = do
+assertNamespaceSatisfiesPreconditions db abort maybeBranchName branch defns = do
   Map.lookup NameSegment.libSegment branch.children `whenJust` \libdepsCausal -> do
     libdepsBranch <- libdepsCausal.value
     when (not (Map.null libdepsBranch.terms) || not (Map.null libdepsBranch.types)) do
@@ -966,29 +981,10 @@ assertNamespaceSatisfiesPreconditions db abort branchName branch defns = do
     incoherentDeclReasonToMergePreconditionViolation :: IncoherentDeclReason -> Merge.PreconditionViolation
     incoherentDeclReasonToMergePreconditionViolation = \case
       IncoherentDeclReason'ConstructorAlias firstName secondName ->
-        Merge.ConstructorAlias branchName firstName secondName
+        Merge.ConstructorAlias maybeBranchName firstName secondName
       IncoherentDeclReason'MissingConstructorName name -> Merge.MissingConstructorName name
       IncoherentDeclReason'NestedDeclAlias name -> Merge.NestedDeclAlias name
       IncoherentDeclReason'StrayConstructor name -> Merge.StrayConstructor name
-
--- Like `loadNamespaceInfo`, but for loading the LCA, which has fewer preconditions.
---
--- Fails if:
---   * One name is associated with more than one reference.
-loadLcaDefinitions ::
-  (Monad m) =>
-  (forall void. Merge.PreconditionViolation -> m void) ->
-  (V2.Referent -> m Referent) ->
-  V2.Branch m ->
-  m (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name))
-loadLcaDefinitions abort referent2to1 branch = do
-  defns0 <- loadNamespaceInfo0 referent2to1 branch
-  defns1 <- assertNamespaceHasNoConflictedNames defns0 & onLeft abort
-  pure
-    Defns
-      { terms = flattenNametree (view #terms) defns1,
-        types = flattenNametree (view #types) defns1
-      }
 
 findOneConflictedAlias ::
   TwoWay ProjectBranch ->
@@ -1108,7 +1104,7 @@ libdepsToBranch0 db libdeps = do
 
 debugDefns ::
   MonadIO m =>
-  TwoWay DeclNameLookup ->
+  ThreeWay DeclNameLookup ->
   ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
   m ()
 debugDefns declNameLookups defns =
