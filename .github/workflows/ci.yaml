@@ -471,9 +471,9 @@ jobs:
           echo "jit_dist_exe=$jit_dist_exe" >> $GITHUB_ENV
           echo "ucm=$ucm" >> $GITHUB_ENV
 
-      - name: cache jit binaries
-        id: cache-jit-binaries
-        uses: actions/cache@v4
+      - name: cache/restore jit binaries
+        id: restore-jit-binaries
+        uses: actions/cache/restore@v4
         with:
           path: ${{ env.jit_dist }}
           key: jit_dist-${{ matrix.os }}.racket_${{ env.racket_version }}.jit_${{ env.jit_version }}-${{hashFiles('**/scheme-libs/**')}}
@@ -546,6 +546,13 @@ jobs:
           raco pkg install --auto --skip-installed "$jit_src_scheme"/unison
           raco exe --embed-dlls "$jit_src_scheme"/unison-runtime.rkt
           raco distribute "$jit_dist" "$jit_exe"
+
+      - name: cache/save jit binaries
+        if: steps.cache-jit-binaries.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.jit_dist }}
+          key: jit_dist-${{ matrix.os }}.racket_${{ env.racket_version }}.jit_${{ env.jit_version }}-${{hashFiles('**/scheme-libs/**')}}
 
       - name: save jit binary
         uses: actions/upload-artifact@v4
