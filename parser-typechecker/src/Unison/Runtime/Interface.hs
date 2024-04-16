@@ -463,6 +463,8 @@ nativeEval executable ctxVar cl ppe tm = catchInternalErrors $ do
   (ctx, codes) <- loadDeps cl ppe ctx tyrs tmrs
   (ctx, tcodes, base) <- prepareEvaluation ppe tm ctx
   writeIORef ctxVar ctx
+  -- Note: port 0 mean choosing an arbitrary available port.
+  -- We then ask what port was actually chosen.
   listen "127.0.0.1" "0" $ \(serv, _) -> socketPort serv >>= \port ->
     nativeEvalInContext
       executable ppe ctx serv port (codes ++ tcodes) base
