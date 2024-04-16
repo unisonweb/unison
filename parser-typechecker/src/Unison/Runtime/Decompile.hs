@@ -155,6 +155,8 @@ decompile backref topTerms (DataC rf (maskTags -> ct) [] bs) =
   apps' (con rf ct) <$> traverse (decompile backref topTerms) bs
 decompile backref topTerms (PApV (CIx rf rt k) [] bs)
   | rf == Builtin "jumpCont" = err Cont $ bug "<Continuation>"
+  | Builtin nm <- rf =
+      apps' (builtin () nm) <$> traverse (decompile backref topTerms) bs
   | Just t <- topTerms rt k =
       Term.etaReduceEtaVars . substitute t
         <$> traverse (decompile backref topTerms) bs
