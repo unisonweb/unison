@@ -61,20 +61,45 @@
       [else
         (raise "unexpected input")])))
 
-(define (encode-output tag result port)
-  (let* ([val (unison-quote (reflect-value result))]
-         [bs (chunked-bytes->bytes (builtin-Value.serialize val))])
-    (write-bytes tag port)
-    (write-bytes bs port)
-    (void)))
+(define (natural->bytes/variable n)
+  (let rec ([i n] [acc '()])
+    (cond
+      [(< i #x80) (list->bytes (reverse (cons i acc)))]
+      [else
+        (rec (arithmetic-shift i -7)
+             (cons (bitwise-and i #x7f) acc))])))
+
+(define (write-string-bytes str port)
+  (define bs (string->bytes/utf-8 str))
+  (write-bytes (natural->bytes/variable (bytes-length bs)) port)
+  (write-bytes bs port))
+
+(define (write-value-bytes val port)
+  (define qval (unison-quote (reflect-value val)))
+  (define bs (chunked-bytes->bytes (builtin-Value.serialize qval)))
+  (write-bytes bs port))
 
 (define (encode-success result port)
-  (encode-output #"0000" result port))
+  (write-bytes #"\0" port)
+  (write-value-bytes result port)
+  (void))
 
-(define (encode-error fail port)
-  (match fail
+(define (encode-error ex port)
+  (match ex
     [(exn:bug msg val)
-     (encode-output #"0001" fail port)]))
+     (write-bytes #"\1" port)
+     (write-string-bytes msg port)
+     (write-value-bytes val port)]
+    [else
+     (write-bytes #"\2" port)
+     (write-string-bytes (exception->string ex) port)])
+  (void))
+
+(define (encode-exception fail port)
+  (write-bytes #"\1" port)
+  (write-string-bytes "builtin.raise" port)
+  (write-value-bytes fail port)
+  (void))
 
 (define ((eval-exn-handler port) rq)
   (request-case rq
@@ -82,7 +107,7 @@
     [ref-exception:typelink
       [0 (fail)
         (control ref-exception:typelink k
-          (encode-error fail port))]]))
+          (encode-exception fail port))]]))
 
 ; Implements the evaluation mode of operation. First decodes the
 ; input. Then uses the dynamic loading machinery to add the code to
@@ -143,9 +168,18 @@
     [(show-version) (displayln "unison-runtime version 0.0.11")]
     [(generate-to) (do-generate (generate-to))]
     [(use-port-num)
-     (let-values ([(in out) (tcp-connect "localhost" (use-port-num))])
-       (do-evaluate in out)
-       (close-output-port out)
-       (close-input-port in))]
+     (match (string->number (use-port-num))
+       [port
+        #:when (port-number? port)
+        (let-values ([(in out) (tcp-connect "localhost" port)])
+          (do-evaluate in out)
+          (close-output-port out)
+          (close-input-port in))]
+       [#f
+        (displayln "could not parse port number")
+        (exit 1)]
+       [port
+        (displayln "bad port number")
+        (exit 1)])]
     [else
       (do-evaluate (current-input-port) (open-output-bytes))]))

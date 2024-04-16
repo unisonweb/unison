@@ -27,7 +27,7 @@ import Data.Binary.Get (runGetOrFail)
 -- import Data.Bits (shiftL)
 import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as BL
-import Data.Bytes.Get (MonadGet)
+import Data.Bytes.Get (MonadGet, runGetS, getWord8)
 import Data.Bytes.Put (MonadPut, putWord32be, runPutL, runPutS)
 import Data.Bytes.Serial
 import Data.Foldable
@@ -44,9 +44,11 @@ import Data.Set as Set
     (\\),
   )
 import Data.Set qualified as Set
-import Data.Text (isPrefixOf, unpack)
+import Data.Text as Text (isPrefixOf, unpack, pack)
 import GHC.IO.Exception (IOErrorType (NoSuchThing, OtherError, PermissionDenied), IOException (ioe_description, ioe_type))
 import GHC.Stack (callStack)
+import Network.Simple.TCP (Socket, accept, listen, recv, send)
+import Network.Socket (PortNumber, socketPort)
 import System.Directory
   ( XdgDirectory (XdgCache),
     createDirectoryIfMissing,
@@ -86,6 +88,7 @@ import Unison.Runtime.ANF.Rehash as ANF (rehashGroups)
 import Unison.Runtime.ANF.Serialize as ANF
   ( getGroup,
     putGroup,
+    getVersionedValue,
     serializeValue,
   )
 import Unison.Runtime.Builtin
@@ -460,7 +463,9 @@ nativeEval executable ctxVar cl ppe tm = catchInternalErrors $ do
   (ctx, codes) <- loadDeps cl ppe ctx tyrs tmrs
   (ctx, tcodes, base) <- prepareEvaluation ppe tm ctx
   writeIORef ctxVar ctx
-  nativeEvalInContext executable ppe ctx (codes ++ tcodes) base
+  listen "127.0.0.1" "0" $ \(serv, _) -> socketPort serv >>= \port ->
+    nativeEvalInContext
+      executable ppe ctx serv port (codes ++ tcodes) base
 
 interpEval ::
   ActiveThreads ->
@@ -790,13 +795,41 @@ backReferenceTm ws frs irs dcm c i = do
   bs <- Map.lookup r dcm
   Map.lookup i bs
 
-ucrProc :: FilePath -> [String] -> CreateProcess
-ucrProc executable args =
+ucrEvalProc :: FilePath -> [String] -> CreateProcess
+ucrEvalProc executable args =
+  (proc executable args)
+    { std_in = Inherit,
+      std_out = Inherit,
+      std_err = Inherit
+    }
+
+ucrCompileProc :: FilePath -> [String] -> CreateProcess
+ucrCompileProc executable args =
   (proc executable args)
     { std_in = CreatePipe,
       std_out = Inherit,
       std_err = Inherit
     }
+
+receiveAll :: Socket -> IO ByteString
+receiveAll sock = read [] where
+  read acc = recv sock 4096 >>= \case
+    Just chunk -> read (chunk:acc)
+    Nothing -> pure . BS.concat $ reverse acc
+
+data NativeResult
+  = Success Value
+  | Bug Text Value
+  | Error Text
+
+deserializeNativeResponse :: ByteString -> NativeResult
+deserializeNativeResponse = run $ getWord8 >>= \case
+  0 -> Success <$> getVersionedValue
+  1 -> Bug <$> getText <*> getVersionedValue
+  2 -> Error <$> getText
+  _ -> pure $ Error "Unexpected result bytes tag"
+  where
+  run e bs = either (Error . pack) id (runGetS e bs)
 
 -- Note: this currently does not support yielding values; instead it
 -- just produces a result appropriate for unitary `run` commands. The
@@ -813,37 +846,39 @@ nativeEvalInContext ::
   FilePath ->
   PrettyPrintEnv ->
   EvalCtx ->
+  Socket ->
+  PortNumber ->
   [(Reference, SuperGroup Symbol)] ->
   Reference ->
   IO (Either Error ([Error], Term Symbol))
-nativeEvalInContext executable _ ctx codes base = do
+nativeEvalInContext executable ppe ctx serv port codes base = do
   ensureRuntimeExists executable
   let cc = ccache ctx
   crs <- readTVarIO $ combRefs cc
   let bytes = serializeValue . compileValue base $ codes
 
-      decodeResult (Left msg) = pure . Left $ fromString msg
-      decodeResult (Right val) =
+      decodeResult (Error msg) = pure . Left $ text msg
+      decodeResult (Bug msg val) =
+        reifyValue cc val >>= \case
+          Left _ -> pure . Left $ "missing references from bug result"
+          Right cl ->
+            pure . Left . bugMsg ppe [] msg $ decompileCtx crs ctx cl
+      decodeResult (Success val) =
         reifyValue cc val >>= \case
           Left _ -> pure . Left $ "missing references from result"
           Right cl -> case decompileCtx crs ctx cl of
             (errs, dv) -> pure $ Right (listErrors errs, dv)
 
-      callout (Just pin) _ _ ph = do
-        BS.hPut pin . runPutS . putWord32be . fromIntegral $ BS.length bytes
-        BS.hPut pin bytes
-        UnliftIO.hClose pin
-        let unit = Data RF.unitRef 0 [] []
-            sunit = Data RF.pairRef 0 [] [unit, unit]
+      callout _ _ _ ph = accept serv \(sock, _) -> do
+        send sock . runPutS . putWord32be . fromIntegral $ BS.length bytes
+        send sock bytes
+        rbytes <- receiveAll sock
         waitForProcess ph >>= \case
-          ExitSuccess -> decodeResult $ Right sunit
+          ExitSuccess ->
+            decodeResult . deserializeNativeResponse $ rbytes
           ExitFailure _ ->
             pure . Left $ "native evaluation failed"
-      -- TODO: actualy receive output from subprocess
-      -- decodeResult . deserializeValue =<< BS.hGetContents pout
-      callout _ _ _ _ =
-        pure . Left $ "withCreateProcess didn't provide handles"
-      p = ucrProc executable []
+      p = ucrEvalProc executable ["-p", show port]
       ucrError (e :: IOException) = pure $ Left (runtimeErrMsg (cmdspec p) (Right e))
   withCreateProcess p callout
     `UnliftIO.catch` ucrError
@@ -872,7 +907,7 @@ nativeCompileCodes executable codes base path = do
         throwIO $ PE callStack (runtimeErrMsg (cmdspec p) (Right e))
       racoError (e :: IOException) =
         throwIO $ PE callStack (racoErrMsg (makeRacoCmd RawCommand) (Right e))
-      p = ucrProc executable ["-G", srcPath]
+      p = ucrCompileProc executable ["-G", srcPath]
       makeRacoCmd :: (FilePath -> [String] -> a) -> a
       makeRacoCmd f = f "raco" ["exe", "-o", path, srcPath]
   withCreateProcess p callout
