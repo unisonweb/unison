@@ -476,7 +476,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.jit_dist }}
-          key: jit_dist-${{ matrix.os }}.racket_${{ env.racket_version }}.jit_${{ env.jit_version }}
+          key: jit_dist-${{ matrix.os }}.racket_${{ env.racket_version }}.jit_${{ env.jit_version }}-${{hashFiles('**/scheme-libs/**')}}
 
       - name: Cache Racket dependencies
         if: steps.cache-jit-binaries.outputs.cache-hit != 'true'
@@ -512,7 +512,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{env.jit_test_results}}
-          key: jit-test-results.${{ matrix.os }}.racket_${{ env.racket_version }}.jit_${{ env.jit_version }}.tests_${{env.runtime_tests_causalhash}}
+          key: jit-test-results.${{ matrix.os }}.racket_${{ env.racket_version }}.jit_${{ env.jit_version }}-${{hashFiles('**/scheme-libs/**')}}.tests_${{env.runtime_tests_causalhash}}
 
       - name: install libb2 (linux)
         uses: awalsh128/cache-apt-pkgs-action@latest
