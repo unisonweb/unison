@@ -3,6 +3,9 @@
 module Unison.Util.Defns
   ( Defns (..),
     DefnsF,
+    DefnsF2,
+    DefnsF3,
+    DefnsF4,
     alignDefnsWith,
     defnsAreEmpty,
     mapDefns,
@@ -43,6 +46,15 @@ instance Bitraversable Defns where
 -- | A common shape of definitions - terms and types are stored in the same structure.
 type DefnsF f terms types =
   Defns (f terms) (f types)
+
+type DefnsF2 f g terms types =
+  Defns (f (g terms)) (f (g types))
+
+type DefnsF3 f g h terms types =
+  Defns (f (g (h terms))) (f (g (h types)))
+
+type DefnsF4 f g h i terms types =
+  Defns (f (g (h (i terms)))) (f (g (h (i types))))
 
 alignDefnsWith :: Semialign f => (These a b -> c) -> Defns (f a) (f b) -> f c
 alignDefnsWith f defns =

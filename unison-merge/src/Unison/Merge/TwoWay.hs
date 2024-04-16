@@ -1,7 +1,9 @@
 module Unison.Merge.TwoWay
   ( TwoWay (..),
+    bothWays,
     justTheTerms,
     justTheTypes,
+    or,
     sequenceDefns,
     swap,
     twoWay,
@@ -17,8 +19,8 @@ import Data.These (These (These))
 import Data.Zip (Zip, unzipWith, zipWith)
 import Unison.Merge.AliceXorBob (AliceXorBob (..))
 import Unison.Prelude
-import Unison.Util.Defns (Defns (..))
-import Prelude hiding (zipWith)
+import Unison.Util.Defns (Defns (..), DefnsF)
+import Prelude hiding (or, zipWith)
 
 data TwoWay a = TwoWay
   { alice :: a,
@@ -41,6 +43,10 @@ instance Zip TwoWay where
   zipWith f (TwoWay x1 x2) (TwoWay y1 y2) =
     TwoWay (f x1 y1) (f x2 y2)
 
+bothWays :: a -> TwoWay a
+bothWays x =
+  TwoWay x x
+
 justTheTerms :: TwoWay (Defns terms types) -> TwoWay terms
 justTheTerms =
   fmap (view #terms)
@@ -49,7 +55,11 @@ justTheTypes :: TwoWay (Defns terms types) -> TwoWay types
 justTheTypes =
   fmap (view #types)
 
-sequenceDefns :: TwoWay (Defns terms types) -> Defns (TwoWay terms) (TwoWay types)
+or :: TwoWay Bool -> Bool
+or =
+  twoWay (||)
+
+sequenceDefns :: TwoWay (Defns terms types) -> DefnsF TwoWay terms types
 sequenceDefns defns =
   Defns (justTheTerms defns) (justTheTypes defns)
 

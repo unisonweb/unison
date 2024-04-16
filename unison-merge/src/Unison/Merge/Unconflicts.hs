@@ -2,12 +2,14 @@
 
 module Unison.Merge.Unconflicts
   ( Unconflicts (..),
+    empty,
   )
 where
 
-import Unison.Merge.TwoWayI (TwoWayI)
+import Data.Map.Strict qualified as Map
+import Unison.Merge.TwoWayI (TwoWayI (..))
 import Unison.Name (Name)
-import Unison.Prelude
+import Unison.Prelude hiding (empty)
 
 data Unconflicts v = Unconflicts
   { adds :: !(TwoWayI (Map Name v)),
@@ -15,3 +17,9 @@ data Unconflicts v = Unconflicts
     updates :: !(TwoWayI (Map Name v))
   }
   deriving stock (Foldable, Functor, Generic)
+
+empty :: Unconflicts v
+empty =
+  Unconflicts x x x
+  where
+    x = TwoWayI Map.empty Map.empty Map.empty

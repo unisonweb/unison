@@ -92,7 +92,7 @@ import Unison.UnisonFile (UnisonFile')
 import Unison.UnisonFile qualified as UnisonFile
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
-import Unison.Util.Defns (Defns (..), DefnsF, alignDefnsWith, zipDefnsWith)
+import Unison.Util.Defns (Defns (..), DefnsF, DefnsF2, DefnsF3, alignDefnsWith, zipDefnsWith)
 import Unison.Util.Map qualified as Map
 import Unison.Util.Nametree (Nametree (..), flattenNametree, traverseNametreeWithName, unflattenNametree)
 import Unison.Util.Pretty (ColorText, Pretty)
@@ -451,7 +451,7 @@ bumpLca declNameLookups conflicts unconflicts dependents lca =
     -- Apply the updates to the LCA
     & runNamespaceUpdate (defnsRangeOnly lca)
   where
-    deleteTheConflicts :: DefnsF NamespaceUpdate (Map Name Referent) (Map Name TypeReference)
+    deleteTheConflicts :: DefnsF2 NamespaceUpdate (Map Name) Referent TypeReference
     deleteTheConflicts =
       bimap shedConflicted shedConflicted conflictedNames
       where
@@ -460,7 +460,7 @@ bumpLca declNameLookups conflicts unconflicts dependents lca =
           fold (conflictsToConflictedNames <$> declNameLookups <*> conflicts)
 
     -- Compute the adds to apply to the LCA
-    applyTheAdds :: DefnsF NamespaceUpdate (Map Name Referent) (Map Name TypeReference)
+    applyTheAdds :: DefnsF2 NamespaceUpdate (Map Name) Referent TypeReference
     applyTheAdds =
       Defns
         { terms =
@@ -484,7 +484,7 @@ bumpLca declNameLookups conflicts unconflicts dependents lca =
         }
 
     -- Compute the deletes to apply to the LCA
-    applyTheDeletes :: DefnsF NamespaceUpdate (Map Name Referent) (Map Name TypeReference)
+    applyTheDeletes :: DefnsF2 NamespaceUpdate (Map Name) Referent TypeReference
     applyTheDeletes =
       bimap deletes1 deletes1 unconflicts
       where
@@ -545,7 +545,7 @@ defnsAndLibdepsToBranch0 ::
   Branch0 IO
 defnsAndLibdepsToBranch0 codebase defns libdeps =
   let -- Unflatten the collection of terms into tree, ditto for types
-      nametrees :: DefnsF Nametree (Map NameSegment Referent) (Map NameSegment TypeReference)
+      nametrees :: DefnsF2 Nametree (Map NameSegment) Referent TypeReference
       nametrees =
         bimap go go defns
 
@@ -887,7 +887,7 @@ loadNamespaceInfo0 ::
   (Monad m) =>
   (V2.Referent -> m Referent) ->
   V2.Branch m ->
-  m (Nametree (DefnsF (Map NameSegment) (Set Referent) (Set TypeReference)))
+  m (Nametree (DefnsF2 (Map NameSegment) Set Referent TypeReference))
 loadNamespaceInfo0 referent2to1 branch = do
   terms <-
     branch.terms
@@ -904,7 +904,7 @@ loadNamespaceInfo0_ ::
   (Monad m) =>
   (V2.Referent -> m Referent) ->
   V2.Branch m ->
-  m (Nametree (DefnsF (Map NameSegment) (Set Referent) (Set TypeReference)))
+  m (Nametree (DefnsF2 (Map NameSegment) Set Referent TypeReference))
 loadNamespaceInfo0_ referent2to1 branch = do
   terms <-
     branch.terms
@@ -919,7 +919,7 @@ loadNamespaceInfo0_ referent2to1 branch = do
 
 -- | Assert that there are no unconflicted names in a namespace.
 assertNamespaceHasNoConflictedNames ::
-  Nametree (DefnsF (Map NameSegment) (Set Referent) (Set TypeReference)) ->
+  Nametree (DefnsF2 (Map NameSegment) Set Referent TypeReference) ->
   Either Merge.PreconditionViolation (Nametree (DefnsF (Map NameSegment) Referent TypeReference))
 assertNamespaceHasNoConflictedNames =
   traverseNametreeWithName \names defns -> do
@@ -989,7 +989,7 @@ assertNamespaceSatisfiesPreconditions db abort maybeBranchName branch defns = do
 findOneConflictedAlias ::
   TwoWay ProjectBranch ->
   Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
-  TwoWay (DefnsF (Map Name) (DiffOp (Synhashed Referent)) (DiffOp (Synhashed TypeReference))) ->
+  TwoWay (DefnsF3 (Map Name) DiffOp Synhashed Referent TypeReference) ->
   Maybe Merge.PreconditionViolation
 findOneConflictedAlias projectBranchNames lcaDefns diffs =
   aliceConflictedAliases <|> bobConflictedAliases
@@ -1021,7 +1021,7 @@ findOneConflictedAlias projectBranchNames lcaDefns diffs =
 -- This function currently doesn't return whether the conflicted alias is a decl or a term, but it certainly could.
 findConflictedAlias ::
   Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
-  DefnsF (Map Name) (DiffOp (Synhashed Referent)) (DiffOp (Synhashed TypeReference)) ->
+  DefnsF3 (Map Name) DiffOp Synhashed Referent TypeReference ->
   Maybe (Name, Name)
 findConflictedAlias defns diff =
   asum [go defns.terms diff.terms, go defns.types diff.types]
@@ -1132,7 +1132,7 @@ debugDefns declNameLookups defns =
 
 debugDiffs ::
   MonadIO m =>
-  TwoWay (DefnsF (Map Name) (DiffOp (Synhashed Referent)) (DiffOp (Synhashed TypeReference))) ->
+  TwoWay (DefnsF3 (Map Name) DiffOp Synhashed Referent TypeReference) ->
   m ()
 debugDiffs diffs =
   Debug.whenDebug Debug.Merge do

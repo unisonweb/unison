@@ -34,7 +34,7 @@ import Unison.Syntax.Name qualified as Name
 import Unison.Type (Type)
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
-import Unison.Util.Defns (Defns (..), DefnsF)
+import Unison.Util.Defns (Defns (..), DefnsF2, DefnsF3, zipDefnsWith)
 import Unison.Var (Var)
 
 -- | @nameBasedNamespaceDiff db defns@ returns Alice's and Bob's name-based namespace diffs, each in the form:
@@ -51,14 +51,7 @@ nameBasedNamespaceDiff ::
   MergeDatabase ->
   ThreeWay DeclNameLookup ->
   ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
-  Transaction
-    ( TwoWay
-        ( DefnsF
-            (Map Name)
-            (DiffOp (Synhashed Referent))
-            (DiffOp (Synhashed TypeReference))
-        )
-    )
+  Transaction (TwoWay (DefnsF3 (Map Name) DiffOp Synhashed Referent TypeReference))
 nameBasedNamespaceDiff db declNameLookups defns = do
   diffs <- sequence (synhashDefns <$> declNameLookups <*> defns)
   pure (diffNamespaceDefns diffs.lca <$> TwoWay {alice = diffs.alice, bob = diffs.bob})
@@ -66,7 +59,7 @@ nameBasedNamespaceDiff db declNameLookups defns = do
     synhashDefns ::
       DeclNameLookup ->
       Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
-      Transaction (DefnsF (Map Name) (Synhashed Referent) (Synhashed TypeReference))
+      Transaction (DefnsF2 (Map Name) Synhashed Referent TypeReference)
     synhashDefns declNameLookup =
       -- FIXME: use cache so we only synhash each thing once
       synhashDefnsWith
@@ -101,26 +94,23 @@ withAccurateConstructorNames load declNameLookup name ref = do
         (expectConstructorNames declNameLookup name)
 
 diffNamespaceDefns ::
-  DefnsF (Map Name) (Synhashed Referent) (Synhashed TypeReference) ->
-  DefnsF (Map Name) (Synhashed Referent) (Synhashed TypeReference) ->
-  DefnsF (Map Name) (DiffOp (Synhashed Referent)) (DiffOp (Synhashed TypeReference))
-diffNamespaceDefns oldDefns newDefns =
-  Defns
-    { terms = go oldDefns.terms newDefns.terms,
-      types = go oldDefns.types newDefns.types
-    }
+  DefnsF2 (Map Name) Synhashed term typ ->
+  DefnsF2 (Map Name) Synhashed term typ ->
+  DefnsF3 (Map Name) DiffOp Synhashed term typ
+diffNamespaceDefns =
+  zipDefnsWith f f
   where
-    go :: Map Name (Synhashed ref) -> Map Name (Synhashed ref) -> Map Name (DiffOp (Synhashed ref))
-    go old new =
-      Map.mapMaybe id (alignWith f old new)
-      where
-        f :: Eq x => These x x -> Maybe (DiffOp x)
-        f = \case
-          This x -> Just (DiffOp'Delete x)
-          That y -> Just (DiffOp'Add y)
-          These x y
-            | x == y -> Nothing
-            | otherwise -> Just (DiffOp'Update x y)
+    f :: Map Name (Synhashed ref) -> Map Name (Synhashed ref) -> Map Name (DiffOp (Synhashed ref))
+    f old new =
+      Map.mapMaybe id (alignWith g old new)
+
+    g :: Eq x => These x x -> Maybe (DiffOp x)
+    g = \case
+      This x -> Just (DiffOp'Delete x)
+      That y -> Just (DiffOp'Add y)
+      These x y
+        | x == y -> Nothing
+        | otherwise -> Just (DiffOp'Update x y)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Pretty-print env helpers
@@ -145,7 +135,7 @@ synhashDefnsWith ::
   (term -> m Hash) ->
   (Name -> typ -> m Hash) ->
   Defns (BiMultimap term Name) (BiMultimap typ Name) ->
-  m (DefnsF (Map Name) (Synhashed term) (Synhashed typ))
+  m (DefnsF2 (Map Name) Synhashed term typ)
 synhashDefnsWith hashTerm hashType = do
   bitraverse
     (traverse hashTerm1 . BiMultimap.range)
