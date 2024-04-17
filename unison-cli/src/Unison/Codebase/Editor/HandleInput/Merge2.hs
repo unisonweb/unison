@@ -105,12 +105,13 @@ import Unison.Util.Star2 qualified as Star2
 import Witch (unsafeFrom)
 import Prelude hiding (unzip, zip, zipWith)
 
--- Little todo list
---
---   * Address the concern in hashReferentTokens by passing in the decl name lookup?
-
 handleMerge :: ProjectBranchName -> Cli ()
 handleMerge bobBranchName = do
+  let debugFunctions =
+        if Debug.shouldDebug Debug.Merge
+          then realDebugFunctions
+          else fakeDebugFunctions
+
   Cli.Env {codebase} <- ask
 
   -- Create a bunch of cached database lookup functions
@@ -129,14 +130,14 @@ handleMerge bobBranchName = do
     Cli.runTransactionWithRollback \abort -> do
       loadDefns abort db mergeInfo branches
 
-  debugDefns declNameLookups defns
+  liftIO (debugFunctions.debugDefns declNameLookups defns)
 
   -- Diff LCA->Alice and LCA->Bob
   diffs <-
     Cli.runTransaction do
       Merge.nameBasedNamespaceDiff db declNameLookups defns
 
-  debugDiffs diffs
+  liftIO (debugFunctions.debugDiffs diffs)
 
   -- Bail early if it looks like we can't proceed with the merge, because Alice or Bob has one or more conflicted alias
   whenJust (findOneConflictedAlias mergeInfo.projectBranches defns.lca diffs) \violation ->
@@ -147,7 +148,7 @@ handleMerge bobBranchName = do
     combineDiffs (ThreeWay.forgetLca declNameLookups) (ThreeWay.forgetLca defns) diffs & onLeft \name ->
       Cli.returnEarly (mergePreconditionViolationToOutput (Merge.ConflictInvolvingBuiltin name))
 
-  debugCombinedDiffs conflicts unconflicts
+  liftIO (debugFunctions.debugCombinedDiffs conflicts unconflicts)
 
   -- Identify the dependents we need to pull into the Unison file (either first for typechecking, if there aren't
   -- conflicts, or else for manual conflict resolution without a typechecking step, if there are)
@@ -155,7 +156,7 @@ handleMerge bobBranchName = do
     Cli.runTransaction do
       identifyDependents (ThreeWay.forgetLca defns) conflicts unconflicts
 
-  debugDependents dependents
+  liftIO (debugFunctions.debugDependents dependents)
 
   let (newDefns, droppedDefns) =
         bumpLca
@@ -165,13 +166,13 @@ handleMerge bobBranchName = do
           (bimap Map.elemsSet Map.elemsSet dependents)
           defns.lca
 
-  debugMergedDefns newDefns droppedDefns
+  liftIO (debugFunctions.debugMergedDefns newDefns droppedDefns)
 
   mergedDeclNameLookup <-
     palonka newDefns
       & onLeft wundefined
 
-  debugMergedConstructorNames mergedDeclNameLookup
+  liftIO (debugFunctions.debugMergedConstructorNames mergedDeclNameLookup)
 
   let thisMergeHasConflicts =
         -- Eh, they'd either both be null, or neither, but just check both maps anyway
@@ -1102,170 +1103,185 @@ libdepsToBranch0 db libdeps = do
 ------------------------------------------------------------------------------------------------------------------------
 -- Debugging by printing a bunch of stuff out
 
-debugDefns ::
-  MonadIO m =>
+data DebugFunctions = DebugFunctions
+  { debugDefns ::
+      ThreeWay DeclNameLookup ->
+      ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
+      IO (),
+    debugDiffs :: TwoWay (DefnsF3 (Map Name) DiffOp Synhashed Referent TypeReference) -> IO (),
+    debugCombinedDiffs ::
+      TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId) ->
+      DefnsF Unconflicts Referent TypeReference ->
+      IO (),
+    debugDependents :: DefnsF (Map Name) TermReferenceId TypeReferenceId -> IO (),
+    debugMergedDefns ::
+      DefnsF (Map Name) Referent TypeReference ->
+      Dropped (DefnsF (Map Name) Referent TypeReference) ->
+      IO (),
+    debugMergedConstructorNames :: DeclNameLookup -> IO ()
+  }
+
+realDebugFunctions :: DebugFunctions
+realDebugFunctions =
+  DebugFunctions
+    { debugDefns = realDebugDefns,
+      debugDiffs = realDebugDiffs,
+      debugCombinedDiffs = realDebugCombinedDiffs,
+      debugDependents = realDebugDependents,
+      debugMergedDefns = realDebugMergedDefns,
+      debugMergedConstructorNames = realDebugMergedConstructorNames
+    }
+
+fakeDebugFunctions :: DebugFunctions
+fakeDebugFunctions =
+  DebugFunctions mempty mempty mempty mempty mempty mempty
+
+realDebugDefns ::
   ThreeWay DeclNameLookup ->
   ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
-  m ()
-debugDefns declNameLookups defns =
-  Debug.whenDebug Debug.Merge do
-    liftIO do
-      Text.putStrLn "\n=== Alice's definitions ==="
-      for_ (Map.toList (BiMultimap.range defns.alice.terms)) \(name, ref) ->
-        Text.putStrLn ("term " <> Name.toText name <> " => " <> tShow ref)
-      for_ (Map.toList (BiMultimap.range defns.alice.types)) \(name, ref) ->
-        Text.putStrLn ("type " <> Name.toText name <> " => " <> tShow ref)
-      Text.putStrLn "\n=== Bob's definitions === "
-      for_ (Map.toList (BiMultimap.range defns.bob.terms)) \(name, ref) ->
-        Text.putStrLn ("term " <> Name.toText name <> " => " <> tShow ref)
-      for_ (Map.toList (BiMultimap.range defns.bob.types)) \(name, ref) ->
-        Text.putStrLn ("type " <> Name.toText name <> " => " <> tShow ref)
+  IO ()
+realDebugDefns declNameLookups defns = do
+  Text.putStrLn "\n=== Alice's definitions ==="
+  for_ (Map.toList (BiMultimap.range defns.alice.terms)) \(name, ref) ->
+    Text.putStrLn ("term " <> Name.toText name <> " => " <> tShow ref)
+  for_ (Map.toList (BiMultimap.range defns.alice.types)) \(name, ref) ->
+    Text.putStrLn ("type " <> Name.toText name <> " => " <> tShow ref)
+  Text.putStrLn "\n=== Bob's definitions === "
+  for_ (Map.toList (BiMultimap.range defns.bob.terms)) \(name, ref) ->
+    Text.putStrLn ("term " <> Name.toText name <> " => " <> tShow ref)
+  for_ (Map.toList (BiMultimap.range defns.bob.types)) \(name, ref) ->
+    Text.putStrLn ("type " <> Name.toText name <> " => " <> tShow ref)
 
-      when (not (Map.null declNameLookups.alice.declToConstructors)) do
-        Text.putStrLn "\n=== Alice's constructor names ==="
-        for_ (Map.toList declNameLookups.alice.declToConstructors) \(typeName, conNames) ->
-          Text.putStrLn (Name.toText typeName <> " => " <> tShow (map Name.toText conNames))
-      when (not (Map.null declNameLookups.bob.declToConstructors)) do
-        Text.putStrLn "\n=== Bob's constructor names ==="
-        for_ (Map.toList declNameLookups.bob.declToConstructors) \(typeName, conNames) ->
-          Text.putStrLn (Name.toText typeName <> " => " <> tShow (map Name.toText conNames))
+  when (not (Map.null declNameLookups.alice.declToConstructors)) do
+    Text.putStrLn "\n=== Alice's constructor names ==="
+    for_ (Map.toList declNameLookups.alice.declToConstructors) \(typeName, conNames) ->
+      Text.putStrLn (Name.toText typeName <> " => " <> tShow (map Name.toText conNames))
+  when (not (Map.null declNameLookups.bob.declToConstructors)) do
+    Text.putStrLn "\n=== Bob's constructor names ==="
+    for_ (Map.toList declNameLookups.bob.declToConstructors) \(typeName, conNames) ->
+      Text.putStrLn (Name.toText typeName <> " => " <> tShow (map Name.toText conNames))
 
-debugDiffs ::
-  MonadIO m =>
-  TwoWay (DefnsF3 (Map Name) DiffOp Synhashed Referent TypeReference) ->
-  m ()
-debugDiffs diffs =
-  Debug.whenDebug Debug.Merge do
-    liftIO do
-      when (not (Map.null diffs.alice.terms) || not (Map.null diffs.alice.types)) do
-        Text.putStrLn "\n=== Alice's diff ==="
-        for_ (Map.toList diffs.alice.terms) \(name, op) ->
-          Text.putStrLn ("term " <> Name.toText name <> " => " <> tShow (Synhashed.hash <$> op))
-        for_ (Map.toList diffs.alice.types) \(name, op) ->
-          Text.putStrLn ("type " <> Name.toText name <> " => " <> tShow (Synhashed.hash <$> op))
-      when (not (Map.null diffs.bob.terms) || not (Map.null diffs.bob.types)) do
-        Text.putStrLn "\n=== Bob's diff ==="
-        for_ (Map.toList diffs.bob.terms) \(name, op) ->
-          Text.putStrLn ("term " <> Name.toText name <> " => " <> tShow (Synhashed.hash <$> op))
-        for_ (Map.toList diffs.bob.types) \(name, op) ->
-          Text.putStrLn ("type " <> Name.toText name <> " => " <> tShow (Synhashed.hash <$> op))
+realDebugDiffs :: TwoWay (DefnsF3 (Map Name) DiffOp Synhashed Referent TypeReference) -> IO ()
+realDebugDiffs diffs = do
+  when (not (Map.null diffs.alice.terms) || not (Map.null diffs.alice.types)) do
+    Text.putStrLn "\n=== Alice's diff ==="
+    for_ (Map.toList diffs.alice.terms) \(name, op) ->
+      Text.putStrLn ("term " <> Name.toText name <> " => " <> tShow (Synhashed.hash <$> op))
+    for_ (Map.toList diffs.alice.types) \(name, op) ->
+      Text.putStrLn ("type " <> Name.toText name <> " => " <> tShow (Synhashed.hash <$> op))
+  when (not (Map.null diffs.bob.terms) || not (Map.null diffs.bob.types)) do
+    Text.putStrLn "\n=== Bob's diff ==="
+    for_ (Map.toList diffs.bob.terms) \(name, op) ->
+      Text.putStrLn ("term " <> Name.toText name <> " => " <> tShow (Synhashed.hash <$> op))
+    for_ (Map.toList diffs.bob.types) \(name, op) ->
+      Text.putStrLn ("type " <> Name.toText name <> " => " <> tShow (Synhashed.hash <$> op))
 
-debugCombinedDiffs ::
-  MonadIO m =>
+realDebugCombinedDiffs ::
   TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId) ->
   DefnsF Unconflicts Referent TypeReference ->
-  m ()
-debugCombinedDiffs conflicts unconflicts =
-  Debug.whenDebug Debug.Merge do
-    liftIO do
-      when (not (Map.null conflicts.alice.terms) || not (Map.null conflicts.alice.types)) do
-        Text.putStrLn "\n=== Alice's conflicts === "
-        for_ (Map.toList conflicts.alice.terms) \(name, ref) ->
-          Text.putStrLn ("term " <> Name.toText name <> " => " <> tShow ref)
-        for_ (Map.toList conflicts.alice.types) \(name, ref) ->
-          Text.putStrLn ("type " <> Name.toText name <> " => " <> tShow ref)
+  IO ()
+realDebugCombinedDiffs conflicts unconflicts = do
+  when (not (Map.null conflicts.alice.terms) || not (Map.null conflicts.alice.types)) do
+    Text.putStrLn "\n=== Alice's conflicts === "
+    for_ (Map.toList conflicts.alice.terms) \(name, ref) ->
+      Text.putStrLn ("term " <> Name.toText name <> " => " <> tShow ref)
+    for_ (Map.toList conflicts.alice.types) \(name, ref) ->
+      Text.putStrLn ("type " <> Name.toText name <> " => " <> tShow ref)
 
-      when (not (Map.null conflicts.bob.terms) || not (Map.null conflicts.bob.types)) do
-        Text.putStrLn "\n=== Bob's conflicts ==="
-        for_ (Map.toList conflicts.bob.terms) \(name, ref) ->
-          Text.putStrLn ("term " <> Name.toText name <> " => " <> tShow ref)
-        for_ (Map.toList conflicts.bob.types) \(name, ref) ->
-          Text.putStrLn ("type " <> Name.toText name <> " => " <> tShow ref)
+  when (not (Map.null conflicts.bob.terms) || not (Map.null conflicts.bob.types)) do
+    Text.putStrLn "\n=== Bob's conflicts ==="
+    for_ (Map.toList conflicts.bob.terms) \(name, ref) ->
+      Text.putStrLn ("term " <> Name.toText name <> " => " <> tShow ref)
+    for_ (Map.toList conflicts.bob.types) \(name, ref) ->
+      Text.putStrLn ("type " <> Name.toText name <> " => " <> tShow ref)
 
-      when (not (Map.null unconflicts.terms.adds.alice) || not (Map.null unconflicts.types.adds.alice)) do
-        Text.putStrLn "\n=== Alice's adds === "
-        for_ (Map.toList unconflicts.terms.adds.alice) \(name, ref) ->
-          Text.putStrLn ("term " <> Name.toText name <> " => " <> tShow ref)
-        for_ (Map.toList unconflicts.types.adds.alice) \(name, ref) ->
-          Text.putStrLn ("type " <> Name.toText name <> " => " <> tShow ref)
-      when (not (Map.null unconflicts.terms.adds.bob) || not (Map.null unconflicts.types.adds.bob)) do
-        Text.putStrLn "\n=== Bob's adds === "
-        for_ (Map.toList unconflicts.terms.adds.bob) \(name, ref) ->
-          Text.putStrLn ("term " <> Name.toText name <> " => " <> tShow ref)
-        for_ (Map.toList unconflicts.types.adds.bob) \(name, ref) ->
-          Text.putStrLn ("type " <> Name.toText name <> " => " <> tShow ref)
-      when (not (Map.null unconflicts.terms.adds.both) || not (Map.null unconflicts.types.adds.both)) do
-        Text.putStrLn "\n=== Alice's & Bob's adds === "
-        for_ (Map.toList unconflicts.terms.adds.both) \(name, ref) ->
-          Text.putStrLn ("term " <> Name.toText name <> " => " <> tShow ref)
-        for_ (Map.toList unconflicts.types.adds.both) \(name, ref) ->
-          Text.putStrLn ("type " <> Name.toText name <> " => " <> tShow ref)
+  when (not (Map.null unconflicts.terms.adds.alice) || not (Map.null unconflicts.types.adds.alice)) do
+    Text.putStrLn "\n=== Alice's adds === "
+    for_ (Map.toList unconflicts.terms.adds.alice) \(name, ref) ->
+      Text.putStrLn ("term " <> Name.toText name <> " => " <> tShow ref)
+    for_ (Map.toList unconflicts.types.adds.alice) \(name, ref) ->
+      Text.putStrLn ("type " <> Name.toText name <> " => " <> tShow ref)
+  when (not (Map.null unconflicts.terms.adds.bob) || not (Map.null unconflicts.types.adds.bob)) do
+    Text.putStrLn "\n=== Bob's adds === "
+    for_ (Map.toList unconflicts.terms.adds.bob) \(name, ref) ->
+      Text.putStrLn ("term " <> Name.toText name <> " => " <> tShow ref)
+    for_ (Map.toList unconflicts.types.adds.bob) \(name, ref) ->
+      Text.putStrLn ("type " <> Name.toText name <> " => " <> tShow ref)
+  when (not (Map.null unconflicts.terms.adds.both) || not (Map.null unconflicts.types.adds.both)) do
+    Text.putStrLn "\n=== Alice's & Bob's adds === "
+    for_ (Map.toList unconflicts.terms.adds.both) \(name, ref) ->
+      Text.putStrLn ("term " <> Name.toText name <> " => " <> tShow ref)
+    for_ (Map.toList unconflicts.types.adds.both) \(name, ref) ->
+      Text.putStrLn ("type " <> Name.toText name <> " => " <> tShow ref)
 
-      when (not (Map.null unconflicts.terms.deletes.alice) || not (Map.null unconflicts.types.deletes.alice)) do
-        Text.putStrLn "\n=== Alice's deletes === "
-        for_ (Map.toList unconflicts.terms.deletes.alice) \(name, ref) ->
-          Text.putStrLn ("term " <> Name.toText name <> " => " <> tShow ref)
-        for_ (Map.toList unconflicts.types.deletes.alice) \(name, ref) ->
-          Text.putStrLn ("type " <> Name.toText name <> " => " <> tShow ref)
-      when (not (Map.null unconflicts.terms.deletes.bob) || not (Map.null unconflicts.types.deletes.bob)) do
-        Text.putStrLn "\n=== Bob's deletes === "
-        for_ (Map.toList unconflicts.terms.deletes.bob) \(name, ref) ->
-          Text.putStrLn ("term " <> Name.toText name <> " => " <> tShow ref)
-        for_ (Map.toList unconflicts.types.deletes.bob) \(name, ref) ->
-          Text.putStrLn ("type " <> Name.toText name <> " => " <> tShow ref)
-      when (not (Map.null unconflicts.terms.deletes.both) || not (Map.null unconflicts.types.deletes.both)) do
-        Text.putStrLn "\n=== Alice's & Bob's deletes === "
-        for_ (Map.toList unconflicts.terms.deletes.both) \(name, ref) ->
-          Text.putStrLn ("term " <> Name.toText name <> " => " <> tShow ref)
-        for_ (Map.toList unconflicts.types.deletes.both) \(name, ref) ->
-          Text.putStrLn ("type " <> Name.toText name <> " => " <> tShow ref)
+  when (not (Map.null unconflicts.terms.deletes.alice) || not (Map.null unconflicts.types.deletes.alice)) do
+    Text.putStrLn "\n=== Alice's deletes === "
+    for_ (Map.toList unconflicts.terms.deletes.alice) \(name, ref) ->
+      Text.putStrLn ("term " <> Name.toText name <> " => " <> tShow ref)
+    for_ (Map.toList unconflicts.types.deletes.alice) \(name, ref) ->
+      Text.putStrLn ("type " <> Name.toText name <> " => " <> tShow ref)
+  when (not (Map.null unconflicts.terms.deletes.bob) || not (Map.null unconflicts.types.deletes.bob)) do
+    Text.putStrLn "\n=== Bob's deletes === "
+    for_ (Map.toList unconflicts.terms.deletes.bob) \(name, ref) ->
+      Text.putStrLn ("term " <> Name.toText name <> " => " <> tShow ref)
+    for_ (Map.toList unconflicts.types.deletes.bob) \(name, ref) ->
+      Text.putStrLn ("type " <> Name.toText name <> " => " <> tShow ref)
+  when (not (Map.null unconflicts.terms.deletes.both) || not (Map.null unconflicts.types.deletes.both)) do
+    Text.putStrLn "\n=== Alice's & Bob's deletes === "
+    for_ (Map.toList unconflicts.terms.deletes.both) \(name, ref) ->
+      Text.putStrLn ("term " <> Name.toText name <> " => " <> tShow ref)
+    for_ (Map.toList unconflicts.types.deletes.both) \(name, ref) ->
+      Text.putStrLn ("type " <> Name.toText name <> " => " <> tShow ref)
 
-      when (not (Map.null unconflicts.terms.updates.alice) || not (Map.null unconflicts.types.updates.alice)) do
-        Text.putStrLn "\n=== Alice's updates === "
-        for_ (Map.toList unconflicts.terms.updates.alice) \(name, ref) ->
-          Text.putStrLn ("term " <> Name.toText name <> " => " <> tShow ref)
-        for_ (Map.toList unconflicts.types.updates.alice) \(name, ref) ->
-          Text.putStrLn ("type " <> Name.toText name <> " => " <> tShow ref)
-      when (not (Map.null unconflicts.terms.updates.bob) || not (Map.null unconflicts.types.updates.bob)) do
-        Text.putStrLn "\n=== Bob's updates === "
-        for_ (Map.toList unconflicts.terms.updates.bob) \(name, ref) ->
-          Text.putStrLn ("term " <> Name.toText name <> " => " <> tShow ref)
-        for_ (Map.toList unconflicts.types.updates.bob) \(name, ref) ->
-          Text.putStrLn ("type " <> Name.toText name <> " => " <> tShow ref)
-      when (not (Map.null unconflicts.terms.updates.both) || not (Map.null unconflicts.types.updates.both)) do
-        Text.putStrLn "\n=== Alice's & Bob's updates === "
-        for_ (Map.toList unconflicts.terms.updates.both) \(name, ref) ->
-          Text.putStrLn ("term " <> Name.toText name <> " => " <> tShow ref)
-        for_ (Map.toList unconflicts.types.updates.both) \(name, ref) ->
-          Text.putStrLn ("type " <> Name.toText name <> " => " <> tShow ref)
+  when (not (Map.null unconflicts.terms.updates.alice) || not (Map.null unconflicts.types.updates.alice)) do
+    Text.putStrLn "\n=== Alice's updates === "
+    for_ (Map.toList unconflicts.terms.updates.alice) \(name, ref) ->
+      Text.putStrLn ("term " <> Name.toText name <> " => " <> tShow ref)
+    for_ (Map.toList unconflicts.types.updates.alice) \(name, ref) ->
+      Text.putStrLn ("type " <> Name.toText name <> " => " <> tShow ref)
+  when (not (Map.null unconflicts.terms.updates.bob) || not (Map.null unconflicts.types.updates.bob)) do
+    Text.putStrLn "\n=== Bob's updates === "
+    for_ (Map.toList unconflicts.terms.updates.bob) \(name, ref) ->
+      Text.putStrLn ("term " <> Name.toText name <> " => " <> tShow ref)
+    for_ (Map.toList unconflicts.types.updates.bob) \(name, ref) ->
+      Text.putStrLn ("type " <> Name.toText name <> " => " <> tShow ref)
+  when (not (Map.null unconflicts.terms.updates.both) || not (Map.null unconflicts.types.updates.both)) do
+    Text.putStrLn "\n=== Alice's & Bob's updates === "
+    for_ (Map.toList unconflicts.terms.updates.both) \(name, ref) ->
+      Text.putStrLn ("term " <> Name.toText name <> " => " <> tShow ref)
+    for_ (Map.toList unconflicts.types.updates.both) \(name, ref) ->
+      Text.putStrLn ("type " <> Name.toText name <> " => " <> tShow ref)
 
-debugDependents :: MonadIO m => DefnsF (Map Name) TermReferenceId TypeReferenceId -> m ()
-debugDependents dependents =
-  Debug.whenDebug Debug.Merge do
-    liftIO do
-      when (not (Map.null dependents.terms) || not (Map.null dependents.types)) do
-        Text.putStrLn "\n=== Dependents of deletes and updates ==="
-        for_ (Map.toList dependents.terms) \(name, ref) ->
-          Text.putStrLn ("term " <> Name.toText name <> " => " <> tShow ref)
-        for_ (Map.toList dependents.types) \(name, ref) ->
-          Text.putStrLn ("type " <> Name.toText name <> " => " <> tShow ref)
+realDebugDependents :: DefnsF (Map Name) TermReferenceId TypeReferenceId -> IO ()
+realDebugDependents dependents = do
+  when (not (Map.null dependents.terms) || not (Map.null dependents.types)) do
+    Text.putStrLn "\n=== Dependents of deletes and updates ==="
+    for_ (Map.toList dependents.terms) \(name, ref) ->
+      Text.putStrLn ("term " <> Name.toText name <> " => " <> tShow ref)
+    for_ (Map.toList dependents.types) \(name, ref) ->
+      Text.putStrLn ("type " <> Name.toText name <> " => " <> tShow ref)
 
-debugMergedConstructorNames :: MonadIO m => DeclNameLookup -> m ()
-debugMergedConstructorNames mergedDeclNameLookup =
-  Debug.whenDebug Debug.Merge do
-    liftIO do
-      when (not (Map.null mergedDeclNameLookup.declToConstructors)) do
-        Text.putStrLn "\n=== Merged constructor names ==="
-        for_ (Map.toList mergedDeclNameLookup.declToConstructors) \(typeName, conNames) ->
-          Text.putStrLn (Name.toText typeName <> " => " <> tShow (map Name.toText conNames))
-
-debugMergedDefns ::
-  MonadIO m =>
+realDebugMergedDefns ::
   DefnsF (Map Name) Referent TypeReference ->
   Dropped (DefnsF (Map Name) Referent TypeReference) ->
-  m ()
-debugMergedDefns mergedDefns droppedDefns =
-  Debug.whenDebug Debug.Merge do
-    liftIO do
-      Text.putStrLn "\n=== Merged definitions ==="
-      for_ (Map.toList mergedDefns.terms) \(name, ref) ->
-        Text.putStrLn ("term " <> Name.toText name <> " => " <> tShow ref)
-      for_ (Map.toList mergedDefns.types) \(name, ref) ->
-        Text.putStrLn ("type " <> Name.toText name <> " => " <> tShow ref)
+  IO ()
+realDebugMergedDefns mergedDefns droppedDefns = do
+  Text.putStrLn "\n=== Merged definitions ==="
+  for_ (Map.toList mergedDefns.terms) \(name, ref) ->
+    Text.putStrLn ("term " <> Name.toText name <> " => " <> tShow ref)
+  for_ (Map.toList mergedDefns.types) \(name, ref) ->
+    Text.putStrLn ("type " <> Name.toText name <> " => " <> tShow ref)
 
-      when (not (Map.null droppedDefns.terms) || not (Map.null droppedDefns.types)) do
-        Text.putStrLn "\n=== Dropped definitions ==="
-        for_ (Map.toList droppedDefns.terms) \(name, ref) ->
-          Text.putStrLn ("term " <> Name.toText name <> " => " <> tShow ref)
-        for_ (Map.toList droppedDefns.types) \(name, ref) ->
-          Text.putStrLn ("type " <> Name.toText name <> " => " <> tShow ref)
+  when (not (Map.null droppedDefns.terms) || not (Map.null droppedDefns.types)) do
+    Text.putStrLn "\n=== Dropped definitions ==="
+    for_ (Map.toList droppedDefns.terms) \(name, ref) ->
+      Text.putStrLn ("term " <> Name.toText name <> " => " <> tShow ref)
+    for_ (Map.toList droppedDefns.types) \(name, ref) ->
+      Text.putStrLn ("type " <> Name.toText name <> " => " <> tShow ref)
+
+realDebugMergedConstructorNames :: DeclNameLookup -> IO ()
+realDebugMergedConstructorNames mergedDeclNameLookup = do
+  when (not (Map.null mergedDeclNameLookup.declToConstructors)) do
+    Text.putStrLn "\n=== Merged constructor names ==="
+    for_ (Map.toList mergedDeclNameLookup.declToConstructors) \(typeName, conNames) ->
+      Text.putStrLn (Name.toText typeName <> " => " <> tShow (map Name.toText conNames))
