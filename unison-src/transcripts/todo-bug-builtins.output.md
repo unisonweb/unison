@@ -23,7 +23,6 @@
   
     "implement me later"
   
-  
   Stack trace:
     todo
     #qe5e1lcfn8
@@ -50,7 +49,6 @@
   value:
   
     "there's a bug in my code"
-  
   
   Stack trace:
     bug
