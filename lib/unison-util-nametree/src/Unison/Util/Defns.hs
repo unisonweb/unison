@@ -17,7 +17,7 @@ module Unison.Util.Defns
 where
 
 import Data.Align (Semialign, alignWith)
-import Data.Bifoldable (Bifoldable, bifoldMap, binull)
+import Data.Bifoldable (Bifoldable, bifoldMap)
 import Data.Bitraversable (Bitraversable, bitraverse)
 import Data.Semigroup.Generic (GenericSemigroupMonoid (..))
 import Data.These (These)
@@ -61,8 +61,8 @@ alignDefnsWith f defns =
   alignWith f defns.terms defns.types
 
 defnsAreEmpty :: (Foldable f, Foldable g) => Defns (f a) (g b) -> Bool
-defnsAreEmpty =
-  binull
+defnsAreEmpty defns =
+  null defns.terms && null defns.types
 
 mapDefns :: (a -> b) -> Defns a a -> Defns b b
 mapDefns f =

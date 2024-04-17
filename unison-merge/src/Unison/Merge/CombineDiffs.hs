@@ -7,7 +7,6 @@ module Unison.Merge.CombineDiffs
 where
 
 import Control.Lens (Lens', over, view, (%~), (.~))
-import Data.Bifoldable (binull)
 import Data.Bitraversable (bitraverse)
 import Data.Map.Strict qualified as Map
 import Data.Semialign (alignWith)
@@ -33,7 +32,8 @@ import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
-import Unison.Util.Defns (Defns (..), DefnsF, DefnsF2, DefnsF3, DefnsF4)
+import Unison.Util.Defns (Defns (..), DefnsF, DefnsF2, DefnsF3, DefnsF4, defnsAreEmpty)
+import Unison.Util.Map qualified as Map
 
 -- | The combined result of two diffs on the same thing.
 data CombinedDiffOps ref
@@ -81,7 +81,7 @@ identifyConflicts declNameLookups defns =
   where
     loop :: S -> TwoWay (DefnsF (Map Name) TermReference TypeReference)
     loop s =
-      case (view myTermStack_ s, view myTypeStack_ s, binull (view theirStacks_ s)) of
+      case (view myTermStack_ s, view myTypeStack_ s, defnsAreEmpty (view theirStacks_ s)) of
         (name : names, _, _) -> loop (poppedTerm name (s & myTermStack_ .~ names))
         ([], name : names, _) -> loop (poppedType name (s & myTypeStack_ .~ names))
         ([], [], False) -> loop (s & #me %~ AliceXorBob.swap)
@@ -95,14 +95,14 @@ identifyConflicts declNameLookups defns =
             Just (Referent.Con _ _) -> over myTypeStack_ (expectDeclName myDeclNameLookup name :)
 
         poppedType :: Name -> S -> S
-        poppedType name =
-          case BiMultimap.lookupRan name (view (me_ . #types) defns) of
-            Nothing -> id
-            Just ref ->
-              (foldr (.) id)
-                [ over myTypeConflicts_ (Map.insert name ref),
-                  over theirTermStack_ (expectConstructorNames myDeclNameLookup name ++)
-                ]
+        poppedType name s =
+          fromMaybe s do
+            ref <- BiMultimap.lookupRan name (view (me_ . #types) defns)
+            conflicts <- Map.upsertF (maybe (Just ref) (const Nothing)) name (view myTypeConflicts_ s)
+            Just $
+              s
+                & myTypeConflicts_ .~ conflicts
+                & theirTermStack_ %~ (expectConstructorNames myDeclNameLookup name ++)
 
         me_ :: Lens' (TwoWay a) a
         me_ = TwoWay.who_ s.me
