@@ -160,10 +160,13 @@
     [("-G" "--generate-file")
        file
        "generate code to <file>"
-       (generate-to file)]))
+       (generate-to file)]
+    #:args remaining
+    (list->vector remaining)))
 
 (begin
-  (handle-command-line)
+  (let ([sub-args (handle-command-line)])
+    (current-command-line-arguments sub-args))
   (cond
     [(show-version) (displayln "unison-runtime version 0.0.11")]
     [(generate-to) (do-generate (generate-to))]
