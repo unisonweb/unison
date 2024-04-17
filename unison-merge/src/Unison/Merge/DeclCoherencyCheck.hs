@@ -178,7 +178,9 @@ checkDeclCoherency loadDeclNumConstructors =
                           n -> InhabitedDecl (IntMap.fromAscList [(i, NoConstructorNameYet) | i <- [0 .. n - 1]])
               lift (getCompose (Map.upsertF recordNewDecl typeRef expectedConstructors))
             case whatHappened of
-              UninhabitedDecl -> pure Nothing
+              UninhabitedDecl -> do
+                #declNameLookup . #declToConstructors %= Map.insert typeName []
+                pure Nothing
               InhabitedDecl expectedConstructors1 -> do
                 child <-
                   Map.lookup name children & onNothing do
