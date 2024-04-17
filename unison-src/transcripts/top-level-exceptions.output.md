@@ -98,7 +98,6 @@ unique type RuntimeError =
   
     Failure (typeLink RuntimeError) "oh noes!" (Any ())
   
-  
   Stack trace:
     ##raise
 

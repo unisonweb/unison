@@ -21,7 +21,7 @@ env:
   ormolu_version: "0.5.2.0"
   racket_version: "8.7"
   ucm_local_bin: "ucm-local-bin"
-  jit_version: "@unison/internal/releases/0.0.14"
+  jit_version: "@unison/internal/releases/0.0.15"
   jit_src_scheme: "unison-jit-src/scheme-libs/racket"
   jit_dist: "unison-jit-dist"
   jit_generator_os: ubuntu-20.04
@@ -64,7 +64,7 @@ jobs:
         with:
           commit_message: automatically run ormolu
   build-ucm:
-    name: Build UCM ${{ matrix.os }}
+    name: build ucm
     runs-on: ${{ matrix.os }}
     strategy:
       # Run each build to completion, regardless of if any have failed
@@ -207,7 +207,7 @@ jobs:
           cache-prefix: ci
 
   transcripts:
-    name: Run transcripts
+    name: run transcripts
     needs: build-ucm
     runs-on: ${{ matrix.os }}
     strategy:
@@ -278,7 +278,7 @@ jobs:
           echo "passing=true" >> "${{env.transcript_test_results}}"
 
   interpreter-tests:
-    name: Run interpreter tests
+    name: run interpreter tests
     needs: build-ucm
     runs-on: ${{ matrix.os }}
     strategy:
@@ -342,12 +342,13 @@ jobs:
           cat unison-src/builtin-tests/interpreter-tests.output.md
           git diff --exit-code unison-src/builtin-tests/interpreter-tests.output.md
       - name: mark interpreter tests as passing
+        if: steps.cache-interpreter-test-results.outputs.cache-hit != 'true'
         run: |
           echo "passing=true" >> "${{env.interpreter_test_results}}"
 
   generate-jit-source:
     if: always() && needs.build-ucm.result == 'success'
-    name: Generate JIT source
+    name: generate jit source
     needs: build-ucm
     runs-on: ubuntu-20.04
     steps:
@@ -433,7 +434,7 @@ jobs:
 
   build-jit-binary:
     if: always() && needs.generate-jit-source.result == 'success'
-    name: Build JIT binary ${{ matrix.os }}
+    name: build jit binary
     needs: generate-jit-source
     runs-on: ${{ matrix.os }}
     strategy:
@@ -470,58 +471,37 @@ jobs:
           echo "jit_dist_exe=$jit_dist_exe" >> $GITHUB_ENV
           echo "ucm=$ucm" >> $GITHUB_ENV
 
-      - name: restore jit binaries
-        id: restore-jit-binaries
-        uses: actions/cache@v4
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            scripts/get-share-hash.sh
+            scheme-libs
+            unison-src/builtin-tests/jit-tests.tpl.md
+            unison-src/transcripts-using-base/serialized-cases/case-00.v4.ser
+
+      - name: cache/restore jit binaries
+        id: cache-jit-binaries
+        uses: actions/cache/restore@v4
         with:
           path: ${{ env.jit_dist }}
-          key: jit_dist-racket_${{ env.racket_version }}.jit_${{ env.jit_version }}
+          key: jit_dist-${{ matrix.os }}.racket_${{ env.racket_version }}.jit_${{ env.jit_version }}-${{hashFiles('**/scheme-libs/**')}}
 
       - name: Cache Racket dependencies
-        if: steps.restore-jit-binaries.outputs.cache-hit != 'true'
+        if: steps.cache-jit-binaries.outputs.cache-hit != 'true'
         uses: actions/cache@v4
         with:
           path: |
             ~/.cache/racket
             ~/.local/share/racket
-          key: ${{ runner.os }}-racket-${{env.racket_version}}
+          key: ${{ matrix.os }}-racket-${{env.racket_version}}
+
       - uses: Bogdanp/setup-racket@v1.11
-        if: steps.restore-jit-binaries.outputs.cache-hit != 'true'
+        if: steps.cache-jit-binaries.outputs.cache-hit != 'true'
         with:
           architecture: x64
           distribution: full
           variant: CS
           version: ${{env.racket_version}}
-      - uses: awalsh128/cache-apt-pkgs-action@latest
-        if: runner.os == 'Linux' && steps.restore-jit-binaries.outputs.cache-hit != 'true'
-        # read this if a package isn't installing correctly
-        # https://github.com/awalsh128/cache-apt-pkgs-action#caveats
-        with:
-          packages: libb2-dev
-          version: 1.0 # cache key version afaik
-      - name: download jit source
-        if: steps.restore-jit-binaries.outputs.cache-hit != 'true'
-        uses: actions/download-artifact@v4
-        with:
-          name: jit-source
-          path: ${{ env.jit_src_scheme }}
-
-      - uses: actions/checkout@v4 # checkout scheme-libs from unison repo
-
-      - name: build jit binary
-        if: steps.restore-jit-binaries.outputs.cache-hit != 'true'
-        shell: bash
-        run: |
-          cp -R scheme-libs/racket/* "$jit_src_scheme"
-          raco pkg install --auto --skip-installed "$jit_src_scheme"/unison
-          raco exe --embed-dlls "$jit_src_scheme"/unison-runtime.rkt
-          raco distribute "$jit_dist" "$jit_exe"
-
-      - name: save jit binary
-        uses: actions/upload-artifact@v4
-        with:
-          name: jit-binary-${{ matrix.os }}
-          path: ${{ env.jit_dist }}/**
 
       - name: look up hash for runtime tests
         run: |
@@ -532,7 +512,53 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{env.jit_test_results}}
-          key: jit-test-results.racket_${{ env.racket_version }}.jit_${{ env.jit_version }}.tests_${{env.runtime_tests_causalhash}}
+          key: jit-test-results.${{ matrix.os }}.racket_${{ env.racket_version }}.jit_${{ env.jit_version }}-${{hashFiles('**/scheme-libs/**')}}.tests_${{env.runtime_tests_causalhash}}
+
+      - name: install libb2 (linux)
+        uses: awalsh128/cache-apt-pkgs-action@latest
+        if: |
+          runner.os == 'Linux'
+            && steps.cache-jit-test-results.outputs.cache-hit != 'true'
+        # read this if a package isn't installing correctly
+        # https://github.com/awalsh128/cache-apt-pkgs-action#caveats
+        with:
+          packages: libb2-dev
+          version: 1.0 # cache key version afaik
+
+      - name: install libb2 (macos)
+        if: |
+          runner.os == 'macOS'
+            && steps.cache-jit-test-results.outputs.cache-hit != 'true'
+        run: brew install libb2
+
+      - name: download jit source
+        if: steps.cache-jit-binaries.outputs.cache-hit != 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: jit-source
+          path: ${{ env.jit_src_scheme }}
+
+      - name: build jit binary
+        if: steps.cache-jit-binaries.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          cp -R scheme-libs/racket/* "$jit_src_scheme"
+          raco pkg install --auto --skip-installed "$jit_src_scheme"/unison
+          raco exe --embed-dlls "$jit_src_scheme"/unison-runtime.rkt
+          raco distribute "$jit_dist" "$jit_exe"
+
+      - name: cache/save jit binaries
+        if: steps.cache-jit-binaries.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.jit_dist }}
+          key: jit_dist-${{ matrix.os }}.racket_${{ env.racket_version }}.jit_${{ env.jit_version }}-${{hashFiles('**/scheme-libs/**')}}
+
+      - name: save jit binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: jit-binary-${{ matrix.os }}
+          path: ${{ env.jit_dist }}/**
 
       - name: cache testing codebase
         id: cache-testing-codebase
@@ -540,8 +566,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.runtime_tests_codebase }}
-          key: runtime-tests-codebase-${{env.runtime_tests_causalhash}}
-          restore-keys: runtime-tests-codebase-
+          key: runtime-tests-codebase-${{ matrix.os }}-${{env.runtime_tests_causalhash}}
+          restore-keys: runtime-tests-codebase-${{ matrix.os }}-
 
       - name: download ucm
         if: steps.cache-jit-test-results.outputs.cache-hit != 'true'
@@ -565,6 +591,7 @@ jobs:
           git diff --exit-code unison-src/builtin-tests/jit-tests.output.md
 
       - name: mark jit tests as passing
+        if: runner.os != 'Windows' && steps.cache-jit-test-results.outputs.cache-hit != 'true'
         run: |
           echo "passing=true" >> "${{env.jit_test_results}}"
 

@@ -314,7 +314,7 @@ makeUnisonFile abort codebase doFindCtorNames defns = do
                 then uf & #watches . Lens.at WK.TestWatch . Lens.non [] Lens.%~ prependTerm
                 else uf & #terms Lens.%~ Map.insertWith (++) v [(Ann.External, tm)]
 
-    isTest = Typechecker.isEqual (Decls.testResultType mempty)
+    isTest = Typechecker.isEqual (Decls.testResultListType mempty)
 
     -- given a dependent hash, include that component in the scratch file
     -- todo: wundefined: cut off constructor name prefixes

@@ -2252,6 +2252,16 @@ notifyUser dir = \case
         <> P.group (P.text (NameSegment.toEscapedText new) <> ",")
         <> "and removed"
         <> P.group (P.text (NameSegment.toEscapedText old) <> ".")
+  LooseCodePushDeprecated ->
+    pure . P.warnCallout $
+      P.lines $
+        [ P.wrap $ "Unison Share's projects are now the new preferred way to store code, and storing code outside of a project has been deprecated.",
+          "",
+          P.wrap $ "Learn how to convert existing code into a project using this guide: ",
+          "https://www.unison-lang.org/docs/tooling/projects-library-migration/",
+          "",
+          "Your non-project code is still available to pull from Share, and you can pull it into a local namespace using `pull myhandle.public`"
+        ]
   MergeFailure path base target ->
     pure . P.wrap $
       "I couldn't automatically merge"
@@ -2266,8 +2276,6 @@ notifyUser dir = \case
         <> prettyProjectBranchName (view #branch target)
         <> "into"
         <> P.group (prettyProjectBranchName (view #branch base) <> ".")
-  where
-    _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
 
 expectedEmptyPushDest :: WriteRemoteNamespace Void -> Pretty
 expectedEmptyPushDest namespace =

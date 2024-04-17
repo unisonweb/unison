@@ -60,7 +60,7 @@ handleTest :: TestInput -> Cli ()
 handleTest TestInput {includeLibNamespace, showFailures, showSuccesses} = do
   Cli.Env {codebase} <- ask
 
-  testRefs <- findTermsOfTypes codebase includeLibNamespace (NESet.singleton (DD.testResultType mempty))
+  testRefs <- findTermsOfTypes codebase includeLibNamespace (NESet.singleton (DD.testResultListType mempty))
 
   cachedTests <-
     Map.fromList <$> Cli.runTransaction do

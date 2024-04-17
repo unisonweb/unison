@@ -39,7 +39,7 @@ import Unison.ShortHash qualified as SH
 import Unison.Syntax.HashQualified qualified as HQ (parseText)
 import Unison.Syntax.HashQualified' qualified as HQ' (parseText)
 import Unison.Syntax.Name qualified as Name (parseTextEither, toText)
-import Unison.Syntax.NameSegment qualified as NameSegment (toEscapedText)
+import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Util.Pretty (Width (..))
 
 instance ToJSON Hash where
@@ -172,6 +172,12 @@ instance ToJSONKey Name where
 
 instance ToSchema Name where
   declareNamedSchema _ = declareNamedSchema (Proxy @Text)
+
+instance ToJSON NameSegment where
+  toJSON = toJSON . NameSegment.toEscapedText
+
+instance ToJSONKey NameSegment where
+  toJSONKey = contramap NameSegment.toEscapedText (toJSONKey @Text)
 
 deriving anyclass instance ToParamSchema ShortCausalHash
 

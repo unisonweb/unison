@@ -394,6 +394,7 @@ data Output
   | UpdateIncompleteConstructorSet UpdateOrUpgrade Name (Map ConstructorId Name) (Maybe Int)
   | UpgradeFailure !FilePath !NameSegment !NameSegment
   | UpgradeSuccess !NameSegment !NameSegment
+  | LooseCodePushDeprecated
   | MergeFailure !FilePath !(ProjectAndBranch ProjectName ProjectBranchName) !(ProjectAndBranch ProjectName ProjectBranchName)
   | MergeSuccess !(ProjectAndBranch ProjectName ProjectBranchName) !(ProjectAndBranch ProjectName ProjectBranchName)
   | -- These are all merge precondition violations. See PreconditionViolation for more docs.
@@ -634,6 +635,7 @@ isFailure o = case o of
   ProjectHasNoReleases {} -> True
   UpgradeFailure {} -> True
   UpgradeSuccess {} -> False
+  LooseCodePushDeprecated -> True
   MergeFailure {} -> True
   MergeSuccess {} -> False
   MergeConflictedAliases {} -> True
