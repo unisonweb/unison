@@ -251,8 +251,8 @@ data TypeTag = Ability | Data
 -- Includes special-cases for when the name in a definition has changed but the hash hasn't
 -- (rename/alias), and when the hash has changed but the name hasn't (update propagation).
 data SemanticSyntaxDiff
-  = From [Syntax.SyntaxSegment]
-  | To [Syntax.SyntaxSegment]
+  = Old [Syntax.SyntaxSegment]
+  | New [Syntax.SyntaxSegment]
   | Both [Syntax.SyntaxSegment]
   | --  (fromSegment, toSegment) (shared annotation)
     SegmentChange (String, String) (Maybe Syntax.Element)
@@ -262,14 +262,14 @@ data SemanticSyntaxDiff
 
 instance ToJSON SemanticSyntaxDiff where
   toJSON = \case
-    From segments ->
+    Old segments ->
       object
-        [ "diffTag" .= ("from" :: Text),
+        [ "diffTag" .= ("old" :: Text),
           "elements" .= segments
         ]
-    To segments ->
+    New segments ->
       object
-        [ "diffTag" .= ("to" :: Text),
+        [ "diffTag" .= ("new" :: Text),
           "elements" .= segments
         ]
     Both segments ->

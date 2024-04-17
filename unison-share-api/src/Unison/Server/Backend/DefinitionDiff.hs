@@ -44,8 +44,8 @@ diffSyntaxText (AnnotatedText fromST) (AnnotatedText toST) =
     expandSpecialCases xs =
       xs
         & foldMap \case
-          Diff.First ys -> [From ys]
-          Diff.Second ys -> [To ys]
+          Diff.First ys -> [Old ys]
+          Diff.Second ys -> [New ys]
           Diff.Both from to ->
             -- Each list should always be the same length.
             zipWith detectSpecialCase from to
