@@ -40,6 +40,8 @@
     builtin-Float.fromRepresentation:termlink
     builtin-Float.toRepresentation
     builtin-Float.toRepresentation:termlink
+    builtin-Float.ceiling
+    builtin-Float.ceiling:termlink
     builtin-Float.exp
     builtin-Float.exp:termlink
     builtin-Float.log
@@ -138,6 +140,11 @@
     builtin-Bytes.indexOf:termlink
     builtin-IO.randomBytes
     builtin-IO.randomBytes:termlink
+    builtin-IO.tryEval
+    builtin-IO.tryEval:termlink
+
+    builtin-Scope.bytearrayOf
+    builtin-Scope.bytearrayOf:termlink
 
     builtin-Universal.==
     builtin-Universal.==:termlink
@@ -152,6 +159,9 @@
     builtin-Universal.compare
     builtin-Universal.compare:termlink
     builtin-Universal.murmurHash:termlink
+
+    builtin-unsafe.coerceAbilities
+    builtin-unsafe.coerceAbilities:termlink
 
     builtin-List.splitLeft
     builtin-List.splitLeft:termlink
@@ -173,6 +183,8 @@
     builtin-TermLink.fromReferent:termlink
     builtin-TermLink.toReferent
     builtin-TermLink.toReferent:termlink
+    builtin-TypeLink.toReference
+    builtin-TypeLink.toReference:termlink
 
     unison-FOp-internal.dataTag
     unison-FOp-Char.toText
@@ -238,6 +250,8 @@
     builtin-Char.Class.is:termlink
     builtin-Pattern.captureAs
     builtin-Pattern.captureAs:termlink
+    builtin-Pattern.many.corrected
+    builtin-Pattern.many.corrected:termlink
     builtin-Pattern.isMatch
     builtin-Pattern.isMatch:termlink
     builtin-IO.fileExists.impl.v3
@@ -376,7 +390,6 @@
     unison-FOp-IO.delay.impl.v3
     unison-POp-FORK
     unison-FOp-IO.kill.impl.v3
-    unison-POp-TFRC
 
     unison-FOp-Handle.toText
     unison-FOp-Socket.toText
@@ -573,25 +586,51 @@
            (only (racket)
                  car
                  cdr
+                 exact-integer?
+                 exact-nonnegative-integer?
                  foldl
+                 integer-length
                  bytes->string/utf-8
                  string->bytes/utf-8
                  exn:fail:contract?
                  file-stream-buffer-mode
                  with-handlers
                  match
+                 modulo
+                 quotient
                  regexp-match-positions
                  sequence-ref
                  vector-copy!
-                 bytes-copy!)
+                 bytes-copy!
+                 sub1
+                 add1
+                 exn:break?
+                 exn:fail?
+                 exn:fail:read?
+                 exn:fail:filesystem?
+                 exn:fail:network?
+                 exn:fail:contract:divide-by-zero?
+                 exn:fail:contract:non-fixnum-result?)
            (car icar) (cdr icdr))
+          (only (racket string)
+                string-contains?
+                string-replace)
           (unison arithmetic)
           (unison bytevector)
           (unison core)
           (only (unison boot)
                 define-unison
                 referent->termlink
-                termlink->referent)
+                termlink->referent
+                typelink->reference
+                clamp-integer
+                clamp-natural
+                wrap-natural
+                exn:bug->exception
+                raise-unison-exception
+                bit64
+                bit63
+                nbit63)
           (unison data)
           (unison data-info)
           (unison math)
@@ -614,6 +653,7 @@
   (define-builtin-link Float.*)
   (define-builtin-link Float.fromRepresentation)
   (define-builtin-link Float.toRepresentation)
+  (define-builtin-link Float.ceiling)
   (define-builtin-link Float.exp)
   (define-builtin-link Float.log)
   (define-builtin-link Float.max)
@@ -668,6 +708,7 @@
   (define-builtin-link Text.!=)
   (define-builtin-link Bytes.indexOf)
   (define-builtin-link IO.randomBytes)
+  (define-builtin-link IO.tryEval)
   (define-builtin-link List.splitLeft)
   (define-builtin-link List.splitRight)
   (define-builtin-link Value.toBuiltin)
@@ -676,6 +717,7 @@
   (define-builtin-link Code.toGroup)
   (define-builtin-link TermLink.fromReferent)
   (define-builtin-link TermLink.toReferent)
+  (define-builtin-link TypeLink.toReference)
   (define-builtin-link IO.seekHandle.impl.v3)
   (define-builtin-link IO.getLine.impl.v1)
   (define-builtin-link IO.getSomeBytes.impl.v1)
@@ -711,8 +753,11 @@
   (define-builtin-link Universal.compare)
   (define-builtin-link Universal.murmurHash)
   (define-builtin-link Pattern.captureAs)
+  (define-builtin-link Pattern.many.corrected)
   (define-builtin-link Pattern.isMatch)
   (define-builtin-link Char.Class.is)
+  (define-builtin-link Scope.bytearrayOf)
+  (define-builtin-link unsafe.coerceAbilities)
 
   (begin-encourage-inline
     (define-unison (builtin-Value.toBuiltin v) (unison-quote v))
@@ -725,6 +770,8 @@
       (referent->termlink rf))
     (define-unison (builtin-TermLink.toReferent tl)
       (termlink->referent tl))
+    (define-unison (builtin-TypeLink.toReference tl)
+      (typelink->reference tl))
     (define-unison (builtin-murmurHashBytes bs)
       (murmurhash-bytes (chunked-bytes->bytes bs)))
 
@@ -733,13 +780,13 @@
 
     (define-unison (builtin-List.splitLeft n s)
       (match (unison-POp-SPLL n s)
-        [(unison-sum 0 fs) unison-seqview-empty]
-        [(unison-sum 1 (list l r)) (unison-seqview-elem l r)]))
+        [(unison-sum 0 fs) ref-seqview-empty]
+        [(unison-sum 1 (list l r)) (ref-seqview-elem l r)]))
 
     (define-unison (builtin-List.splitRight n s)
       (match (unison-POp-SPLR n s)
-        [(unison-sum 0 fs) unison-seqview-empty]
-        [(unison-sum 1 (list l r)) (unison-seqview-elem l r)]))
+        [(unison-sum 0 fs) ref-seqview-empty]
+        [(unison-sum 1 (list l r)) (ref-seqview-elem l r)]))
 
     (define-unison (builtin-Float.> x y) (fl> x y))
     (define-unison (builtin-Float.< x y) (fl< x y))
@@ -788,33 +835,12 @@
       (case (universal-compare x y)
         [(>) 1] [(<) -1] [else 0]))
 
-    (define (hash-string hs)
-      (string-append "#" (bytevector->base32-string b32h hs)))
-
-    (define (ix-string i)
-      (if (= i 0)
-        ""
-        (string-append "." (number->string i))))
-
-    (define (typelink->string ln)
-      (match ln
-        [(unison-typelink-builtin name)
-         (string-append "##" name)]
-        [(unison-typelink-derived hs i)
-         (string-append (hash-string hs) (ix-string i))]))
+    (define-unison (builtin-Scope.bytearrayOf i n)
+      (make-bytevector n i))
 
     (define-builtin-link Link.Type.toText)
     (define-unison (builtin-Link.Type.toText ln)
       (string->chunked-string (typelink->string ln)))
-
-    (define (termlink->string ln)
-      (match ln
-        [(unison-termlink-builtin name)
-         (string-append "##" name)]
-        [(unison-termlink-derived hs i)
-         (string-append (hash-string hs) (ix-string i))]
-        [(unison-termlink-con rf t)
-         (string-append (typelink->string rf) "#" (number->string t))]))
 
     (define-builtin-link Link.Term.toText)
     (define-unison (builtin-Link.Term.toText ln)
@@ -826,29 +852,33 @@
     (define-unison (builtin-Pattern.captureAs c p)
       (capture-as c p))
 
+    (define-unison (builtin-Pattern.many.corrected p) (many p))
+
     (define-unison (builtin-Pattern.isMatch p s)
       (pattern-match? p s))
+
+    (define-unison (builtin-unsafe.coerceAbilities f) f)
 
     (define (unison-POp-UPKB bs)
       (build-chunked-list
        (chunked-bytes-length bs)
        (lambda (i) (chunked-bytes-ref bs i))))
 
-    (define unison-POp-ADDI +)
-    (define unison-POp-MULI *)
-    (define unison-POp-MODI mod)
+    (define (unison-POp-ADDI i j) (clamp-integer (+ i j)))
+    (define (unison-POp-MULI i j) (clamp-integer (* i j)))
+    (define (unison-POp-MODI i j) (clamp-integer (modulo i j)))
     (define (unison-POp-LEQI a b) (bool (<= a b)))
-    (define unison-POp-POWN expt)
+    (define (unison-POp-POWN m n) (clamp-natural (expt m n)))
     (define unison-POp-LOGF log)
 
     (define (reify-exn thunk)
       (guard
         (e [else
-             (sum 0 '() (exception->string e) e)])
+             (sum 0 '() (exception->string e) ref-unit-unit)])
         (thunk)))
 
     ; Core implemented primops, upon which primops-in-unison can be built.
-    (define (unison-POp-ADDN m n) (fx+ m n))
+    (define (unison-POp-ADDN m n) (clamp-natural (+ m n)))
     (define (unison-POp-ANDN m n) (bitwise-and m n))
     (define unison-POp-BLDS
       (lambda args-list
@@ -857,40 +887,47 @@
     (define (unison-POp-CATT l r) (chunked-string-append l r))
     (define (unison-POp-CATB l r) (chunked-bytes-append l r))
     (define (unison-POp-CMPU l r) (ord (universal-compare l r)))
-    (define (unison-POp-COMN n) (fxnot n))
+    (define (unison-POp-COMN n) (wrap-natural (bitwise-not n)))
     (define (unison-POp-CONS x xs) (chunked-list-add-first xs x))
-    (define (unison-POp-DECI n) (fx1- n))
-    (define (unison-POp-INCI n) (fx+ n 1))
-    (define (unison-POp-DECN n) (- n 1))
-    (define (unison-POp-INCN n) (+ n 1))
-    (define (unison-POp-DIVN m n) (fxdiv m n))
+    (define (unison-POp-DECI n) (clamp-integer (sub1 n)))
+    (define (unison-POp-INCI n) (clamp-integer (add1 n)))
+    (define (unison-POp-DECN n) (wrap-natural (sub1 n)))
+    (define (unison-POp-INCN n) (clamp-natural (add1 n)))
+    (define (unison-POp-DIVN m n) (quotient m n))
     (define (unison-POp-DRPB n bs) (chunked-bytes-drop bs n))
     (define (unison-POp-DRPS n l) (chunked-list-drop l n))
     (define (unison-POp-DRPT n t) (chunked-string-drop t n))
-    (define (unison-POp-EQLN m n) (bool (fx=? m n)))
+    (define (unison-POp-EQLN m n) (bool (= m n)))
     (define (unison-POp-EQLT s t) (bool (equal? s t)))
     (define (unison-POp-LEQT s t) (bool (chunked-string<? s t)))
     (define (unison-POp-EQLU x y) (bool (universal=? x y)))
-    (define (unison-POp-EROR fnm x) ;; TODO raise the correct failure, use display
+    (define (unison-POp-EROR fnm x)
       (let-values ([(p g) (open-string-output-port)])
         (put-string p (chunked-string->string fnm))
         (put-string p ": ")
         (display (describe-value x) p)
         (raise (make-exn:bug fnm x))))
-    (define (unison-POp-FTOT f) (string->chunked-string (number->string f)))
+    (define (unison-POp-FTOT f)
+      (define base (number->string f))
+      (define dotted
+        (if (string-contains? base ".")
+          base
+          (string-replace base "e" ".0e")))
+      (string->chunked-string
+        (string-replace dotted "+" "")))
     (define (unison-POp-IDXB n bs)
       (guard (x [else none])
         (some (chunked-bytes-ref bs n))))
     (define (unison-POp-IDXS n l)
       (guard (x [else none])
         (some (chunked-list-ref l n))))
-    (define (unison-POp-IORN m n) (fxior m n))
+    (define (unison-POp-IORN m n) (bitwise-ior m n))
     (define (unison-POp-ITOT n)
       (string->chunked-string (number->string n)))
     (define (unison-POp-LEQN m n) (bool (fx<=? m n)))
-    (define (unison-POp-LZRO m) (- 64 (fxlength m)))
-    (define (unison-POp-MULN m n) (* m n))
-    (define (unison-POp-MODN m n) (fxmod m n))
+    (define (unison-POp-LZRO m) (- 64 (integer-length m)))
+    (define (unison-POp-MULN m n) (clamp-natural (* m n)))
+    (define (unison-POp-MODN m n) (modulo m n))
     (define (unison-POp-NTOT n) (string->chunked-string (number->string n)))
     (define (unison-POp-PAKB l)
       (build-chunked-bytes
@@ -900,24 +937,26 @@
       (build-chunked-string
        (chunked-list-length l)
        (lambda (i) (chunked-list-ref l i))))
-    (define (unison-POp-SHLI i k) (fxarithmetic-shift-left i k))
-    (define (unison-POp-SHLN n k) (fxarithmetic-shift-left n k))
-    (define (unison-POp-SHRI i k) (fxarithmetic-shift-right i k))
-    (define (unison-POp-SHRN n k) (fxarithmetic-shift-right n k))
+    (define (unison-POp-SHLI i k)
+      (clamp-integer (bitwise-arithmetic-shift-left i k)))
+    (define (unison-POp-SHLN n k)
+      (clamp-natural (bitwise-arithmetic-shift-left n k)))
+    (define (unison-POp-SHRI i k) (bitwise-arithmetic-shift-right i k))
+    (define (unison-POp-SHRN n k) (bitwise-arithmetic-shift-right n k))
     (define (unison-POp-SIZS l) (chunked-list-length l))
     (define (unison-POp-SIZT t) (chunked-string-length t))
     (define (unison-POp-SIZB b) (chunked-bytes-length b))
     (define (unison-POp-SNOC xs x) (chunked-list-add-last xs x))
-    (define (unison-POp-SUBN m n) (fx- m n))
-    (define (unison-POp-SUBI m n) (- m n))
+    (define (unison-POp-SUBN m n) (clamp-integer (- m n)))
+    (define (unison-POp-SUBI m n) (clamp-integer (- m n)))
     (define (unison-POp-TAKS n s) (chunked-list-take s n))
     (define (unison-POp-TAKT n t) (chunked-string-take t n))
     (define (unison-POp-TAKB n t) (chunked-bytes-take t n))
 
     (define (->optional v)
       (if v
-          (unison-optional-some v)
-          unison-optional-none))
+          (ref-optional-some v)
+          ref-optional-none))
 
     (define-unison (builtin-Text.indexOf n h)
       (->optional (chunked-string-index-of h n)))
@@ -946,10 +985,14 @@
       (newline))
     (define (unison-POp-TTON s)
       (let ([mn (string->number (chunked-string->string s))])
-        (if (and (fixnum? mn) (>= mn 0)) (some mn) none)))
+        (if (and (exact-nonnegative-integer? mn) (< mn bit64))
+          (some mn)
+          none)))
     (define (unison-POp-TTOI s)
       (let ([mn (string->number (chunked-string->string s))])
-        (if (fixnum? mn) (some mn) none)))
+        (if (and (exact-integer? mn) (>= mn nbit63) (< mn bit63))
+          (some mn)
+          none)))
     (define (unison-POp-TTOF s)
       (let ([mn (string->number (chunked-string->string s))])
         (if mn (some mn) none)))
@@ -994,7 +1037,7 @@
     ;; TODO flatten operation on Bytes is a no-op for now (and possibly ever)
     (define (unison-POp-FLTB b) b)
 
-    (define (unison-POp-XORN m n) (fxxor m n))
+    (define (unison-POp-XORN m n) (bitwise-xor m n))
     (define (unison-POp-VALU c) (decode-value c))
 
     (define (unison-FOp-ImmutableByteArray.read16be bs n)
@@ -1062,8 +1105,15 @@
     ;; TODO should we convert Bytes -> Text directly without the intermediate conversions?
     (define (unison-FOp-Text.fromUtf8.impl.v3 b)
       (with-handlers
-        ([exn:fail:contract? ; TODO proper typeLink
-          (lambda (e) (exception "MiscFailure" (exception->string e) ()))])
+        ([exn:fail:contract?
+          (lambda (e)
+            (exception
+              ref-iofailure:typelink
+              (string->chunked-string
+                (string-append
+                  "Invalid UTF-8 stream: "
+                  (describe-value b)))
+              (exception->string e)))])
         (right (string->chunked-string (bytes->string/utf-8 (chunked-bytes->bytes b))))))
 
     ;; TODO should we convert Text -> Bytes directly without the intermediate conversions?
@@ -1071,7 +1121,7 @@
       (bytes->chunked-bytes (string->bytes/utf-8 (chunked-string->string s))))
 
     (define-unison (builtin-IO.isFileEOF.impl.v3 p)
-      (unison-either-right (port-eof? p)))
+      (ref-either-right (port-eof? p)))
 
     (define (unison-FOp-IO.closeFile.impl.v3 h)
       (if (input-port? h)
@@ -1145,7 +1195,7 @@
     (define (unison-FOp-Char.Class.printable) printable)
     (define (unison-FOp-Char.Class.mark) mark)
     (define (unison-FOp-Char.Class.separator) separator)
-    (define (unison-FOp-Char.Class.or p1 p2) (unison-FOp-Pattern.or p1 p2))
+    (define (unison-FOp-Char.Class.or p1 p2) (char-class-or p1 p2))
     (define (unison-FOp-Char.Class.range a z)
       (unison-FOp-Text.patterns.charRange a z))
     (define (unison-FOp-Char.Class.anyOf cs) (unison-FOp-Text.patterns.charIn cs))
@@ -1280,7 +1330,6 @@
     (define unison-FOp-ImmutableArray.size vector-length)
 
     (define (unison-POp-FORK thunk) (fork thunk))
-    (define (unison-POp-TFRC thunk) (try-eval thunk))
     (define (unison-FOp-IO.delay.impl.v3 micros) (sleep micros))
     (define (unison-FOp-IO.kill.impl.v3 threadId) (kill threadId))
     (define (unison-FOp-Scope.ref a) (ref-new a))
@@ -1294,10 +1343,56 @@
     (define (unison-FOp-Promise.read promise) (promise-read promise))
     (define (unison-FOp-Promise.tryRead promise) (promise-try-read promise))
     (define (unison-FOp-Promise.write promise a) (promise-write promise a)))
+
+
+  (define (exn:io? e)
+    (or (exn:fail:read? e)
+        (exn:fail:filesystem? e)
+        (exn:fail:network? e)))
+
+  (define (exn:arith? e)
+    (or (exn:fail:contract:divide-by-zero? e)
+        (exn:fail:contract:non-fixnum-result? e)))
+
+  (define-unison (builtin-IO.tryEval thunk)
+    (with-handlers
+      ([exn:break?
+        (lambda (e)
+          (raise-unison-exception
+            ref-threadkilledfailure:typelink
+            (string->chunked-string "thread killed")
+            ref-unit-unit))]
+       [exn:io?
+         (lambda (e)
+           (raise-unison-exception
+             ref-iofailure:typelink
+             (exception->string e)
+             ref-unit-unit))]
+       [exn:arith?
+         (lambda (e)
+           (raise-unison-exception
+             ref-arithfailure:typelink
+             (exception->string e)
+             ref-unit-unit))]
+       [exn:bug? (lambda (e) (exn:bug->exception e))]
+       [exn:fail?
+         (lambda (e)
+           (raise-unison-exception
+             ref-runtimefailure:typelink
+             (exception->string e)
+             ref-unit-unit))]
+       [(lambda (x) #t)
+        (lambda (e)
+          (raise-unison-exception
+            ref-miscfailure:typelink
+            (exception->string e)
+            ref-unit-unit))])
+      (thunk ref-unit-unit)))
   
   (declare-builtin-link builtin-Float.*)
   (declare-builtin-link builtin-Float.fromRepresentation)
   (declare-builtin-link builtin-Float.toRepresentation)
+  (declare-builtin-link builtin-Float.ceiling)
   (declare-builtin-link builtin-Float.exp)
   (declare-builtin-link builtin-Float.log)
   (declare-builtin-link builtin-Float.max)
@@ -1352,6 +1447,7 @@
   (declare-builtin-link builtin-Text.!=)
   (declare-builtin-link builtin-Bytes.indexOf)
   (declare-builtin-link builtin-IO.randomBytes)
+  (declare-builtin-link builtin-IO.tryEval)
   (declare-builtin-link builtin-List.splitLeft)
   (declare-builtin-link builtin-List.splitRight)
   (declare-builtin-link builtin-Value.toBuiltin)
@@ -1360,6 +1456,7 @@
   (declare-builtin-link builtin-Code.toGroup)
   (declare-builtin-link builtin-TermLink.fromReferent)
   (declare-builtin-link builtin-TermLink.toReferent)
+  (declare-builtin-link builtin-TypeLink.toReference)
   (declare-builtin-link builtin-IO.seekHandle.impl.v3)
   (declare-builtin-link builtin-IO.getLine.impl.v1)
   (declare-builtin-link builtin-IO.getSomeBytes.impl.v1)
@@ -1394,5 +1491,8 @@
   (declare-builtin-link builtin-Universal.<=)
   (declare-builtin-link builtin-Universal.compare)
   (declare-builtin-link builtin-Pattern.isMatch)
+  (declare-builtin-link builtin-Scope.bytearrayOf)
   (declare-builtin-link builtin-Char.Class.is)
+  (declare-builtin-link builtin-Pattern.many.corrected)
+  (declare-builtin-link builtin-unsafe.coerceAbilities)
   )

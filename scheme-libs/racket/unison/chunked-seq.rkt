@@ -504,7 +504,7 @@
                       new-len
                       (λ (chunk)
                         (chunk-copy! chunk 0 first-c 1)
-                        (chunk-copy! chunk first-len last-c 0)))))]
+                        (chunk-copy! chunk (sub1 first-len) last-c 0)))))]
                [(= first-len 1)
                 (define-values [vt* first-c*] (vector-trie-pop-first vt))
                 (struct-copy
@@ -516,7 +516,7 @@
                 (struct-copy
                  chunks cs
                  [length (sub1 len)]
-                 [first-chunk (chunk-drop-first last-c)])])
+                 [first-chunk (chunk-drop-first first-c)])])
              (chunk-first first-c))]))
 
        (define (chunked-seq-pop-last cs)
@@ -573,13 +573,13 @@
               [{(single-chunk chunk-a) (single-chunk chunk-b)}
                (define len (+ (chunk-length chunk-a) (chunk-length chunk-b)))
                ;; see Note [chunks-length invariant]
-               (if (< len CHUNK-CAPACITY)
+               (if (<= len CHUNK-CAPACITY)
                    (single-chunk (chunk-append chunk-a chunk-b))
                    (chunks len chunk-a empty-vector-trie chunk-b))]
 
               [{(single-chunk chunk) (chunks len first-c vt _)}
                (cond
-                 [(< (+ (chunk-length chunk) (chunk-length first-c)) CHUNK-CAPACITY)
+                 [(<= (+ (chunk-length chunk) (chunk-length first-c)) CHUNK-CAPACITY)
                   (struct-copy
                    chunks cs-b
                    [length (+ (chunk-length chunk) len)]
@@ -594,7 +594,7 @@
 
               [{(chunks len _ vt last-c) (single-chunk chunk)}
                (cond
-                 [(< (+ (chunk-length last-c) (chunk-length chunk)) CHUNK-CAPACITY)
+                 [(<= (+ (chunk-length last-c) (chunk-length chunk)) CHUNK-CAPACITY)
                   (struct-copy
                    chunks cs-a
                    [length (+ len (chunk-length chunk))]
@@ -688,9 +688,10 @@
                       ;; If `first-a` contains too many elements to fit in the next
                       ;; partially-constructed chunk, we need to split it as well.
                       [(> first-a-len insert-i)
-                       (chunk-copy! new-chunk 0 first-a split-i)
+                       (define copy-len (- first-a-len insert-i))
+                       (chunk-copy! new-chunk 0 first-a copy-len)
                        (transfer-chunk! #:done? #t)
-                       (chunk-slice first-a 0 split-i)]
+                       (chunk-slice first-a 0 copy-len)]
 
                       ;; Otherwise, we can move the elements from the partially-
                       ;; constructed chunk into the new first chunk.

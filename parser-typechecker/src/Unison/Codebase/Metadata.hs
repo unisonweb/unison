@@ -13,7 +13,7 @@ import Unison.Util.Star2 qualified as Star2
 type Value = TermReference
 
 -- `a` is generally the type of references or hashes
--- `n` is generally the the type of name associated with the references
+-- `n` is generally the type of name associated with the references
 -- `Value` is the metadata value itself.
 type Star a n = Star2 a n Value
 

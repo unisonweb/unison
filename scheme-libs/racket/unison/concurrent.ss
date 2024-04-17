@@ -12,12 +12,12 @@
     promise-try-read
     fork
     kill
-    sleep
-    try-eval)
+    sleep)
 
   (import (rnrs)
           (rnrs records syntactic)
           (unison data)
+          (unison data-info)
           (unison core)
           (unison chunked-seq)
           (rename
@@ -36,13 +36,7 @@
                  sleep
                  printf
                  with-handlers
-                 exn:break?
-                 exn:fail?
-                 exn:fail:read?
-                 exn:fail:filesystem?
-                 exn:fail:network?
-                 exn:fail:contract:divide-by-zero?
-                 exn:fail:contract:non-fixnum-result?)
+                 exn:break?)
            (box ref-new)
            (unbox ref-read)
            (set-box! ref-write)
@@ -95,25 +89,4 @@
   (define (kill threadId)
     (break-thread threadId)
     (right unit))
-
-  (define (exn:io? e)
-    (or (exn:fail:read? e)
-        (exn:fail:filesystem? e)
-        (exn:fail:network? e)))
-
-  (define (exn:arith? e)
-    (or (exn:fail:contract:divide-by-zero? e)
-        (exn:fail:contract:non-fixnum-result? e)))
-
-  ;; TODO Replace strings with proper type links once we have them
-  (define (try-eval thunk)
-    (with-handlers
-      ([exn:break?
-        (lambda (e) (exception "ThreadKilledFailure" (string->chunked-string "thread killed") ()))]
-       [exn:io? (lambda (e) (exception "IOFailure" (exception->string e) ()))]
-       [exn:arith? (lambda (e) (exception "ArithmeticFailure" (exception->string e) ()))]
-       [exn:bug? (lambda (e) (exn:bug->exception e))]
-       [exn:fail? (lambda (e) (exception "RuntimeFailure" (exception->string e) ()))]
-       [(lambda (x) #t)
-        (lambda (e) (exception "MiscFailure" (string->chunked-string "unknown exception") e))])
-      (right (thunk)))))
+  )

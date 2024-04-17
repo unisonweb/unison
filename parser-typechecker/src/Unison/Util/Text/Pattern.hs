@@ -12,7 +12,7 @@ data Pattern
   | Or Pattern Pattern -- left-biased choice: tries second pattern only if first fails
   | Capture Pattern -- capture all the text consumed by the inner pattern, discarding its subcaptures
   | CaptureAs Text Pattern -- capture the given text, discarding its subcaptures, and name the capture
-  | Many Pattern -- zero or more repetitions (at least 1 can be written: Join [p, Many p])
+  | Many Bool Pattern -- zero or more repetitions (at least 1 can be written: Join [p, Many p]); boolean determines whether it's the correct version (True) or the original (False).
   | Replicate Int Int Pattern -- m to n occurrences of a pattern, optional = 0-1
   | Eof -- succeed if given the empty text, fail otherwise
   | Literal Text -- succeed if input starts with the given text, advance by that text
@@ -128,7 +128,7 @@ compile (CaptureAs t p) !err !success = go
     success' _ rem acc0 _ = success (pushCapture t acc0) rem
     compiled = compile p err' success'
     go acc t = compiled acc t acc t
-compile (Capture (Many (Char Any))) !_ !success = \acc t -> success (pushCapture t acc) Text.empty
+compile (Capture (Many _ (Char Any))) !_ !success = \acc t -> success (pushCapture t acc) Text.empty
 compile (Capture c) !err !success = go
   where
     err' _ _ acc0 t0 = err acc0 t0
@@ -152,12 +152,13 @@ compile (Char cp) !err !success = go
     go acc t = case Text.uncons t of
       Just (ch, rem) | ok ch -> success acc rem
       _ -> err acc t
-compile (Many p) !_ !success = case p of
+compile (Many correct p) !_ !success = case p of
   Char Any -> (\acc _ -> success acc Text.empty)
   Char cp -> walker (charPatternPred cp)
   p -> go
     where
-      go = compile p success success'
+      go | correct = try "Many" (compile p) success success'
+         | otherwise = compile p success success'
       success' acc rem
         | Text.size rem == 0 = success acc rem
         | otherwise = go acc rem

@@ -1,0 +1,27 @@
+# This workflow runs ormolu on all Haskell files in the branch and creates a PR with the result.
+# (The ormolu job in CI.yaml only runs ormolu on Haskell files that have changed in that PR.)
+
+name: ormolu everything
+
+on:
+  workflow_dispatch:
+
+env:
+  ormolu_version: "0.5.2.0"
+
+jobs:
+  ormolu:
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: haskell-actions/run-ormolu@v15
+        with:
+          version: ${{ env.ormolu_version }}
+          mode: inplace
+      - name: create pull request with formatting changes
+        uses: peter-evans/create-pull-request@v6
+        with:
+          commit_message: automatically run ormolu
+          branch: autoformat/${{github.ref_name}}
+          # branch_suffix: random
+          title: format `${{github.ref_name}}` with ormolu ${{env.ormolu_version}}

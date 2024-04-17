@@ -31,6 +31,7 @@ module Unison.Typechecker.Context
     fitsScheme,
     isRedundant,
     Suggestion (..),
+    Replacement (..),
     SuggestionMatch (..),
     isExact,
     typeErrors,
@@ -103,6 +104,7 @@ import Unison.Typechecker.TypeLookup qualified as TL
 import Unison.Typechecker.TypeVar qualified as TypeVar
 import Unison.Var (Var)
 import Unison.Var qualified as Var
+import Unison.Name (Name)
 
 type TypeVar v loc = TypeVar.TypeVar (B.Blank loc) v
 
@@ -329,15 +331,20 @@ data SuggestionMatch = Exact | WrongType | WrongName
   deriving (Ord, Eq, Show)
 
 data Suggestion v loc = Suggestion
-  { suggestionName :: Text,
+  { suggestionName :: Name,
     suggestionType :: Type v loc,
-    suggestionReplacement :: Either v Referent,
+    suggestionReplacement :: Replacement v,
     suggestionMatch :: SuggestionMatch
   }
-  deriving (Eq, Show)
+  deriving stock (Eq, Show)
 
 isExact :: Suggestion v loc -> Bool
 isExact Suggestion {..} = suggestionMatch == Exact
+
+data Replacement v
+  = ReplacementRef Referent
+  | ReplacementVar v
+  deriving stock (Eq, Ord, Show)
 
 data ErrorNote v loc = ErrorNote
   { cause :: Cause v loc,
@@ -2442,6 +2449,19 @@ checkWanted want (Term.LetRecTop' isTop lr) t =
   markThenRetractWanted (Var.named "let-rec-marker") $ do
     e <- annotateLetRecBindings isTop lr
     checkWanted want e t
+checkWanted want e@(Term.Match' scrut cases) t = do
+  (scrutType, swant) <- synthesize scrut
+  want <- coalesceWanted swant want
+  cwant <- checkCases scrutType t cases
+  want <- coalesceWanted cwant want
+  ctx <- getContext
+  let matchType = apply ctx t
+  getPatternMatchCoverageCheckAndKindInferenceSwitch >>= \case
+    PatternMatchCoverageCheckAndKindInferenceSwitch'Enabled ->
+      ensurePatternCoverage e matchType scrut scrutType cases
+    PatternMatchCoverageCheckAndKindInferenceSwitch'Disabled ->
+      pure ()
+  pure want
 checkWanted want e t = do
   (u, wnew) <- synthesize e
   ctx <- getContext

@@ -6,6 +6,7 @@
          (only-in racket empty?)
          compatibility/mlist
          unison/data
+         unison/data-info
          unison/chunked-seq
          unison/core
          unison/tcp
@@ -61,7 +62,10 @@
   (let ([certs (read-pem-certificates (open-input-bytes (chunked-bytes->bytes bytes)))])
     (if (= 1 (length certs))
         (right bytes)
-        (exception "Wrong number of certs" (string->chunked-string "nope") certs)))) ; TODO passing certs is wrong, should either be converted to chunked-list or removed
+        (exception
+          ref-tlsfailure:typelink
+          (string->chunked-string "nope")
+          bytes))))
 
 ; We don't actually "decode" certificates, we just validate them
 (define (encodeCert bytes) bytes)
@@ -111,16 +115,39 @@
 
 (define (handle-errors fn)
   (with-handlers
-      [[exn:fail:network? (lambda (e) (exception "IOFailure" (exception->string e) '()))]
+      [[exn:fail:network?
+         (lambda (e)
+           (exception
+             ref-iofailure:typelink
+             (exception->string e)
+             ref-unit-unit))]
        [exn:fail:contract?
-        (lambda (e) (exception "InvalidArguments" (exception->string e) '()))]
+        (lambda (e)
+          (exception
+            ref-miscfailure:typelink
+            (exception->string e)
+            ref-unit-unit))]
        [(lambda err
           (string-contains? (exn->string err) "not valid for hostname"))
-        (lambda (e) (exception "IOFailure" (string->chunked-string "NameMismatch") '()))]
+        (lambda (e)
+          (exception
+            ref-tlsfailure:typelink
+            (string->chunked-string "NameMismatch")
+            ref-unit-unit))]
        [(lambda err
           (string-contains? (exn->string err) "certificate verify failed"))
-        (lambda (e) (exception "IOFailure" (string->chunked-string "certificate verify failed") '()))]
-       [(lambda _ #t) (lambda (e) (exception "MiscFailure" (string->chunked-string (format "Unknown exception ~a" (exn->string e))) e))]]
+        (lambda (e)
+          (exception
+            ref-tlsfailure:typelink
+            (string->chunked-string "certificate verify failed")
+            ref-unit-unit))]
+       [(lambda _ #t)
+        (lambda (e)
+          (exception
+            ref-miscfailure:typelink
+            (string->chunked-string
+              (format "Unknown exception ~a" (exn->string e)))
+            ref-unit-unit))]]
     (fn)))
 
 (define (newClient.impl.v3 config socket)

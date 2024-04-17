@@ -81,7 +81,7 @@ withCancellation mayTimeoutMillis handler message respond = do
     -- No matter what it's possible for a message to be cancelled before the
     -- canceller has been added, but this means we're not blocking the request waiting for
     -- contention on the cancellation map on every request.
-    -- The the majority of requests should be fast enough to complete "instantly" anyways.
+    -- The majority of requests should be fast enough to complete "instantly" anyways.
     waitForCancel :: (Int32 |? Text) -> Lsp ()
     waitForCancel reqId = do
       barrier <- newEmptyMVar

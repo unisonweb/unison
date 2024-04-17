@@ -16,6 +16,7 @@ module Unison.Builtin
     typeOf,
     typeLookup,
     termRefTypes,
+    termRefTypeReferences,
   )
 where
 
@@ -320,13 +321,16 @@ termNameRefs = Map.mapKeys Name.unsafeParseText $ foldl' go mempty (stripVersion
               "tried to alias `" <> r <> "` before it was declared."
           Just t -> Map.insert name t m
 
-termRefTypes :: Map R.Reference Type
+termRefTypes :: Map R.TermReference Type
 termRefTypes = foldl' go mempty builtinsSrc
   where
     go m = \case
       B r t -> Map.insert (R.Builtin r) t m
       D r t -> Map.insert (R.Builtin r) t m
       _ -> m
+
+termRefTypeReferences :: Map R.TermReference R.TypeReference
+termRefTypeReferences = H.typeToReference <$> termRefTypes
 
 typeOf :: a -> (Type -> a) -> R.Reference -> a
 typeOf a f r = maybe a f (Map.lookup r termRefTypes)
@@ -506,6 +510,7 @@ builtinsSrc =
     B "Text.patterns.notCharIn" $ list char --> pat text,
     -- Pattern.many : Pattern a -> Pattern a
     B "Pattern.many" $ forall1 "a" (\a -> pat a --> pat a),
+    B "Pattern.many.corrected" $ forall1 "a" (\a -> pat a --> pat a),
     B "Pattern.replicate" $ forall1 "a" (\a -> nat --> nat --> pat a --> pat a),
     B "Pattern.capture" $ forall1 "a" (\a -> pat a --> pat a),
     B "Pattern.captureAs" $ forall1 "a" (\a -> a --> pat a --> pat a),

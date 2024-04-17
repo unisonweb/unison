@@ -1,18 +1,15 @@
+The runtime tests are hosted at https://share.unison-lang.org/@unison/runtime-tests/
 
-Note: This should be forked off of the codebase created by base.md
+If you want to add or update tests, you can create a branch of that project, and update the `runtime_tests_version` line in `jit-tests.sh` and `CI.yaml`
 
-If you want to define more complex tests somewhere other than `tests.u`, just `load my-tests.u` then `add`,
-then reference those tests (which should be of type `'{IO,Exception,Tests} ()`, written using calls
-to `Tests.check` and `Tests.checkEqual`).
+Before merging the PR on Github, we'll merge your branch on Share and restore `runtime_tests_version` to /main or maybe a release.
 
 ```ucm
-.> run tests
+runtime-tests/selected> run tests
 
   ()
 
-```
-```ucm
-.> run tests.interpreter.only
+runtime-tests/selected> run tests.interpreter.only
 
   ()
 

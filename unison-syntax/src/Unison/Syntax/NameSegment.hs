@@ -152,7 +152,7 @@ wordyP = do
         end <- posP
         P.customFailure (Token word start end)
 
-    wordyMsg = "identifier (ex: abba1, snake_case, .foo.bar#xyz, or 🌻)"
+    wordyMsg = "identifier (ex: abba1, snake_case, .foo.bar#xyz, .foo.++#xyz, or 🌻)"
 
 escapeP :: ParsecT (Token Text) [Char] m a -> ParsecT (Token Text) [Char] m a
 escapeP parser =

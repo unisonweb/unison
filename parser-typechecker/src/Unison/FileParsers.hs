@@ -26,7 +26,7 @@ import Unison.Reference (Reference)
 import Unison.Referent qualified as Referent
 import Unison.Result (CompilerBug (..), Note (..), ResultT, pattern Result)
 import Unison.Result qualified as Result
-import Unison.Syntax.Name qualified as Name (toText, unsafeParseVar)
+import Unison.Syntax.Name qualified as Name (unsafeParseVar)
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Term qualified as Term
 import Unison.Type qualified as Type
@@ -85,18 +85,19 @@ computeTypecheckingEnvironment shouldUseTndr ambientAbilities typeLookupf uf =
       tl <- typeLookupf (UF.dependencies uf)
       pure
         Typechecker.Env
-          { _ambientAbilities = ambientAbilities,
-            _typeLookup = tl,
-            _termsByShortname = Map.empty
+          { ambientAbilities = ambientAbilities,
+            typeLookup = tl,
+            termsByShortname = Map.empty
           }
     ShouldUseTndr'Yes parsingEnv -> do
       let preexistingNames = Parser.names parsingEnv
           tm = UF.typecheckingTerm uf
           possibleDeps =
-            [ (Name.toText name, Var.name v, r)
+            [ (name, shortname, r)
               | (name, r) <- Rel.toList (Names.terms preexistingNames),
                 v <- Set.toList (Term.freeVars tm),
-                name `Name.endsWithReverseSegments` List.NonEmpty.toList (Name.reverseSegments (Name.unsafeParseVar v))
+                let shortname = Name.unsafeParseVar v,
+                name `Name.endsWithReverseSegments` List.NonEmpty.toList (Name.reverseSegments shortname)
             ]
           possibleRefs = Referent.toReference . view _3 <$> possibleDeps
       tl <- fmap (UF.declsToTypeLookup uf <>) (typeLookupf (UF.dependencies uf <> Set.fromList possibleRefs))
@@ -115,22 +116,23 @@ computeTypecheckingEnvironment shouldUseTndr ambientAbilities typeLookupf uf =
               [ (shortname, nr)
                 | (name, shortname, r) <- possibleDeps,
                   typ <- toList $ TL.typeOfReferent tl r,
-                  let nr = Typechecker.NamedReference name typ (Right r)
+                  let nr = Typechecker.NamedReference name typ (Context.ReplacementRef r)
               ]
                 <>
                 -- local file TDNR possibilities
-                [ (Var.name v, nr)
+                [ (shortname, nr)
                   | (name, r) <- Rel.toList (Names.terms $ UF.toNames uf),
                     v <- Set.toList (Term.freeVars tm),
-                    name `Name.endsWithReverseSegments` List.NonEmpty.toList (Name.reverseSegments (Name.unsafeParseVar v)),
+                    let shortname = Name.unsafeParseVar v,
+                    name `Name.endsWithReverseSegments` List.NonEmpty.toList (Name.reverseSegments shortname),
                     typ <- toList $ TL.typeOfReferent tl r,
-                    let nr = Typechecker.NamedReference (Name.toText name) typ (Right r)
+                    let nr = Typechecker.NamedReference name typ (Context.ReplacementRef r)
                 ]
       pure
         Typechecker.Env
-          { _ambientAbilities = ambientAbilities,
-            _typeLookup = tl,
-            _termsByShortname = fqnsByShortName
+          { ambientAbilities = ambientAbilities,
+            typeLookup = tl,
+            termsByShortname = fqnsByShortName
           }
 
 synthesizeFile ::

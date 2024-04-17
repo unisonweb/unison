@@ -279,7 +279,7 @@ data TermEntry v a = TermEntry
   deriving (Eq, Ord, Show, Generic)
 
 termEntryLabeledDependencies :: Ord v => TermEntry v a -> Set LD.LabeledDependency
-termEntryLabeledDependencies TermEntry {termEntryType, termEntryReferent, termEntryTag} =
+termEntryLabeledDependencies TermEntry {termEntryType, termEntryReferent, termEntryTag, termEntryName} =
   foldMap Type.labeledDependencies termEntryType
     <> Set.singleton (LD.TermReferent (Cv.referent2to1UsingCT ct termEntryReferent))
   where
@@ -287,7 +287,8 @@ termEntryLabeledDependencies TermEntry {termEntryType, termEntryReferent, termEn
     ct = case termEntryTag of
       ServerTypes.Constructor ServerTypes.Ability -> V2Referent.EffectConstructor
       ServerTypes.Constructor ServerTypes.Data -> V2Referent.DataConstructor
-      _ -> error "termEntryLabeledDependencies: not a constructor, but one was required"
+      ServerTypes.Doc -> V2Referent.DataConstructor
+      _ -> error $ "termEntryLabeledDependencies: Term is not a constructor, but the referent was a constructor. Tag: " <> show termEntryTag <> " Name: " <> show termEntryName <> " Referent: " <> show termEntryReferent
 
 termEntryDisplayName :: TermEntry v a -> Text
 termEntryDisplayName = HQ'.toTextWith Name.toText . termEntryHQName
@@ -455,7 +456,7 @@ getTermTag codebase r sig = do
   -- A term is a test if it has the type [test.Result]
   let isTest = case sig of
         Just t ->
-          Typechecker.isEqual t (Decls.testResultType mempty)
+          Typechecker.isEqual t (Decls.testResultListType mempty)
         Nothing -> False
   constructorType <- case r of
     V2Referent.Ref {} -> pure Nothing

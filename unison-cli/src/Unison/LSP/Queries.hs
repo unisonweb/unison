@@ -194,7 +194,7 @@ instance Functor SourceNode where
   fmap f (TypeNode t) = TypeNode (fmap f t)
   fmap f (PatternNode t) = PatternNode (fmap f t)
 
--- | Find the the node in a term which contains the specified position, but none of its
+-- | Find the node in a term which contains the specified position, but none of its
 -- children contain that position.
 findSmallestEnclosingNode :: Pos -> Term Symbol Ann -> Maybe (SourceNode Ann)
 findSmallestEnclosingNode pos term
@@ -295,7 +295,7 @@ findSmallestEnclosingPattern pos pat
         | conRef == Builtins.pairRef && mayUnitRef == Builtins.unitRef -> Just pat1
       _ -> Nothing
 
--- | Find the the node in a type which contains the specified position, but none of its
+-- | Find the node in a type which contains the specified position, but none of its
 -- children contain that position.
 -- This is helpful for finding the specific type reference of a given argument within a type arrow
 -- that a position references.

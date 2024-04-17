@@ -25,6 +25,7 @@
   (struct-out unison-typelink-derived)
   (struct-out unison-code)
   (struct-out unison-quote)
+  (struct-out unison-timespec)
 
   define-builtin-link
   declare-builtin-link
@@ -52,27 +53,59 @@
   ord
   failure
   exception
-  exn:bug
-  make-exn:bug
-  exn:bug?
-  exn:bug->exception
 
-  unison-any:typelink
+  builtin-any:typelink
   unison-any-any:tag
   unison-any-any
 
-  unison-boolean:typelink
+  builtin-boolean:typelink
   unison-boolean-true:tag
   unison-boolean-false:tag
   unison-boolean-true
   unison-boolean-false
 
-  unison-tuple->list)
+  builtin-bytes:typelink
+  builtin-char:typelink
+  builtin-float:typelink
+  builtin-int:typelink
+  builtin-nat:typelink
+  builtin-text:typelink
+  builtin-code:typelink
+  builtin-mvar:typelink
+  builtin-pattern:typelink
+  builtin-promise:typelink
+  builtin-sequence:typelink
+  builtin-socket:typelink
+  builtin-tls:typelink
+  builtin-timespec:typelink
+  builtin-threadid:typelink
+  builtin-value:typelink
+
+  builtin-crypto.hashalgorithm:typelink
+  builtin-char.class:typelink
+  builtin-immutablearray:typelink
+  builtin-immutablebytearray:typelink
+  builtin-mutablearray:typelink
+  builtin-mutablebytearray:typelink
+  builtin-processhandle:typelink
+  builtin-ref.ticket:typelink
+  builtin-tls.cipher:typelink
+  builtin-tls.clientconfig:typelink
+  builtin-tls.privatekey:typelink
+  builtin-tls.serverconfig:typelink
+  builtin-tls.signedcert:typelink
+  builtin-tls.version:typelink
+
+  unison-tuple->list
+
+  typelink->string
+  termlink->string)
 
 (require
   racket
   racket/fixnum
-  (only-in "vector-trie.rkt" ->fx/wraparound))
+  (only-in "vector-trie.rkt" ->fx/wraparound)
+  unison/bytevector)
 
 (struct unison-data
   (ref tag fields)
@@ -110,7 +143,8 @@
 
 (struct unison-request
   (ability tag fields)
-  #:constructor-name make-request)
+  #:constructor-name make-request
+  #:transparent)
 
 ; Structures for other unison builtins. Originally the plan was
 ; just to secretly use an in-unison data type representation.
@@ -123,6 +157,9 @@
 (struct unison-termlink ()
   #:transparent
   #:reflection-name 'termlink
+  #:methods gen:custom-write
+  [(define (write-proc tl port mode)
+     (write-string (termlink->string tl #t) port))]
   #:property prop:equal+hash
   (let ()
     (define (equal-proc lnl lnr rec)
@@ -173,28 +210,127 @@
 
 (struct unison-typelink ()
   #:transparent
-  #:reflection-name 'typelink)
+  #:reflection-name 'typelink
+  #:methods gen:custom-write
+  [(define (write-proc tl port mode)
+     (write-string (typelink->string tl #t) port))]
+  #:property prop:equal+hash
+  (let ()
+    (define (equal-proc lnl lnr rec)
+      (match lnl
+        [(unison-typelink-builtin l)
+         (match lnr
+           [(unison-typelink-builtin r)
+            (equal? l r)]
+           [else #f])]
+        [(unison-typelink-derived hl i)
+         (match lnr
+           [(unison-typelink-derived hr j)
+            (and (equal? hl hr) (= i j))]
+           [else #f])]))
+
+    (define ((hash-proc init) ln rec)
+      (match ln
+        [(unison-typelink-builtin n)
+         (fxxor (fx*/wraparound (rec n) 53)
+                (fx*/wraparound init 17))]
+        [(unison-typelink-derived hl i)
+         (fxxor (fx*/wraparound (rec hl) 59)
+                (fx*/wraparound (rec i) 61)
+                (fx*/wraparound init 19))]))
+
+    (list equal-proc (hash-proc 3) (hash-proc 5))))
 
 (struct unison-typelink-builtin unison-typelink
   (name)
-  #:reflection-name 'typelink)
+  #:reflection-name 'typelink
+  #:transparent)
 
 (struct unison-typelink-derived unison-typelink
   (ref ix)
-  #:reflection-name 'typelink)
+  #:reflection-name 'typelink
+  #:transparent)
 
 (struct unison-code (rep))
 (struct unison-quote (val))
 
+(define (write-procedure f port mode)
+  (cond
+    [(hash-has-key? function-associations f)
+     (define tl (lookup-function-link f))
+     (write-string (termlink->string tl #t) port)]
+    [else
+     (case mode
+       [(#f) (display f port)]
+       [(#t) (write f port)]
+       [else (print f port mode)])]))
+
+(define (write-sequence s port mode)
+  (define rec
+    (case mode
+      [(#f) display]
+      [(#t) write]
+      [else (lambda (e port) (print e port mode))]))
+
+  (write-string "'(" port)
+
+  (define first #t)
+
+  (for ([e s])
+    (unless first
+      (write-string " " port)
+      (set! first #f))
+
+    (if (procedure? e)
+      (write-procedure e port mode)
+      (rec e port)))
+  (write-string ")" port))
+
 (struct unison-closure
   (code env)
   #:transparent
+  #:methods gen:custom-write
+  [(define (write-proc clo port mode)
+     (define code-tl
+       (lookup-function-link (unison-closure-code clo)))
+
+     (define rec
+       (case mode
+         [(#t) write]
+         [(#f) display]
+         [else (lambda (v port) (print v port mode))]))
+
+     (write-string "(unison-closure " port)
+     (write-procedure (unison-closure-code clo) port mode)
+     (write-string " " port)
+     (write-sequence (unison-closure-env clo) port mode)
+     (write-string ")" port))]
   #:property prop:procedure
   (case-lambda
     [(clo) clo]
     [(clo . rest)
      (apply (unison-closure-code clo)
             (append (unison-closure-env clo) rest))]))
+
+(struct unison-timespec (sec nsec)
+  #:transparent
+  #:property prop:equal+hash
+  (let ()
+    (define (equal-proc tml tmr rec)
+      (match tml
+        [(unison-timespec sl nsl)
+         (match tmr
+           [(unison-timespec sr nsr)
+            (and (= sl sr) (= nsl nsr))])]))
+
+    (define ((hash-proc init) tm rec)
+      (match tm
+        [(unison-timespec s ns)
+         (fxxor (fx*/wraparound (rec s) 67)
+                (fx*/wraparound (rec ns) 71)
+                (fx*/wraparound init 73))]))
+
+    (list equal-proc (hash-proc 3) (hash-proc 5))))
 
 (define-syntax (define-builtin-link stx)
   (syntax-case stx ()
@@ -275,32 +411,72 @@
 (define (either-get either) (car (unison-sum-fields either)))
 
 ; a -> Any
-(define unison-any:typelink (unison-typelink-builtin "Any"))
+(define builtin-any:typelink (unison-typelink-builtin "Any"))
 (define unison-any-any:tag 0)
 (define (unison-any-any x)
-  (data unison-any:typelink unison-any-any:tag x))
+  (data builtin-any:typelink unison-any-any:tag x))
 
-(define unison-boolean:typelink (unison-typelink-builtin "Boolean"))
+(define builtin-boolean:typelink (unison-typelink-builtin "Boolean"))
 (define unison-boolean-true:tag 1)
 (define unison-boolean-false:tag 0)
 (define unison-boolean-true
-  (data unison-boolean:typelink unison-boolean-true:tag))
+  (data builtin-boolean:typelink unison-boolean-true:tag))
 (define unison-boolean-false
-  (data unison-boolean:typelink unison-boolean-false:tag))
+  (data builtin-boolean:typelink unison-boolean-false:tag))
+
+(define builtin-bytes:typelink (unison-typelink-builtin "Bytes"))
+(define builtin-char:typelink (unison-typelink-builtin "Char"))
+(define builtin-code:typelink (unison-typelink-builtin "Code"))
+(define builtin-float:typelink (unison-typelink-builtin "Float"))
+(define builtin-int:typelink (unison-typelink-builtin "Int"))
+(define builtin-mvar:typelink (unison-typelink-builtin "MVar"))
+(define builtin-nat:typelink (unison-typelink-builtin "Nat"))
+(define builtin-pattern:typelink (unison-typelink-builtin "Pattern"))
+(define builtin-promise:typelink (unison-typelink-builtin "Promise"))
+(define builtin-sequence:typelink (unison-typelink-builtin "Sequence"))
+(define builtin-socket:typelink (unison-typelink-builtin "Socket"))
+(define builtin-text:typelink (unison-typelink-builtin "Text"))
+(define builtin-tls:typelink (unison-typelink-builtin "Tls"))
+(define builtin-timespec:typelink (unison-typelink-builtin "TimeSpec"))
+(define builtin-threadid:typelink (unison-typelink-builtin "ThreadId"))
+(define builtin-value:typelink (unison-typelink-builtin "Value"))
+
+(define builtin-crypto.hashalgorithm:typelink
+  (unison-typelink-builtin "crypto.HashAlgorithm"))
+(define builtin-char.class:typelink
+  (unison-typelink-builtin "Char.Class"))
+(define builtin-immutablearray:typelink
+  (unison-typelink-builtin "ImmutableArray"))
+(define builtin-immutablebytearray:typelink
+  (unison-typelink-builtin "ImmutableByteArray"))
+(define builtin-mutablearray:typelink
+  (unison-typelink-builtin "MutableArray"))
+(define builtin-mutablebytearray:typelink
+  (unison-typelink-builtin "MutableArray"))
+(define builtin-processhandle:typelink
+  (unison-typelink-builtin "ProcessHandle"))
+(define builtin-ref.ticket:typelink
+  (unison-typelink-builtin "Ref.Ticket"))
+(define builtin-tls.cipher:typelink
+  (unison-typelink-builtin "Tls.Cipher"))
+(define builtin-tls.clientconfig:typelink
+  (unison-typelink-builtin "Tls.ClientConfig"))
+(define builtin-tls.privatekey:typelink
+  (unison-typelink-builtin "Tls.PrivateKey"))
+(define builtin-tls.serverconfig:typelink
+  (unison-typelink-builtin "Tls.ServerConfig"))
+(define builtin-tls.signedcert:typelink
+  (unison-typelink-builtin "Tls.SignedCert"))
+(define builtin-tls.version:typelink
+  (unison-typelink-builtin "Tls.Version"))
 
 ; Type -> Text -> Any -> Failure
 (define (failure typeLink msg any)
   (sum 0 typeLink msg any))
 
-; Type -> Text -> a ->{Exception} b
+; Type -> Text -> a -> (type, text, a) + b
 (define (exception typeLink msg a)
-  (failure typeLink msg (unison-any-any a)))
-
-; TODO needs better pretty printing for when it isn't caught
-(struct exn:bug (msg a)
-  #:constructor-name make-exn:bug)
-(define (exn:bug->exception b) (exception "RuntimeFailure" (exn:bug-msg b) (exn:bug-a b)))
-
+  (failure typeLink msg a))
 
 ; A counter for internally numbering declared data, so that the
 ; entire reference doesn't need to be stored in every data record.
@@ -359,3 +535,35 @@
        (cons (car fs) (unison-tuple->list (cadr fs)))]
       [else
         (raise "unison-tuple->list: unexpected value")])))
+
+(define (hash-string hs)
+  (string-append
+    "#"
+    (bytevector->base32-string hs #:alphabet 'hex)))
+
+(define (ix-string i)
+  (if (= i 0)
+    ""
+    (string-append "." (number->string i))))
+
+(define (typelink->string ln [short #f])
+  (define (clip s) (if short (substring s 0 8) s))
+
+  (match ln
+    [(unison-typelink-builtin name)
+     (string-append "##" name)]
+    [(unison-typelink-derived hs i)
+     (string-append (clip (hash-string hs)) (ix-string i))]))
+
+(define (termlink->string ln [short #f])
+  (define (clip s) (if short (substring s 0 8) s))
+
+  (match ln
+    [(unison-termlink-builtin name)
+     (string-append "##" name)]
+    [(unison-termlink-derived hs i)
+     (string-append (clip (hash-string hs)) (ix-string i))]
+    [(unison-termlink-con rf t)
+     (string-append
+       (typelink->string rf short) "#" (number->string t))]))
+

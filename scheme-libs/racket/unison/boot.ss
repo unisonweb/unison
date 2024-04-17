@@ -12,13 +12,56 @@
 ; that arity appropriately.
 #!racket/base
 (provide
+  (all-from-out unison/data-info)
+  builtin-any:typelink
+  builtin-boolean:typelink
+  builtin-bytes:typelink
+  builtin-char:typelink
+  builtin-float:typelink
+  builtin-int:typelink
+  builtin-nat:typelink
+  builtin-text:typelink
+  builtin-code:typelink
+  builtin-mvar:typelink
+  builtin-pattern:typelink
+  builtin-promise:typelink
+  builtin-sequence:typelink
+  builtin-socket:typelink
+  builtin-tls:typelink
+  builtin-timespec:typelink
+  builtin-threadid:typelink
+  builtin-value:typelink
+
+  builtin-crypto.hashalgorithm:typelink
+  builtin-char.class:typelink
+  builtin-immutablearray:typelink
+  builtin-immutablebytearray:typelink
+  builtin-mutablearray:typelink
+  builtin-mutablebytearray:typelink
+  builtin-processhandle:typelink
+  builtin-ref.ticket:typelink
+  builtin-tls.cipher:typelink
+  builtin-tls.clientconfig:typelink
+  builtin-tls.privatekey:typelink
+  builtin-tls.serverconfig:typelink
+  builtin-tls.signedcert:typelink
+  builtin-tls.version:typelink
+
   bytevector
+  bytes
   control
   define-unison
   handle
   name
   data
   data-case
+
+  clamp-integer
+  clamp-natural
+  wrap-natural
+  bit64
+  bit63
+  nbit63
 
   expand-sandbox
   check-sandbox
@@ -34,6 +77,11 @@
   (struct-out unison-typelink-derived)
   declare-function-link
   declare-code
+
+  exn:bug?
+  exn:bug->exception
+  exception->string
+  raise-unison-exception
 
   request
   request-case
@@ -64,7 +112,7 @@
 (require
   (for-syntax
     racket/set
-    (only-in racket partition))
+    (only-in racket partition flatten))
   (rename-in
     (except-in racket false true unit any)
     [make-continuation-prompt-tag make-prompt])
@@ -72,6 +120,7 @@
   ; (for (only (racket base) quasisyntax/loc) expand)
   ; (for-syntax (only-in unison/core syntax->list))
   (only-in racket/control prompt0-at control0-at)
+  racket/performance-hint
   unison/core
   unison/data
   unison/sandbox
@@ -402,13 +451,11 @@
         [(pure . xs) #t]
         [_ #f]))
 
-    (define (mk-pure scrut ps)
+    (define (mk-pure ps)
       (if (null? ps)
-        #`(pure-val #,scrut)
+        #'((unison-pure v) v)
         (syntax-case (car ps) (pure)
-          [(pure (v) e ...)
-           #`(let ([v (unison-pure-val #,scrut)])
-               e ...)]
+          [(pure (v) e ...) #'((unison-pure v) e ...)]
           [(pure vs e ...)
            (raise-syntax-error
              #f
@@ -416,24 +463,19 @@
              (car ps)
              #'vs)])))
 
-    (define (mk-req scrut-stx)
-      (lambda (stx)
-        (syntax-case stx ()
-          [(t vs e ...)
-           (with-syntax ([scrut scrut-stx])
-             #'((t) (let-values
-                      ([vs (apply values (unison-request-fields scrut))])
-                      e ...)))])))
+    (define (mk-req stx)
+      (syntax-case stx ()
+        [(t (v ...) e ...)
+         #'((t (list v ...)) e ...)]))
 
     (define (mk-abil scrut-stx)
       (lambda (stx)
         (syntax-case stx ()
-          [(t sc ...)
-           (let ([sub (mk-req scrut-stx)])
-             (with-syntax
-               ([(sc ...) (map sub (syntax->list #'(sc ...)))]
-                [scrut scrut-stx])
-               #'((t) (case (unison-request-tag scrut) sc ...))))])))
+          [(a sc ...)
+           #`((unison-request b t vs)
+              #:when (equal? a b)
+              (match* (t vs)
+                #,@(map mk-req (syntax->list #'(sc ...)))))])))
 
     (syntax-case stx ()
       [(request-case scrut c ...)
@@ -445,127 +487,64 @@
              "multiple pure cases in request-case"
              stx)
            (with-syntax
-             ([pc (mk-pure #'scrut ps)]
+             ([pc (mk-pure ps)]
               [(ac ...) (map (mk-abil #'scrut) as)])
 
-             #'(cond
-                 [(unison-pure? scrut) pc]
-                 [else (case (unison-request-ability scrut) ac ...)]))))])))
+             #'(match scrut pc ac ...))))])))
 
-; (define (describe-list n l)
-;   (let rec ([pre "["] [post "[]"] [cur l])
-;     (cond
-;       [(null? cur) post]
-;       [else
-;         (let* ([sx (describe-value-depth (- n 1) (car cur))]
-;                [sxs (rec ", " "]" (cdr cur))])
-;           (string-append pre sx sxs))])))
-;
-; (define (describe-ref r)
-;   (cond
-;     [(symbol? r) (symbol->string r)]
-;     [(data? r)
-;      (data-case r
-;        [0 (s) (string-append "##" s)]
-;        [1 (i)
-;          (data-case i
-;            [0 (bs ix)
-;              (let* ([bd (bytevector->base32-string b32h bs)]
-;                     [td (istring-take 5 bd)]
-;                     [sx (if (>= 0 ix)
-;                           ""
-;                           (string-append "." (number->string ix)))])
-;                (string-append "#" td sx))])])]))
-;
-; (define (describe-bytes bs)
-;   (let* ([s (bytevector->base32-string b32h bs)]
-;          [l (string-length s)]
-;          [sfx (if (<= l 10) "" "...")])
-;     (string-append "32x" (istring-take 10 s) sfx)))
-;
-; (define (describe-value-depth n x) 
-;   (if (< n 0) "..."
-;     (cond
-;       [(sum? x)
-;        (let ([tt (number->string (sum-tag x))]
-;              [vs (describe-list n (sum-fields x))])
-;          (string-append "Sum " tt " " vs))]
-;       [(data? x)
-;        (let ([tt (number->string (data-tag x))]
-;              [rt (describe-ref (data-ref x))]
-;              [vs (describe-list n (data-fields x))])
-;          (string-append "Data " rt " " tt " " vs))]
-;       [(list? x) (describe-list n x)]
-;       [(number? x) (number->string x)]
-;       [(string? x) (string-append "\"" x "\"")]
-;       [(bytevector? x) (describe-bytes x)]
-;       [(procedure? x) (format "~a" x)]
-;       [else
-;         (format "describe-value: unimplemented case: ~a " x)])))
-;
-; (define (describe-value x) (describe-value-depth 20 x))
-;
 (define (decode-value x) '())
 
 (define (reference->termlink rf)
   (match rf
     [(unison-data _ t (list nm))
-     #:when (= t unison-reference-builtin:tag)
+     #:when (= t ref-reference-builtin:tag)
      (unison-termlink-builtin (chunked-string->string nm))]
     [(unison-data _ t (list id))
-     #:when (= t unison-reference-derived:tag)
+     #:when (= t ref-reference-derived:tag)
      (match id
        [(unison-data _ t (list rf i))
-        #:when (= t unison-id-id:tag)
+        #:when (= t ref-id-id:tag)
         (unison-termlink-derived rf i)])]))
 
 (define (referent->termlink rn)
   (match rn
     [(unison-data _ t (list rf i))
-     #:when (= t unison-referent-con:tag)
+     #:when (= t ref-referent-con:tag)
      (unison-termlink-con (reference->typelink rf) i)]
     [(unison-data _ t (list rf))
-     #:when (= t unison-referent-def:tag)
+     #:when (= t ref-referent-def:tag)
      (reference->termlink rf)]))
 
 (define (reference->typelink rf)
   (match rf
     [(unison-data _ t (list nm))
-     #:when (= t unison-reference-builtin:tag)
+     #:when (= t ref-reference-builtin:tag)
      (unison-typelink-builtin (chunked-string->string nm))]
     [(unison-data _ t (list id))
-     #:when (= t unison-reference-derived:tag)
+     #:when (= t ref-reference-derived:tag)
      (match id
        [(unison-data _ t (list rf i))
-        #:when (= t unison-id-id:tag)
+        #:when (= t ref-id-id:tag)
         (unison-typelink-derived rf i)])]))
 
 (define (typelink->reference tl)
   (match tl
     [(unison-typelink-builtin nm)
-     (unison-reference-builtin (string->chunked-string nm))]
+     (ref-reference-builtin (string->chunked-string nm))]
     [(unison-typelink-derived hs i)
-     (unison-reference-derived
-       (unison-id-id hs i))]))
+     (ref-reference-derived (ref-id-id hs i))]))
 
 (define (termlink->referent tl)
   (match tl
     [(unison-termlink-builtin nm)
-     (unison-referent-def
-       (unison-reference-builtin nm))]
+     (ref-referent-def
+       (ref-reference-builtin nm))]
     [(unison-termlink-derived rf i)
-     (unison-referent-def
-       (unison-reference-derived
-         (unison-id-id rf i)))]
+     (ref-referent-def
+       (ref-reference-derived
+         (ref-id-id rf i)))]
     [(unison-termlink-con tyl i)
-     (unison-referent-con
-       (typelink->reference tyl)
-       i)]))
-
-(define (list->unison-tuple l)
-  (foldr unison-tuple-pair unison-unit-unit l))
-
-(define (unison-tuple . l) (list->unison-tuple l))
+     (ref-referent-con (typelink->reference tyl) i)]))
 
 (define (unison-seq . l)
   (vector->chunked-list (list->vector l)))
@@ -574,20 +553,59 @@
 ; The in-unison definition was effectively just literal scheme code
 ; represented as a unison data type, with some names generated from
 ; codebase data.
-;
-; Note: the ref-4n0fgs00 stuff is probably not ultimately correct, but
-; is how things work for now.
 (define (top-exn-handler rq)
   (request-case rq
     [pure (x)
       (match x
         [(unison-data r 0 (list))
-         (eq? r unison-unit:link)
+         (eq? r ref-unit:typelink)
          (display "")]
         [else
           (display (describe-value x))])]
-    [ref-4n0fgs00
+    [ref-exception:typelink
       [0 (f)
-       (control 'ref-4n0fgs00 k
+       (control ref-exception:typelink k
          (let ([disp (describe-value f)])
-           (raise (make-exn:bug "builtin.bug" disp))))]]))
+           (raise
+             (make-exn:bug
+               (string->chunked-string "builtin.bug")
+               disp))))]]))
+
+(begin-encourage-inline
+  (define mask64 #xffffffffffffffff)
+  (define mask63 #x7fffffffffffffff)
+  (define bit63 #x8000000000000000)
+  (define bit64 #x10000000000000000)
+  (define nbit63 (- #x8000000000000000))
+
+  ; Operation to maintain Int values to within a range from
+  ; -2^63 to 2^63-1.
+  (define (clamp-integer i)
+    (if (fixnum? i) i
+      (let ([j (bitwise-and mask64 i)])
+        (if (< j bit63) j
+          (- j bit64)))))
+
+  ; modular arithmetic appropriate for when a Nat operation can only
+  ; overflow (be too large a positive number).
+  (define (clamp-natural n)
+    (if (fixnum? n) n
+      (modulo n bit64)))
+
+  ; module arithmetic appropriate for when a Nat operation my either
+  ; have too large or a negative result.
+  (define (wrap-natural n)
+    (if (and (fixnum? n) (exact-nonnegative-integer? n)) n
+      (modulo n bit64))))
+
+(define (raise-unison-exception ty msg val)
+  (request
+    ref-exception:typelink
+    0
+    (ref-failure-failure ty msg (unison-any-any val))))
+
+(define (exn:bug->exception b)
+  (raise-unison-exception
+    ref-runtimefailure:typelink
+    (exn:bug-msg b)
+    (exn:bug-val b)))

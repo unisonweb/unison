@@ -68,7 +68,7 @@ declarations = do
           <> [(v, DD.annotation . DD.toDataDecl <$> es) | (v, es) <- Map.toList mesBad]
 
 -- | When we first walk over the modifier, it may be a `unique`, in which case we want to use a function in the parsing
--- environment to map the the type's name (which we haven't parsed yet) to a GUID to reuse (if any).
+-- environment to map the type's name (which we haven't parsed yet) to a GUID to reuse (if any).
 --
 -- So, we parse into this temporary "unresolved modifier" type, which is soon resolved to a real Modifier once we know
 -- the type name.

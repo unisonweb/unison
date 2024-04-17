@@ -69,6 +69,42 @@ unique type Record4 =
 .> view Record4
 ```
 
+## Record with many many fields
+
+```unison:hide
+unique type Record5 = {
+  zero : Nat,
+  one : [Nat],
+  two : [[Nat]],
+  three: [[[Nat]]],
+  four: [[[[Nat]]]],
+  five: [[[[[Nat]]]]],
+  six: [[[[[[Nat]]]]]],
+  seven: [[[[[[[Nat]]]]]]],
+  eight: [[[[[[[[Nat]]]]]]]],
+  nine: [[[[[[[[[Nat]]]]]]]]],
+  ten: [[[[[[[[[[Nat]]]]]]]]]],
+  eleven: [[[[[[[[[[[Nat]]]]]]]]]]],
+  twelve: [[[[[[[[[[[[Nat]]]]]]]]]]]],
+  thirteen: [[[[[[[[[[[[[Nat]]]]]]]]]]]]],
+  fourteen: [[[[[[[[[[[[[[Nat]]]]]]]]]]]]]],
+  fifteen: [[[[[[[[[[[[[[[Nat]]]]]]]]]]]]]]],
+  sixteen: [[[[[[[[[[[[[[[[Nat]]]]]]]]]]]]]]]],
+  seventeen: [[[[[[[[[[[[[[[[[Nat]]]]]]]]]]]]]]]]],
+  eighteen: [[[[[[[[[[[[[[[[[[Nat]]]]]]]]]]]]]]]]]],
+  nineteen: [[[[[[[[[[[[[[[[[[[Nat]]]]]]]]]]]]]]]]]]],
+  twenty: [[[[[[[[[[[[[[[[[[[[Nat]]]]]]]]]]]]]]]]]]]]
+}
+```
+
+```ucm:hide
+.> add
+```
+
+```ucm
+.> view Record5
+```
+
 ## Record with user-defined type fields
 
 This record type has two fields whose types are user-defined (`Record4` and `UserType`).

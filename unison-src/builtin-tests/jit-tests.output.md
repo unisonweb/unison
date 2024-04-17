@@ -1,15 +1,51 @@
+The runtime tests are hosted at https://share.unison-lang.org/@unison/runtime-tests/
 
-Note: This should be forked off of the codebase created by base.md
+If you want to add or update tests, you can create a branch of that project, and update the `runtime_tests_version` line in `jit-tests.sh` and `CI.yaml`
 
-If you want to define more complex tests somewhere other than `tests.u`, just `load my-tests.u` then `add`,
-then reference those tests (which should be of type `'{IO,Exception,Tests} ()`, written using calls
-to `Tests.check` and `Tests.checkEqual`).
+Before merging the PR on Github, we'll merge your branch on Share and restore `runtime_tests_version` to /main or maybe a release.
 
 ```ucm
-.> run.native tests
+runtime-tests/selected> run.native tests
+
+  ()
+
+runtime-tests/selected> run.native tests.jit.only
+
+  ()
+
+```
+Per Dan:
+It's testing a flaw in how we were sending code from a scratch file to the native runtime, when that happened multiple times.
+Related to the verifiable refs and recursive functions.
+```unison
+foo = do
+  go : Nat ->{Exception} ()
+  go = cases
+    0 -> ()
+    n -> go (decrement n)
+  go 1000
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      foo : '{Exception} ()
 
 ```
 ```ucm
-.> run.native tests.jit.only
+.> run.native foo
+
+  ()
+
+.> run.native foo
+
+  ()
 
 ```

@@ -65,12 +65,12 @@ let
       };
       local = shellFor {
         packages = hpkgs: (map (p: hpkgs."${p}") localPackageNames);
-        withHoogle = true;
+        withHoogle = false;
       };
     } // localPackageDevShells;
 in
 haskell-nix-flake // {
-  defaultPackage = haskell-nix-flake.packages."unison-cli:exe:unison";
+  defaultPackage = haskell-nix-flake.packages."unison-cli-main:exe:unison";
   inherit (pkgs) unison-project;
   inherit devShells localPackageNames;
 }
