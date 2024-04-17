@@ -26,7 +26,7 @@ import Unison.Merge.Unconflicts (Unconflicts (..))
 import Unison.Merge.Unconflicts qualified as Unconflicts
 import Unison.Name (Name)
 import Unison.Prelude hiding (catMaybes)
-import Unison.Reference (TermReference, TermReferenceId, TypeReference, TypeReferenceId)
+import Unison.Reference (Reference' (..), TermReference, TermReferenceId, TypeReference, TypeReferenceId)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
@@ -72,12 +72,13 @@ combineDiffs declNameLookups defns diffs = do
   Right (conflicts, unconflicts)
 
 identifyConflicts ::
+  HasCallStack =>
   TwoWay DeclNameLookup ->
   TwoWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
   DefnsF2 (Map Name) CombinedDiffOps Referent TypeReference ->
   TwoWay (DefnsF (Map Name) TermReference TypeReference)
 identifyConflicts declNameLookups defns =
-  \diff -> loop (makeInitialIdentifyConflictsState diff)
+  loop . makeInitialIdentifyConflictsState
   where
     loop :: S -> TwoWay (DefnsF (Map Name) TermReference TypeReference)
     loop s =
@@ -102,7 +103,9 @@ identifyConflicts declNameLookups defns =
             Just $
               s
                 & myTypeConflicts_ .~ conflicts
-                & theirTermStack_ %~ (expectConstructorNames myDeclNameLookup name ++)
+                & case ref of
+                  ReferenceBuiltin _ -> id -- builtin types don't have constructors
+                  ReferenceDerived _ -> theirTermStack_ %~ (expectConstructorNames myDeclNameLookup name ++)
 
         me_ :: Lens' (TwoWay a) a
         me_ = TwoWay.who_ s.me
