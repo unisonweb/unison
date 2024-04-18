@@ -10,7 +10,7 @@ import Data.Semialign (Semialign, alignWith)
 import Data.Semigroup.Generic (GenericSemigroupMonoid (..))
 import Data.These (These (..))
 import Data.Zip (Zip, zipWith)
-import Unison.Merge.AliceIorBob (AliceIorBob (..))
+import Unison.Merge.EitherWayI (EitherWayI (..))
 import Unison.Merge.TwoWay (TwoWay (..))
 import Unison.Prelude
 import Prelude hiding (zipWith)
@@ -42,8 +42,8 @@ forgetBoth :: TwoWayI a -> TwoWay a
 forgetBoth TwoWayI {alice, bob} =
   TwoWay {alice, bob}
 
-who_ :: AliceIorBob -> Lens' (TwoWayI a) a
+who_ :: EitherWayI x -> Lens' (TwoWayI a) a
 who_ = \case
-  OnlyAlice -> #alice
-  OnlyBob -> #bob
-  AliceAndBob -> #both
+  OnlyAlice _ -> #alice
+  OnlyBob _ -> #bob
+  AliceAndBob _ -> #both

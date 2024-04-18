@@ -55,14 +55,15 @@ import Unison.Codebase.SqliteCodebase.Conversions qualified as Conversions
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.Debug qualified as Debug
 import Unison.Hash qualified as Hash
-import Unison.Merge.AliceIorBob (AliceIorBob (..))
-import Unison.Merge.AliceXorBob (AliceXorBob (..))
 import Unison.Merge.CombineDiffs (CombinedDiffOp (..), combineDiffs)
 import Unison.Merge.Database (MergeDatabase (..), makeMergeDatabase, referent2to1)
 import Unison.Merge.DeclCoherencyCheck (IncoherentDeclReason (..), checkDeclCoherency)
 import Unison.Merge.DeclNameLookup (DeclNameLookup (..), expectConstructorNames)
 import Unison.Merge.Diff qualified as Merge
 import Unison.Merge.DiffOp (DiffOp (..))
+import Unison.Merge.EitherWay (EitherWay (..))
+import Unison.Merge.EitherWayI (EitherWayI (..))
+import Unison.Merge.EitherWayI qualified as EitherWayI
 import Unison.Merge.Libdeps qualified as Merge
 import Unison.Merge.PartitionCombinedDiffs (partitionCombinedDiffs)
 import Unison.Merge.PreconditionViolation qualified as Merge
@@ -73,10 +74,10 @@ import Unison.Merge.ThreeWay qualified as ThreeWay
 import Unison.Merge.TwoOrThreeWay (TwoOrThreeWay (..))
 import Unison.Merge.TwoWay (TwoWay (..))
 import Unison.Merge.TwoWay qualified as TwoWay
-import Unison.Merge.TwoWayI (TwoWayI)
 import Unison.Merge.TwoWayI qualified as TwoWayI
 import Unison.Merge.Unconflicts (Unconflicts (..))
 import Unison.Merge.Unconflicts qualified as Unconflicts
+import Unison.Merge.Updated (Updated (..))
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment (..))
@@ -826,7 +827,7 @@ mergeUnconflictedDependents2 ::
   TwoWay (DefnsF Set Name Name) ->
   TwoWay (DefnsF Set Name Name) ->
   TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId) ->
-  DefnsF (Map Name) (AliceIorBob, TermReferenceId) (AliceIorBob, TypeReferenceId)
+  DefnsF2 (Map Name) EitherWayI TermReferenceId TypeReferenceId
 mergeUnconflictedDependents2 conflicts unconflictedSoloDeletedNames unconflictedSoloUpdatedNames dependents =
   zipDefnsWith
     ( merge
@@ -848,20 +849,20 @@ mergeUnconflictedDependents2 conflicts unconflictedSoloDeletedNames unconflicted
       TwoWay (Set Name) ->
       Map Name v ->
       Map Name v ->
-      Map Name (AliceIorBob, v)
+      Map Name (EitherWayI v)
     merge conflicts deletes updates =
       Map.merge
         (Map.mapMaybeMissing whenOnlyAlice)
         (Map.mapMaybeMissing whenOnlyBob)
         (Map.zipWithMaybeMatched whenBoth)
       where
-        whenOnlyAlice :: Name -> v -> Maybe (AliceIorBob, v)
+        whenOnlyAlice :: Name -> v -> Maybe (EitherWayI v)
         whenOnlyAlice name ref =
-          (OnlyAlice,) <$> whenOnlyMe conflicts.alice updates.alice deletes.bob name ref
+          OnlyAlice <$> whenOnlyMe conflicts.alice updates.alice deletes.bob name ref
 
-        whenOnlyBob :: Name -> v -> Maybe (AliceIorBob, v)
+        whenOnlyBob :: Name -> v -> Maybe (EitherWayI v)
         whenOnlyBob name ref =
-          (OnlyBob,) <$> whenOnlyMe conflicts.bob updates.bob deletes.alice name ref
+          OnlyBob <$> whenOnlyMe conflicts.bob updates.bob deletes.alice name ref
 
         whenOnlyMe :: Set Name -> Set Name -> Set Name -> Name -> v -> Maybe v
         whenOnlyMe myConflicts myUpdates theirDeletes name me
@@ -874,16 +875,16 @@ mergeUnconflictedDependents2 conflicts unconflictedSoloDeletedNames unconflicted
           -- Case 1b2b
           | otherwise = Just me
 
-        whenBoth :: Name -> v -> v -> Maybe (AliceIorBob, v)
+        whenBoth :: Name -> v -> v -> Maybe (EitherWayI v)
         whenBoth name alice bob
           -- Case 2a
           | Set.member name conflicts.alice || Set.member name conflicts.bob = Nothing
           -- Case 2b1
-          | Set.member name updates.alice = Just (OnlyAlice, alice)
+          | Set.member name updates.alice = Just (OnlyAlice alice)
           -- Case 2b1
-          | Set.member name updates.bob = Just (OnlyBob, bob)
+          | Set.member name updates.bob = Just (OnlyBob bob)
           -- Case 2b2 or 2b3, the choice doesn't matter
-          | otherwise = Just (AliceAndBob, alice)
+          | otherwise = Just (AliceAndBob alice)
 
 restrictDefnsToNames ::
   DefnsF Set Name Name ->
@@ -1161,17 +1162,17 @@ findConflictedAlias defns diff =
           case op of
             DiffOp'Add _ -> Nothing
             DiffOp'Delete _ -> Nothing
-            DiffOp'Update _ hashed1 ->
+            DiffOp'Update hashed1 ->
               BiMultimap.lookupPreimage name namespace
                 & Set.delete name
                 & Set.toList
-                & map (g hashed1)
+                & map (g hashed1.new)
                 & asum
           where
             g :: Synhashed ref -> Name -> Maybe (Name, Name)
             g hashed1 alias =
               case Map.lookup alias diff of
-                Just (DiffOp'Update _ hashed2) | hashed1 == hashed2 -> Nothing
+                Just (DiffOp'Update hashed2) | hashed1 == hashed2.new -> Nothing
                 _ -> Just (name, alias)
 
 -- Given a name like "base", try "base__1", then "base__2", etc, until we find a name that doesn't
@@ -1307,7 +1308,7 @@ realDebugDiffs diffs = do
          in Text.putStrLn case op of
               DiffOp'Add x -> go Text.green "+" x
               DiffOp'Delete x -> go Text.red "-" x
-              DiffOp'Update _ x -> go Text.yellow "%" x
+              DiffOp'Update x -> go Text.yellow "%" x.new
 
 realDebugCombinedDiff :: DefnsF2 (Map Name) CombinedDiffOp Referent TypeReference -> IO ()
 realDebugCombinedDiff diff = do
@@ -1319,36 +1320,36 @@ realDebugCombinedDiff diff = do
     renderThings label renderRef things =
       for_ (Map.toList things) \(name, op) ->
         Text.putStrLn case op of
-          CombinedDiffOp'Add who ref ->
+          CombinedDiffOp'Add who ->
             Text.green $
               "+ "
-                <> Text.italic (label ref)
+                <> Text.italic (label (EitherWayI.value who))
                 <> " "
                 <> Name.toText name
                 <> " "
-                <> renderRef ref
+                <> renderRef (EitherWayI.value who)
                 <> " ("
                 <> renderWho who
                 <> ")"
-          CombinedDiffOp'Delete who ref ->
+          CombinedDiffOp'Delete who ->
             Text.red $
               "- "
-                <> Text.italic (label ref)
+                <> Text.italic (label (EitherWayI.value who))
                 <> " "
                 <> Name.toText name
                 <> " "
-                <> renderRef ref
+                <> renderRef (EitherWayI.value who)
                 <> " ("
                 <> renderWho who
                 <> ")"
-          CombinedDiffOp'Update who _ ref ->
+          CombinedDiffOp'Update who ->
             Text.yellow $
               "% "
-                <> Text.italic (label ref)
+                <> Text.italic (label (EitherWayI.value who).new)
                 <> " "
                 <> Name.toText name
                 <> " "
-                <> renderRef ref
+                <> renderRef (EitherWayI.value who).new
                 <> " ("
                 <> renderWho who
                 <> ")"
@@ -1365,11 +1366,11 @@ realDebugCombinedDiff diff = do
                 <> "/"
                 <> renderRef ref.bob
 
-    renderWho :: AliceIorBob -> Text
+    renderWho :: EitherWayI v -> Text
     renderWho = \case
-      OnlyAlice -> "Alice"
-      OnlyBob -> "Bob"
-      AliceAndBob -> "Alice and Bob"
+      OnlyAlice _ -> "Alice"
+      OnlyBob _ -> "Bob"
+      AliceAndBob _ -> "Alice and Bob"
 
 realDebugPartitionedDiff ::
   TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId) ->
@@ -1377,32 +1378,32 @@ realDebugPartitionedDiff ::
   IO ()
 realDebugPartitionedDiff conflicts unconflicts = do
   Text.putStrLn (Text.bold "\n=== Conflicts ===")
-  renderConflicts "termid" conflicts.alice.terms Alice
-  renderConflicts "termid" conflicts.bob.terms Bob
-  renderConflicts "typeid" conflicts.alice.types Alice
-  renderConflicts "typeid" conflicts.bob.types Bob
+  renderConflicts "termid" conflicts.alice.terms (Alice ())
+  renderConflicts "termid" conflicts.bob.terms (Bob ())
+  renderConflicts "typeid" conflicts.alice.types (Alice ())
+  renderConflicts "typeid" conflicts.bob.types (Bob ())
 
   Text.putStrLn (Text.bold "\n=== Unconflicts ===")
-  renderUnconflicts Text.green "+" referentLabel Referent.toText unconflicts.terms.adds.alice OnlyAlice
-  renderUnconflicts Text.green "+" referentLabel Referent.toText unconflicts.terms.adds.bob OnlyBob
-  renderUnconflicts Text.green "+" referentLabel Referent.toText unconflicts.terms.adds.both AliceAndBob
-  renderUnconflicts Text.green "+" (const "type") Reference.toText unconflicts.types.adds.alice OnlyAlice
-  renderUnconflicts Text.green "+" (const "type") Reference.toText unconflicts.types.adds.bob OnlyBob
-  renderUnconflicts Text.green "+" (const "type") Reference.toText unconflicts.types.adds.both AliceAndBob
-  renderUnconflicts Text.red "-" referentLabel Referent.toText unconflicts.terms.deletes.alice OnlyAlice
-  renderUnconflicts Text.red "-" referentLabel Referent.toText unconflicts.terms.deletes.bob OnlyBob
-  renderUnconflicts Text.red "-" referentLabel Referent.toText unconflicts.terms.deletes.both AliceAndBob
-  renderUnconflicts Text.red "-" (const "type") Reference.toText unconflicts.types.deletes.alice OnlyAlice
-  renderUnconflicts Text.red "-" (const "type") Reference.toText unconflicts.types.deletes.bob OnlyBob
-  renderUnconflicts Text.red "-" (const "type") Reference.toText unconflicts.types.deletes.both AliceAndBob
-  renderUnconflicts Text.yellow "%" referentLabel Referent.toText unconflicts.terms.updates.alice OnlyAlice
-  renderUnconflicts Text.yellow "%" referentLabel Referent.toText unconflicts.terms.updates.bob OnlyBob
-  renderUnconflicts Text.yellow "%" referentLabel Referent.toText unconflicts.terms.updates.both AliceAndBob
-  renderUnconflicts Text.yellow "%" (const "type") Reference.toText unconflicts.types.updates.alice OnlyAlice
-  renderUnconflicts Text.yellow "%" (const "type") Reference.toText unconflicts.types.updates.bob OnlyBob
-  renderUnconflicts Text.yellow "%" (const "type") Reference.toText unconflicts.types.updates.both AliceAndBob
+  renderUnconflicts Text.green "+" referentLabel Referent.toText unconflicts.terms.adds.alice (OnlyAlice ())
+  renderUnconflicts Text.green "+" referentLabel Referent.toText unconflicts.terms.adds.bob (OnlyBob ())
+  renderUnconflicts Text.green "+" referentLabel Referent.toText unconflicts.terms.adds.both (AliceAndBob ())
+  renderUnconflicts Text.green "+" (const "type") Reference.toText unconflicts.types.adds.alice (OnlyAlice ())
+  renderUnconflicts Text.green "+" (const "type") Reference.toText unconflicts.types.adds.bob (OnlyBob ())
+  renderUnconflicts Text.green "+" (const "type") Reference.toText unconflicts.types.adds.both (AliceAndBob ())
+  renderUnconflicts Text.red "-" referentLabel Referent.toText unconflicts.terms.deletes.alice (OnlyAlice ())
+  renderUnconflicts Text.red "-" referentLabel Referent.toText unconflicts.terms.deletes.bob (OnlyBob ())
+  renderUnconflicts Text.red "-" referentLabel Referent.toText unconflicts.terms.deletes.both (AliceAndBob ())
+  renderUnconflicts Text.red "-" (const "type") Reference.toText unconflicts.types.deletes.alice (OnlyAlice ())
+  renderUnconflicts Text.red "-" (const "type") Reference.toText unconflicts.types.deletes.bob (OnlyBob ())
+  renderUnconflicts Text.red "-" (const "type") Reference.toText unconflicts.types.deletes.both (AliceAndBob ())
+  renderUnconflicts Text.yellow "%" referentLabel Referent.toText unconflicts.terms.updates.alice (OnlyAlice ())
+  renderUnconflicts Text.yellow "%" referentLabel Referent.toText unconflicts.terms.updates.bob (OnlyBob ())
+  renderUnconflicts Text.yellow "%" referentLabel Referent.toText unconflicts.terms.updates.both (AliceAndBob ())
+  renderUnconflicts Text.yellow "%" (const "type") Reference.toText unconflicts.types.updates.alice (OnlyAlice ())
+  renderUnconflicts Text.yellow "%" (const "type") Reference.toText unconflicts.types.updates.bob (OnlyBob ())
+  renderUnconflicts Text.yellow "%" (const "type") Reference.toText unconflicts.types.updates.both (AliceAndBob ())
   where
-    renderConflicts :: Text -> Map Name Reference.Id -> AliceXorBob -> IO ()
+    renderConflicts :: Text -> Map Name Reference.Id -> EitherWay () -> IO ()
     renderConflicts label conflicts who =
       for_ (Map.toList conflicts) \(name, ref) ->
         Text.putStrLn $
@@ -1414,10 +1415,17 @@ realDebugPartitionedDiff conflicts unconflicts = do
               <> " "
               <> Reference.idToText ref
               <> " ("
-              <> (case who of Alice -> "Alice"; Bob -> "Bob")
+              <> (case who of Alice () -> "Alice"; Bob () -> "Bob")
               <> ")"
 
-    renderUnconflicts :: (Text -> Text) -> Text -> (ref -> Text) -> (ref -> Text) -> Map Name ref -> AliceIorBob -> IO ()
+    renderUnconflicts ::
+      (Text -> Text) ->
+      Text ->
+      (ref -> Text) ->
+      (ref -> Text) ->
+      Map Name ref ->
+      EitherWayI () ->
+      IO ()
     renderUnconflicts color action label renderRef unconflicts who =
       for_ (Map.toList unconflicts) \(name, ref) ->
         Text.putStrLn $
@@ -1430,7 +1438,7 @@ realDebugPartitionedDiff conflicts unconflicts = do
               <> " "
               <> renderRef ref
               <> " ("
-              <> (case who of OnlyAlice -> "Alice"; OnlyBob -> "Bob"; AliceAndBob -> "Alice and Bob")
+              <> (case who of OnlyAlice () -> "Alice"; OnlyBob () -> "Bob"; AliceAndBob () -> "Alice and Bob")
               <> ")"
 
 realDebugDependents :: DefnsF (Map Name) TermReferenceId TypeReferenceId -> IO ()

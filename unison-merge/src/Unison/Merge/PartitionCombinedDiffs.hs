@@ -8,17 +8,19 @@ where
 import Control.Lens (Lens', over, view, (%~), (.~))
 import Data.Bitraversable (bitraverse)
 import Data.Map.Strict qualified as Map
-import Unison.Merge.AliceIorBob (AliceIorBob (..))
-import Unison.Merge.AliceXorBob (AliceXorBob (..))
-import Unison.Merge.AliceXorBob qualified as AliceXorBob
 import Unison.Merge.CombineDiffs (CombinedDiffOp (..))
 import Unison.Merge.DeclNameLookup (DeclNameLookup (..), expectConstructorNames, expectDeclName)
+import Unison.Merge.EitherWay (EitherWay (..))
+import Unison.Merge.EitherWay qualified as EitherWay
+import Unison.Merge.EitherWayI (EitherWayI (..))
+import Unison.Merge.EitherWayI qualified as EitherWayI
 import Unison.Merge.TwoWay (TwoWay (..))
 import Unison.Merge.TwoWay qualified as TwoWay
 import Unison.Merge.TwoWayI (TwoWayI (..))
 import Unison.Merge.TwoWayI qualified as TwoWayI
 import Unison.Merge.Unconflicts (Unconflicts (..))
 import Unison.Merge.Unconflicts qualified as Unconflicts
+import Unison.Merge.Updated (Updated (..))
 import Unison.Name (Name)
 import Unison.Prelude hiding (catMaybes)
 import Unison.Reference (Reference' (..), TermReference, TermReferenceId, TypeReference, TypeReferenceId)
@@ -47,7 +49,7 @@ partitionCombinedDiffs defns declNameLookups diffs = do
   Right (conflicts, unconflicts)
 
 data S = S
-  { me :: !AliceXorBob,
+  { me :: !(EitherWay ()),
     conflicts :: !(TwoWay (DefnsF (Map Name) TermReference TypeReference)),
     stacks :: !(TwoWay (DefnsF [] Name Name))
   }
@@ -56,7 +58,7 @@ data S = S
 makeInitialIdentifyConflictsState :: DefnsF2 (Map Name) CombinedDiffOp Referent TypeReference -> S
 makeInitialIdentifyConflictsState diff =
   S
-    { me = Alice, -- arbitrary initial person
+    { me = Alice (), -- arbitrary initial person
       conflicts = mempty,
       stacks =
         let f = TwoWay.bothWays . justTheConflictedNames
@@ -77,7 +79,7 @@ identifyConflicts declNameLookups defns =
       case (view myTermStack_ s, view myTypeStack_ s, defnsAreEmpty (view theirStacks_ s)) of
         (name : names, _, _) -> loop (poppedTerm name (s & myTermStack_ .~ names))
         ([], name : names, _) -> loop (poppedType name (s & myTypeStack_ .~ names))
-        ([], [], False) -> loop (s & #me %~ AliceXorBob.swap)
+        ([], [], False) -> loop (s & #me %~ EitherWay.swap)
         ([], [], True) -> s.conflicts
       where
         poppedTerm :: Name -> S -> S
@@ -133,7 +135,7 @@ identifyConflicts declNameLookups defns =
         myDeclNameLookup = view me_ declNameLookups
 
         them_ :: Lens' (TwoWay a) a
-        them_ = TwoWay.who_ (AliceXorBob.swap s.me)
+        them_ = TwoWay.who_ (EitherWay.swap s.me)
 
         theirStacks_ :: Lens' S (DefnsF [] Name Name)
         theirStacks_ = #stacks . them_
@@ -159,31 +161,31 @@ identifyTermUnconflicts declNameLookups conflicts =
   where
     f :: Name -> CombinedDiffOp Referent -> Unconflicts Referent -> Unconflicts Referent
     f name = \case
-      CombinedDiffOp'Add who ref ->
-        case ref of
+      CombinedDiffOp'Add who ->
+        case EitherWayI.value who of
           Referent.Ref _ -> keepIt1
           Referent.Con _ _ -> if constructor who then ignoreIt else keepIt1
         where
-          keepIt1 = keepIt #adds who name ref
-      CombinedDiffOp'Update who _old new ->
-        case new of
+          keepIt1 = keepIt #adds who name
+      CombinedDiffOp'Update who ->
+        case (EitherWayI.value who).new of
           Referent.Ref _ ->
             case who of
-              OnlyAlice -> if termIsConflicted.alice then ignoreIt else keepIt1
-              OnlyBob -> if termIsConflicted.bob then ignoreIt else keepIt1
-              AliceAndBob -> keepIt1
+              OnlyAlice _ -> if termIsConflicted.alice then ignoreIt else keepIt1
+              OnlyBob _ -> if termIsConflicted.bob then ignoreIt else keepIt1
+              AliceAndBob _ -> keepIt1
           Referent.Con _ _ -> if constructor who then ignoreIt else keepIt1
         where
-          keepIt1 = keepIt #updates who name new
-      CombinedDiffOp'Delete who ref -> keepIt #deletes who name ref
+          keepIt1 = keepIt #updates (view #new <$> who) name
+      CombinedDiffOp'Delete who -> keepIt #deletes who name
       CombinedDiffOp'Conflict _ -> ignoreIt
       where
         -- Ignore added/updated constructors whose types are conflicted
-        constructor :: AliceIorBob -> Bool
+        constructor :: EitherWayI a -> Bool
         constructor = \case
-          OnlyAlice -> constructorHasConflictedType.alice
-          OnlyBob -> constructorHasConflictedType.bob
-          AliceAndBob -> TwoWay.or constructorHasConflictedType
+          OnlyAlice _ -> constructorHasConflictedType.alice
+          OnlyBob _ -> constructorHasConflictedType.bob
+          AliceAndBob _ -> TwoWay.or constructorHasConflictedType
 
         constructorHasConflictedType :: TwoWay Bool
         constructorHasConflictedType =
@@ -204,19 +206,19 @@ identifyTypeUnconflicts conflicts =
   where
     f :: Name -> CombinedDiffOp TypeReference -> Unconflicts TypeReference -> Unconflicts TypeReference
     f name = \case
-      CombinedDiffOp'Add who ref -> addOrUpdate #adds who ref
-      CombinedDiffOp'Update who _old new -> addOrUpdate #updates who new
-      CombinedDiffOp'Delete who ref -> keepIt #deletes who name ref
+      CombinedDiffOp'Add who -> addOrUpdate #adds who
+      CombinedDiffOp'Update who -> addOrUpdate #updates (view #new <$> who)
+      CombinedDiffOp'Delete who -> keepIt #deletes who name
       CombinedDiffOp'Conflict _ -> ignoreIt
       where
-        addOrUpdate :: Lens' (Unconflicts v) (TwoWayI (Map Name v)) -> AliceIorBob -> v -> Unconflicts v -> Unconflicts v
-        addOrUpdate l who ref =
+        addOrUpdate :: Lens' (Unconflicts v) (TwoWayI (Map Name v)) -> EitherWayI v -> Unconflicts v -> Unconflicts v
+        addOrUpdate l who =
           case who of
-            OnlyAlice -> if typeIsConflicted.alice then ignoreIt else keepIt1
-            OnlyBob -> if typeIsConflicted.bob then ignoreIt else keepIt1
-            AliceAndBob -> if TwoWay.or typeIsConflicted then ignoreIt else keepIt1
+            OnlyAlice _ -> if typeIsConflicted.alice then ignoreIt else keepIt1
+            OnlyBob _ -> if typeIsConflicted.bob then ignoreIt else keepIt1
+            AliceAndBob _ -> if TwoWay.or typeIsConflicted then ignoreIt else keepIt1
           where
-            keepIt1 = keepIt l who name ref
+            keepIt1 = keepIt l who name
 
         typeIsConflicted :: TwoWay Bool
         typeIsConflicted =
@@ -224,13 +226,12 @@ identifyTypeUnconflicts conflicts =
 
 keepIt ::
   Lens' (Unconflicts v) (TwoWayI (Map Name v)) ->
-  AliceIorBob ->
+  EitherWayI v ->
   Name ->
-  v ->
   Unconflicts v ->
   Unconflicts v
-keepIt what who name ref =
-  over (what . TwoWayI.who_ who) (Map.insert name ref)
+keepIt what who name =
+  over (what . TwoWayI.who_ who) (Map.insert name (EitherWayI.value who))
 
 ignoreIt :: Unconflicts v -> Unconflicts v
 ignoreIt =
@@ -244,9 +245,9 @@ justTheConflictedNames =
     f :: [Name] -> Name -> CombinedDiffOp term -> [Name]
     f names name = \case
       CombinedDiffOp'Conflict _ -> name : names
-      CombinedDiffOp'Add _ _ -> names
-      CombinedDiffOp'Delete _ _ -> names
-      CombinedDiffOp'Update _ _ _ -> names
+      CombinedDiffOp'Add _ -> names
+      CombinedDiffOp'Delete _ -> names
+      CombinedDiffOp'Update _ -> names
 
 assertThereAreNoBuiltins ::
   TwoWay (DefnsF (Map Name) TermReference TypeReference) ->

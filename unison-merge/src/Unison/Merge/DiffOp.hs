@@ -3,6 +3,8 @@ module Unison.Merge.DiffOp
   )
 where
 
+import Unison.Merge.Updated (Updated)
+
 -- | A diff operation is one of:
 --
 --   * An add (where nothing was)
@@ -11,5 +13,5 @@ where
 data DiffOp a
   = DiffOp'Add !a
   | DiffOp'Delete !a
-  | DiffOp'Update !a !a -- old, new
+  | DiffOp'Update !(Updated a)
   deriving stock (Functor, Show)

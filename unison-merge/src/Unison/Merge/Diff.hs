@@ -23,6 +23,7 @@ import Unison.Merge.Synhash qualified as Synhash
 import Unison.Merge.Synhashed (Synhashed (..))
 import Unison.Merge.ThreeWay (ThreeWay (..))
 import Unison.Merge.TwoWay (TwoWay (..))
+import Unison.Merge.Updated (Updated (..))
 import Unison.Name (Name)
 import Unison.Prelude hiding (catMaybes)
 import Unison.PrettyPrintEnv (PrettyPrintEnv (..))
@@ -111,11 +112,11 @@ diffNamespaceDefns =
 
     g :: Eq x => These x x -> Maybe (DiffOp x)
     g = \case
-      This x -> Just (DiffOp'Delete x)
-      That y -> Just (DiffOp'Add y)
-      These x y
-        | x == y -> Nothing
-        | otherwise -> Just (DiffOp'Update x y)
+      This old -> Just (DiffOp'Delete old)
+      That new -> Just (DiffOp'Add new)
+      These old new
+        | old == new -> Nothing
+        | otherwise -> Just (DiffOp'Update Updated {old, new})
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Pretty-print env helpers

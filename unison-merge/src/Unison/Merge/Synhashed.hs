@@ -4,6 +4,7 @@ module Unison.Merge.Synhashed
 where
 
 import Unison.Hash (Hash)
+import Unison.Prelude
 
 -- | A small utility type that represents a syntactic-hashed thing.
 --
@@ -12,7 +13,7 @@ data Synhashed a = Synhashed
   { hash :: !Hash,
     value :: !a
   }
-  deriving stock (Show)
+  deriving stock (Functor, Generic, Show)
 
 instance Eq (Synhashed a) where
   Synhashed x _ == Synhashed y _ =

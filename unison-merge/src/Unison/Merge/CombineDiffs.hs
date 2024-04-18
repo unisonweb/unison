@@ -7,15 +7,18 @@ module Unison.Merge.CombineDiffs
   )
 where
 
+import Control.Lens (view)
 import Data.Semialign (alignWith)
 import Data.These (These (..))
-import Unison.Merge.AliceIorBob (AliceIorBob (..))
-import Unison.Merge.AliceXorBob (AliceXorBob (..))
 import Unison.Merge.DiffOp (DiffOp (..))
+import Unison.Merge.EitherWay (EitherWay (..))
+import Unison.Merge.EitherWayI (EitherWayI (..))
 import Unison.Merge.Synhashed (Synhashed (..))
-import Unison.Merge.TwoDiffOps (TwoDiffOps (..), combineTwoDiffOps)
+import Unison.Merge.TwoDiffOps (TwoDiffOps (..))
+import Unison.Merge.TwoDiffOps qualified as TwoDiffOps
 import Unison.Merge.TwoWay (TwoWay (..), twoWay)
 import Unison.Merge.TwoWay qualified as TwoWay
+import Unison.Merge.Updated (Updated (..))
 import Unison.Name (Name)
 import Unison.Prelude hiding (catMaybes)
 import Unison.Reference (TypeReference)
@@ -24,12 +27,12 @@ import Unison.Util.Defns (DefnsF2, DefnsF3)
 
 -- | The combined result of two diffs on the same thing.
 data CombinedDiffOp a
-  = CombinedDiffOp'Add !AliceIorBob !a
-  | CombinedDiffOp'Delete !AliceIorBob !a -- old value
-  | CombinedDiffOp'Update !AliceIorBob !a !a -- old value, new value
+  = CombinedDiffOp'Add !(EitherWayI a)
+  | CombinedDiffOp'Delete !(EitherWayI a) -- old value
+  | CombinedDiffOp'Update !(EitherWayI (Updated a))
   | -- An add-add or an update-update conflict. We don't consider update-delete a conflict; the delete gets ignored.
     CombinedDiffOp'Conflict !(TwoWay a)
-  deriving stock (Show)
+  deriving stock (Functor, Show)
 
 -- | Combine LCA->Alice diff and LCA->Bob diff.
 combineDiffs ::
@@ -40,25 +43,28 @@ combineDiffs =
   where
     f = twoWay (alignWith combine)
 
-combine :: These (DiffOp (Synhashed ref)) (DiffOp (Synhashed ref)) -> CombinedDiffOp ref
+combine :: These (DiffOp (Synhashed a)) (DiffOp (Synhashed a)) -> CombinedDiffOp a
 combine =
-  combineTwoDiffOps >>> \case
-    TwoDiffOps'Add who x -> CombinedDiffOp'Add (xor2ior who) x.value
-    TwoDiffOps'Delete who x -> CombinedDiffOp'Delete (xor2ior who) x.value
-    TwoDiffOps'Update who old new -> CombinedDiffOp'Update (xor2ior who) old.value new.value
-    TwoDiffOps'AddAdd TwoWay {alice, bob}
-      | alice /= bob -> CombinedDiffOp'Conflict TwoWay {alice = alice.value, bob = bob.value}
-      | otherwise -> CombinedDiffOp'Add AliceAndBob alice.value
-    TwoDiffOps'DeleteDelete x -> CombinedDiffOp'Delete AliceAndBob x.value
-    -- These two are not a conflicts, perhaps only temporarily, because it's easier to implement. We just ignore these
-    -- deletes and keep the updates.
-    TwoDiffOps'DeleteUpdate old new -> CombinedDiffOp'Update OnlyBob old.value new.value
-    TwoDiffOps'UpdateDelete old new -> CombinedDiffOp'Update OnlyAlice old.value new.value
-    TwoDiffOps'UpdateUpdate old TwoWay {alice, bob}
-      | alice /= bob -> CombinedDiffOp'Conflict TwoWay {alice = alice.value, bob = bob.value}
-      | otherwise -> CombinedDiffOp'Update AliceAndBob old.value alice.value
+  TwoDiffOps.make >>> combine1 >>> fmap (view #value)
 
-xor2ior :: AliceXorBob -> AliceIorBob
+combine1 :: Eq a => TwoDiffOps a -> CombinedDiffOp a
+combine1 = \case
+  TwoDiffOps'Add x -> CombinedDiffOp'Add (xor2ior x)
+  TwoDiffOps'Delete x -> CombinedDiffOp'Delete (xor2ior x)
+  TwoDiffOps'Update x -> CombinedDiffOp'Update (xor2ior x)
+  TwoDiffOps'AddAdd x
+    | x.alice /= x.bob -> CombinedDiffOp'Conflict x
+    | otherwise -> CombinedDiffOp'Add (AliceAndBob x.alice)
+  TwoDiffOps'DeleteDelete x -> CombinedDiffOp'Delete (AliceAndBob x)
+  -- These two are not a conflicts, perhaps only temporarily, because it's easier to implement. We just ignore these
+  -- deletes and keep the updates.
+  TwoDiffOps'DeleteUpdate x -> CombinedDiffOp'Update (OnlyBob x)
+  TwoDiffOps'UpdateDelete x -> CombinedDiffOp'Update (OnlyAlice x)
+  TwoDiffOps'UpdateUpdate old new
+    | new.alice /= new.bob -> CombinedDiffOp'Conflict new
+    | otherwise -> CombinedDiffOp'Update (AliceAndBob Updated {old, new = new.alice})
+
+xor2ior :: EitherWay a -> EitherWayI a
 xor2ior = \case
-  Alice -> OnlyAlice
-  Bob -> OnlyBob
+  Alice x -> OnlyAlice x
+  Bob x -> OnlyBob x

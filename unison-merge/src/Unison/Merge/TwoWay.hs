@@ -17,7 +17,7 @@ import Data.Semialign (Semialign, alignWith)
 import Data.Semigroup.Generic (GenericSemigroupMonoid (..))
 import Data.These (These (These))
 import Data.Zip (Zip, unzipWith, zipWith)
-import Unison.Merge.AliceXorBob (AliceXorBob (..))
+import Unison.Merge.EitherWay (EitherWay (..))
 import Unison.Prelude
 import Unison.Util.Defns (Defns (..), DefnsF)
 import Prelude hiding (or, zipWith)
@@ -77,10 +77,10 @@ unzipMap :: Ord k => Map k (TwoWay v) -> TwoWay (Map k v)
 unzipMap =
   fromPair . unzipWith (\TwoWay {alice, bob} -> (alice, bob))
 
-who_ :: AliceXorBob -> Lens' (TwoWay a) a
+who_ :: EitherWay x -> Lens' (TwoWay a) a
 who_ = \case
-  Alice -> #alice
-  Bob -> #bob
+  Alice _ -> #alice
+  Bob _ -> #bob
 
 --
 

@@ -12,9 +12,12 @@ import Data.Semialign (alignWith)
 import Data.Set qualified as Set
 import Data.These (These (..))
 import Unison.Merge.DiffOp (DiffOp (..))
+import Unison.Merge.EitherWay qualified as EitherWay
 import Unison.Merge.ThreeWay (ThreeWay (..))
-import Unison.Merge.TwoDiffOps (TwoDiffOps (..), combineTwoDiffOps)
+import Unison.Merge.TwoDiffOps (TwoDiffOps (..))
+import Unison.Merge.TwoDiffOps qualified as TwoDiffOps
 import Unison.Merge.TwoWay (TwoWay (..))
+import Unison.Merge.Updated (Updated (..))
 import Unison.Prelude hiding (catMaybes)
 import Unison.Util.Map qualified as Map
 import Witherable (catMaybes)
@@ -52,7 +55,7 @@ diff =
     ( Map.zipWithMaybeMatched \_ old new ->
         if old == new
           then Nothing
-          else Just (DiffOp'Update old new)
+          else Just (DiffOp'Update Updated {old, new})
     )
 
 -- Merge two library dependency diffs together:
@@ -71,27 +74,30 @@ mergeDiffs ::
 mergeDiffs alice bob =
   catMaybes (alignWith combineDiffOps alice bob)
 
-combineDiffOps :: Eq v => These (DiffOp v) (DiffOp v) -> Maybe (LibdepDiffOp v)
+combineDiffOps :: Eq a => These (DiffOp a) (DiffOp a) -> Maybe (LibdepDiffOp a)
 combineDiffOps =
-  combineTwoDiffOps >>> \case
-    TwoDiffOps'Add _who new -> Just (AddLibdep new)
-    -- If Alice deletes a dep and Bob doesn't touch it, ignore the delete, since Bob may still be using it.
-    TwoDiffOps'Delete _who _old -> Nothing
-    -- If Alice updates a dep and Bob doesn't touch it, keep the old one around too, since Bob may still be using it.
-    TwoDiffOps'Update _who old new -> Just (AddBothLibdeps old new)
-    TwoDiffOps'AddAdd TwoWay {alice, bob}
-      | alice == bob -> Just (AddLibdep alice)
-      | otherwise -> Just (AddBothLibdeps alice bob)
-    -- If Alice and Bob both delete something, delete it.
-    TwoDiffOps'DeleteDelete _ -> Just DeleteLibdep
-    -- If Alice updates a dependency and Bob deletes the old one, ignore the delete and keep Alice's, and vice versa.
-    TwoDiffOps'DeleteUpdate _old bob -> Just (AddLibdep bob)
-    TwoDiffOps'UpdateDelete _old alice -> Just (AddLibdep alice)
-    -- combineDiffOps (Deleted _) (Updated _ bob) = AddLibdep bob
-    -- combineDiffOps (Updated _ alice) (Deleted _) = AddLibdep alice
-    TwoDiffOps'UpdateUpdate _old TwoWay {alice, bob}
-      | alice == bob -> Just (AddLibdep alice)
-      | otherwise -> Just (AddBothLibdeps alice bob)
+  TwoDiffOps.make >>> combineDiffOps1
+
+combineDiffOps1 :: Eq a => TwoDiffOps a -> Maybe (LibdepDiffOp a)
+combineDiffOps1 = \case
+  TwoDiffOps'Add new -> Just (AddLibdep (EitherWay.value new))
+  -- If Alice deletes a dep and Bob doesn't touch it, ignore the delete, since Bob may still be using it.
+  TwoDiffOps'Delete _old -> Nothing
+  -- If Alice updates a dep and Bob doesn't touch it, keep the old one around too, since Bob may still be using it.
+  TwoDiffOps'Update x -> Just (AddBothLibdeps (EitherWay.value x).old (EitherWay.value x).new)
+  TwoDiffOps'AddAdd TwoWay {alice, bob}
+    | alice == bob -> Just (AddLibdep alice)
+    | otherwise -> Just (AddBothLibdeps alice bob)
+  -- If Alice and Bob both delete something, delete it.
+  TwoDiffOps'DeleteDelete _ -> Just DeleteLibdep
+  -- If Alice updates a dependency and Bob deletes the old one, ignore the delete and keep Alice's, and vice versa.
+  TwoDiffOps'DeleteUpdate bob -> Just (AddLibdep bob.new)
+  TwoDiffOps'UpdateDelete alice -> Just (AddLibdep alice.new)
+  -- combineDiffOps (Deleted _) (Updated _ bob) = AddLibdep bob
+  -- combineDiffOps (Updated _ alice) (Deleted _) = AddLibdep alice
+  TwoDiffOps'UpdateUpdate _old TwoWay {alice, bob}
+    | alice == bob -> Just (AddLibdep alice)
+    | otherwise -> Just (AddBothLibdeps alice bob)
 
 -- Apply a library dependencies diff to the LCA.
 applyDiff ::
