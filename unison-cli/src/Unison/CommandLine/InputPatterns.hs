@@ -106,7 +106,7 @@ mergeBuiltins =
     []
     I.Hidden
     [("namespace", Optional, namespaceArg)]
-    "Adds the builtins to `builtin.` or to the specified namespace (excluding `io` and misc)."
+    "Adds the builtins (excluding `io` and misc) to the specified namespace. Defaults to `builtin.`"
     \case
       [] -> pure . Input.MergeBuiltinsI $ Nothing
       [p] -> first P.text do
