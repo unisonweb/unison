@@ -60,19 +60,26 @@ nameBasedNamespaceDiff db declNameLookups defns = do
       Transaction (DefnsF2 (Map Name) Synhashed Referent TypeReference)
     synhashDefns declNameLookup =
       -- FIXME: use cache so we only synhash each thing once
-      synhashDefnsWith
-        (Synhash.hashTerm db.loadV1Term ppe)
-        ( \name ->
-            Synhash.hashDecl
-              (withAccurateConstructorNames db.loadV1Decl declNameLookup name)
-              ppe
-              name
-        )
+      synhashDefnsWith hashTerm hashType
       where
-        ppe :: PrettyPrintEnv
-        ppe =
-          -- The order isn't important here for syntactic hashing
-          (deepNamespaceDefinitionsToPpe defns.alice `Ppe.addFallback` deepNamespaceDefinitionsToPpe defns.bob)
+        hashTerm :: Referent -> Transaction Hash
+        hashTerm =
+          Synhash.hashTerm db.loadV1Term ppe
+
+        hashType :: Name -> TypeReference -> Transaction Hash
+        hashType name =
+          Synhash.hashDecl
+            (withAccurateConstructorNames db.loadV1Decl declNameLookup name)
+            ppe
+            name
+
+    ppe :: PrettyPrintEnv
+    ppe =
+      -- The order between Alice and Bob isn't important here for syntactic hashing; not sure right now if it matters
+      -- that the LCA is added last
+      deepNamespaceDefinitionsToPpe defns.alice
+        `Ppe.addFallback` deepNamespaceDefinitionsToPpe defns.bob
+        `Ppe.addFallback` deepNamespaceDefinitionsToPpe defns.lca
 
 withAccurateConstructorNames ::
   forall a v.
