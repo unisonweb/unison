@@ -73,8 +73,10 @@ import Unison.Merge.ThreeWay qualified as ThreeWay
 import Unison.Merge.TwoOrThreeWay (TwoOrThreeWay (..))
 import Unison.Merge.TwoWay (TwoWay (..))
 import Unison.Merge.TwoWay qualified as TwoWay
+import Unison.Merge.TwoWayI (TwoWayI)
 import Unison.Merge.TwoWayI qualified as TwoWayI
 import Unison.Merge.Unconflicts (Unconflicts (..))
+import Unison.Merge.Unconflicts qualified as Unconflicts
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment (..))
@@ -161,24 +163,40 @@ handleMerge bobBranchName = do
 
   liftIO (debugFunctions.debugPartitionedDiff conflicts unconflicts)
 
-  -- Identify the dependents we need to pull into the Unison file (either first for typechecking, if there aren't
-  -- conflicts, or else for manual conflict resolution without a typechecking step, if there are)
+  -- Identify the unconflicted dependents we need to pull into the Unison file (either first for typechecking, if there
+  -- aren't conflicts, or else for manual conflict resolution without a typechecking step, if there are)
   dependents <-
     Cli.runTransaction do
       identifyDependents (ThreeWay.forgetLca defns) conflicts unconflicts
 
   liftIO (debugFunctions.debugDependents dependents)
 
+  let newDefns1 :: DefnsF (Map Name) Referent TypeReference
+      newDefns1 =
+        let f :: BiMultimap ref Name -> Unconflicts ref -> Map Name ref
+            f refs unconflicts =
+              Unconflicts.apply unconflicts (BiMultimap.range refs)
+         in zipDefnsWith f f defns.lca unconflicts
+
+  let conflictedNames :: DefnsF Set Name Name
+      conflictedNames =
+        fold (refIdsToNames <$> ThreeWay.forgetLca declNameLookups <*> conflicts)
+
+  -- let dependentNames :: DefnsF Set Name Name
+  --     dependentNames =
+  --       _ (refIdsToNames <$> ThreeWay.forgetLca declNameLookups <*>
+
   let (newDefns, droppedDefns) =
         bumpLca
           (ThreeWay.forgetLca declNameLookups)
           conflicts
           unconflicts
-          (bimap Map.elemsSet Map.elemsSet dependents)
+          dependents
           defns.lca
 
   liftIO (debugFunctions.debugMergedDefns newDefns droppedDefns)
 
+  -- FIXME does this need dependents?
   mergedDeclNameLookup <-
     palonka newDefns
       & onLeft wundefined
@@ -391,11 +409,30 @@ makeConflictedUnisonFile declNameLookups conflicts dependents mergedDeclNameLook
 ------------------------------------------------------------------------------------------------------------------------
 --
 
-conflictsToConflictedNames ::
+-- Given just named term/type reference ids, fill out all names that occupy the term and type namespaces. This is simply
+-- the given names plus all of the types' constructors.
+--
+-- For example, if the input is
+--
+--   declNameLookup = {
+--     "Maybe" => ["Maybe.Nothing", "Maybe.Just"]
+--   }
+--   defns = {
+--     terms = { "foo" => #foo }
+--     types = { "Maybe" => #Maybe }
+--   }
+--
+-- then the output is
+--
+--   defns = {
+--     terms = { "foo", "Maybe.Nothing", "Maybe.Just" }
+--     types = { "Maybe" }
+--   }
+refIdsToNames ::
   DeclNameLookup ->
-  DefnsF (Map Name) terms types ->
+  DefnsF (Map Name) TermReferenceId TypeReferenceId ->
   DefnsF Set Name Name
-conflictsToConflictedNames declNameLookup =
+refIdsToNames declNameLookup =
   bifoldMap goTerms goTypes
   where
     goTerms :: Map Name terms -> DefnsF Set Name Name
@@ -442,13 +479,13 @@ bumpLca ::
   TwoWay DeclNameLookup ->
   TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId) ->
   DefnsF Unconflicts Referent TypeReference ->
-  DefnsF Set TermReferenceId TypeReferenceId ->
+  DefnsF (Map Name) TermReferenceId TypeReferenceId ->
   Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
   ( DefnsF (Map Name) Referent TypeReference,
     Dropped (DefnsF (Map Name) Referent TypeReference)
   )
 bumpLca declNameLookups conflicts unconflicts dependents lca =
-  (deleteTheConflicts <> applyTheAdds <> applyTheDeletes)
+  (deleteTheConflicts <> applyTheAddsAndUpdates <> applyTheDeletes)
     -- Combine the separate term/type namespace updates into one
     & combineNamespaceUpdates
     -- Apply the updates to the LCA
@@ -456,22 +493,26 @@ bumpLca declNameLookups conflicts unconflicts dependents lca =
   where
     deleteTheConflicts :: DefnsF2 NamespaceUpdate (Map Name) Referent TypeReference
     deleteTheConflicts =
-      bimap shedConflicted shedConflicted conflictedNames
+      bimap performDeletes performDeletes (conflictedNames <> dependentNames)
       where
         conflictedNames :: DefnsF Set Name Name
         conflictedNames =
-          fold (conflictsToConflictedNames <$> declNameLookups <*> conflicts)
+          fold (refIdsToNames <$> declNameLookups <*> conflicts)
 
-    -- Compute the adds to apply to the LCA
-    applyTheAdds :: DefnsF2 NamespaceUpdate (Map Name) Referent TypeReference
-    applyTheAdds =
+        dependentNames :: DefnsF Set Name Name
+        dependentNames =
+          bimap Map.keysSet Map.keysSet dependents
+
+    -- Compute the adds/updates to apply to the LCA
+    applyTheAddsAndUpdates :: DefnsF2 NamespaceUpdate (Map Name) Referent TypeReference
+    applyTheAddsAndUpdates =
       Defns
         { terms =
             let termIsNotDependent ref =
                   case Referent.toId ref of
                     Nothing -> True
-                    Just (Referent'.Con' (ConstructorReference typeRef _) _) -> Set.notMember typeRef dependents.types
-                    Just (Referent'.Ref' termRef) -> Set.notMember termRef dependents.terms
+                    Just (Referent'.Con' (ConstructorReference typeRef _) _) -> Set.notMember typeRef dependentTypes
+                    Just (Referent'.Ref' termRef) -> Set.notMember termRef dependentTerms
              in unconflicts.terms
                   & addsAndUpdates
                   & Map.filter termIsNotDependent
@@ -479,7 +520,7 @@ bumpLca declNameLookups conflicts unconflicts dependents lca =
           types =
             let typeIsNotDependent = \case
                   Reference.Builtin _ -> True
-                  Reference.DerivedId ref -> Set.notMember ref dependents.types
+                  Reference.DerivedId ref -> Set.notMember ref dependentTypes
              in unconflicts.types
                   & addsAndUpdates
                   & Map.filter typeIsNotDependent
@@ -498,6 +539,14 @@ bumpLca declNameLookups conflicts unconflicts dependents lca =
     addsAndUpdates :: Unconflicts v -> Map Name v
     addsAndUpdates x =
       fold (x.adds <> x.updates)
+
+    dependentTerms :: Set TermReferenceId
+    dependentTerms =
+      Map.elemsSet dependents.terms
+
+    dependentTypes :: Set TypeReferenceId
+    dependentTypes =
+      Map.elemsSet dependents.types
 
 type Dropped a = a
 
@@ -523,8 +572,8 @@ combineNamespaceUpdates updates =
         (newTypes, droppedTypes) = runNamespaceUpdate defns.types updates.types
      in (Defns newTerms newTypes, Defns droppedTerms droppedTypes)
 
-shedConflicted :: Set Name -> NamespaceUpdate (Map Name v)
-shedConflicted conflicts =
+dropNames :: Set Name -> NamespaceUpdate (Map Name v)
+dropNames conflicts =
   NamespaceUpdate \refs ->
     ( Map.withoutKeys refs conflicts,
       Map.empty
@@ -722,8 +771,16 @@ mergeUnconflictedDependents ::
   DefnsF (Map Name) TermReferenceId TypeReferenceId
 mergeUnconflictedDependents conflicts unconflictedSoloDeletedNames unconflictedSoloUpdatedNames dependents =
   zipDefnsWith
-    (merge (view #terms <$> conflicts) (view #terms <$> unconflictedSoloDeletedNames) (view #terms <$> unconflictedSoloUpdatedNames))
-    (merge (view #types <$> conflicts) (view #types <$> unconflictedSoloDeletedNames) (view #types <$> unconflictedSoloUpdatedNames))
+    ( merge
+        (view #terms <$> conflicts)
+        (view #terms <$> unconflictedSoloDeletedNames)
+        (view #terms <$> unconflictedSoloUpdatedNames)
+    )
+    ( merge
+        (view #types <$> conflicts)
+        (view #types <$> unconflictedSoloDeletedNames)
+        (view #types <$> unconflictedSoloUpdatedNames)
+    )
     dependents.alice
     dependents.bob
   where
@@ -763,6 +820,70 @@ mergeUnconflictedDependents conflicts unconflictedSoloDeletedNames unconflictedS
           | Set.member name updates.bob = Just bob
           -- Case 2b2 or 2b3, the choice doesn't matter
           | otherwise = Just alice
+
+mergeUnconflictedDependents2 ::
+  TwoWay (DefnsF Set Name Name) ->
+  TwoWay (DefnsF Set Name Name) ->
+  TwoWay (DefnsF Set Name Name) ->
+  TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId) ->
+  DefnsF (Map Name) (AliceIorBob, TermReferenceId) (AliceIorBob, TypeReferenceId)
+mergeUnconflictedDependents2 conflicts unconflictedSoloDeletedNames unconflictedSoloUpdatedNames dependents =
+  zipDefnsWith
+    ( merge
+        (view #terms <$> conflicts)
+        (view #terms <$> unconflictedSoloDeletedNames)
+        (view #terms <$> unconflictedSoloUpdatedNames)
+    )
+    ( merge
+        (view #types <$> conflicts)
+        (view #types <$> unconflictedSoloDeletedNames)
+        (view #types <$> unconflictedSoloUpdatedNames)
+    )
+    dependents.alice
+    dependents.bob
+  where
+    merge ::
+      TwoWay (Set Name) ->
+      TwoWay (Set Name) ->
+      TwoWay (Set Name) ->
+      Map Name v ->
+      Map Name v ->
+      Map Name (AliceIorBob, v)
+    merge conflicts deletes updates =
+      Map.merge
+        (Map.mapMaybeMissing whenOnlyAlice)
+        (Map.mapMaybeMissing whenOnlyBob)
+        (Map.zipWithMaybeMatched whenBoth)
+      where
+        whenOnlyAlice :: Name -> v -> Maybe (AliceIorBob, v)
+        whenOnlyAlice name ref =
+          (OnlyAlice,) <$> whenOnlyMe conflicts.alice updates.alice deletes.bob name ref
+
+        whenOnlyBob :: Name -> v -> Maybe (AliceIorBob, v)
+        whenOnlyBob name ref =
+          (OnlyBob,) <$> whenOnlyMe conflicts.bob updates.bob deletes.alice name ref
+
+        whenOnlyMe :: Set Name -> Set Name -> Set Name -> Name -> v -> Maybe v
+        whenOnlyMe myConflicts myUpdates theirDeletes name me
+          -- Case 1a
+          | Set.member name myConflicts = Nothing
+          -- Case 1b1
+          | Set.member name myUpdates = Just me
+          -- Case 1b2a
+          | Set.member name theirDeletes = Nothing
+          -- Case 1b2b
+          | otherwise = Just me
+
+        whenBoth :: Name -> v -> v -> Maybe (AliceIorBob, v)
+        whenBoth name alice bob
+          -- Case 2a
+          | Set.member name conflicts.alice || Set.member name conflicts.bob = Nothing
+          -- Case 2b1
+          | Set.member name updates.alice = Just (OnlyAlice, alice)
+          -- Case 2b1
+          | Set.member name updates.bob = Just (OnlyBob, bob)
+          -- Case 2b2 or 2b3, the choice doesn't matter
+          | otherwise = Just (AliceAndBob, alice)
 
 restrictDefnsToNames ::
   DefnsF Set Name Name ->
@@ -1314,12 +1435,14 @@ realDebugPartitionedDiff conflicts unconflicts = do
 
 realDebugDependents :: DefnsF (Map Name) TermReferenceId TypeReferenceId -> IO ()
 realDebugDependents dependents = do
-  when (not (Map.null dependents.terms) || not (Map.null dependents.types)) do
-    Text.putStrLn (Text.bold "\n=== Dependents of deletes and updates ===")
-    for_ (Map.toList dependents.terms) \(name, ref) ->
-      Text.putStrLn ("term " <> Name.toText name <> " => " <> tShow ref)
-    for_ (Map.toList dependents.types) \(name, ref) ->
-      Text.putStrLn ("type " <> Name.toText name <> " => " <> tShow ref)
+  Text.putStrLn (Text.bold "\n=== Dependents of deletes and updates ===")
+  renderThings "termid" dependents.terms
+  renderThings "typeid" dependents.types
+  where
+    renderThings :: Text -> Map Name Reference.Id -> IO ()
+    renderThings label things =
+      for_ (Map.toList things) \(name, ref) ->
+        Text.putStrLn (Text.italic label <> " " <> Name.toText name <> " " <> Reference.idToText ref)
 
 realDebugMergedDefns ::
   DefnsF (Map Name) Referent TypeReference ->
