@@ -171,6 +171,8 @@ handleMerge bobBranchName = do
 
   liftIO (debugFunctions.debugDependents dependents)
 
+  let dependents1 = whatsit dependents
+
   let newDefns1 :: DefnsF (Map Name) Referent TypeReference
       newDefns1 =
         let f :: BiMultimap ref Name -> Unconflicts ref -> Map Name ref
@@ -182,11 +184,19 @@ handleMerge bobBranchName = do
       conflictedNames =
         fold (refIdsToNames <$> ThreeWay.forgetLca declNameLookups <*> conflicts)
 
-  -- let dependentNames :: DefnsF Set Name Name
-  --     dependentNames =
-  --       _ (refIdsToNames <$> ThreeWay.forgetLca declNameLookups <*> wundefined)
+  let dependentNames :: DefnsF Set Name Name
+      dependentNames =
+        fold (refIdsToNames <$> ThreeWay.forgetLca declNameLookups <*> dependents1)
 
-  let (newDefns, droppedDefns) =
+  let namesToRemove :: DefnsF Set Name Name
+      namesToRemove =
+        conflictedNames <> dependentNames
+
+  let newDefns2 :: DefnsF (Map Name) Referent TypeReference
+      newDefns2 =
+        zipDefnsWith Map.withoutKeys Map.withoutKeys newDefns1 namesToRemove
+
+  let (_, droppedDefns) =
         bumpLca
           (ThreeWay.forgetLca declNameLookups)
           conflicts
@@ -194,7 +204,7 @@ handleMerge bobBranchName = do
           (wundefined dependents)
           defns.lca
 
-  liftIO (debugFunctions.debugMergedDefns newDefns droppedDefns)
+  liftIO (debugFunctions.debugMergedDefns newDefns2 droppedDefns)
 
   -- FIXME does this need dependents?
   -- mergedDeclNameLookup <-
@@ -207,7 +217,7 @@ handleMerge bobBranchName = do
   unisonFile <-
     Cli.runTransactionWithRollback \abort -> do
       conflictsFile <- conflictsToUnisonFile abort codebase (ThreeWay.forgetLca declNameLookups) conflicts
-      dependentsFile <- dependentsToUnisonFile abort codebase (ThreeWay.forgetLca declNameLookups) dependents
+      dependentsFile <- dependentsToUnisonFile abort codebase (ThreeWay.forgetLca declNameLookups) dependents1
       pure (conflictsFile <> dependentsFile)
 
   -- Load and merge Alice's and Bob's libdeps
@@ -216,7 +226,7 @@ handleMerge bobBranchName = do
       libdeps <- loadLibdeps branches
       libdepsToBranch0 db (Merge.mergeLibdeps getTwoFreshNames libdeps)
 
-  let newBranchIO = defnsAndLibdepsToBranch0 codebase newDefns libdeps
+  let newBranchIO = defnsAndLibdepsToBranch0 codebase newDefns2 libdeps
 
   let mergedNames = Branch.toNames newBranchIO
 
@@ -365,45 +375,51 @@ conflictsToUnisonFile ::
   TwoWay DeclNameLookup ->
   TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId) ->
   Transaction (UnisonFile' [] Symbol Ann)
-conflictsToUnisonFile abort codebase declNameLookups conflicts = do
-  aliceFile <-
-    Update2.makeUnisonFile
-      abort
-      codebase
-      (\_ name -> Right (expectConstructorNames declNameLookups.alice name))
-      (bimap Relation.fromMap Relation.fromMap conflicts.alice)
-  bobFile <-
-    Update2.makeUnisonFile
-      abort
-      codebase
-      (\_ name -> Right (expectConstructorNames declNameLookups.bob name))
-      (bimap Relation.fromMap Relation.fromMap conflicts.bob)
-  pure (aliceFile <> bobFile)
+conflictsToUnisonFile abort codebase declNameLookups conflicts =
+  (<>) <$> aliceFile <*> bobFile
+  where
+    aliceFile =
+      Update2.makeUnisonFile
+        abort
+        codebase
+        (\_ name -> Right (expectConstructorNames declNameLookups.alice name))
+        (bimap Relation.fromMap Relation.fromMap conflicts.alice)
+    bobFile =
+      Update2.makeUnisonFile
+        abort
+        codebase
+        (\_ name -> Right (expectConstructorNames declNameLookups.bob name))
+        (bimap Relation.fromMap Relation.fromMap conflicts.bob)
 
 dependentsToUnisonFile ::
   (forall void. Output -> Transaction void) ->
   Codebase IO Symbol Ann ->
   TwoWay DeclNameLookup ->
-  DefnsF2 (Map Name) EitherWayI TermReferenceId TypeReferenceId ->
+  TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId) ->
   Transaction (UnisonFile' [] Symbol Ann)
-dependentsToUnisonFile abort codebase declNameLookups dependents = do
-  aliceFile <-
-    Update2.makeUnisonFile
-      abort
-      codebase
-      (\_ name -> Right (expectConstructorNames declNameLookups.alice name))
-      ( let f = Relation.fromMap . Map.mapMaybe EitherWayI.includingAlice
-         in bimap f f dependents
-      )
-  bobFile <-
-    Update2.makeUnisonFile
-      abort
-      codebase
-      (\_ name -> Right (expectConstructorNames declNameLookups.bob name))
-      ( let f = Relation.fromMap . Map.mapMaybe EitherWayI.excludingAlice
-         in bimap f f dependents
-      )
-  pure (aliceFile <> bobFile)
+dependentsToUnisonFile abort codebase declNameLookups dependents =
+  (<>) <$> aliceFile <*> bobFile
+  where
+    aliceFile =
+      Update2.makeUnisonFile
+        abort
+        codebase
+        (\_ name -> Right (expectConstructorNames declNameLookups.alice name))
+        (bimap Relation.fromMap Relation.fromMap dependents.alice)
+    bobFile =
+      Update2.makeUnisonFile
+        abort
+        codebase
+        (\_ name -> Right (expectConstructorNames declNameLookups.bob name))
+        (bimap Relation.fromMap Relation.fromMap dependents.bob)
+
+-- alice-biased, but doesn't matter
+whatsit :: DefnsF2 (Map Name) EitherWayI term typ -> TwoWay (DefnsF (Map Name) term typ)
+whatsit xs =
+  TwoWay
+    { alice = let f = Map.mapMaybe EitherWayI.includingAlice in bimap f f xs,
+      bob = let f = Map.mapMaybe EitherWayI.excludingAlice in bimap f f xs
+    }
 
 ------------------------------------------------------------------------------------------------------------------------
 --
