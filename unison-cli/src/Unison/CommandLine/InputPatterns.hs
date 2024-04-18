@@ -1043,7 +1043,7 @@ back =
     []
     ( P.wrapColumn2
         [ ( makeExample back [],
-            "undoes the last" <> makeExample' projectSwitch <> "or" <> makeExample' cd <> "command."
+            "undoes the last" <> makeExample' projectSwitch <> "command."
           )
         ]
     )
