@@ -5,6 +5,8 @@
 module Unison.UnisonFile.Type where
 
 import Control.Lens
+import Data.Function (on)
+import Data.Map.Strict qualified as Map
 import Unison.ABT qualified as ABT
 import Unison.DataDeclaration (DataDeclaration, EffectDeclaration (..))
 import Unison.Prelude
@@ -25,6 +27,28 @@ data UnisonFile' f v a = UnisonFileId
   deriving (Generic)
 
 deriving instance (forall x. Show x => Show (f x), Show v, Show a) => Show (UnisonFile' f v a)
+
+instance ((forall x. Semigroup (f x)), Ord v) => Monoid (UnisonFile' f v a) where
+  mempty =
+    UnisonFileId
+      { dataDeclarationsId = Map.empty,
+        effectDeclarationsId = Map.empty,
+        terms = Map.empty,
+        watches = Map.empty
+      }
+
+instance ((forall x. Semigroup (f x)), Ord v) => Semigroup (UnisonFile' f v a) where
+  lhs <> rhs =
+    UnisonFileId
+      { dataDeclarationsId = smush dataDeclarationsId,
+        effectDeclarationsId = smush effectDeclarationsId,
+        terms = smush terms,
+        watches = on (Map.unionWith (++)) watches lhs rhs
+      }
+    where
+      smush :: forall x. (UnisonFile' f v a -> Map v (f x)) -> Map v (f x)
+      smush pluck =
+        on (Map.unionWith (<>)) pluck lhs rhs
 
 type UnisonFile = UnisonFile' Identity
 

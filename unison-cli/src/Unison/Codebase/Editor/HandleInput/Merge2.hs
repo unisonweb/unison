@@ -98,7 +98,6 @@ import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Syntax.Name qualified as Name
 import Unison.UnisonFile (UnisonFile')
-import Unison.UnisonFile qualified as UnisonFile
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Defns (Defns (..), DefnsF, DefnsF2, DefnsF3, alignDefnsWith, defnsAreEmpty, zipDefnsWith)
@@ -185,39 +184,31 @@ handleMerge bobBranchName = do
 
   -- let dependentNames :: DefnsF Set Name Name
   --     dependentNames =
-  --       _ (refIdsToNames <$> ThreeWay.forgetLca declNameLookups <*>
+  --       _ (refIdsToNames <$> ThreeWay.forgetLca declNameLookups <*> wundefined)
 
   let (newDefns, droppedDefns) =
         bumpLca
           (ThreeWay.forgetLca declNameLookups)
           conflicts
           unconflicts
-          dependents
+          (wundefined dependents)
           defns.lca
 
   liftIO (debugFunctions.debugMergedDefns newDefns droppedDefns)
 
   -- FIXME does this need dependents?
-  mergedDeclNameLookup <-
-    palonka newDefns
-      & onLeft wundefined
+  -- mergedDeclNameLookup <-
+  --   palonka newDefns
+  --     & onLeft wundefined
 
-  liftIO (debugFunctions.debugMergedConstructorNames mergedDeclNameLookup)
-
-  let thisMergeHasConflicts =
-        -- Eh, they'd either both be null, or neither, but just check both maps anyway
-        not (defnsAreEmpty conflicts.alice) || not (defnsAreEmpty conflicts.bob)
+  -- liftIO (debugFunctions.debugMergedConstructorNames mergedDeclNameLookup)
 
   -- Create the Unison file, which may have conflicts, in which case we don't bother trying to parse and typecheck it.
   unisonFile <-
-    if thisMergeHasConflicts
-      then
-        makeConflictedUnisonFile
-          (ThreeWay.forgetLca declNameLookups)
-          conflicts
-          dependents
-          mergedDeclNameLookup
-      else makeUnconflictedUnisonFile dependents mergedDeclNameLookup
+    Cli.runTransactionWithRollback \abort -> do
+      conflictsFile <- conflictsToUnisonFile abort codebase (ThreeWay.forgetLca declNameLookups) conflicts
+      dependentsFile <- dependentsToUnisonFile abort codebase (ThreeWay.forgetLca declNameLookups) dependents
+      pure (conflictsFile <> dependentsFile)
 
   -- Load and merge Alice's and Bob's libdeps
   libdeps <-
@@ -238,9 +229,12 @@ handleMerge bobBranchName = do
   parsingEnv <- makeParsingEnv currentPath mergedNames
 
   maybeTypecheckedUnisonFile <-
-    if thisMergeHasConflicts
-      then pure Nothing
-      else prettyParseTypecheck unisonFile pped parsingEnv <&> eitherToMaybe
+    let thisMergeHasConflicts =
+          -- Eh, they'd either both be null, or neither, but just check both maps anyway
+          not (defnsAreEmpty conflicts.alice) || not (defnsAreEmpty conflicts.bob)
+     in if thisMergeHasConflicts
+          then pure Nothing
+          else prettyParseTypecheck unisonFile pped parsingEnv <&> eitherToMaybe
 
   case maybeTypecheckedUnisonFile of
     Nothing -> promptUser info (Pretty.prettyUnisonFile pped unisonFile) newBranchIO
@@ -365,47 +359,51 @@ loadLibdeps branches = do
 ------------------------------------------------------------------------------------------------------------------------
 -- Creating Unison files
 
-makeUnconflictedUnisonFile ::
-  DefnsF (Map Name) TermReferenceId TypeReferenceId ->
-  DeclNameLookup ->
-  Cli (UnisonFile' [] Symbol Ann)
-makeUnconflictedUnisonFile dependents mergedDeclNameLookup = do
-  Cli.Env {codebase} <- ask
-  Cli.runTransactionWithRollback \abort ->
+conflictsToUnisonFile ::
+  (forall void. Output -> Transaction void) ->
+  Codebase IO Symbol Ann ->
+  TwoWay DeclNameLookup ->
+  TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId) ->
+  Transaction (UnisonFile' [] Symbol Ann)
+conflictsToUnisonFile abort codebase declNameLookups conflicts = do
+  aliceFile <-
     Update2.makeUnisonFile
       abort
       codebase
-      (\_ name -> Right (expectConstructorNames mergedDeclNameLookup name))
-      (bimap Relation.fromMap Relation.fromMap dependents)
+      (\_ name -> Right (expectConstructorNames declNameLookups.alice name))
+      (bimap Relation.fromMap Relation.fromMap conflicts.alice)
+  bobFile <-
+    Update2.makeUnisonFile
+      abort
+      codebase
+      (\_ name -> Right (expectConstructorNames declNameLookups.bob name))
+      (bimap Relation.fromMap Relation.fromMap conflicts.bob)
+  pure (aliceFile <> bobFile)
 
-makeConflictedUnisonFile ::
+dependentsToUnisonFile ::
+  (forall void. Output -> Transaction void) ->
+  Codebase IO Symbol Ann ->
   TwoWay DeclNameLookup ->
-  TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId) ->
-  DefnsF (Map Name) TermReferenceId TypeReferenceId ->
-  DeclNameLookup ->
-  Cli (UnisonFile' [] Symbol Ann)
-makeConflictedUnisonFile declNameLookups conflicts dependents mergedDeclNameLookup = do
-  Cli.Env {codebase} <- ask
-  Cli.runTransactionWithRollback \abort -> do
-    unconflictedFile <-
-      Update2.makeUnisonFile
-        abort
-        codebase
-        (\_ name -> Right (expectConstructorNames mergedDeclNameLookup name))
-        (bimap Relation.fromMap Relation.fromMap dependents)
-    aliceFile <-
-      Update2.makeUnisonFile
-        abort
-        codebase
-        (\_ name -> Right (expectConstructorNames declNameLookups.alice name))
-        (bimap Relation.fromMap Relation.fromMap conflicts.alice)
-    bobFile <-
-      Update2.makeUnisonFile
-        abort
-        codebase
-        (\_ name -> Right (expectConstructorNames declNameLookups.bob name))
-        (bimap Relation.fromMap Relation.fromMap conflicts.bob)
-    pure (foldr UnisonFile.semigroupMerge UnisonFile.emptyUnisonFile [unconflictedFile, aliceFile, bobFile])
+  DefnsF2 (Map Name) EitherWayI TermReferenceId TypeReferenceId ->
+  Transaction (UnisonFile' [] Symbol Ann)
+dependentsToUnisonFile abort codebase declNameLookups dependents = do
+  aliceFile <-
+    Update2.makeUnisonFile
+      abort
+      codebase
+      (\_ name -> Right (expectConstructorNames declNameLookups.alice name))
+      ( let f = Relation.fromMap . Map.mapMaybe EitherWayI.includingAlice
+         in bimap f f dependents
+      )
+  bobFile <-
+    Update2.makeUnisonFile
+      abort
+      codebase
+      (\_ name -> Right (expectConstructorNames declNameLookups.bob name))
+      ( let f = Relation.fromMap . Map.mapMaybe EitherWayI.excludingAlice
+         in bimap f f dependents
+      )
+  pure (aliceFile <> bobFile)
 
 ------------------------------------------------------------------------------------------------------------------------
 --
@@ -490,7 +488,7 @@ bumpLca declNameLookups conflicts unconflicts dependents lca =
     -- Combine the separate term/type namespace updates into one
     & combineNamespaceUpdates
     -- Apply the updates to the LCA
-    & runNamespaceUpdate (defnsRangeOnly lca)
+    & runNamespaceUpdate (bimap BiMultimap.range BiMultimap.range lca)
   where
     deleteTheConflicts :: DefnsF2 NamespaceUpdate (Map Name) Referent TypeReference
     deleteTheConflicts =
@@ -656,7 +654,7 @@ identifyDependents ::
   TwoWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
   TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId) ->
   DefnsF Unconflicts Referent TypeReference ->
-  Transaction (DefnsF (Map Name) TermReferenceId TypeReferenceId)
+  Transaction (DefnsF2 (Map Name) EitherWayI TermReferenceId TypeReferenceId)
 identifyDependents defns conflicts unconflicts = do
   let unconflictedSoloDeletedNames :: TwoWay (DefnsF Set Name Name)
       unconflictedSoloDeletedNames =
@@ -709,7 +707,7 @@ identifyDependents defns conflicts unconflicts = do
       getNamespaceDependentsOf2 defns1 dependencies1
 
   pure $
-    mergeUnconflictedDependents
+    mergeUnconflictedDependents2
       (bimap Map.keysSet Map.keysSet <$> conflicts)
       unconflictedSoloDeletedNames
       unconflictedSoloUpdatedNames
@@ -857,23 +855,23 @@ mergeUnconflictedDependents2 conflicts unconflictedSoloDeletedNames unconflicted
         (Map.zipWithMaybeMatched whenBoth)
       where
         whenOnlyAlice :: Name -> v -> Maybe (EitherWayI v)
-        whenOnlyAlice name ref =
-          OnlyAlice <$> whenOnlyMe conflicts.alice updates.alice deletes.bob name ref
+        whenOnlyAlice =
+          whenOnlyMe OnlyAlice conflicts.alice updates.alice deletes.bob
 
         whenOnlyBob :: Name -> v -> Maybe (EitherWayI v)
-        whenOnlyBob name ref =
-          OnlyBob <$> whenOnlyMe conflicts.bob updates.bob deletes.alice name ref
+        whenOnlyBob =
+          whenOnlyMe OnlyBob conflicts.bob updates.bob deletes.alice
 
-        whenOnlyMe :: Set Name -> Set Name -> Set Name -> Name -> v -> Maybe v
-        whenOnlyMe myConflicts myUpdates theirDeletes name me
+        whenOnlyMe :: (v -> EitherWayI v) -> Set Name -> Set Name -> Set Name -> Name -> v -> Maybe (EitherWayI v)
+        whenOnlyMe who myConflicts myUpdates theirDeletes name me
           -- Case 1a
           | Set.member name myConflicts = Nothing
           -- Case 1b1
-          | Set.member name myUpdates = Just me
+          | Set.member name myUpdates = Just (who me)
           -- Case 1b2a
           | Set.member name theirDeletes = Nothing
           -- Case 1b2b
-          | otherwise = Just me
+          | otherwise = Just (who me)
 
         whenBoth :: Name -> v -> v -> Maybe (EitherWayI v)
         whenBoth name alice bob
@@ -896,10 +894,6 @@ restrictDefnsToNames =
 defnsReferences :: Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) -> Set Reference
 defnsReferences =
   bifoldMap (Set.map Referent.toReference . BiMultimap.dom) BiMultimap.dom
-
-defnsRangeOnly :: Defns (BiMultimap term name) (BiMultimap typ name) -> DefnsF (Map name) term typ
-defnsRangeOnly =
-  bimap BiMultimap.range BiMultimap.range
 
 defnsRangeToNames :: DefnsF (Map Name) Referent TypeReference -> Names
 defnsRangeToNames Defns {terms, types} =
@@ -1240,7 +1234,7 @@ data DebugFunctions = DebugFunctions
       TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId) ->
       DefnsF Unconflicts Referent TypeReference ->
       IO (),
-    debugDependents :: DefnsF (Map Name) TermReferenceId TypeReferenceId -> IO (),
+    debugDependents :: DefnsF2 (Map Name) EitherWayI TermReferenceId TypeReferenceId -> IO (),
     debugMergedDefns ::
       DefnsF (Map Name) Referent TypeReference ->
       Dropped (DefnsF (Map Name) Referent TypeReference) ->
@@ -1441,16 +1435,28 @@ realDebugPartitionedDiff conflicts unconflicts = do
               <> (case who of OnlyAlice () -> "Alice"; OnlyBob () -> "Bob"; AliceAndBob () -> "Alice and Bob")
               <> ")"
 
-realDebugDependents :: DefnsF (Map Name) TermReferenceId TypeReferenceId -> IO ()
+realDebugDependents :: DefnsF2 (Map Name) EitherWayI TermReferenceId TypeReferenceId -> IO ()
 realDebugDependents dependents = do
   Text.putStrLn (Text.bold "\n=== Dependents of deletes and updates ===")
   renderThings "termid" dependents.terms
   renderThings "typeid" dependents.types
   where
-    renderThings :: Text -> Map Name Reference.Id -> IO ()
+    renderThings :: Text -> Map Name (EitherWayI Reference.Id) -> IO ()
     renderThings label things =
       for_ (Map.toList things) \(name, ref) ->
-        Text.putStrLn (Text.italic label <> " " <> Name.toText name <> " " <> Reference.idToText ref)
+        Text.putStrLn $
+          Text.italic label
+            <> " "
+            <> Name.toText name
+            <> " "
+            <> Reference.idToText (EitherWayI.value ref)
+            <> " ("
+            <> ( case ref of
+                   OnlyAlice _ -> "Alice"
+                   OnlyBob _ -> "Bob"
+                   AliceAndBob _ -> "Alice and Bob"
+               )
+            <> ")"
 
 realDebugMergedDefns ::
   DefnsF (Map Name) Referent TypeReference ->

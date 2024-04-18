@@ -1,8 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE QuantifiedConstraints #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE QuantifiedConstraints #-}
 
 module Unison.UnisonFile
   ( -- * UnisonFile
@@ -23,7 +23,6 @@ module Unison.UnisonFile
     mapF,
     invalidate,
     leftBiasedMerge,
-    semigroupMerge,
 
     -- * TypecheckedUnisonFile
     TypecheckedUnisonFile (..),
@@ -46,7 +45,6 @@ module Unison.UnisonFile
 where
 
 import Control.Lens
-import Data.Function (on)
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Vector qualified as Vector
@@ -103,12 +101,12 @@ leftBiasedMerge lhs rhs =
       mergedWatches = Map.foldlWithKey' addWatch (watches lhs) (watches rhs)
       mergedDataDecls = Map.foldlWithKey' (addNotIn lhsTypeNames) (dataDeclarationsId lhs) (dataDeclarationsId rhs)
       mergedEffectDecls = Map.foldlWithKey' (addNotIn lhsTypeNames) (effectDeclarationsId lhs) (effectDeclarationsId rhs)
-  in UnisonFileId
-     { dataDeclarationsId = mergedDataDecls,
-       effectDeclarationsId = mergedEffectDecls,
-       terms = mergedTerms,
-       watches = mergedWatches
-     }
+   in UnisonFileId
+        { dataDeclarationsId = mergedDataDecls,
+          effectDeclarationsId = mergedEffectDecls,
+          terms = mergedTerms,
+          watches = mergedWatches
+        }
   where
     lhsTermNames =
       Map.keysSet (terms lhs)
@@ -116,7 +114,7 @@ leftBiasedMerge lhs rhs =
 
     lhsTypeNames =
       Map.keysSet (dataDeclarationsId lhs)
-      <> Map.keysSet (effectDeclarationsId lhs)
+        <> Map.keysSet (effectDeclarationsId lhs)
 
     addNotIn :: forall x. Set v -> Map v x -> v -> x -> Map v x
     addNotIn namesToAvoid b k v = case Set.member k namesToAvoid of
@@ -124,21 +122,9 @@ leftBiasedMerge lhs rhs =
       False -> Map.insert k v b
 
     addWatch :: Map WatchKind [(v, a, Term v a)] -> WatchKind -> [(v, a, Term v a)] -> Map WatchKind [(v, a, Term v a)]
-    addWatch b k v = case filter (\(x,_,_) -> not $ Set.member x lhsTermNames) v of
+    addWatch b k v = case filter (\(x, _, _) -> not $ Set.member x lhsTermNames) v of
       [] -> b
       v -> Map.insertWith (++) k v b
-
-semigroupMerge :: forall f v a. (forall x. Semigroup (f x)) => Ord v => UnisonFile' f v a -> UnisonFile' f v a -> UnisonFile' f v a
-semigroupMerge lhs rhs =
-  UnisonFileId
-    { dataDeclarationsId = smush dataDeclarationsId,
-      effectDeclarationsId = smush effectDeclarationsId,
-      terms = smush terms,
-      watches = on (Map.unionWith (++)) watches lhs rhs
-    }
-  where
-    smush :: forall x. (UnisonFile' f v a -> Map v (f x)) -> Map v (f x)
-    smush pluck = on (Map.unionWith (<>)) pluck lhs rhs
 
 dataDeclarations :: UnisonFile v a -> Map v (Reference, DataDeclaration v a)
 dataDeclarations = fmap (first Reference.DerivedId) . coerce . dataDeclarationsId
