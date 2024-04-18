@@ -74,7 +74,7 @@ unfoldNametree f x =
 -- >   }
 -- > }
 --
--- into an equivalent-but-flatter association between names and definitions, like
+-- into an equivalent-but-flat association between names and definitions, like
 --
 -- > {
 -- >   "foo" = #bar,

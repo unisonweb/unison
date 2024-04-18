@@ -14,6 +14,7 @@ import Data.List qualified as List
 import Data.List.NonEmpty (pattern (:|))
 import Data.Map.Merge.Strict qualified as Map
 import Data.Map.Strict qualified as Map
+import Data.Semialign (unzip)
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
@@ -52,13 +53,14 @@ import Unison.Codebase.SqliteCodebase.Branch.Cache (newBranchCache)
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Conversions
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.Debug qualified as Debug
-import Unison.Merge.CombineDiffs (combineDiffs)
+import Unison.Merge.CombineDiffs (CombinedDiffOp, combineDiffs)
 import Unison.Merge.Database (MergeDatabase (..), makeMergeDatabase, referent2to1)
 import Unison.Merge.DeclCoherencyCheck (IncoherentDeclReason (..), checkDeclCoherency)
 import Unison.Merge.DeclNameLookup (DeclNameLookup (..), expectConstructorNames)
 import Unison.Merge.Diff qualified as Merge
 import Unison.Merge.DiffOp (DiffOp (..))
 import Unison.Merge.Libdeps qualified as Merge
+import Unison.Merge.PartitionCombinedDiffs (partitionCombinedDiffs)
 import Unison.Merge.PreconditionViolation qualified as Merge
 import Unison.Merge.Synhashed (Synhashed (..))
 import Unison.Merge.Synhashed qualified as Synhashed
@@ -92,7 +94,7 @@ import Unison.UnisonFile (UnisonFile')
 import Unison.UnisonFile qualified as UnisonFile
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
-import Unison.Util.Defns (Defns (..), DefnsF, DefnsF2, DefnsF3, alignDefnsWith, zipDefnsWith)
+import Unison.Util.Defns (Defns (..), DefnsF, DefnsF2, DefnsF3, alignDefnsWith, defnsAreEmpty, zipDefnsWith)
 import Unison.Util.Map qualified as Map
 import Unison.Util.Nametree (Nametree (..), flattenNametree, traverseNametreeWithName, unflattenNametree)
 import Unison.Util.Pretty (ColorText, Pretty)
@@ -117,20 +119,20 @@ handleMerge bobBranchName = do
   -- Create a bunch of cached database lookup functions
   db <- makeMergeDatabase codebase
 
-  -- Load the current project branch ("alice"), and the branch from the same project to merge in ("bob")
-  mergeInfo <- loadMergeInfo bobBranchName
+  -- Load the current project branch ("Alice"), and the branch from the same project to merge in ("Bob")
+  info <- loadMergeInfo bobBranchName
 
-  -- Load alice, bob, and LCA branches
+  -- Load Alice/Bob/LCA branches
   branches <-
     Cli.runTransactionWithRollback \abort -> do
-      loadV2Branches =<< loadV2Causals abort db mergeInfo
+      loadV2Branches =<< loadV2Causals abort db info
 
-  -- Load alice, bob, and LCA definitions + decl names
-  (declNameLookups, defns) <-
+  -- Load Alice/Bob/LCA definitions and decl name lookups
+  (defns, declNameLookups) <-
     Cli.runTransactionWithRollback \abort -> do
-      loadDefns abort db mergeInfo branches
+      loadDefns abort db info.projectBranches branches
 
-  liftIO (debugFunctions.debugDefns declNameLookups defns)
+  liftIO (debugFunctions.debugDefns defns declNameLookups)
 
   -- Diff LCA->Alice and LCA->Bob
   diffs <-
@@ -140,15 +142,20 @@ handleMerge bobBranchName = do
   liftIO (debugFunctions.debugDiffs diffs)
 
   -- Bail early if it looks like we can't proceed with the merge, because Alice or Bob has one or more conflicted alias
-  whenJust (findOneConflictedAlias mergeInfo.projectBranches defns.lca diffs) \violation ->
+  whenJust (findOneConflictedAlias info.projectBranches defns.lca diffs) \violation ->
     Cli.returnEarly (mergePreconditionViolationToOutput violation)
 
-  -- Combine the LCA->Alice and LCA->Bob diffs together into the conflicted things and the unconflicted things
+  -- Combine the LCA->Alice and LCA->Bob diffs together
+  let diff = combineDiffs diffs
+
+  liftIO (debugFunctions.debugCombinedDiffs diff)
+
+  -- Partition the combined diff into the conflicted things and the unconflicted things
   (conflicts, unconflicts) <-
-    combineDiffs (ThreeWay.forgetLca declNameLookups) (ThreeWay.forgetLca defns) diffs & onLeft \name ->
+    partitionCombinedDiffs (ThreeWay.forgetLca defns) (ThreeWay.forgetLca declNameLookups) diff & onLeft \name ->
       Cli.returnEarly (mergePreconditionViolationToOutput (Merge.ConflictInvolvingBuiltin name))
 
-  liftIO (debugFunctions.debugCombinedDiffs conflicts unconflicts)
+  liftIO (debugFunctions.debugPartitionedDiff conflicts unconflicts)
 
   -- Identify the dependents we need to pull into the Unison file (either first for typechecking, if there aren't
   -- conflicts, or else for manual conflict resolution without a typechecking step, if there are)
@@ -176,12 +183,7 @@ handleMerge bobBranchName = do
 
   let thisMergeHasConflicts =
         -- Eh, they'd either both be null, or neither, but just check both maps anyway
-        or
-          [ not (Map.null conflicts.alice.terms),
-            not (Map.null conflicts.alice.types),
-            not (Map.null conflicts.bob.terms),
-            not (Map.null conflicts.bob.types)
-          ]
+        not (defnsAreEmpty conflicts.alice) || not (defnsAreEmpty conflicts.bob)
 
   -- Create the Unison file, which may have conflicts, in which case we don't bother trying to parse and typecheck it.
   unisonFile <-
@@ -218,7 +220,7 @@ handleMerge bobBranchName = do
       else prettyParseTypecheck unisonFile pped parsingEnv <&> eitherToMaybe
 
   case maybeTypecheckedUnisonFile of
-    Nothing -> promptUser mergeInfo (Pretty.prettyUnisonFile pped unisonFile) newBranchIO
+    Nothing -> promptUser info (Pretty.prettyUnisonFile pped unisonFile) newBranchIO
     Just tuf -> do
       mergedBranchPlusTuf <-
         Cli.runTransactionWithRollback \abort -> do
@@ -226,11 +228,11 @@ handleMerge bobBranchName = do
           updates <- typecheckedUnisonFileToBranchUpdates abort undefined tuf
           pure (Branch.batchUpdates updates newBranchIO)
       Cli.stepAt
-        (textualDescriptionOfMerge mergeInfo)
-        ( Path.unabsolute mergeInfo.paths.alice,
+        (textualDescriptionOfMerge info)
+        ( Path.unabsolute info.paths.alice,
           const mergedBranchPlusTuf
         )
-      Cli.respond (Output.MergeSuccess (aliceProjectAndBranchName mergeInfo) (bobProjectAndBranchName mergeInfo))
+      Cli.respond (Output.MergeSuccess (aliceProjectAndBranchName info) (bobProjectAndBranchName info))
 
 aliceProjectAndBranchName :: MergeInfo -> ProjectAndBranch ProjectName ProjectBranchName
 aliceProjectAndBranchName mergeInfo =
@@ -293,29 +295,25 @@ loadV2Branches causals = do
 loadDefns ::
   (forall a. Output -> Transaction a) ->
   MergeDatabase ->
-  MergeInfo ->
+  TwoWay ProjectBranch ->
   TwoOrThreeWay (V2.Branch Transaction) ->
   Transaction
-    ( ThreeWay DeclNameLookup,
-      ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name))
+    ( ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)),
+      ThreeWay DeclNameLookup
     )
-loadDefns abort0 db info branches = do
+loadDefns abort0 db projectBranches branches = do
   lcaDefns0 <-
     case branches.lca of
       Nothing -> pure Nametree {value = Defns Map.empty Map.empty, children = Map.empty}
       Just lcaBranch -> loadNamespaceInfo abort db lcaBranch
-  (lcaDeclNameLookup, lcaDefns1) <-
-    assertNamespaceSatisfiesPreconditions db abort Nothing (fromMaybe V2.Branch.empty branches.lca) lcaDefns0
   aliceDefns0 <- loadNamespaceInfo abort db branches.alice
-  (aliceDeclNameLookup, aliceDefns1) <-
-    assertNamespaceSatisfiesPreconditions db abort (Just info.projectBranches.alice.name) branches.alice aliceDefns0
   bobDefns0 <- loadNamespaceInfo abort db branches.bob
-  (bobDeclNameLookup, bobDefns1) <-
-    assertNamespaceSatisfiesPreconditions db abort (Just info.projectBranches.bob.name) branches.bob bobDefns0
-  pure
-    ( ThreeWay {lca = lcaDeclNameLookup, alice = aliceDeclNameLookup, bob = bobDeclNameLookup},
-      ThreeWay {lca = lcaDefns1, alice = aliceDefns1, bob = bobDefns1}
-    )
+
+  lca <- assertNamespaceSatisfiesPreconditions db abort Nothing (fromMaybe V2.Branch.empty branches.lca) lcaDefns0
+  alice <- assertNamespaceSatisfiesPreconditions db abort (Just projectBranches.alice.name) branches.alice aliceDefns0
+  bob <- assertNamespaceSatisfiesPreconditions db abort (Just projectBranches.bob.name) branches.bob bobDefns0
+
+  pure (unzip ThreeWay {lca, alice, bob})
   where
     abort :: Merge.PreconditionViolation -> Transaction void
     abort =
@@ -784,7 +782,7 @@ defnsRangeToNames Defns {terms, types} =
       types = Relation.fromMap types
     }
 
-palonka :: DefnsF (Map Name) Referent TypeReference -> Either () DeclNameLookup
+palonka :: HasCallStack => DefnsF (Map Name) Referent TypeReference -> Either () DeclNameLookup
 palonka defns = do
   conToName <- bazinga defns.terms
 
@@ -962,21 +960,23 @@ assertNamespaceSatisfiesPreconditions ::
   Maybe ProjectBranchName ->
   V2.Branch Transaction ->
   Nametree (DefnsF (Map NameSegment) Referent TypeReference) ->
-  Transaction (DeclNameLookup, Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name))
+  Transaction (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name), DeclNameLookup)
 assertNamespaceSatisfiesPreconditions db abort maybeBranchName branch defns = do
-  Map.lookup NameSegment.libSegment branch.children `whenJust` \libdepsCausal -> do
+  whenJust (Map.lookup NameSegment.libSegment branch.children) \libdepsCausal -> do
     libdepsBranch <- libdepsCausal.value
     when (not (Map.null libdepsBranch.terms) || not (Map.null libdepsBranch.types)) do
       abort Merge.DefnsInLib
+
   declNameLookup <-
     checkDeclCoherency db.loadDeclNumConstructors defns
       & onLeftM (abort . incoherentDeclReasonToMergePreconditionViolation)
+
   pure
-    ( declNameLookup,
-      Defns
+    ( Defns
         { terms = flattenNametree (view #terms) defns,
           types = flattenNametree (view #types) defns
-        }
+        },
+      declNameLookup
     )
   where
     incoherentDeclReasonToMergePreconditionViolation :: IncoherentDeclReason -> Merge.PreconditionViolation
@@ -1105,11 +1105,12 @@ libdepsToBranch0 db libdeps = do
 
 data DebugFunctions = DebugFunctions
   { debugDefns ::
-      ThreeWay DeclNameLookup ->
       ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
+      ThreeWay DeclNameLookup ->
       IO (),
     debugDiffs :: TwoWay (DefnsF3 (Map Name) DiffOp Synhashed Referent TypeReference) -> IO (),
-    debugCombinedDiffs ::
+    debugCombinedDiffs :: DefnsF2 (Map Name) CombinedDiffOp Referent TypeReference -> IO (),
+    debugPartitionedDiff ::
       TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId) ->
       DefnsF Unconflicts Referent TypeReference ->
       IO (),
@@ -1127,6 +1128,7 @@ realDebugFunctions =
     { debugDefns = realDebugDefns,
       debugDiffs = realDebugDiffs,
       debugCombinedDiffs = realDebugCombinedDiffs,
+      debugPartitionedDiff = realDebugPartitionedDiff,
       debugDependents = realDebugDependents,
       debugMergedDefns = realDebugMergedDefns,
       debugMergedConstructorNames = realDebugMergedConstructorNames
@@ -1134,13 +1136,13 @@ realDebugFunctions =
 
 fakeDebugFunctions :: DebugFunctions
 fakeDebugFunctions =
-  DebugFunctions mempty mempty mempty mempty mempty mempty
+  DebugFunctions mempty mempty mempty mempty mempty mempty mempty
 
 realDebugDefns ::
-  ThreeWay DeclNameLookup ->
   ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
+  ThreeWay DeclNameLookup ->
   IO ()
-realDebugDefns declNameLookups defns = do
+realDebugDefns defns declNameLookups = do
   Text.putStrLn "\n=== Alice's definitions ==="
   for_ (Map.toList (BiMultimap.range defns.alice.terms)) \(name, ref) ->
     Text.putStrLn ("term " <> Name.toText name <> " => " <> tShow ref)
@@ -1176,11 +1178,18 @@ realDebugDiffs diffs = do
     for_ (Map.toList diffs.bob.types) \(name, op) ->
       Text.putStrLn ("type " <> Name.toText name <> " => " <> tShow (Synhashed.hash <$> op))
 
-realDebugCombinedDiffs ::
+realDebugCombinedDiffs :: DefnsF2 (Map Name) CombinedDiffOp Referent TypeReference -> IO ()
+realDebugCombinedDiffs diff = do
+  for_ (Map.toList diff.terms) \(name, op) ->
+    Text.putStrLn ("term " <> Name.toText name <> " => " <> tShow op)
+  for_ (Map.toList diff.types) \(name, op) ->
+    Text.putStrLn ("type " <> Name.toText name <> " => " <> tShow op)
+
+realDebugPartitionedDiff ::
   TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId) ->
   DefnsF Unconflicts Referent TypeReference ->
   IO ()
-realDebugCombinedDiffs conflicts unconflicts = do
+realDebugPartitionedDiff conflicts unconflicts = do
   when (not (Map.null conflicts.alice.terms) || not (Map.null conflicts.alice.types)) do
     Text.putStrLn "\n=== Alice's conflicts === "
     for_ (Map.toList conflicts.alice.terms) \(name, ref) ->

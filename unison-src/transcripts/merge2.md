@@ -280,11 +280,10 @@ project/alice> merge2 /bob
 .> project.delete project
 ```
 
-## Term conflict with a constructor
+## Type update+rename conflict
 
-In this example, Alice updates a type, while Bob "updates" one of the constructors (by changing it to a term), and adds
-back a name for the constructor somewhere else. Bob didn't actually update the type itself, but there is nonetheless
-a conflict between Alice's type (due to one of its constructors) and Bob's term.
+Renaming a constructor is modeled as an update, so if Alice updates a type and Bob renames one of its constructors but
+doesn't change its hash, that's still a conflict.
 
 ```ucm:hide
 .> project.create-empty project
@@ -292,9 +291,7 @@ project/main> builtins.mergeio
 ```
 
 ```unison
-unique type Foo
-  = MkFooOne Nat
-  | MkFooTwo Nat Nat
+unique type Foo = Baz Nat | Qux Text
 ```
 
 ```ucm
@@ -303,9 +300,7 @@ project/main> branch alice
 ```
 
 ```unison
-unique type Foo
-  = MkFooOne Nat Text
-  | MkFooTwo Nat Nat
+unique type Foo = Baz Nat Nat | Qux Text
 ```
 
 ```ucm
@@ -314,12 +309,7 @@ project/main> branch bob
 ```
 
 ```unison
-unique type Foo
-  = MkFooOne Nat
-  | MkFooTwoRenamed Nat Nat
-
-Foo.MkFooTwo : Text
-Foo.MkFooTwo = "hello"
+unique type Foo = Baz Nat | BobQux Text
 ```
 
 ```ucm:error
@@ -330,7 +320,6 @@ project/alice> merge2 /bob
 ```ucm:hide
 .> project.delete project
 ```
-
 
 ## Precondition violations
 

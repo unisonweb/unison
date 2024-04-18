@@ -8,3 +8,4 @@ data AliceIorBob
   = OnlyAlice
   | OnlyBob
   | AliceAndBob
+  deriving stock (Show)

@@ -27,6 +27,7 @@ library
       Unison.Merge.Diff
       Unison.Merge.DiffOp
       Unison.Merge.Libdeps
+      Unison.Merge.PartitionCombinedDiffs
       Unison.Merge.PreconditionViolation
       Unison.Merge.Synhash
       Unison.Merge.Synhashed

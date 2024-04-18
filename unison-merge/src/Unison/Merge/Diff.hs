@@ -37,16 +37,14 @@ import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Defns (Defns (..), DefnsF2, DefnsF3, zipDefnsWith)
 import Unison.Var (Var)
 
--- | @nameBasedNamespaceDiff db defns@ returns Alice's and Bob's name-based namespace diffs, each in the form:
+-- | @nameBasedNamespaceDiff db declNameLookups defns@ returns Alice's and Bob's name-based namespace diffs, each in the
+-- form:
 --
--- > decls :: Map Name (DiffOp (Synhashed TypeReference))
 -- > terms :: Map Name (DiffOp (Synhashed Referent))
+-- > types :: Map Name (DiffOp (Synhashed TypeReference))
 --
 -- where each name is paired with its diff-op (added, deleted, or updated), relative to the LCA between Alice and Bob's
 -- branches. If the hash of a name did not change, it will not appear in the map.
---
--- If there is no LCA, this operation is equivalent to a two-way diff, where every name in each of Alice and Bob's
--- branches is considered an add.
 nameBasedNamespaceDiff ::
   MergeDatabase ->
   ThreeWay DeclNameLookup ->
@@ -117,12 +115,10 @@ diffNamespaceDefns =
 
 deepNamespaceDefinitionsToPpe :: Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) -> PrettyPrintEnv
 deepNamespaceDefinitionsToPpe Defns {terms, types} =
-  PrettyPrintEnv
-    (\ref -> arbitraryName ref terms)
-    (\ref -> arbitraryName ref types)
+  PrettyPrintEnv (arbitraryName terms) (arbitraryName types)
   where
-    arbitraryName :: Ord ref => ref -> BiMultimap ref Name -> [(HQ'.HashQualified Name, HQ'.HashQualified Name)]
-    arbitraryName ref names =
+    arbitraryName :: Ord ref => BiMultimap ref Name -> ref -> [(HQ'.HashQualified Name, HQ'.HashQualified Name)]
+    arbitraryName names ref =
       BiMultimap.lookupDom ref names
         & Set.lookupMin
         & maybe [] \name -> [(HQ'.NameOnly name, HQ'.NameOnly name)]

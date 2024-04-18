@@ -701,6 +701,110 @@ type Foo = MkFoo Nat Nat
 type Foo = MkFoo Nat Text
 ```
 
+## Type update+rename conflict
+
+Renaming a constructor is modeled as an update, so if Alice updates a type and Bob renames one of its constructors but
+doesn't change its hash, that's still a conflict.
+
+```unison
+unique type Foo = Baz Nat | Qux Text
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      type Foo
+
+```
+```ucm
+project/main> add
+
+  ⍟ I've added these definitions:
+  
+    type Foo
+
+project/main> branch alice
+
+  Done. I've created the alice branch based off of main.
+  
+  Tip: Use `merge /alice /main` to merge your work back into the
+       main branch.
+
+```
+```unison
+unique type Foo = Baz Nat Nat | Qux Text
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These names already exist. You can `update` them to your
+      new definition:
+    
+      type Foo
+
+```
+```ucm
+project/alice> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+project/main> branch bob
+
+  Done. I've created the bob branch based off of main.
+  
+  Tip: Use `merge /bob /main` to merge your work back into the
+       main branch.
+
+```
+```unison
+unique type Foo = Baz Nat | BobQux Text
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked the definitions in scratch.u. This
+  file has been previously added to the codebase.
+
+```
+```ucm
+project/bob> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+project/alice> merge2 /bob
+
+  I couldn't automatically merge bob into alice. However, I've
+  added the definitions that need attention to the top of
+  scratch.u.
+
+```
+```unison:added-by-ucm scratch.u
+type Foo = Baz Nat Nat | Qux Text
+
+type Foo = Baz Nat | BobQux Text
+```
+
 ## Term conflict with a constructor
 
 In this example, Alice updates a type, while Bob "updates" one of the constructors (by changing it to a term), and adds
