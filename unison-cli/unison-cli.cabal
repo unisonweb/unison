@@ -235,6 +235,7 @@ library
     , template-haskell
     , temporary
     , text
+    , text-ansi
     , text-builder
     , text-rope
     , these
@@ -375,6 +376,7 @@ executable transcripts
     , template-haskell
     , temporary
     , text
+    , text-ansi
     , text-builder
     , text-rope
     , these
@@ -521,6 +523,7 @@ test-suite cli-tests
     , template-haskell
     , temporary
     , text
+    , text-ansi
     , text-builder
     , text-rope
     , these

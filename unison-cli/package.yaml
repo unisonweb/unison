@@ -70,6 +70,7 @@ dependencies:
   - template-haskell
   - temporary
   - text
+  - text-ansi
   - text-builder
   - text-rope
   - these

@@ -19,6 +19,7 @@ import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
 import Data.These (These (..))
+import Text.ANSI qualified as Text
 import U.Codebase.Branch qualified as V2 (Branch (..), CausalBranch)
 import U.Codebase.Branch qualified as V2.Branch
 import U.Codebase.Causal qualified as V2.Causal
@@ -53,7 +54,10 @@ import Unison.Codebase.SqliteCodebase.Branch.Cache (newBranchCache)
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Conversions
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.Debug qualified as Debug
-import Unison.Merge.CombineDiffs (CombinedDiffOp, combineDiffs)
+import Unison.Hash qualified as Hash
+import Unison.Merge.AliceIorBob (AliceIorBob (..))
+import Unison.Merge.AliceXorBob (AliceXorBob (..))
+import Unison.Merge.CombineDiffs (CombinedDiffOp (..), combineDiffs)
 import Unison.Merge.Database (MergeDatabase (..), makeMergeDatabase, referent2to1)
 import Unison.Merge.DeclCoherencyCheck (IncoherentDeclReason (..), checkDeclCoherency)
 import Unison.Merge.DeclNameLookup (DeclNameLookup (..), expectConstructorNames)
@@ -148,7 +152,7 @@ handleMerge bobBranchName = do
   -- Combine the LCA->Alice and LCA->Bob diffs together
   let diff = combineDiffs diffs
 
-  liftIO (debugFunctions.debugCombinedDiffs diff)
+  liftIO (debugFunctions.debugCombinedDiff diff)
 
   -- Partition the combined diff into the conflicted things and the unconflicted things
   (conflicts, unconflicts) <-
@@ -1109,7 +1113,7 @@ data DebugFunctions = DebugFunctions
       ThreeWay DeclNameLookup ->
       IO (),
     debugDiffs :: TwoWay (DefnsF3 (Map Name) DiffOp Synhashed Referent TypeReference) -> IO (),
-    debugCombinedDiffs :: DefnsF2 (Map Name) CombinedDiffOp Referent TypeReference -> IO (),
+    debugCombinedDiff :: DefnsF2 (Map Name) CombinedDiffOp Referent TypeReference -> IO (),
     debugPartitionedDiff ::
       TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId) ->
       DefnsF Unconflicts Referent TypeReference ->
@@ -1127,7 +1131,7 @@ realDebugFunctions =
   DebugFunctions
     { debugDefns = realDebugDefns,
       debugDiffs = realDebugDiffs,
-      debugCombinedDiffs = realDebugCombinedDiffs,
+      debugCombinedDiff = realDebugCombinedDiff,
       debugPartitionedDiff = realDebugPartitionedDiff,
       debugDependents = realDebugDependents,
       debugMergedDefns = realDebugMergedDefns,
@@ -1143,128 +1147,175 @@ realDebugDefns ::
   ThreeWay DeclNameLookup ->
   IO ()
 realDebugDefns defns declNameLookups = do
-  Text.putStrLn "\n=== Alice's definitions ==="
-  for_ (Map.toList (BiMultimap.range defns.alice.terms)) \(name, ref) ->
-    Text.putStrLn ("term " <> Name.toText name <> " => " <> tShow ref)
-  for_ (Map.toList (BiMultimap.range defns.alice.types)) \(name, ref) ->
-    Text.putStrLn ("type " <> Name.toText name <> " => " <> tShow ref)
-  Text.putStrLn "\n=== Bob's definitions === "
-  for_ (Map.toList (BiMultimap.range defns.bob.terms)) \(name, ref) ->
-    Text.putStrLn ("term " <> Name.toText name <> " => " <> tShow ref)
-  for_ (Map.toList (BiMultimap.range defns.bob.types)) \(name, ref) ->
-    Text.putStrLn ("type " <> Name.toText name <> " => " <> tShow ref)
+  Text.putStrLn (Text.bold "\n=== Alice's definitions ===")
+  debugDefns1 (bimap BiMultimap.range BiMultimap.range defns.alice)
 
-  when (not (Map.null declNameLookups.alice.declToConstructors)) do
-    Text.putStrLn "\n=== Alice's constructor names ==="
-    for_ (Map.toList declNameLookups.alice.declToConstructors) \(typeName, conNames) ->
-      Text.putStrLn (Name.toText typeName <> " => " <> tShow (map Name.toText conNames))
-  when (not (Map.null declNameLookups.bob.declToConstructors)) do
-    Text.putStrLn "\n=== Bob's constructor names ==="
-    for_ (Map.toList declNameLookups.bob.declToConstructors) \(typeName, conNames) ->
-      Text.putStrLn (Name.toText typeName <> " => " <> tShow (map Name.toText conNames))
+  Text.putStrLn (Text.bold "\n=== Bob's definitions ===")
+  debugDefns1 (bimap BiMultimap.range BiMultimap.range defns.bob)
+
+  Text.putStrLn (Text.bold "\n=== Alice's constructor names ===")
+  debugConstructorNames declNameLookups.alice.declToConstructors
+
+  Text.putStrLn (Text.bold "\n=== Bob's constructor names ===")
+  debugConstructorNames declNameLookups.bob.declToConstructors
 
 realDebugDiffs :: TwoWay (DefnsF3 (Map Name) DiffOp Synhashed Referent TypeReference) -> IO ()
 realDebugDiffs diffs = do
-  when (not (Map.null diffs.alice.terms) || not (Map.null diffs.alice.types)) do
-    Text.putStrLn "\n=== Alice's diff ==="
-    for_ (Map.toList diffs.alice.terms) \(name, op) ->
-      Text.putStrLn ("term " <> Name.toText name <> " => " <> tShow (Synhashed.hash <$> op))
-    for_ (Map.toList diffs.alice.types) \(name, op) ->
-      Text.putStrLn ("type " <> Name.toText name <> " => " <> tShow (Synhashed.hash <$> op))
-  when (not (Map.null diffs.bob.terms) || not (Map.null diffs.bob.types)) do
-    Text.putStrLn "\n=== Bob's diff ==="
-    for_ (Map.toList diffs.bob.terms) \(name, op) ->
-      Text.putStrLn ("term " <> Name.toText name <> " => " <> tShow (Synhashed.hash <$> op))
-    for_ (Map.toList diffs.bob.types) \(name, op) ->
-      Text.putStrLn ("type " <> Name.toText name <> " => " <> tShow (Synhashed.hash <$> op))
+  Text.putStrLn (Text.bold "\n=== Alice's diff ===")
+  renderDiff diffs.alice
+  Text.putStrLn (Text.bold "\n=== Bob's diff ===")
+  renderDiff diffs.bob
+  where
+    renderDiff :: DefnsF3 (Map Name) DiffOp Synhashed Referent TypeReference -> IO ()
+    renderDiff diff = do
+      renderThings referentLabel diff.terms
+      renderThings (const "type") diff.types
 
-realDebugCombinedDiffs :: DefnsF2 (Map Name) CombinedDiffOp Referent TypeReference -> IO ()
-realDebugCombinedDiffs diff = do
-  for_ (Map.toList diff.terms) \(name, op) ->
-    Text.putStrLn ("term " <> Name.toText name <> " => " <> tShow op)
-  for_ (Map.toList diff.types) \(name, op) ->
-    Text.putStrLn ("type " <> Name.toText name <> " => " <> tShow op)
+    renderThings :: (ref -> Text) -> Map Name (DiffOp (Synhashed ref)) -> IO ()
+    renderThings label things =
+      for_ (Map.toList things) \(name, op) ->
+        let go color action x =
+              color $
+                action
+                  <> " "
+                  <> Text.italic (label (Synhashed.value x))
+                  <> " "
+                  <> Name.toText name
+                  <> " #"
+                  <> Hash.toBase32HexText (Synhashed.hash x)
+         in Text.putStrLn case op of
+              DiffOp'Add x -> go Text.green "+" x
+              DiffOp'Delete x -> go Text.red "-" x
+              DiffOp'Update _ x -> go Text.yellow "%" x
+
+realDebugCombinedDiff :: DefnsF2 (Map Name) CombinedDiffOp Referent TypeReference -> IO ()
+realDebugCombinedDiff diff = do
+  Text.putStrLn (Text.bold "\n=== Combined diff ===")
+  renderThings referentLabel Referent.toText diff.terms
+  renderThings (const "type") Reference.toText diff.types
+  where
+    renderThings :: (ref -> Text) -> (ref -> Text) -> Map Name (CombinedDiffOp ref) -> IO ()
+    renderThings label renderRef things =
+      for_ (Map.toList things) \(name, op) ->
+        Text.putStrLn case op of
+          CombinedDiffOp'Add who ref ->
+            Text.green $
+              "+ "
+                <> Text.italic (label ref)
+                <> " "
+                <> Name.toText name
+                <> " "
+                <> renderRef ref
+                <> " ("
+                <> renderWho who
+                <> ")"
+          CombinedDiffOp'Delete who ref ->
+            Text.red $
+              "- "
+                <> Text.italic (label ref)
+                <> " "
+                <> Name.toText name
+                <> " "
+                <> renderRef ref
+                <> " ("
+                <> renderWho who
+                <> ")"
+          CombinedDiffOp'Update who _ ref ->
+            Text.yellow $
+              "% "
+                <> Text.italic (label ref)
+                <> " "
+                <> Name.toText name
+                <> " "
+                <> renderRef ref
+                <> " ("
+                <> renderWho who
+                <> ")"
+          CombinedDiffOp'Conflict ref ->
+            Text.magenta $
+              "! "
+                <> Text.italic (label ref.alice)
+                <> "/"
+                <> Text.italic (label ref.bob)
+                <> " "
+                <> Name.toText name
+                <> " "
+                <> renderRef ref.alice
+                <> "/"
+                <> renderRef ref.bob
+
+    renderWho :: AliceIorBob -> Text
+    renderWho = \case
+      OnlyAlice -> "Alice"
+      OnlyBob -> "Bob"
+      AliceAndBob -> "Alice and Bob"
 
 realDebugPartitionedDiff ::
   TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId) ->
   DefnsF Unconflicts Referent TypeReference ->
   IO ()
 realDebugPartitionedDiff conflicts unconflicts = do
-  when (not (Map.null conflicts.alice.terms) || not (Map.null conflicts.alice.types)) do
-    Text.putStrLn "\n=== Alice's conflicts === "
-    for_ (Map.toList conflicts.alice.terms) \(name, ref) ->
-      Text.putStrLn ("term " <> Name.toText name <> " => " <> tShow ref)
-    for_ (Map.toList conflicts.alice.types) \(name, ref) ->
-      Text.putStrLn ("type " <> Name.toText name <> " => " <> tShow ref)
+  Text.putStrLn (Text.bold "\n=== Conflicts ===")
+  renderConflicts "termid" conflicts.alice.terms Alice
+  renderConflicts "termid" conflicts.bob.terms Bob
+  renderConflicts "typeid" conflicts.alice.types Alice
+  renderConflicts "typeid" conflicts.bob.types Bob
 
-  when (not (Map.null conflicts.bob.terms) || not (Map.null conflicts.bob.types)) do
-    Text.putStrLn "\n=== Bob's conflicts ==="
-    for_ (Map.toList conflicts.bob.terms) \(name, ref) ->
-      Text.putStrLn ("term " <> Name.toText name <> " => " <> tShow ref)
-    for_ (Map.toList conflicts.bob.types) \(name, ref) ->
-      Text.putStrLn ("type " <> Name.toText name <> " => " <> tShow ref)
+  Text.putStrLn (Text.bold "\n=== Unconflicts ===")
+  renderUnconflicts Text.green "+" referentLabel Referent.toText unconflicts.terms.adds.alice OnlyAlice
+  renderUnconflicts Text.green "+" referentLabel Referent.toText unconflicts.terms.adds.bob OnlyBob
+  renderUnconflicts Text.green "+" referentLabel Referent.toText unconflicts.terms.adds.both AliceAndBob
+  renderUnconflicts Text.green "+" (const "type") Reference.toText unconflicts.types.adds.alice OnlyAlice
+  renderUnconflicts Text.green "+" (const "type") Reference.toText unconflicts.types.adds.bob OnlyBob
+  renderUnconflicts Text.green "+" (const "type") Reference.toText unconflicts.types.adds.both AliceAndBob
+  renderUnconflicts Text.red "-" referentLabel Referent.toText unconflicts.terms.deletes.alice OnlyAlice
+  renderUnconflicts Text.red "-" referentLabel Referent.toText unconflicts.terms.deletes.bob OnlyBob
+  renderUnconflicts Text.red "-" referentLabel Referent.toText unconflicts.terms.deletes.both AliceAndBob
+  renderUnconflicts Text.red "-" (const "type") Reference.toText unconflicts.types.deletes.alice OnlyAlice
+  renderUnconflicts Text.red "-" (const "type") Reference.toText unconflicts.types.deletes.bob OnlyBob
+  renderUnconflicts Text.red "-" (const "type") Reference.toText unconflicts.types.deletes.both AliceAndBob
+  renderUnconflicts Text.yellow "%" referentLabel Referent.toText unconflicts.terms.updates.alice OnlyAlice
+  renderUnconflicts Text.yellow "%" referentLabel Referent.toText unconflicts.terms.updates.bob OnlyBob
+  renderUnconflicts Text.yellow "%" referentLabel Referent.toText unconflicts.terms.updates.both AliceAndBob
+  renderUnconflicts Text.yellow "%" (const "type") Reference.toText unconflicts.types.updates.alice OnlyAlice
+  renderUnconflicts Text.yellow "%" (const "type") Reference.toText unconflicts.types.updates.bob OnlyBob
+  renderUnconflicts Text.yellow "%" (const "type") Reference.toText unconflicts.types.updates.both AliceAndBob
+  where
+    renderConflicts :: Text -> Map Name Reference.Id -> AliceXorBob -> IO ()
+    renderConflicts label conflicts who =
+      for_ (Map.toList conflicts) \(name, ref) ->
+        Text.putStrLn $
+          Text.magenta $
+            "! "
+              <> Text.italic label
+              <> " "
+              <> Name.toText name
+              <> " "
+              <> Reference.idToText ref
+              <> " ("
+              <> (case who of Alice -> "Alice"; Bob -> "Bob")
+              <> ")"
 
-  when (not (Map.null unconflicts.terms.adds.alice) || not (Map.null unconflicts.types.adds.alice)) do
-    Text.putStrLn "\n=== Alice's adds === "
-    for_ (Map.toList unconflicts.terms.adds.alice) \(name, ref) ->
-      Text.putStrLn ("term " <> Name.toText name <> " => " <> tShow ref)
-    for_ (Map.toList unconflicts.types.adds.alice) \(name, ref) ->
-      Text.putStrLn ("type " <> Name.toText name <> " => " <> tShow ref)
-  when (not (Map.null unconflicts.terms.adds.bob) || not (Map.null unconflicts.types.adds.bob)) do
-    Text.putStrLn "\n=== Bob's adds === "
-    for_ (Map.toList unconflicts.terms.adds.bob) \(name, ref) ->
-      Text.putStrLn ("term " <> Name.toText name <> " => " <> tShow ref)
-    for_ (Map.toList unconflicts.types.adds.bob) \(name, ref) ->
-      Text.putStrLn ("type " <> Name.toText name <> " => " <> tShow ref)
-  when (not (Map.null unconflicts.terms.adds.both) || not (Map.null unconflicts.types.adds.both)) do
-    Text.putStrLn "\n=== Alice's & Bob's adds === "
-    for_ (Map.toList unconflicts.terms.adds.both) \(name, ref) ->
-      Text.putStrLn ("term " <> Name.toText name <> " => " <> tShow ref)
-    for_ (Map.toList unconflicts.types.adds.both) \(name, ref) ->
-      Text.putStrLn ("type " <> Name.toText name <> " => " <> tShow ref)
-
-  when (not (Map.null unconflicts.terms.deletes.alice) || not (Map.null unconflicts.types.deletes.alice)) do
-    Text.putStrLn "\n=== Alice's deletes === "
-    for_ (Map.toList unconflicts.terms.deletes.alice) \(name, ref) ->
-      Text.putStrLn ("term " <> Name.toText name <> " => " <> tShow ref)
-    for_ (Map.toList unconflicts.types.deletes.alice) \(name, ref) ->
-      Text.putStrLn ("type " <> Name.toText name <> " => " <> tShow ref)
-  when (not (Map.null unconflicts.terms.deletes.bob) || not (Map.null unconflicts.types.deletes.bob)) do
-    Text.putStrLn "\n=== Bob's deletes === "
-    for_ (Map.toList unconflicts.terms.deletes.bob) \(name, ref) ->
-      Text.putStrLn ("term " <> Name.toText name <> " => " <> tShow ref)
-    for_ (Map.toList unconflicts.types.deletes.bob) \(name, ref) ->
-      Text.putStrLn ("type " <> Name.toText name <> " => " <> tShow ref)
-  when (not (Map.null unconflicts.terms.deletes.both) || not (Map.null unconflicts.types.deletes.both)) do
-    Text.putStrLn "\n=== Alice's & Bob's deletes === "
-    for_ (Map.toList unconflicts.terms.deletes.both) \(name, ref) ->
-      Text.putStrLn ("term " <> Name.toText name <> " => " <> tShow ref)
-    for_ (Map.toList unconflicts.types.deletes.both) \(name, ref) ->
-      Text.putStrLn ("type " <> Name.toText name <> " => " <> tShow ref)
-
-  when (not (Map.null unconflicts.terms.updates.alice) || not (Map.null unconflicts.types.updates.alice)) do
-    Text.putStrLn "\n=== Alice's updates === "
-    for_ (Map.toList unconflicts.terms.updates.alice) \(name, ref) ->
-      Text.putStrLn ("term " <> Name.toText name <> " => " <> tShow ref)
-    for_ (Map.toList unconflicts.types.updates.alice) \(name, ref) ->
-      Text.putStrLn ("type " <> Name.toText name <> " => " <> tShow ref)
-  when (not (Map.null unconflicts.terms.updates.bob) || not (Map.null unconflicts.types.updates.bob)) do
-    Text.putStrLn "\n=== Bob's updates === "
-    for_ (Map.toList unconflicts.terms.updates.bob) \(name, ref) ->
-      Text.putStrLn ("term " <> Name.toText name <> " => " <> tShow ref)
-    for_ (Map.toList unconflicts.types.updates.bob) \(name, ref) ->
-      Text.putStrLn ("type " <> Name.toText name <> " => " <> tShow ref)
-  when (not (Map.null unconflicts.terms.updates.both) || not (Map.null unconflicts.types.updates.both)) do
-    Text.putStrLn "\n=== Alice's & Bob's updates === "
-    for_ (Map.toList unconflicts.terms.updates.both) \(name, ref) ->
-      Text.putStrLn ("term " <> Name.toText name <> " => " <> tShow ref)
-    for_ (Map.toList unconflicts.types.updates.both) \(name, ref) ->
-      Text.putStrLn ("type " <> Name.toText name <> " => " <> tShow ref)
+    renderUnconflicts :: (Text -> Text) -> Text -> (ref -> Text) -> (ref -> Text) -> Map Name ref -> AliceIorBob -> IO ()
+    renderUnconflicts color action label renderRef unconflicts who =
+      for_ (Map.toList unconflicts) \(name, ref) ->
+        Text.putStrLn $
+          color $
+            action
+              <> " "
+              <> Text.italic (label ref)
+              <> " "
+              <> Name.toText name
+              <> " "
+              <> renderRef ref
+              <> " ("
+              <> (case who of OnlyAlice -> "Alice"; OnlyBob -> "Bob"; AliceAndBob -> "Alice and Bob")
+              <> ")"
 
 realDebugDependents :: DefnsF (Map Name) TermReferenceId TypeReferenceId -> IO ()
 realDebugDependents dependents = do
   when (not (Map.null dependents.terms) || not (Map.null dependents.types)) do
-    Text.putStrLn "\n=== Dependents of deletes and updates ==="
+    Text.putStrLn (Text.bold "\n=== Dependents of deletes and updates ===")
     for_ (Map.toList dependents.terms) \(name, ref) ->
       Text.putStrLn ("term " <> Name.toText name <> " => " <> tShow ref)
     for_ (Map.toList dependents.types) \(name, ref) ->
@@ -1275,22 +1326,33 @@ realDebugMergedDefns ::
   Dropped (DefnsF (Map Name) Referent TypeReference) ->
   IO ()
 realDebugMergedDefns mergedDefns droppedDefns = do
-  Text.putStrLn "\n=== Merged definitions ==="
-  for_ (Map.toList mergedDefns.terms) \(name, ref) ->
-    Text.putStrLn ("term " <> Name.toText name <> " => " <> tShow ref)
-  for_ (Map.toList mergedDefns.types) \(name, ref) ->
-    Text.putStrLn ("type " <> Name.toText name <> " => " <> tShow ref)
+  Text.putStrLn (Text.bold "\n=== Merged definitions ===")
+  debugDefns1 mergedDefns
 
-  when (not (Map.null droppedDefns.terms) || not (Map.null droppedDefns.types)) do
-    Text.putStrLn "\n=== Dropped definitions ==="
-    for_ (Map.toList droppedDefns.terms) \(name, ref) ->
-      Text.putStrLn ("term " <> Name.toText name <> " => " <> tShow ref)
-    for_ (Map.toList droppedDefns.types) \(name, ref) ->
-      Text.putStrLn ("type " <> Name.toText name <> " => " <> tShow ref)
+  Text.putStrLn (Text.bold "\n=== Dropped definitions ===")
+  debugDefns1 droppedDefns
 
 realDebugMergedConstructorNames :: DeclNameLookup -> IO ()
 realDebugMergedConstructorNames mergedDeclNameLookup = do
-  when (not (Map.null mergedDeclNameLookup.declToConstructors)) do
-    Text.putStrLn "\n=== Merged constructor names ==="
-    for_ (Map.toList mergedDeclNameLookup.declToConstructors) \(typeName, conNames) ->
-      Text.putStrLn (Name.toText typeName <> " => " <> tShow (map Name.toText conNames))
+  Text.putStrLn (Text.bold "\n=== Merged constructor names ===")
+  debugConstructorNames mergedDeclNameLookup.declToConstructors
+
+debugConstructorNames :: Map Name [Name] -> IO ()
+debugConstructorNames names =
+  for_ (Map.toList names) \(typeName, conNames) ->
+    Text.putStrLn (Name.toText typeName <> " => " <> Text.intercalate ", " (map Name.toText conNames))
+
+debugDefns1 :: DefnsF (Map Name) Referent TypeReference -> IO ()
+debugDefns1 defns = do
+  renderThings referentLabel Referent.toText defns.terms
+  renderThings (const "type") Reference.toText defns.types
+  where
+    renderThings :: (ref -> Text) -> (ref -> Text) -> Map Name ref -> IO ()
+    renderThings label renderRef things =
+      for_ (Map.toList things) \(name, ref) ->
+        Text.putStrLn (Text.italic (label ref) <> " " <> Name.toText name <> " " <> renderRef ref)
+
+referentLabel :: Referent -> Text
+referentLabel ref
+  | Referent'.isConstructor ref = "constructor"
+  | otherwise = "term"
