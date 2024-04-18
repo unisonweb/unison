@@ -1259,7 +1259,7 @@ resetRoot =
     I.Visible
     [("namespace or hash to reset to", Required, namespaceArg)]
     ( P.lines
-        [ "Deprecated because it's not compatible with the introduction of projects.",
+        [ "Deprecated because it's incompatible with projects. ⚠️ Warning, this command can cause codebase corruption.",
           P.wrapColumn2
             [ ( makeExample resetRoot [".foo"],
                 "Reset the root namespace (along with its history) to that of the `.foo` namespace. Deprecated"
