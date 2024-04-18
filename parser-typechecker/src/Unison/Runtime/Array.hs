@@ -11,6 +11,7 @@
 -- Checking is toggled using the `arraychecks` flag.
 module Unison.Runtime.Array
   ( module EPA,
+    byteArrayToList,
     readArray,
     writeArray,
     copyArray,
@@ -54,6 +55,9 @@ import Data.Primitive.PrimArray as EPA hiding
   )
 import Data.Primitive.PrimArray qualified as PA
 import Data.Primitive.Types
+import Data.Word (Word8)
+
+import GHC.Exts (toList)
 
 #ifdef ARRAY_CHECK
 import GHC.Stack
@@ -376,3 +380,6 @@ indexPrimArray ::
   a
 indexPrimArray = checkIPArray "indexPrimArray" PA.indexPrimArray
 {-# INLINE indexPrimArray #-}
+
+byteArrayToList :: ByteArray -> [Word8]
+byteArrayToList = toList
