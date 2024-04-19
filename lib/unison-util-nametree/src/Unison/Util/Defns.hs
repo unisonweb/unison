@@ -8,11 +8,13 @@ module Unison.Util.Defns
     DefnsF4,
     alignDefnsWith,
     defnsAreEmpty,
+    hoistDefnsF,
     mapDefns,
     unzipDefns,
     unzipDefnsWith,
     zipDefns,
     zipDefnsWith,
+    zipDefnsWith3,
   )
 where
 
@@ -64,6 +66,10 @@ defnsAreEmpty :: (Foldable f, Foldable g) => Defns (f a) (g b) -> Bool
 defnsAreEmpty defns =
   null defns.terms && null defns.types
 
+hoistDefnsF :: (forall x. f x -> g x) -> DefnsF f a b -> DefnsF g a b
+hoistDefnsF f (Defns x y) =
+  Defns (f x) (f y)
+
 mapDefns :: (a -> b) -> Defns a a -> Defns b b
 mapDefns f =
   bimap f f
@@ -85,3 +91,13 @@ zipDefns =
 zipDefnsWith :: (tm1 -> tm2 -> tm3) -> (ty1 -> ty2 -> ty3) -> Defns tm1 ty1 -> Defns tm2 ty2 -> Defns tm3 ty3
 zipDefnsWith f g (Defns terms1 types1) (Defns terms2 types2) =
   Defns (f terms1 terms2) (g types1 types2)
+
+zipDefnsWith3 ::
+  (tm1 -> tm2 -> tm3 -> tm4) ->
+  (ty1 -> ty2 -> ty3 -> ty4) ->
+  Defns tm1 ty1 ->
+  Defns tm2 ty2 ->
+  Defns tm3 ty3 ->
+  Defns tm4 ty4
+zipDefnsWith3 f g (Defns terms1 types1) (Defns terms2 types2) (Defns terms3 types3) =
+  Defns (f terms1 terms2 terms3) (g types1 types2 types3)
