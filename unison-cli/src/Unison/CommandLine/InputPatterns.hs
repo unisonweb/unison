@@ -1269,7 +1269,7 @@ resetRoot =
   InputPattern
     "deprecated.reset-root"
     []
-    I.Visible
+    I.Hidden
     [("namespace or hash to reset to", Required, namespaceArg)]
     ( P.lines
         [ "Deprecated because it's incompatible with projects. ⚠️ Warning, this command can cause codebase corruption.",
