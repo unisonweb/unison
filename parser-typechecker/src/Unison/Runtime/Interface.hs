@@ -31,6 +31,7 @@ import Data.Bytes.Get (MonadGet, getWord8, runGetS)
 import Data.Bytes.Put (MonadPut, putWord32be, runPutL, runPutS)
 import Data.Bytes.Serial
 import Data.Foldable
+import Data.Function (on)
 import Data.IORef
 import Data.List qualified as L
 import Data.Map.Strict qualified as Map
@@ -473,7 +474,7 @@ nativeEval executable ctxVar cl ppe tm = catchInternalErrors $ do
         ctx
         serv
         port
-        (codes ++ tcodes)
+        (L.nubBy ((==) `on` fst) $ tcodes ++ codes)
         base
 
 interpEval ::
