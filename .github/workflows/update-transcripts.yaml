@@ -15,13 +15,13 @@ jobs:
           - macOS-12
     steps:
       - uses: actions/checkout@v4
-      - uses: unisonweb/actions/stack/cache/restore@main
+      - uses: unisonweb/actions/stack/cache/restore@buildjet-cache
         with:
           # take cache from the ci job, read-only
           cache-prefix: ci
 
       - name: install stack
-        uses: unisonweb/actions/stack/install@main
+        uses: unisonweb/actions/stack/install@buildjet-cache
 
       # One of the transcripts fails if the user's git name hasn't been set.
       - name: set git user info

@@ -33,12 +33,12 @@ jobs:
           ref: ${{inputs.ref}}
 
       - name: restore stack caches
-        uses: unisonweb/actions/stack/cache/restore@main
+        uses: unisonweb/actions/stack/cache/restore@buildjet-cache
         with:
           cache-prefix: release
 
       - name: install stack
-        uses: unisonweb/actions/stack/install@main
+        uses: unisonweb/actions/stack/install@buildjet-cache
 
       - name: build
         run: |
@@ -69,7 +69,7 @@ jobs:
           ls -l $ucm
 
       - name: save stack caches
-        uses: unisonweb/actions/stack/cache/save@main
+        uses: unisonweb/actions/stack/cache/save@buildjet-cache
         with:
           cache-prefix: release
 

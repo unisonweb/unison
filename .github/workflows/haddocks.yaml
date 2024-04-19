@@ -20,20 +20,20 @@ jobs:
           path: unison
 
       - name: restore stack caches
-        uses: unisonweb/actions/stack/cache/restore@main
+        uses: unisonweb/actions/stack/cache/restore@buildjet-cache
         with:
           cache-prefix: haddocks
           stack-yaml-dir: unison
 
       - name: install stack
-        uses: unisonweb/actions/stack/install@main
+        uses: unisonweb/actions/stack/install@buildjet-cache
 
       - name: build with haddocks
         working-directory: unison
         run: stack build --fast --haddock
 
       - name: save stack caches
-        uses: unisonweb/actions/stack/cache/save@main
+        uses: unisonweb/actions/stack/cache/save@buildjet-cache
         with:
           cache-prefix: haddocks
           stack-yaml-dir: unison
