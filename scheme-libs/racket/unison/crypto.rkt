@@ -2,6 +2,8 @@
 (require ffi/unsafe
          ffi/unsafe/define
          racket/exn
+         racket/runtime-path
+         (for-syntax racket/base)
          openssl/libcrypto
          unison/chunked-seq)
 
@@ -23,9 +25,12 @@
     (with-handlers [[exn:fail? exn->string]]
                    (ffi-lib "libcrypto" openssl-lib-versions)))
 
+(define-runtime-path libb2-so
+  '(so "libb2" ("" "1" #f)))
+
 (define libb2
   (with-handlers [[exn:fail? exn->string]]
-                 (ffi-lib "libb2" '("" "1"))))
+                 (ffi-lib libb2-so)))
 
 (define _EVP-pointer (_cpointer 'EVP))
 
