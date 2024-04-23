@@ -1,5 +1,5 @@
 ```ucm
-.> builtins.merge
+.> builtins.mergeio
 
   Done.
 
@@ -72,9 +72,8 @@ test> pass = [Ok "Passed"]
 
 ```
 ```unison
-> Scope.run do
-    freeze! (Scope.arrayOf 0 0)
-
+> ImmutableArray.fromList [?a, ?b, ?c]
+> ImmutableByteArray.fromBytes 0xs123456
 ```
 
 ```ucm
@@ -88,17 +87,12 @@ test> pass = [Ok "Passed"]
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
 
-  ⚠️
-  
-  I had trouble decompiling some results.
-  
-  The following errors were encountered:
-      A foreign value with no decompiled representation was
-      encountered:
-        ##ImmutableArray
-
-    1 | > Scope.run do
+    1 | > ImmutableArray.fromList [?a, ?b, ?c]
           ⧩
-          bug "<Foreign>"
+          ImmutableArray.fromList [?a, ?b, ?c]
+  
+    2 | > ImmutableByteArray.fromBytes 0xs123456
+          ⧩
+          fromBytes 0xs123456
 
 ```

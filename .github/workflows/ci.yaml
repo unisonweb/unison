@@ -354,38 +354,25 @@ jobs:
     steps:
       - name: set up environment
         run: |
+          echo "jit_generated_src_scheme=${{ runner.temp }}/jit-generated-src" >> $GITHUB_ENV
           echo "jit_src_scheme=${{ runner.temp }}/${{ env.jit_src_scheme }}" >> $GITHUB_ENV
           echo "ucm=${{ runner.temp }}/unison" >> $GITHUB_ENV
-      - uses: actions/cache@v4
-        name: cache jit source
+      - name: download scheme-libs
+        uses: actions/checkout@v4
         with:
-          path: ${{ env.jit_src_scheme }}
-          key: jit_src_scheme-racket_${{env.racket_version}}.jit_${{env.jit_version}}-${{hashFiles('**/scheme-libs/**')}}
-
-      - name: check source exists
-        id: jit_src_exists
-        if: steps.cache-jit-source.outputs.cache-hit != 'true'
-        run: |
-          files=(data-info boot-generated simple-wrappers builtin-generated compound-wrappers)
-          all_exist=true
-
-          for file in "${files[@]}"; do
-              if [[ ! -f "${{ env.jit_src_scheme }}/unison/$file.ss" ]]; then
-                  echo "$file does not exist."
-                  all_exist=false
-                  # Uncomment the next line if you want to stop checking after the first missing file
-                  # break
-              fi
-          done
-
-          if $all_exist; then
-              echo "files_exists=true" >> $GITHUB_OUTPUT
-          else
-              echo "files_exists=false" >> $GITHUB_OUTPUT
-          fi
-
+          sparse-checkout: |
+            scripts/get-share-hash.sh
+            scheme-libs
+      - name: look up hash for jit source generator
+        run: echo "jit_causalhash=$(scripts/get-share-hash.sh ${{env.jit_version}})" >> $GITHUB_ENV
+      - uses: actions/cache@v4
+        name: cache auto-generated jit source
+        id: cache-generated-source
+        with:
+          path: ${{ env.jit_generated_src_scheme }}
+          key: jit_generated_src_scheme-jit_${{env.jit_version}}-${{env.jit_causalhash}}
       - name: create transcript
-        if: steps.jit_src_exists.outputs.files_exists == 'false'
+        if: steps.cache-generated-source.outputs.cache-hit != 'true'
         uses: DamianReeves/write-file-action@v1.3
         with:
           path: ${{ runner.temp }}/setup-jit.md
@@ -396,34 +383,31 @@ jobs:
             jit-setup/main> pull ${{ env.jit_version }} lib.jit
             ```
             ```unison
-            go = generateSchemeBoot "${{ env.jit_src_scheme }}"
+            go = generateSchemeBoot "${{ env.jit_generated_src_scheme }}"
             ```
             ```ucm
             jit-setup/main> run go
             ```
-
       - name: download ucm artifact
-        if: steps.jit_src_exists.outputs.files_exists == 'false'
+        if: steps.cache-generated-source.outputs.cache-hit != 'true'
         uses: actions/download-artifact@v4
         with:
           name: unison-${{ env.jit_generator_os }}
           path: ${{ runner.temp }}
-
       - name: set ucm permissions
-        if: steps.jit_src_exists.outputs.files_exists == 'false'
+        if: steps.cache-generated-source.outputs.cache-hit != 'true'
         run: chmod +x ${{ env.ucm }}
-
-      - name: download scheme-libs
-        if: steps.jit_src_exists.outputs.files_exists == 'false'
-        uses: actions/checkout@v4
-
       - name: generate source
-        if: steps.jit_src_exists.outputs.files_exists == 'false'
+        if: steps.cache-generated-source.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ${{ env.jit_generated_src_scheme }}
+          ${{ env.ucm }} transcript ${{ runner.temp }}/setup-jit.md
+
+      - name: bundle source
         run: |
           mkdir -p ${{ env.jit_src_scheme }}
           cp -R scheme-libs/racket/* ${{ env.jit_src_scheme }}
-          ${{ env.ucm }} transcript ${{ runner.temp }}/setup-jit.md
-
+          cp -R "${{ env.jit_generated_src_scheme }}"/* ${{ env.jit_src_scheme }}
       - name: save jit source
         if: always()
         uses: actions/upload-artifact@v4
@@ -514,6 +498,13 @@ jobs:
           path: ${{env.jit_test_results}}
           key: jit-test-results.${{ matrix.os }}.racket_${{ env.racket_version }}.jit_${{ env.jit_version }}-${{hashFiles('**/scheme-libs/**')}}.tests_${{env.runtime_tests_causalhash}}
 
+      - name: download jit source
+        if: steps.cache-jit-binaries.outputs.cache-hit != 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: jit-source
+          path: ${{ env.jit_src_scheme }}
+
       - name: install libb2 (linux)
         uses: awalsh128/cache-apt-pkgs-action@latest
         if: |
@@ -528,15 +519,12 @@ jobs:
       - name: install libb2 (macos)
         if: |
           runner.os == 'macOS'
-            && steps.cache-jit-test-results.outputs.cache-hit != 'true'
-        run: brew install libb2
-
-      - name: download jit source
-        if: steps.cache-jit-binaries.outputs.cache-hit != 'true'
-        uses: actions/download-artifact@v4
-        with:
-          name: jit-source
-          path: ${{ env.jit_src_scheme }}
+            && (steps.cache-jit-binaries.outputs.cache-hit != 'true'
+                || steps.cache-jit-test-results.outputs.cache-hit != 'true')
+        run: |
+          brew install libb2
+          ln -s "$(brew --prefix)"/lib/libb2.*.dylib \
+                "$(dirname "$(readlink -f "$(which raco)")")"/../lib/
 
       - name: build jit binary
         if: steps.cache-jit-binaries.outputs.cache-hit != 'true'
