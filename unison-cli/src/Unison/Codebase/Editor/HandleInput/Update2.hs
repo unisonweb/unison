@@ -13,6 +13,7 @@ module Unison.Codebase.Editor.HandleInput.Update2
     prettyParseTypecheck,
     prettyParseTypecheck2,
     typecheckedUnisonFileToBranchUpdates,
+    typecheckedUnisonFileToBranchAdds,
     getNamespaceDependentsOf,
     getNamespaceDependentsOf2,
     makeComplicatedPPE,
@@ -276,6 +277,40 @@ typecheckedUnisonFileToBranchUpdates abort getConstructors tuf = do
                     BranchUtil.makeAddTermName split (Referent.fromTermReferenceId ref)
                   ]
             else []
+
+    splitVar :: Symbol -> Path.Split
+    splitVar = Path.splitFromName . Name.unsafeParseVar
+
+typecheckedUnisonFileToBranchAdds :: TypecheckedUnisonFile Symbol Ann -> [(Path, Branch0 m -> Branch0 m)]
+typecheckedUnisonFileToBranchAdds tuf = do
+  declAdds ++ termAdds
+  where
+    declAdds :: [(Path, Branch0 m -> Branch0 m)]
+    declAdds = do
+      foldMap makeDataDeclAdds (Map.toList $ UF.dataDeclarationsId' tuf)
+        ++ foldMap makeEffectDeclUpdates (Map.toList $ UF.effectDeclarationsId' tuf)
+      where
+        makeDataDeclAdds (symbol, (typeRefId, dataDecl)) = makeDeclAdds (symbol, (typeRefId, Right dataDecl))
+        makeEffectDeclUpdates (symbol, (typeRefId, effectDecl)) = makeDeclAdds (symbol, (typeRefId, Left effectDecl))
+
+        makeDeclAdds :: (Symbol, (TypeReferenceId, Decl Symbol Ann)) -> [(Path, Branch0 m -> Branch0 m)]
+        makeDeclAdds (symbol, (typeRefId, decl)) =
+          let insertTypeAction = BranchUtil.makeAddTypeName (splitVar symbol) (Reference.fromId typeRefId)
+              insertTypeConstructorActions =
+                zipWith
+                  (\sym rid -> BranchUtil.makeAddTermName (splitVar sym) (Reference.fromId <$> rid))
+                  (Decl.constructorVars (Decl.asDataDecl decl))
+                  (Decl.declConstructorReferents typeRefId decl)
+           in insertTypeAction : insertTypeConstructorActions
+
+    termAdds :: [(Path, Branch0 m -> Branch0 m)]
+    termAdds =
+      tuf
+        & UF.hashTermsId
+        & Map.toList
+        & mapMaybe \(var, (_, ref, wk, _, _)) -> do
+          guard (WK.watchKindShouldBeStoredInDatabase wk)
+          Just (BranchUtil.makeAddTermName (splitVar var) (Referent.fromTermReferenceId ref))
 
     splitVar :: Symbol -> Path.Split
     splitVar = Path.splitFromName . Name.unsafeParseVar

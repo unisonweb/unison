@@ -44,7 +44,7 @@ import Unison.Codebase.Editor.HandleInput.Update2
   ( getNamespaceDependentsOf2,
     makeParsingEnv,
     prettyParseTypecheck2,
-    typecheckedUnisonFileToBranchUpdates,
+    typecheckedUnisonFileToBranchAdds,
   )
 import Unison.Codebase.Editor.HandleInput.Update2 qualified as Update2
 import Unison.Codebase.Editor.Output (Output)
@@ -219,11 +219,8 @@ handleMerge bobBranchName = do
   case maybeTypecheckedUnisonFile of
     Nothing -> theMergeFailed info prettyUf bumpedBranch0
     Just tuf -> do
-      mergedBranchPlusTuf <-
-        Cli.runTransactionWithRollback \abort -> do
-          Codebase.addDefsToCodebase codebase tuf
-          updates <- typecheckedUnisonFileToBranchUpdates abort undefined tuf
-          pure (Branch.batchUpdates updates bumpedBranch0)
+      Cli.runTransaction (Codebase.addDefsToCodebase codebase tuf)
+      let mergedBranchPlusTuf = Branch.batchUpdates (typecheckedUnisonFileToBranchAdds tuf) bumpedBranch0
       Cli.stepAt
         (textualDescriptionOfMerge info)
         ( Path.unabsolute info.paths.alice,
