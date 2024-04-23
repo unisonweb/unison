@@ -1,10 +1,12 @@
 # The `merge` command
 
 The `merge` command merges together two branches in the same project: the current branch (unspecificed), and the target
-branch. For example, to merge `topic` into `main`, switch to `main` and run `merge topic`. Let's see a simple,
-unconflicted merge in action, wherein Alice (us) and Bob (them) have added different terms.
+branch. For example, to merge `topic` into `main`, switch to `main` and run `merge topic`.
 
-## Basic merge
+Let's see a simple unconflicted merge in action: Alice (us) and Bob (them) add different terms. The merged result
+contains both additions.
+
+## Basic merge with two unconflicted adds
 
 ```ucm:hide
 .> project.create-empty project
@@ -42,8 +44,9 @@ project/alice> view foo bar
 
 ## Update propagation
 
-Updates are propagated. In this example, Alice updates `foo`, and Bob adds a new dependent `bar` of (the old) `foo`.
-When Bob's branch is merged into Alice's, her update to `foo` is propagated to `bar`.
+Updates that occur in one branch are propagated to the other. In this example, Alice updates `foo`, while Bob adds a new
+dependent `bar` of (the old) `foo`. When Bob's branch is merged into Alice's, her update to `foo` is propagated to his
+`bar`.
 
 ```ucm:hide
 .> project.create-empty project
@@ -87,9 +90,12 @@ project/alice> view foo bar
 
 ## Update propagation with common dependent
 
-Different hashes don't necessarily imply an update. In this example, Alice and Bob both update different dependencies
-`bar` and `baz` of a common dependent `foo`, so their `foo`s have different hashes. However, we can merge these changes
-together just fine, resulting in a `foo` that incorporates both updates.
+We classify something as an "update" if its "syntactic hash" - not its normal Unison hash - differs. This allows us to
+cleanly merge unconflicted updates that were individually propagated to a common dependent.
+
+Let's see an example. We have `foo`, which depends on `bar` and `baz`. Alice updates `bar` (propagating to `foo`),
+and Bob updates `baz` (propagating to `foo`). When we merge their updates, both updates will be reflected in the final
+`foo`.
 
 ```ucm:hide
 .> project.create-empty project

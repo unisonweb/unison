@@ -11,6 +11,7 @@ module Unison.Codebase.Editor.HandleInput.Update2
     forwardCtorNames,
     makeParsingEnv,
     prettyParseTypecheck,
+    prettyParseTypecheck2,
     typecheckedUnisonFileToBranchUpdates,
     getNamespaceDependentsOf,
     getNamespaceDependentsOf2,
@@ -161,9 +162,16 @@ prettyParseTypecheck ::
   PrettyPrintEnvDecl ->
   Parser.ParsingEnv Transaction ->
   Cli (Either (Pretty Pretty.ColorText) (TypecheckedUnisonFile Symbol Ann))
-prettyParseTypecheck bigUf pped parsingEnv = do
+prettyParseTypecheck bigUf pped =
+  prettyParseTypecheck2 (Pretty.prettyUnisonFile pped bigUf)
+
+-- TODO: find a better module for this function, as it's used in a couple places
+prettyParseTypecheck2 ::
+  Pretty Pretty.ColorText ->
+  Parser.ParsingEnv Transaction ->
+  Cli (Either (Pretty Pretty.ColorText) (TypecheckedUnisonFile Symbol Ann))
+prettyParseTypecheck2 prettyUf parsingEnv = do
   Cli.Env {codebase} <- ask
-  let prettyUf = Pretty.prettyUnisonFile pped bigUf
   let stringUf = Pretty.toPlain 80 prettyUf
   Debug.whenDebug Debug.Update do
     liftIO do
@@ -233,13 +241,13 @@ typecheckedUnisonFileToBranchUpdates abort getConstructors tuf = do
       where
         makeDataDeclUpdates (symbol, (typeRefId, dataDecl)) = makeDeclUpdates (symbol, (typeRefId, Right dataDecl))
         makeEffectDeclUpdates (symbol, (typeRefId, effectDecl)) = makeDeclUpdates (symbol, (typeRefId, Left effectDecl))
+
         makeDeclUpdates :: (Symbol, (TypeReferenceId, Decl Symbol Ann)) -> Transaction [(Path, Branch0 m -> Branch0 m)]
         makeDeclUpdates (symbol, (typeRefId, decl)) = do
           -- some decls will be deleted, we want to delete their
           -- constructors as well
-          deleteConstructorActions <- case maybe [] (map (BranchUtil.makeAnnihilateTermName . Path.splitFromName)) <$> getConstructors (Name.unsafeParseVar symbol) of
-            Left err -> abort err
-            Right actions -> pure actions
+          deleteConstructorActions <-
+            (maybe [] (map (BranchUtil.makeAnnihilateTermName . Path.splitFromName)) <$> getConstructors (Name.unsafeParseVar symbol)) & onLeft abort
           let deleteTypeAction = BranchUtil.makeAnnihilateTypeName split
               split = splitVar symbol
               insertTypeAction = BranchUtil.makeAddTypeName split (Reference.fromId typeRefId)

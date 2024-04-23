@@ -43,7 +43,7 @@ import Unison.Codebase.Editor.HandleInput.Branch qualified as HandleInput.Branch
 import Unison.Codebase.Editor.HandleInput.Update2
   ( getNamespaceDependentsOf2,
     makeParsingEnv,
-    prettyParseTypecheck,
+    prettyParseTypecheck2,
     typecheckedUnisonFileToBranchUpdates,
   )
 import Unison.Codebase.Editor.HandleInput.Update2 qualified as Update2
@@ -99,7 +99,7 @@ import Unison.Syntax.Name qualified as Name
 import Unison.UnisonFile (UnisonFile')
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
-import Unison.Util.Defns (Defns (..), DefnsF, DefnsF2, DefnsF3, alignDefnsWith, defnsAreEmpty, hoistDefnsF, zipDefnsWith, zipDefnsWith3)
+import Unison.Util.Defns (Defns (..), DefnsF, DefnsF2, DefnsF3, alignDefnsWith, defnsAreEmpty, zipDefnsWith, zipDefnsWith3)
 import Unison.Util.Nametree (Nametree (..), flattenNametree, traverseNametreeWithName, unflattenNametree)
 import Unison.Util.Pretty (ColorText, Pretty)
 import Unison.Util.Pretty qualified as Pretty
@@ -163,54 +163,47 @@ handleMerge bobBranchName = do
 
   -- Identify the unconflicted dependents we need to pull into the Unison file (either first for typechecking, if there
   -- aren't conflicts, or else for manual conflict resolution without a typechecking step, if there are)
-  dependents <-
+  dependents0 <-
     Cli.runTransaction do
       identifyDependents (ThreeWay.forgetLca defns) conflicts unconflicts
 
-  liftIO (debugFunctions.debugDependents dependents)
+  liftIO (debugFunctions.debugDependents dependents0)
 
-  let dependents1 = whatsit dependents
+  let dependents = whatsit dependents0
 
-  let newDefns2 :: DefnsF (Map Name) Referent TypeReference
-      newDefns2 =
-        let f :: BiMultimap ref Name -> Unconflicts ref -> Set Name -> Map Name ref
-            f refs unconflicts names =
-              refs
-                & BiMultimap.range
-                & Unconflicts.apply unconflicts
-                & (`Map.withoutKeys` names)
+  let bumpedDefns :: DefnsF (Map Name) Referent TypeReference
+      bumpedDefns =
+        bumpDefns
+          (ThreeWay.forgetLca declNameLookups)
+          conflicts
+          unconflicts
+          dependents
+          (bimap BiMultimap.range BiMultimap.range defns.lca)
 
-            g :: TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId) -> DefnsF Set Name Name
-            g defns =
-              fold (refIdsToNames <$> ThreeWay.forgetLca declNameLookups <*> defns)
-         in zipDefnsWith3 f f defns.lca unconflicts (g conflicts <> g dependents1)
-
-  liftIO (debugFunctions.debugMergedDefns newDefns2)
+  liftIO (debugFunctions.debugBumpedDefns bumpedDefns)
 
   -- Create the Unison file, which may have conflicts, in which case we don't bother trying to parse and typecheck it.
   unisonFile <-
     Cli.runTransactionWithRollback \abort -> do
       conflictsFile <- conflictsToUnisonFile abort codebase (ThreeWay.forgetLca declNameLookups) conflicts
-      dependentsFile <- dependentsToUnisonFile abort codebase (ThreeWay.forgetLca declNameLookups) dependents1
+      dependentsFile <- dependentsToUnisonFile abort codebase (ThreeWay.forgetLca declNameLookups) dependents
       pure (conflictsFile <> dependentsFile)
 
   -- Load and merge Alice's and Bob's libdeps
-  libdeps <-
+  mergedLibdeps <-
     Cli.runTransaction do
       libdeps <- loadLibdeps branches
       libdepsToBranch0 db (Merge.mergeLibdeps getTwoFreshNames libdeps)
 
-  let newBranchIO = defnsAndLibdepsToBranch0 codebase newDefns2 libdeps
+  -- Put together a branch with the bump definitions and merged libdeps; this will be used to typecheck the merged
+  -- updates 'n' stuff against, and if that succeeds, we'll apply updates from the typechecked Unison file to it.
+  let bumpedBranch0 = defnsAndLibdepsToBranch0 codebase bumpedDefns mergedLibdeps
+  let bumpedNames = Branch.toNames bumpedBranch0
 
-  let mergedNames = Branch.toNames newBranchIO
-
-  let deletedNames = defnsRangeToNames (hoistDefnsF (fold . view #deletes) unconflicts)
-  -- FIXME this is wrong - doesn't include names for auto-propagated things!
-  let ppedNames = mergedNames <> deletedNames
-
-  let pped = PPED.makePPED (PPE.namer ppedNames) (PPE.suffixifyByName ppedNames)
-
-  currentPath <- Cli.getCurrentPath
+  let prettyUf =
+        let names = defnsToNames defns.alice <> defnsToNames defns.bob
+            ppe = PPED.makePPED (PPE.namer names) (PPE.suffixifyByName names)
+         in Pretty.prettyUnisonFile ppe unisonFile
 
   maybeTypecheckedUnisonFile <-
     let thisMergeHasConflicts =
@@ -219,17 +212,18 @@ handleMerge bobBranchName = do
      in if thisMergeHasConflicts
           then pure Nothing
           else do
-            parsingEnv <- makeParsingEnv currentPath mergedNames
-            prettyParseTypecheck unisonFile pped parsingEnv <&> eitherToMaybe
+            currentPath <- Cli.getCurrentPath
+            parsingEnv <- makeParsingEnv currentPath bumpedNames
+            prettyParseTypecheck2 prettyUf parsingEnv <&> eitherToMaybe
 
   case maybeTypecheckedUnisonFile of
-    Nothing -> promptUser info (Pretty.prettyUnisonFile pped unisonFile) newBranchIO
+    Nothing -> theMergeFailed info prettyUf bumpedBranch0
     Just tuf -> do
       mergedBranchPlusTuf <-
         Cli.runTransactionWithRollback \abort -> do
           Codebase.addDefsToCodebase codebase tuf
           updates <- typecheckedUnisonFileToBranchUpdates abort undefined tuf
-          pure (Branch.batchUpdates updates newBranchIO)
+          pure (Branch.batchUpdates updates bumpedBranch0)
       Cli.stepAt
         (textualDescriptionOfMerge info)
         ( Path.unabsolute info.paths.alice,
@@ -419,18 +413,15 @@ whatsit xs =
 --     terms = { "foo", "Maybe.Nothing", "Maybe.Just" }
 --     types = { "Maybe" }
 --   }
-refIdsToNames ::
-  DeclNameLookup ->
-  DefnsF (Map Name) TermReferenceId TypeReferenceId ->
-  DefnsF Set Name Name
+refIdsToNames :: DeclNameLookup -> DefnsF (Map Name) term typ -> DefnsF Set Name Name
 refIdsToNames declNameLookup =
   bifoldMap goTerms goTypes
   where
-    goTerms :: Map Name terms -> DefnsF Set Name Name
+    goTerms :: Map Name term -> DefnsF Set Name Name
     goTerms terms =
       Defns {terms = Map.keysSet terms, types = Set.empty}
 
-    goTypes :: Map Name types -> DefnsF Set Name Name
+    goTypes :: Map Name typ -> DefnsF Set Name Name
     goTypes types =
       Defns
         { terms = foldMap (Set.fromList . expectConstructorNames declNameLookup) names,
@@ -688,6 +679,24 @@ mergeUnconflictedDependents conflicts unconflictedSoloDeletedNames unconflictedS
           -- Case 2b2 or 2b3, the choice doesn't matter
           | otherwise = Just (AliceAndBob alice)
 
+bumpDefns ::
+  TwoWay DeclNameLookup ->
+  TwoWay (DefnsF (Map Name) termid typeid) ->
+  DefnsF Unconflicts term typ ->
+  TwoWay (DefnsF (Map Name) termid typeid) ->
+  DefnsF (Map Name) term typ ->
+  DefnsF (Map Name) term typ
+bumpDefns declNameLookups conflicts unconflicts dependents =
+  zipDefnsWith3 bumpDefnsV bumpDefnsV unconflicts (f conflicts <> f dependents)
+  where
+    f :: TwoWay (DefnsF (Map Name) term typ) -> DefnsF Set Name Name
+    f defns =
+      fold (refIdsToNames <$> declNameLookups <*> defns)
+
+bumpDefnsV :: Unconflicts v -> Set Name -> Map Name v -> Map Name v
+bumpDefnsV unconflicts namesToDelete =
+  (`Map.withoutKeys` namesToDelete) . Unconflicts.apply unconflicts
+
 restrictDefnsToNames ::
   DefnsF Set Name Name ->
   Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
@@ -699,19 +708,15 @@ defnsReferences :: Defns (BiMultimap Referent Name) (BiMultimap TypeReference Na
 defnsReferences =
   bifoldMap (Set.map Referent.toReference . BiMultimap.dom) BiMultimap.dom
 
-defnsRangeToNames :: DefnsF (Map Name) Referent TypeReference -> Names
-defnsRangeToNames Defns {terms, types} =
+defnsToNames :: Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) -> Names
+defnsToNames defns =
   Names.Names
-    { terms = Relation.fromMap terms,
-      types = Relation.fromMap types
+    { terms = Relation.fromMap (BiMultimap.range defns.terms),
+      types = Relation.fromMap (BiMultimap.range defns.types)
     }
 
-promptUser ::
-  MergeInfo ->
-  Pretty ColorText ->
-  Branch0 IO ->
-  Cli a
-promptUser mergeInfo prettyUnisonFile newBranch = do
+theMergeFailed :: MergeInfo -> Pretty ColorText -> Branch0 IO -> Cli ()
+theMergeFailed mergeInfo prettyUnisonFile newBranch = do
   Cli.Env {writeSource} <- ask
   let currentProjectId = mergeInfo.project.projectId
   let targetBranchName = mergeInfo.projectBranches.bob.name
@@ -732,7 +737,11 @@ promptUser mergeInfo prettyUnisonFile newBranch = do
       Nothing -> "scratch.u"
       Just (file, _) -> file
   liftIO $ writeSource (Text.pack scratchFilePath) (Text.pack $ Pretty.toPlain 80 prettyUnisonFile)
-  Cli.returnEarly (Output.MergeFailure scratchFilePath (aliceProjectAndBranchName mergeInfo) (bobProjectAndBranchName mergeInfo))
+  Cli.respond $
+    Output.MergeFailure
+      scratchFilePath
+      (aliceProjectAndBranchName mergeInfo)
+      (bobProjectAndBranchName mergeInfo)
 
 findTemporaryBranchName :: ProjectId -> ProjectBranchName -> ProjectBranchName -> Transaction ProjectBranchName
 findTemporaryBranchName projectId other self = do
@@ -762,7 +771,7 @@ loadNamespaceInfo abort db branch = do
 -- | Load all "namespace definitions" of a branch, which are all terms and type declarations *except* those defined
 -- in the "lib" namespace.
 loadNamespaceInfo0 ::
-  (Monad m) =>
+  Monad m =>
   (V2.Referent -> m Referent) ->
   V2.Branch m ->
   m (Nametree (DefnsF2 (Map NameSegment) Set Referent TypeReference))
@@ -994,8 +1003,7 @@ data DebugFunctions = DebugFunctions
       DefnsF Unconflicts Referent TypeReference ->
       IO (),
     debugDependents :: DefnsF2 (Map Name) EitherWayI TermReferenceId TypeReferenceId -> IO (),
-    debugMergedDefns :: DefnsF (Map Name) Referent TypeReference -> IO (),
-    debugMergedConstructorNames :: DeclNameLookup -> IO ()
+    debugBumpedDefns :: DefnsF (Map Name) Referent TypeReference -> IO ()
   }
 
 realDebugFunctions :: DebugFunctions
@@ -1006,13 +1014,12 @@ realDebugFunctions =
       debugCombinedDiff = realDebugCombinedDiff,
       debugPartitionedDiff = realDebugPartitionedDiff,
       debugDependents = realDebugDependents,
-      debugMergedDefns = realDebugMergedDefns,
-      debugMergedConstructorNames = realDebugMergedConstructorNames
+      debugBumpedDefns = realDebugBumpedDefns
     }
 
 fakeDebugFunctions :: DebugFunctions
 fakeDebugFunctions =
-  DebugFunctions mempty mempty mempty mempty mempty mempty mempty
+  DebugFunctions mempty mempty mempty mempty mempty mempty
 
 realDebugDefns ::
   ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
@@ -1214,15 +1221,10 @@ realDebugDependents dependents = do
                )
             <> ")"
 
-realDebugMergedDefns :: DefnsF (Map Name) Referent TypeReference -> IO ()
-realDebugMergedDefns mergedDefns = do
-  Text.putStrLn (Text.bold "\n=== Merged definitions ===")
-  debugDefns1 mergedDefns
-
-realDebugMergedConstructorNames :: DeclNameLookup -> IO ()
-realDebugMergedConstructorNames mergedDeclNameLookup = do
-  Text.putStrLn (Text.bold "\n=== Merged constructor names ===")
-  debugConstructorNames mergedDeclNameLookup.declToConstructors
+realDebugBumpedDefns :: DefnsF (Map Name) Referent TypeReference -> IO ()
+realDebugBumpedDefns defns = do
+  Text.putStrLn (Text.bold "\n=== Bumped definitions ===")
+  debugDefns1 defns
 
 debugConstructorNames :: Map Name [Name] -> IO ()
 debugConstructorNames names =
