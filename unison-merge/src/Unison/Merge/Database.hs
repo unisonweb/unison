@@ -49,14 +49,14 @@ makeMergeDatabase codebase = liftIO do
   -- Create a bunch of cached database lookup functions
   loadCausal <- do
     cache <- Cache.semispaceCache 1024
-    pure (cacheTransaction cache Operations.expectCausalBranchByCausalHash)
+    pure (Sqlite.cacheTransaction cache Operations.expectCausalBranchByCausalHash)
   loadDeclNumConstructors <- do
     cache <- Cache.semispaceCache 1024
-    pure (cacheTransaction cache Operations.expectDeclNumConstructors)
+    pure (Sqlite.cacheTransaction cache Operations.expectDeclNumConstructors)
   let loadV1Branch = undefined -- Codebase.expectBranchForHash codebase
   loadV1Decl <- do
     cache <- Cache.semispaceCache 1024
-    pure (cacheTransaction cache (Codebase.unsafeGetTypeDeclaration codebase))
+    pure (Sqlite.cacheTransaction cache (Codebase.unsafeGetTypeDeclaration codebase))
   -- Since loading a decl type loads the decl and projects out the decl type, just reuse the loadDecl cache
   let loadDeclType ref =
         case ref of
@@ -66,7 +66,7 @@ makeMergeDatabase codebase = liftIO do
           ReferenceDerived refId -> V1.Decl.constructorType <$> loadV1Decl refId
   loadV1Term <- do
     cache <- Cache.semispaceCache 1024
-    pure (cacheTransaction cache (Codebase.unsafeGetTerm codebase))
+    pure (Sqlite.cacheTransaction cache (Codebase.unsafeGetTerm codebase))
   pure MergeDatabase {loadCausal, loadDeclNumConstructors, loadDeclType, loadV1Branch, loadV1Decl, loadV1Term}
 
 -- Convert a v2 referent (missing decl type) to a v1 referent.
@@ -76,23 +76,3 @@ referent2to1 MergeDatabase {loadDeclType} = \case
     declTy <- loadDeclType typeRef
     pure (V1.Referent.Con (ConstructorReference typeRef conId) declTy)
   Referent.Ref termRef -> pure (V1.Referent.Ref termRef)
-
------------------------------------------------------------------------------------------------------------------------
--- Utilities for caching transaction calls
---
--- These ought to be in a more general-puprose location, but defining here for now
-
-cacheTransaction :: forall k v. Cache.Cache k v -> (k -> Transaction v) -> (k -> Transaction v)
-cacheTransaction cache f k =
-  unTransactionWithMonadIO (Cache.apply cache (TransactionWithMonadIO . f) k)
-
-newtype TransactionWithMonadIO a
-  = TransactionWithMonadIO (Transaction a)
-  deriving newtype (Applicative, Functor, Monad)
-
-unTransactionWithMonadIO :: TransactionWithMonadIO a -> Transaction a
-unTransactionWithMonadIO (TransactionWithMonadIO m) = m
-
-instance MonadIO TransactionWithMonadIO where
-  liftIO :: forall a. IO a -> TransactionWithMonadIO a
-  liftIO = coerce @(IO a -> Transaction a) Sqlite.unsafeIO

@@ -21,9 +21,12 @@ module Unison.Sqlite
     runTransactionWithRollback,
     runReadOnlyTransaction,
     runWriteTransaction,
-    unsafeUnTransaction,
+    cacheTransaction,
     savepoint,
+
+    -- ** Unsafe things
     unsafeIO,
+    unsafeUnTransaction,
 
     -- * Executing queries
     Sql,

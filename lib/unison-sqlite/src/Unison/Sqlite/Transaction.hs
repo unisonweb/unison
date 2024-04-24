@@ -5,10 +5,13 @@ module Unison.Sqlite.Transaction
     runTransactionWithRollback,
     runReadOnlyTransaction,
     runWriteTransaction,
-    unsafeUnTransaction,
+    cacheTransaction,
     savepoint,
+
+    -- ** Unsafe things
     unsafeIO,
     unsafeGetConnection,
+    unsafeUnTransaction,
 
     -- * Executing queries
 
@@ -52,6 +55,8 @@ import Unison.Sqlite.Connection (Connection (..))
 import Unison.Sqlite.Connection qualified as Connection
 import Unison.Sqlite.Exception (SqliteExceptionReason, SqliteQueryException, pattern SqliteBusyException)
 import Unison.Sqlite.Sql (Sql)
+import Unison.Util.Cache (Cache)
+import Unison.Util.Cache qualified as Cache
 import UnliftIO.Exception (bracketOnError_, catchAny, trySyncOrAsync, uninterruptibleMask)
 import Unsafe.Coerce (unsafeCoerce)
 
@@ -61,8 +66,18 @@ newtype Transaction a
   -- Omit MonadThrow instance so we always throw SqliteException (via *Check) with lots of context
   deriving (Applicative, Functor, Monad) via (ReaderT Connection IO)
 
-unsafeGetConnection :: Transaction Connection
-unsafeGetConnection = Transaction pure
+-- Internal newtype that equips Transaction with a MonadIO instance
+newtype TransactionWithMonadIO a
+  = TransactionWithMonadIO (Transaction a)
+  deriving newtype (Applicative, Functor, Monad)
+
+unTransactionWithMonadIO :: TransactionWithMonadIO a -> Transaction a
+unTransactionWithMonadIO (TransactionWithMonadIO m) = m
+
+instance MonadIO TransactionWithMonadIO where
+  liftIO :: forall a. IO a -> TransactionWithMonadIO a
+  liftIO =
+    coerce @(IO a -> Transaction a) unsafeIO
 
 -- | Run a transaction on the given connection.
 runTransaction :: (MonadIO m) => Connection -> Transaction a -> m a
@@ -170,10 +185,10 @@ ignoringExceptions :: IO () -> IO ()
 ignoringExceptions action =
   action `catchAny` \_ -> pure ()
 
--- | Unwrap the transaction newtype, throwing away the sending of BEGIN/COMMIT + automatic retry.
-unsafeUnTransaction :: Transaction a -> Connection -> IO a
-unsafeUnTransaction (Transaction action) =
-  action
+-- | Wrap a transaction with a cache; cache hits will not hit SQLite.
+cacheTransaction :: forall k v. Cache k v -> (k -> Transaction v) -> (k -> Transaction v)
+cacheTransaction cache f k =
+  unTransactionWithMonadIO (Cache.apply cache (TransactionWithMonadIO . f) k)
 
 -- | Perform an atomic sub-computation within a transaction; if it returns 'Left', it's rolled back.
 savepoint :: Transaction (Either a a) -> Transaction a
@@ -197,6 +212,16 @@ savepoint (Transaction action) = do
 unsafeIO :: IO a -> Transaction a
 unsafeIO action =
   Transaction \_ -> action
+
+unsafeGetConnection :: Transaction Connection
+unsafeGetConnection =
+  Transaction pure
+
+-- | Unwrap the transaction newtype, throwing away the sending of BEGIN/COMMIT + automatic retry.
+unsafeUnTransaction :: Transaction a -> Connection -> IO a
+unsafeUnTransaction (Transaction action) =
+  action
+
 
 -- Without results
 
