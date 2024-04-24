@@ -66,6 +66,14 @@ newtype Transaction a
   -- Omit MonadThrow instance so we always throw SqliteException (via *Check) with lots of context
   deriving (Applicative, Functor, Monad) via (ReaderT Connection IO)
 
+instance Monoid a => Monoid (Transaction a) where
+  mempty :: Monoid a => Transaction a
+  mempty = pure mempty
+
+instance Semigroup a => Semigroup (Transaction a) where
+  (<>) :: Transaction a -> Transaction a -> Transaction a
+  (<>) = liftA2 (<>)
+
 -- Internal newtype that equips Transaction with a MonadIO instance
 newtype TransactionWithMonadIO a
   = TransactionWithMonadIO (Transaction a)
@@ -221,7 +229,6 @@ unsafeGetConnection =
 unsafeUnTransaction :: Transaction a -> Connection -> IO a
 unsafeUnTransaction (Transaction action) =
   action
-
 
 -- Without results
 

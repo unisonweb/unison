@@ -165,8 +165,12 @@ handleMerge bobBranchName = do
 
   liftIO (debugFunctions.debugDependents dependents0)
 
+  -- Note to self: think about if the fact that all we've done in `mergeUnconflictedDependents` + `whatsit` is toss
+  -- conflicted dependents is problematic, or if it's what we were actually trying to do all along, we just didn't
+  -- write that goal down
   let dependents = whatsit dependents0
 
+  -- FIXME: call this "stage 1 merged" rather than "bumped"
   let bumpedDefns :: DefnsF (Map Name) Referent TypeReference
       bumpedDefns =
         bumpDefns
@@ -180,10 +184,9 @@ handleMerge bobBranchName = do
 
   -- Create the Unison file, which may have conflicts, in which case we don't bother trying to parse and typecheck it.
   unisonFile <-
-    Cli.runTransactionWithRollback \abort -> do
-      conflictsFile <- conflictsToUnisonFile abort codebase (ThreeWay.forgetLca declNameLookups) conflicts
-      dependentsFile <- dependentsToUnisonFile abort codebase (ThreeWay.forgetLca declNameLookups) dependents
-      pure (conflictsFile <> dependentsFile)
+    Cli.runTransactionWithRollback \abort ->
+      let toFile defns = fold (defnsToUnisonFile abort codebase <$> ThreeWay.forgetLca declNameLookups <*> defns)
+       in toFile conflicts <> toFile dependents
 
   -- Load and merge Alice's and Bob's libdeps
   mergedLibdeps <-
@@ -350,49 +353,18 @@ loadLibdeps branches = do
 ------------------------------------------------------------------------------------------------------------------------
 -- Creating Unison files
 
-conflictsToUnisonFile ::
+defnsToUnisonFile ::
   (forall void. Output -> Transaction void) ->
   Codebase IO Symbol Ann ->
-  TwoWay DeclNameLookup ->
-  TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId) ->
+  DeclNameLookup ->
+  DefnsF (Map Name) TermReferenceId TypeReferenceId ->
   Transaction (UnisonFile' [] Symbol Ann)
-conflictsToUnisonFile abort codebase declNameLookups conflicts =
-  (<>) <$> aliceFile <*> bobFile
-  where
-    aliceFile =
-      Update2.makeUnisonFile
-        abort
-        codebase
-        (\_ name -> Right (expectConstructorNames declNameLookups.alice name))
-        (bimap Relation.fromMap Relation.fromMap conflicts.alice)
-    bobFile =
-      Update2.makeUnisonFile
-        abort
-        codebase
-        (\_ name -> Right (expectConstructorNames declNameLookups.bob name))
-        (bimap Relation.fromMap Relation.fromMap conflicts.bob)
-
-dependentsToUnisonFile ::
-  (forall void. Output -> Transaction void) ->
-  Codebase IO Symbol Ann ->
-  TwoWay DeclNameLookup ->
-  TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId) ->
-  Transaction (UnisonFile' [] Symbol Ann)
-dependentsToUnisonFile abort codebase declNameLookups dependents =
-  (<>) <$> aliceFile <*> bobFile
-  where
-    aliceFile =
-      Update2.makeUnisonFile
-        abort
-        codebase
-        (\_ name -> Right (expectConstructorNames declNameLookups.alice name))
-        (bimap Relation.fromMap Relation.fromMap dependents.alice)
-    bobFile =
-      Update2.makeUnisonFile
-        abort
-        codebase
-        (\_ name -> Right (expectConstructorNames declNameLookups.bob name))
-        (bimap Relation.fromMap Relation.fromMap dependents.bob)
+defnsToUnisonFile abort codebase declNameLookup defns =
+  Update2.makeUnisonFile
+    abort
+    codebase
+    (\_ name -> Right (expectConstructorNames declNameLookup name))
+    (bimap Relation.fromMap Relation.fromMap defns)
 
 -- alice-biased, but doesn't matter
 whatsit :: DefnsF2 (Map Name) EitherWayI term typ -> TwoWay (DefnsF (Map Name) term typ)
@@ -514,6 +486,7 @@ textualDescriptionOfMerge mergeInfo =
   let bobBranchText = into @Text (ProjectAndBranch mergeInfo.project.name mergeInfo.projectBranches.bob.name)
    in "merge-" <> bobBranchText
 
+-- FIXME: let's come up with a better term for "dependencies" in the implementation of this function
 identifyDependents ::
   TwoWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
   TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId) ->
@@ -581,7 +554,7 @@ identifyDependents defns conflicts unconflicts = do
 -- come from two sources (see "due to unconflicts" and "due to conflicts" above):
 --
 --   1. If Bob updated foo#old to foo#new, then Alice's dependents are whatever her dependents of what she calls "foo"
---      are (even if it is not exactly foo#new; it could have been updated by her explicitly to foo#alice, or propagated
+--      are (even if it is not exactly foo#old; it could have been updated by her explicitly to foo#alice, or propagated
 --      to by another one of her updates to foo#old', doesn't matter!)
 --
 --   2. If Alice updated foo#old to foo#alice, and Bob updated foo#old to foo#bob, then Alice's dependents are whatever
@@ -590,15 +563,15 @@ identifyDependents defns conflicts unconflicts = do
 -- Thus, we have *everything* destined for the scratch file sitting in these four maps, keyed by name (one for Alice,
 -- and one for Bob; each has a separate map for the term and type namespaces).
 --
--- The issue this function is concerned with is whittling down those four maps to just two, getting rid of Alice and
--- Bob distinctions, leaving only a term map and a type map, keyed by name.
+-- The issue this function is concerned with is whittling down those four maps to just two, leaving only a term map and
+-- a type map, keyed by name.
 --
 -- We have a few cases to consider when merging Alice and Bob's dependents together:
 --
 --   1. Alice has some dependent "foo", but Bob doesn't (or vice versa, of course).
 --
---     1a. It's conflicted on Alice's side. It will make its way It will make its way into the Unison file eventually,
---         but this function can discard it, as we are only interested in outputting *unconflicted* dependents.
+--     1a. It's conflicted on Alice's side. It will make its way into the Unison file eventually, but this function can
+--         discard it, as we are only interested in outputting *unconflicted* dependents.
 --
 --         Note that it's possible something is conflicted on Alice's side but not Bob's; e.g. Alice's type named
 --         "Maybe" is conflicted because she has a constructor "Maybe.Just" where Bob has a smart constructor term
