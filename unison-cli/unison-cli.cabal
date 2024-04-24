@@ -166,6 +166,7 @@ library
       NamedFieldPuns
       NumericUnderscores
       OverloadedLabels
+      OverloadedRecordDot
       OverloadedStrings
       PatternSynonyms
       RankNTypes
@@ -305,6 +306,7 @@ executable transcripts
       NamedFieldPuns
       NumericUnderscores
       OverloadedLabels
+      OverloadedRecordDot
       OverloadedStrings
       PatternSynonyms
       RankNTypes
@@ -452,6 +454,7 @@ test-suite cli-tests
       NamedFieldPuns
       NumericUnderscores
       OverloadedLabels
+      OverloadedRecordDot
       OverloadedStrings
       PatternSynonyms
       RankNTypes

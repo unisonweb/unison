@@ -183,6 +183,7 @@ default-extensions:
   - MultiParamTypeClasses
   - NamedFieldPuns
   - OverloadedLabels
+  - OverloadedRecordDot
   - OverloadedStrings
   - PatternSynonyms
   - RankNTypes

@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedRecordDot #-}
-
 -- | The "decl coherency check": a type declaration in a namespace is "coherent" if it satisfies both of the following
 -- criteria.
 --

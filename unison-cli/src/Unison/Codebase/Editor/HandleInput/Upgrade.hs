@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedRecordDot #-}
-
 module Unison.Codebase.Editor.HandleInput.Upgrade
   ( handleUpgrade,
   )

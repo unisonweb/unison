@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedRecordDot #-}
-
 -- | Combine two diffs together.
 module Unison.Merge.CombineDiffs
   ( CombinedDiffOp (..),

@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedRecordDot #-}
-
 module Unison.Merge.Diff
   ( nameBasedNamespaceDiff,
   )

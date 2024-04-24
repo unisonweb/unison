@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedRecordDot #-}
-
 -- | An API for merging together two collections of library dependencies.
 module Unison.Merge.Libdeps
   ( mergeLibdeps,

@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedRecordDot #-}
-
 module Unison.Codebase.Editor.HandleInput.Merge2
   ( handleMerge,
   )
@@ -25,7 +23,6 @@ import U.Codebase.Branch qualified as V2.Branch
 import U.Codebase.Causal qualified as V2.Causal
 import U.Codebase.Reference (Reference, TermReferenceId, TypeReference, TypeReferenceId)
 import U.Codebase.Referent qualified as V2 (Referent)
-import U.Codebase.Sqlite.DbId (ProjectId)
 import U.Codebase.Sqlite.Operations qualified as Operations
 import U.Codebase.Sqlite.Project (Project (..))
 import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
@@ -715,12 +712,9 @@ defnsToNames defns =
 theMergeFailed :: MergeInfo -> Pretty ColorText -> Branch0 IO -> Cli ()
 theMergeFailed mergeInfo prettyUnisonFile newBranch = do
   Cli.Env {writeSource} <- ask
-  let currentProjectId = mergeInfo.project.projectId
-  let targetBranchName = mergeInfo.projectBranches.bob.name
-  let selfBranchName = mergeInfo.projectBranches.alice.name
   -- Small race condition: since picking a branch name and creating the branch happen in different
   -- transactions, creating could fail.
-  temporaryBranchName <- Cli.runTransaction (findTemporaryBranchName currentProjectId targetBranchName selfBranchName)
+  temporaryBranchName <- Cli.runTransaction (findTemporaryBranchName mergeInfo)
   _temporaryBranchId <-
     HandleInput.Branch.doCreateBranch'
       -- FIXME the branch we put the user on after a failed merge should be 1 causal step past the branch they came from
@@ -740,17 +734,18 @@ theMergeFailed mergeInfo prettyUnisonFile newBranch = do
       (aliceProjectAndBranchName mergeInfo)
       (bobProjectAndBranchName mergeInfo)
 
-findTemporaryBranchName :: ProjectId -> ProjectBranchName -> ProjectBranchName -> Transaction ProjectBranchName
-findTemporaryBranchName projectId other self = do
-  Cli.findTemporaryBranchName projectId preferred
+findTemporaryBranchName :: MergeInfo -> Transaction ProjectBranchName
+findTemporaryBranchName info = do
+  -- let currentProjectId = mergeInfo.project.projectId
+  Cli.findTemporaryBranchName info.project.projectId preferred
   where
     preferred :: ProjectBranchName
     preferred =
       unsafeFrom @Text $
         "merge-"
-          <> into @Text other
+          <> into @Text info.projectBranches.bob.name
           <> "-into-"
-          <> into @Text self
+          <> into @Text info.projectBranches.alice.name
 
 -- Load namespace info into memory.
 --

@@ -76,6 +76,7 @@ default-extensions:
   - NamedFieldPuns
   - NumericUnderscores
   - OverloadedLabels
+  - OverloadedRecordDot
   - OverloadedStrings
   - PatternSynonyms
   - RankNTypes
