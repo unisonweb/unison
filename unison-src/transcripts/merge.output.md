@@ -14,7 +14,7 @@ project/main> branch alice
   Done. I've created the alice branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /alice`
+       `switch /main` then `merge /alice`.
 
 ```
 ```unison
@@ -47,7 +47,7 @@ project/main> branch bob
   Done. I've created the bob branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /bob`
+       `switch /main` then `merge /bob`.
 
 ```
 ```unison
@@ -98,7 +98,7 @@ project/main> branch alice
   Done. I've created the alice branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /alice`
+       `switch /main` then `merge /alice`.
 
 ```
 ```unison
@@ -131,7 +131,7 @@ project/main> branch bob
   Done. I've created the bob branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /bob`
+       `switch /main` then `merge /bob`.
 
 ```
 ```unison
@@ -213,7 +213,7 @@ project/main> branch alice
   Done. I've created the alice branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /alice`
+       `switch /main` then `merge /alice`.
 
 ```
 ```unison
@@ -248,7 +248,7 @@ project/main> branch bob
   Done. I've created the bob branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /bob`
+       `switch /main` then `merge /bob`.
 
 ```
 ```unison
@@ -340,7 +340,7 @@ project/main> branch alice
   Done. I've created the alice branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /alice`
+       `switch /main` then `merge /alice`.
 
 ```
 ```unison
@@ -379,7 +379,7 @@ project/main> branch bob
   Done. I've created the bob branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /bob`
+       `switch /main` then `merge /bob`.
 
 ```
 ```unison
@@ -478,7 +478,7 @@ project/main> branch alice
   Done. I've created the alice branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /alice`
+       `switch /main` then `merge /alice`.
 
 ```
 ```unison
@@ -517,7 +517,7 @@ project/main> branch bob
   Done. I've created the bob branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /bob`
+       `switch /main` then `merge /bob`.
 
 ```
 ```unison
@@ -605,7 +605,7 @@ project/main> branch alice
   Done. I've created the alice branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /alice`
+       `switch /main` then `merge /alice`.
 
 ```
 ```unison
@@ -640,7 +640,7 @@ project/main> branch bob
   Done. I've created the bob branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /bob`
+       `switch /main` then `merge /bob`.
 
 project/bob> delete.term foo
 
@@ -666,14 +666,14 @@ project/main> branch alice
   Done. I've created the alice branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /alice`
+       `switch /main` then `merge /alice`.
 
 project/main> branch bob
 
   Done. I've created the bob branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /bob`
+       `switch /main` then `merge /bob`.
 
 project/alice> merge /bob
 
@@ -692,14 +692,14 @@ project/main> branch alice
   Done. I've created the alice branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /alice`
+       `switch /main` then `merge /alice`.
 
 project/main> branch bob
 
   Done. I've created the bob branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /bob`
+       `switch /main` then `merge /bob`.
 
 ```
 ```unison
@@ -744,14 +744,14 @@ project/main> branch alice
   Done. I've created the alice branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /alice`
+       `switch /main` then `merge /alice`.
 
 project/main> branch bob
 
   Done. I've created the bob branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /bob`
+       `switch /main` then `merge /bob`.
 
 ```
 ```unison
@@ -822,7 +822,7 @@ project/main> branch alice
   Done. I've created the alice branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /alice`
+       `switch /main` then `merge /alice`.
 
 project/alice> delete.term foo
 
@@ -833,7 +833,7 @@ project/main> branch bob
   Done. I've created the bob branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /bob`
+       `switch /main` then `merge /bob`.
 
 ```
 ```unison
@@ -912,7 +912,7 @@ project/main> branch alice
   Done. I've created the alice branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /alice`
+       `switch /main` then `merge /alice`.
 
 ```
 ```unison
@@ -947,7 +947,7 @@ project/main> branch bob
   Done. I've created the bob branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /bob`
+       `switch /main` then `merge /bob`.
 
 ```
 ```unison
@@ -1030,7 +1030,7 @@ project/main> branch alice
   Done. I've created the alice branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /alice`
+       `switch /main` then `merge /alice`.
 
 ```
 ```unison
@@ -1076,7 +1076,7 @@ project/main> branch bob
   Done. I've created the bob branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /bob`
+       `switch /main` then `merge /bob`.
 
 ```
 ```unison
@@ -1178,7 +1178,7 @@ project/main> branch alice
   Done. I've created the alice branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /alice`
+       `switch /main` then `merge /alice`.
 
 ```
 ```unison
@@ -1212,7 +1212,7 @@ project/main> branch bob
   Done. I've created the bob branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /bob`
+       `switch /main` then `merge /bob`.
 
 ```
 ```unison
@@ -1288,7 +1288,7 @@ project/main> branch alice
   Done. I've created the alice branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /alice`
+       `switch /main` then `merge /alice`.
 
 ```
 ```unison
@@ -1322,7 +1322,7 @@ project/main> branch bob
   Done. I've created the bob branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /bob`
+       `switch /main` then `merge /bob`.
 
 ```
 ```unison
@@ -1403,7 +1403,7 @@ project/main> branch alice
   Done. I've created the alice branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /alice`
+       `switch /main` then `merge /alice`.
 
 ```
 ```unison
@@ -1444,7 +1444,7 @@ project/main> branch bob
   Done. I've created the bob branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /bob`
+       `switch /main` then `merge /bob`.
 
 ```
 ```unison
@@ -1488,7 +1488,7 @@ project/main> branch topic
   Done. I've created the topic branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /topic`
+       `switch /main` then `merge /topic`.
 
 project/main> alias.type builtin.Nat MyNat
 
@@ -1536,7 +1536,7 @@ project/main> branch topic
   Done. I've created the topic branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /topic`
+       `switch /main` then `merge /topic`.
 
 ```
 ```unison
@@ -1584,7 +1584,7 @@ project/main> branch topic
   Done. I've created the topic branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /topic`
+       `switch /main` then `merge /topic`.
 
 ```
 ```unison
@@ -1630,7 +1630,7 @@ project/main> branch topic
   Done. I've created the topic branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /topic`
+       `switch /main` then `merge /topic`.
 
 ```
 ```unison
@@ -1675,7 +1675,7 @@ project/main> branch topic
   Done. I've created the topic branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /topic`
+       `switch /main` then `merge /topic`.
 
 ```
 ```unison
@@ -1722,7 +1722,7 @@ project/main> branch topic
   Done. I've created the topic branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /topic`
+       `switch /main` then `merge /topic`.
 
 ```
 ```unison

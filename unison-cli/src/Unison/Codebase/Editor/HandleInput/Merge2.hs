@@ -98,7 +98,6 @@ import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Defns (Defns (..), DefnsF, DefnsF2, DefnsF3, alignDefnsWith, defnsAreEmpty, zipDefnsWith, zipDefnsWith3)
 import Unison.Util.Nametree (Nametree (..), flattenNametree, traverseNametreeWithName, unflattenNametree)
-import Unison.Util.Pretty (ColorText, Pretty)
 import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as Relation
@@ -197,8 +196,8 @@ handleMerge bobBranchName = do
   let bumpedBranch0 = defnsAndLibdepsToBranch0 codebase bumpedDefns mergedLibdeps
   let bumpedNames = Branch.toNames bumpedBranch0
 
-  let prettyUf =
-        let names = defnsToNames defns.alice <> defnsToNames defns.bob
+  let prettyUnisonFile =
+        let names = defnsToNames defns.alice <> defnsToNames defns.bob <> Branch.toNames mergedLibdeps
             ppe = PPED.makePPED (PPE.namer names) (PPE.suffixifyByName names)
          in Pretty.prettyUnisonFile ppe unisonFile
 
@@ -211,17 +210,35 @@ handleMerge bobBranchName = do
           else do
             currentPath <- Cli.getCurrentPath
             parsingEnv <- makeParsingEnv currentPath bumpedNames
-            prettyParseTypecheck2 prettyUf parsingEnv <&> eitherToMaybe
+            prettyParseTypecheck2 prettyUnisonFile parsingEnv <&> eitherToMaybe
 
   case maybeTypecheckedUnisonFile of
-    Nothing -> theMergeFailed info prettyUf bumpedBranch0
+    Nothing -> do
+      Cli.Env {writeSource} <- ask
+      branch <- Cli.getBranchAt info.paths.alice
+      _temporaryBranchId <-
+        HandleInput.Branch.doCreateBranch'
+          (Branch.cons bumpedBranch0 branch)
+          Nothing
+          info.project
+          (findTemporaryBranchName info)
+          (textualDescriptionOfMerge info)
+      scratchFilePath <-
+        Cli.getLatestFile <&> \case
+          Nothing -> "scratch.u"
+          Just (file, _) -> file
+      liftIO $ writeSource (Text.pack scratchFilePath) (Text.pack $ Pretty.toPlain 80 prettyUnisonFile)
+      Cli.respond $
+        Output.MergeFailure
+          scratchFilePath
+          (aliceProjectAndBranchName info)
+          (bobProjectAndBranchName info)
     Just tuf -> do
       Cli.runTransaction (Codebase.addDefsToCodebase codebase tuf)
-      let mergedBranchPlusTuf = Branch.batchUpdates (typecheckedUnisonFileToBranchAdds tuf) bumpedBranch0
       Cli.stepAt
         (textualDescriptionOfMerge info)
         ( Path.unabsolute info.paths.alice,
-          const mergedBranchPlusTuf
+          const (Branch.batchUpdates (typecheckedUnisonFileToBranchAdds tuf) bumpedBranch0)
         )
       Cli.respond (Output.MergeSuccess (aliceProjectAndBranchName info) (bobProjectAndBranchName info))
 
@@ -708,31 +725,6 @@ defnsToNames defns =
     { terms = Relation.fromMap (BiMultimap.range defns.terms),
       types = Relation.fromMap (BiMultimap.range defns.types)
     }
-
-theMergeFailed :: MergeInfo -> Pretty ColorText -> Branch0 IO -> Cli ()
-theMergeFailed mergeInfo prettyUnisonFile newBranch = do
-  Cli.Env {writeSource} <- ask
-  -- Small race condition: since picking a branch name and creating the branch happen in different
-  -- transactions, creating could fail.
-  temporaryBranchName <- Cli.runTransaction (findTemporaryBranchName mergeInfo)
-  _temporaryBranchId <-
-    HandleInput.Branch.doCreateBranch'
-      -- FIXME the branch we put the user on after a failed merge should be 1 causal step past the branch they came from
-      (Branch.one newBranch)
-      Nothing
-      mergeInfo.project
-      temporaryBranchName
-      (textualDescriptionOfMerge mergeInfo)
-  scratchFilePath <-
-    Cli.getLatestFile <&> \case
-      Nothing -> "scratch.u"
-      Just (file, _) -> file
-  liftIO $ writeSource (Text.pack scratchFilePath) (Text.pack $ Pretty.toPlain 80 prettyUnisonFile)
-  Cli.respond $
-    Output.MergeFailure
-      scratchFilePath
-      (aliceProjectAndBranchName mergeInfo)
-      (bobProjectAndBranchName mergeInfo)
 
 findTemporaryBranchName :: MergeInfo -> Transaction ProjectBranchName
 findTemporaryBranchName info = do

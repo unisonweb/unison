@@ -18,6 +18,7 @@ import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli (getBranchAt, getCurrentPath, updateAt)
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
+import Unison.Codebase.Branch (Branch)
 import Unison.Codebase.Branch qualified as Branch (empty)
 import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Editor.Output qualified as Output
@@ -25,7 +26,6 @@ import Unison.Codebase.Path qualified as Path
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectBranchNameKind (..), ProjectName, classifyProjectBranchName)
 import Unison.Sqlite qualified as Sqlite
-import Unison.Codebase.Branch (Branch)
 
 data CreateFrom
   = CreateFrom'Branch (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch)
@@ -121,18 +121,25 @@ doCreateBranch createFrom project newBranchName description = do
       CreateFrom'LooseCode sourcePath -> Cli.getBranchAt sourcePath
       CreateFrom'Nothingness -> pure Branch.empty
   let projectId = project ^. #projectId
-  let parentBranchId = 
-                  case createFrom of
-                    CreateFrom'Branch (ProjectAndBranch _ sourceBranch)
-                      | (sourceBranch ^. #projectId) == projectId -> Just (sourceBranch ^. #branchId)
-                    _ -> Nothing
-  doCreateBranch' sourceNamespaceObject parentBranchId project newBranchName description 
+  let parentBranchId =
+        case createFrom of
+          CreateFrom'Branch (ProjectAndBranch _ sourceBranch)
+            | (sourceBranch ^. #projectId) == projectId -> Just (sourceBranch ^. #branchId)
+          _ -> Nothing
+  doCreateBranch' sourceNamespaceObject parentBranchId project (pure newBranchName) description
 
-doCreateBranch' :: Branch IO -> Maybe ProjectBranchId -> Sqlite.Project -> ProjectBranchName -> Text -> Cli ProjectBranchId
-doCreateBranch' sourceNamespaceObject parentBranchId project newBranchName description = do
+doCreateBranch' ::
+  Branch IO ->
+  Maybe ProjectBranchId ->
+  Sqlite.Project ->
+  Sqlite.Transaction ProjectBranchName ->
+  Text ->
+  Cli ProjectBranchId
+doCreateBranch' sourceNamespaceObject parentBranchId project getNewBranchName description = do
   let projectId = project ^. #projectId
   newBranchId <-
     Cli.runTransactionWithRollback \rollback -> do
+      newBranchName <- getNewBranchName
       Queries.projectBranchExistsByName projectId newBranchName >>= \case
         True -> rollback (Output.ProjectAndBranchNameAlreadyExists (ProjectAndBranch (project ^. #name) newBranchName))
         False -> do

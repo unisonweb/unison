@@ -1921,7 +1921,7 @@ notifyUser dir = \case
                   <> "branch, first"
                   <> IP.makeExample IP.projectSwitch [prettySlashProjectBranchName parentBranch]
                   <> "then"
-                  <> IP.makeExample IP.mergeInputPattern [prettySlashProjectBranchName (projectAndBranch ^. #branch)]
+                  <> P.group (IP.makeExample IP.mergeInputPattern [prettySlashProjectBranchName (projectAndBranch ^. #branch)] <> ".")
               )
   CreatedRemoteProject host (ProjectAndBranch projectName _) ->
     pure . P.wrap $
