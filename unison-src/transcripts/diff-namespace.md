@@ -17,7 +17,7 @@ fslkdjflskdjflksjdf = 663
 ```
 ```ucm
 .b0> add
-.> merge b0 b1
+.> merge.old b0 b1
 .> diff.namespace b1 b2
 .b2> diff.namespace .b1
 ```
@@ -67,7 +67,7 @@ fromJust = "asldkfjasldkfj"
 
 ```ucm
 .ns1b> add
-.> merge ns1b ns1
+.> merge.old ns1b ns1
 ```
 
 ```unison:hide
@@ -126,10 +126,10 @@ a = 555
 ```
 ```ucm
 .nsz> update.old
-.> merge nsy nsw
+.> merge.old nsy nsw
 ```
 ```ucm:error
-.> merge nsz nsw
+.> merge.old nsz nsw
 ```
 ```ucm
 .> diff.namespace nsx nsw

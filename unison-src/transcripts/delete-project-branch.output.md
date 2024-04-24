@@ -22,8 +22,8 @@ foo/main> branch topic
 
   Done. I've created the topic branch based off of main.
   
-  Tip: Use `merge /topic /main` to merge your work back into the
-       main branch.
+  Tip: To merge your work back into the main branch, first
+       `switch /main` then `merge2 /topic`
 
 foo/topic> delete.branch /topic
 
@@ -35,8 +35,8 @@ foo/main> branch topic
 
   Done. I've created the topic branch based off of main.
   
-  Tip: Use `merge /topic /main` to merge your work back into the
-       main branch.
+  Tip: To merge your work back into the main branch, first
+       `switch /main` then `merge2 /topic`
 
 foo/topic> delete.branch topic
 
@@ -48,8 +48,8 @@ foo/main> branch topic
 
   Done. I've created the topic branch based off of main.
   
-  Tip: Use `merge /topic /main` to merge your work back into the
-       main branch.
+  Tip: To merge your work back into the main branch, first
+       `switch /main` then `merge2 /topic`
 
   ☝️  The namespace . is empty.
 

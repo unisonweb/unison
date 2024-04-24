@@ -1622,22 +1622,25 @@ pushExhaustive =
           branchInclusion = AllBranches
         }
 
-squashMerge :: InputPattern
-squashMerge =
+mergeOldSquashInputPattern :: InputPattern
+mergeOldSquashInputPattern =
   InputPattern
-    { patternName = "merge.squash",
-      aliases = ["squash"],
-      visibility = I.Visible,
-      args = [("namespace or branch to be squashed", Required, namespaceOrProjectBranchArg suggestionsConfig), ("merge destination", Required, namespaceOrProjectBranchArg suggestionsConfig)],
+    { patternName = "merge.old.squash",
+      aliases = ["squash.old"],
+      visibility = I.Hidden,
+      args =
+        [ ("namespace or branch to be squashed", Required, namespaceOrProjectBranchArg suggestionsConfig),
+          ("merge destination", Required, namespaceOrProjectBranchArg suggestionsConfig)
+        ],
       help =
         P.wrap $
-          makeExample squashMerge ["src", "dest"]
+          makeExample mergeOldSquashInputPattern ["src", "dest"]
             <> "merges `src` namespace or branch into the `dest` namespace or branch,"
             <> "discarding the history of `src` in the process."
             <> "The resulting `dest` will have (at most) 1"
             <> "additional history entry.",
       parse =
-        maybeToEither (I.help squashMerge) . \case
+        maybeToEither (I.help mergeOldSquashInputPattern) . \case
           [src, dest] -> do
             src <- parseLooseCodeOrProject src
             dest <- parseLooseCodeOrProject dest
@@ -1652,37 +1655,37 @@ squashMerge =
           branchInclusion = AllBranches
         }
 
-mergeLocal :: InputPattern
-mergeLocal =
+mergeOldInputPattern :: InputPattern
+mergeOldInputPattern =
   InputPattern
-    "merge"
+    "merge.old"
     []
-    I.Visible
+    I.Hidden
     [ ("branch or namespace to merge", Required, namespaceOrProjectBranchArg config),
       ("merge destination", Optional, namespaceOrProjectBranchArg config)
     ]
     ( P.column2
-        [ ( "`merge foo/bar baz/qux`",
+        [ ( makeExample mergeOldInputPattern ["foo/bar", "baz/qux"],
             "merges the `foo/bar` branch into the `baz/qux` branch"
           ),
-          ( "`merge /topic /main`",
+          ( makeExample mergeOldInputPattern ["/topic", "/main"],
             "merges the branch `topic` of the current project into the `main` branch of the current project"
           ),
-          ( "`merge foo/topic /main`",
+          ( makeExample mergeOldInputPattern ["foo/topic", "/main"],
             "merges the branch `topic` of the project `foo` into the `main` branch of the current project"
           ),
-          ( "`merge /topic foo/main`",
+          ( makeExample mergeOldInputPattern ["/topic", "foo/main"],
             "merges the branch `topic` of the current project into the `main` branch of the project 'foo`"
           ),
-          ( "`merge .src`",
+          ( makeExample mergeOldInputPattern [".src"],
             "merges `.src` namespace into the current namespace"
           ),
-          ( "`merge .src .dest`",
+          ( makeExample mergeOldInputPattern [".src", ".dest"],
             "merges `.src` namespace into the `dest` namespace"
           )
         ]
     )
-    ( maybeToEither (I.help mergeLocal) . \case
+    ( maybeToEither (I.help mergeOldInputPattern) . \case
         [src] -> do
           src <- parseLooseCodeOrProject src
           Just $ Input.MergeLocalBranchI src (This Path.relativeEmpty') Branch.RegularMerge
@@ -1707,7 +1710,7 @@ mergeInputPattern =
       aliases = [],
       visibility = I.Visible,
       args = [],
-      help = "`merge branch` merges `branch` into the current branch",
+      help = P.wrap $ makeExample mergeInputPattern ["/branch"] <> "merges `branch` into the current branch",
       parse =
         \args ->
           maybeToEither (I.help mergeInputPattern) do
@@ -1736,12 +1739,10 @@ diffNamespace =
     [("before namespace", Required, namespaceOrProjectBranchArg suggestionsConfig), ("after namespace", Optional, namespaceOrProjectBranchArg suggestionsConfig)]
     ( P.column2
         [ ( "`diff.namespace before after`",
-            P.wrap
-              "shows how the namespace `after` differs from the namespace `before`"
+            P.wrap "shows how the namespace `after` differs from the namespace `before`"
           ),
           ( "`diff.namespace before`",
-            P.wrap
-              "shows how the current namespace differs from the namespace `before`"
+            P.wrap "shows how the current namespace differs from the namespace `before`"
           )
         ]
     )
@@ -1763,23 +1764,23 @@ diffNamespace =
           branchInclusion = AllBranches
         }
 
-previewMergeLocal :: InputPattern
-previewMergeLocal =
+mergeOldPreviewInputPattern :: InputPattern
+mergeOldPreviewInputPattern =
   InputPattern
-    "merge.preview"
+    "merge.old.preview"
     []
-    I.Visible
+    I.Hidden
     [("branch or namespace to merge", Required, namespaceOrProjectBranchArg suggestionsConfig), ("merge destination", Optional, namespaceOrProjectBranchArg suggestionsConfig)]
     ( P.column2
-        [ ( "`merge.preview src`",
-            "shows how the current namespace will change after a `merge src`."
+        [ ( makeExample mergeOldPreviewInputPattern ["src"],
+            "shows how the current namespace will change after a " <> makeExample mergeOldInputPattern ["src"]
           ),
-          ( "`merge.preview src dest`",
-            "shows how `dest` namespace will change after a `merge src dest`."
+          ( makeExample mergeOldPreviewInputPattern ["src", "dest"],
+            "shows how `dest` namespace will change after a " <> makeExample mergeOldInputPattern ["src", "dest"]
           )
         ]
     )
-    ( maybeToEither (I.help previewMergeLocal) . \case
+    ( maybeToEither (I.help mergeOldPreviewInputPattern) . \case
         [src] -> do
           src <- parseLooseCodeOrProject src
           pure $ Input.PreviewMergeLocalBranchI src (This Path.relativeEmpty')
@@ -2047,8 +2048,7 @@ helpTopicsMap =
           "",
           P.wrap $
             "As a workaround, you can give definitions with a relative name"
-              <> "temporarily (like `exports.blah.foo`) and then use `move.*` "
-              <> "or `merge` commands to move stuff around afterwards."
+              <> "temporarily (like `exports.blah.foo`) and then use `move.*`."
         ]
     remotesMsg =
       P.callout "\129302" . P.lines $
@@ -2074,7 +2074,7 @@ helpTopicsMap =
               (patternName projectsInputPattern, "list all your projects"),
               (patternName branchInputPattern, "create a new workstream"),
               (patternName branchesInputPattern, "list all your branches"),
-              (patternName mergeLocal, "merge one branch into another"),
+              (patternName mergeInputPattern, "merge one branch into another"),
               (patternName projectSwitch, "switch to a project or branch"),
               (patternName push, "upload your changes to Unison Share"),
               (patternName pull, "download code(/changes/updates) from Unison Share"),
@@ -3017,14 +3017,15 @@ validInputs =
       makeStandalone,
       mergeBuiltins,
       mergeIOBuiltins,
-      mergeLocal,
+      mergeOldInputPattern,
+      mergeOldPreviewInputPattern,
+      mergeOldSquashInputPattern,
       mergeInputPattern,
       names False, -- names
       names True, -- names.global
       namespaceDependencies,
       patch,
       previewAdd,
-      previewMergeLocal,
       previewUpdate,
       printVersion,
       projectCreate,
@@ -3052,7 +3053,6 @@ validInputs =
       resetRoot,
       runScheme,
       saveExecuteResult,
-      squashMerge,
       test,
       testAll,
       todo,
@@ -3151,8 +3151,7 @@ namespaceArg =
       fzfResolver = Just Resolvers.namespaceResolver
     }
 
--- | Usually you'll want one or the other, but some commands like 'merge' support both right
--- now.
+-- | Usually you'll want one or the other, but some commands support both right now.
 namespaceOrProjectBranchArg :: ProjectBranchSuggestionsConfig -> ArgumentType
 namespaceOrProjectBranchArg config =
   ArgumentType

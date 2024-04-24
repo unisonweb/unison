@@ -1892,9 +1892,7 @@ notifyUser dir = \case
             <> P.newline
             <> tip
               ( "Use"
-                  <> IP.makeExample IP.mergeLocal [prettySlashProjectBranchName (UnsafeProjectBranchName "somebranch")]
-                  <> "or"
-                  <> IP.makeExample IP.mergeLocal [prettyAbsolute (Path.Absolute (Path.fromList ["path", "to", "code"]))]
+                  <> IP.makeExample IP.mergeInputPattern [prettySlashProjectBranchName (UnsafeProjectBranchName "somebranch")]
                   <> "to initialize this branch."
               )
       CreatedProjectBranchFrom'OtherBranch (ProjectAndBranch otherProject otherBranch) ->
@@ -1918,15 +1916,12 @@ notifyUser dir = \case
             <> P.newline
             <> P.newline
             <> tip
-              ( "Use"
-                  <> IP.makeExample
-                    IP.mergeLocal
-                    [ prettySlashProjectBranchName (projectAndBranch ^. #branch),
-                      prettySlashProjectBranchName parentBranch
-                    ]
-                  <> "to merge your work back into the"
+              ( "To merge your work back into the"
                   <> prettyProjectBranchName parentBranch
-                  <> "branch."
+                  <> "branch, first"
+                  <> IP.makeExample IP.projectSwitch [prettySlashProjectBranchName parentBranch]
+                  <> "then"
+                  <> IP.makeExample IP.mergeInputPattern [prettySlashProjectBranchName (projectAndBranch ^. #branch)]
               )
   CreatedRemoteProject host (ProjectAndBranch projectName _) ->
     pure . P.wrap $

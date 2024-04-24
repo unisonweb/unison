@@ -76,7 +76,7 @@ y = "hello"
   
     y : ##Text
 
-.master> merge .feature1
+.master> merge.old .feature1
 
   Here's what's changed in the current namespace after the
   merge:
@@ -102,7 +102,7 @@ y = "hello"
 
 Notice that `master` now has the definition of `y` we wrote.
 
-We can also delete the fork if we're done with it. (Don't worry, even though the history at that path is now empty, 
+We can also delete the fork if we're done with it. (Don't worry, even though the history at that path is now empty,
 it's still in the `history` of the parent namespace and can be resurrected at any time.)
 
 ```ucm
@@ -254,7 +254,7 @@ master.frobnicate n = n + 1
 At this point, `master` and `feature2` both have some changes the other doesn't know about. Let's merge them.
 
 ```ucm
-.> merge feature2 master
+.> merge.old feature2 master
 
   Here's what's changed in master after the merge:
   

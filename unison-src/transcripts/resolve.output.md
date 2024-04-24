@@ -136,7 +136,7 @@ The `a` and `b` namespaces now each contain a patch named `patch`. We can view t
 Let's now merge these namespaces into `c`:
 
 ```ucm
-.example.resolve> merge a c
+.example.resolve> merge.old a c
 
   Here's what's changed in c after the merge:
   
@@ -159,7 +159,7 @@ Let's now merge these namespaces into `c`:
 
 ```
 ```ucm
-.example.resolve> merge b c
+.example.resolve> merge.old b c
 
   Here's what's changed in c after the merge:
   

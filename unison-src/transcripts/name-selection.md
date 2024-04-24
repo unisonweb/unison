@@ -52,11 +52,11 @@ d = c + 10
 
 ```ucm
 .a3> add
-.a3> merge .a2 .a3
+.a3> merge.old .a2 .a3
 ```
 
-At this point, `a3` is conflicted for symbols `c` and `d`, so those are deprioritized. 
-The original `a2` namespace has an unconflicted definition for `c` and `d`, but since there are multiple 'c's in scope, 
+At this point, `a3` is conflicted for symbols `c` and `d`, so those are deprioritized.
+The original `a2` namespace has an unconflicted definition for `c` and `d`, but since there are multiple 'c's in scope,
 `a2.c` is chosen because although the suffixified version has fewer segments, its fully-qualified name has the fewest segments.
 
 ```ucm
@@ -66,7 +66,7 @@ The original `a2` namespace has an unconflicted definition for `c` and `d`, but 
 ## Name biasing
 
 ```unison
-deeply.nested.term = 
+deeply.nested.term =
   a + 1
 
 deeply.nested.num = 10
@@ -76,7 +76,7 @@ a = 10
 
 ```ucm
 .biasing> add
--- Despite being saved with name `a`, 
+-- Despite being saved with name `a`,
 -- the pretty printer should prefer the suffixified 'deeply.nested.num name' over the shallow 'a'.
 -- It's closer to the term being printed.
 .biasing> view deeply.nested.term

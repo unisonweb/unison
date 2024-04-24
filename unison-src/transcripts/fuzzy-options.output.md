@@ -85,8 +85,8 @@ myproject/main> branch mybranch
 
   Done. I've created the mybranch branch based off of main.
   
-  Tip: Use `merge /mybranch /main` to merge your work back into
-       the main branch.
+  Tip: To merge your work back into the main branch, first
+       `switch /main` then `merge2 /mybranch`
 
 .> debug.fuzzy-options switch _
 

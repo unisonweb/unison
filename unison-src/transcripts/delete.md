@@ -44,7 +44,7 @@ foo = 2
 
 ```ucm
 .b> add
-.a> merge .b
+.a> merge.old .b
 ```
 
 A delete should remove both versions of the term.
@@ -73,7 +73,7 @@ structural type Foo = Foo
 
 ```ucm
 .b> add
-.a> merge .b
+.a> merge.old .b
 ```
 
 ```ucm
