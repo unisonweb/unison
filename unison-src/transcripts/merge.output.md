@@ -14,7 +14,7 @@ project/main> branch alice
   Done. I've created the alice branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge2 /alice`
+       `switch /main` then `merge /alice`
 
 ```
 ```unison
@@ -47,7 +47,7 @@ project/main> branch bob
   Done. I've created the bob branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge2 /bob`
+       `switch /main` then `merge /bob`
 
 ```
 ```unison
@@ -75,7 +75,7 @@ project/bob> add
   
     bar : Text
 
-project/alice> merge2 /bob
+project/alice> merge /bob
 
   I merged bob into alice.
 
@@ -98,7 +98,7 @@ project/main> branch alice
   Done. I've created the alice branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge2 /alice`
+       `switch /main` then `merge /alice`
 
 ```
 ```unison
@@ -131,7 +131,7 @@ project/main> branch bob
   Done. I've created the bob branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge2 /bob`
+       `switch /main` then `merge /bob`
 
 ```
 ```unison
@@ -164,7 +164,7 @@ project/bob> add
     bar : Text
     foo : Text
 
-project/alice> merge2 /bob
+project/alice> merge /bob
 
   I merged bob into alice.
 
@@ -213,7 +213,7 @@ project/main> branch alice
   Done. I've created the alice branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge2 /alice`
+       `switch /main` then `merge /alice`
 
 ```
 ```unison
@@ -248,7 +248,7 @@ project/main> branch bob
   Done. I've created the bob branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge2 /bob`
+       `switch /main` then `merge /bob`
 
 ```
 ```unison
@@ -276,7 +276,7 @@ project/bob> add
   
     bar : Text
 
-project/alice> merge2 /bob
+project/alice> merge /bob
 
   I merged bob into alice.
 
@@ -340,7 +340,7 @@ project/main> branch alice
   Done. I've created the alice branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge2 /alice`
+       `switch /main` then `merge /alice`
 
 ```
 ```unison
@@ -379,7 +379,7 @@ project/main> branch bob
   Done. I've created the bob branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge2 /bob`
+       `switch /main` then `merge /bob`
 
 ```
 ```unison
@@ -413,7 +413,7 @@ project/bob> update
 
   Done.
 
-project/alice> merge2 /bob
+project/alice> merge /bob
 
   I merged bob into alice.
 
@@ -478,7 +478,7 @@ project/main> branch alice
   Done. I've created the alice branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge2 /alice`
+       `switch /main` then `merge /alice`
 
 ```
 ```unison
@@ -517,7 +517,7 @@ project/main> branch bob
   Done. I've created the bob branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge2 /bob`
+       `switch /main` then `merge /bob`
 
 ```
 ```unison
@@ -551,7 +551,7 @@ project/bob> update
 
   Done.
 
-project/alice> merge2 /bob
+project/alice> merge /bob
 
   I merged bob into alice.
 
@@ -605,7 +605,7 @@ project/main> branch alice
   Done. I've created the alice branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge2 /alice`
+       `switch /main` then `merge /alice`
 
 ```
 ```unison
@@ -640,13 +640,13 @@ project/main> branch bob
   Done. I've created the bob branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge2 /bob`
+       `switch /main` then `merge /bob`
 
 project/bob> delete.term foo
 
   Done.
 
-project/alice> merge2 /bob
+project/alice> merge /bob
 
   I merged bob into alice.
 
@@ -666,16 +666,16 @@ project/main> branch alice
   Done. I've created the alice branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge2 /alice`
+       `switch /main` then `merge /alice`
 
 project/main> branch bob
 
   Done. I've created the bob branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge2 /bob`
+       `switch /main` then `merge /bob`
 
-project/alice> merge2 /bob
+project/alice> merge /bob
 
   😶
   
@@ -692,14 +692,14 @@ project/main> branch alice
   Done. I've created the alice branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge2 /alice`
+       `switch /main` then `merge /alice`
 
 project/main> branch bob
 
   Done. I've created the bob branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge2 /bob`
+       `switch /main` then `merge /bob`
 
 ```
 ```unison
@@ -727,7 +727,7 @@ project/alice> add
   
     foo : Text
 
-project/alice> merge2 /bob
+project/alice> merge /bob
 
   😶
   
@@ -744,14 +744,14 @@ project/main> branch alice
   Done. I've created the alice branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge2 /alice`
+       `switch /main` then `merge /alice`
 
 project/main> branch bob
 
   Done. I've created the bob branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge2 /bob`
+       `switch /main` then `merge /bob`
 
 ```
 ```unison
@@ -779,7 +779,7 @@ project/bob> add
   
     foo : Text
 
-project/alice> merge2 /bob
+project/alice> merge /bob
 
   I merged bob into alice.
 
@@ -822,7 +822,7 @@ project/main> branch alice
   Done. I've created the alice branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge2 /alice`
+       `switch /main` then `merge /alice`
 
 project/alice> delete.term foo
 
@@ -833,7 +833,7 @@ project/main> branch bob
   Done. I've created the bob branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge2 /bob`
+       `switch /main` then `merge /bob`
 
 ```
 ```unison
@@ -861,7 +861,7 @@ project/bob> add
   
     bar : Text
 
-project/alice> merge2 /bob
+project/alice> merge /bob
 
   I couldn't automatically merge bob into alice. However, I've
   added the definitions that need attention to the top of
@@ -912,7 +912,7 @@ project/main> branch alice
   Done. I've created the alice branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge2 /alice`
+       `switch /main` then `merge /alice`
 
 ```
 ```unison
@@ -947,7 +947,7 @@ project/main> branch bob
   Done. I've created the bob branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge2 /bob`
+       `switch /main` then `merge /bob`
 
 ```
 ```unison
@@ -976,7 +976,7 @@ project/bob> update
 
   Done.
 
-project/alice> merge2 /bob
+project/alice> merge /bob
 
   I couldn't automatically merge bob into alice. However, I've
   added the definitions that need attention to the top of
@@ -1030,7 +1030,7 @@ project/main> branch alice
   Done. I've created the alice branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge2 /alice`
+       `switch /main` then `merge /alice`
 
 ```
 ```unison
@@ -1076,7 +1076,7 @@ project/main> branch bob
   Done. I've created the bob branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge2 /bob`
+       `switch /main` then `merge /bob`
 
 ```
 ```unison
@@ -1113,7 +1113,7 @@ project/bob> update
 
   Done.
 
-project/alice> merge2 /bob
+project/alice> merge /bob
 
   I couldn't automatically merge bob into alice. However, I've
   added the definitions that need attention to the top of
@@ -1178,7 +1178,7 @@ project/main> branch alice
   Done. I've created the alice branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge2 /alice`
+       `switch /main` then `merge /alice`
 
 ```
 ```unison
@@ -1212,7 +1212,7 @@ project/main> branch bob
   Done. I've created the bob branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge2 /bob`
+       `switch /main` then `merge /bob`
 
 ```
 ```unison
@@ -1241,7 +1241,7 @@ project/bob> update
 
   Done.
 
-project/alice> merge2 /bob
+project/alice> merge /bob
 
   I couldn't automatically merge bob into alice. However, I've
   added the definitions that need attention to the top of
@@ -1288,7 +1288,7 @@ project/main> branch alice
   Done. I've created the alice branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge2 /alice`
+       `switch /main` then `merge /alice`
 
 ```
 ```unison
@@ -1322,7 +1322,7 @@ project/main> branch bob
   Done. I've created the bob branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge2 /bob`
+       `switch /main` then `merge /bob`
 
 ```
 ```unison
@@ -1345,7 +1345,7 @@ project/bob> update
 
   Done.
 
-project/alice> merge2 /bob
+project/alice> merge /bob
 
   I couldn't automatically merge bob into alice. However, I've
   added the definitions that need attention to the top of
@@ -1403,7 +1403,7 @@ project/main> branch alice
   Done. I've created the alice branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge2 /alice`
+       `switch /main` then `merge /alice`
 
 ```
 ```unison
@@ -1444,7 +1444,7 @@ project/main> branch bob
   Done. I've created the bob branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge2 /bob`
+       `switch /main` then `merge /bob`
 
 ```
 ```unison
@@ -1472,7 +1472,7 @@ project/bob> add
   
     baz : Text
 
-project/alice> merge2 /bob
+project/alice> merge /bob
 
   On alice, bar and foo are not aliases, but they used to be.
 
@@ -1488,7 +1488,7 @@ project/main> branch topic
   Done. I've created the topic branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge2 /topic`
+       `switch /main` then `merge /topic`
 
 project/main> alias.type builtin.Nat MyNat
 
@@ -1519,7 +1519,7 @@ project/topic> add
   
     type MyNat
 
-project/main> merge2 /topic
+project/main> merge /topic
 
   There's a merge conflict on MyNat, but it's a builtin on one
   or both branches. We can't yet handle merge conflicts on
@@ -1536,7 +1536,7 @@ project/main> branch topic
   Done. I've created the topic branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge2 /topic`
+       `switch /main` then `merge /topic`
 
 ```
 ```unison
@@ -1567,7 +1567,7 @@ project/topic> alias.term Foo.Bar Foo.some.other.Alias
 
   Done.
 
-project/main> merge2 /topic
+project/main> merge /topic
 
   On topic, Foo.Bar and Foo.some.other.Alias are aliases. Every
   type declaration must have exactly one name for each
@@ -1584,7 +1584,7 @@ project/main> branch topic
   Done. I've created the topic branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge2 /topic`
+       `switch /main` then `merge /topic`
 
 ```
 ```unison
@@ -1615,7 +1615,7 @@ project/topic> delete.term Foo.Bar
 
   Done.
 
-project/main> merge2 /topic
+project/main> merge /topic
 
   Missing constructor name.
 
@@ -1630,7 +1630,7 @@ project/main> branch topic
   Done. I've created the topic branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge2 /topic`
+       `switch /main` then `merge /topic`
 
 ```
 ```unison
@@ -1660,7 +1660,7 @@ project/topic> add
     structural type A
     structural type A.inner.X
 
-project/main> merge2 /topic
+project/main> merge /topic
 
   Nested decl alias.
 
@@ -1675,7 +1675,7 @@ project/main> branch topic
   Done. I've created the topic branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge2 /topic`
+       `switch /main` then `merge /topic`
 
 ```
 ```unison
@@ -1706,7 +1706,7 @@ project/topic> alias.term Foo.Bar AliasOutsideFooNamespace
 
   Done.
 
-project/main> merge2 /topic
+project/main> merge /topic
 
   Stray constructor.
 
@@ -1722,7 +1722,7 @@ project/main> branch topic
   Done. I've created the topic branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge2 /topic`
+       `switch /main` then `merge /topic`
 
 ```
 ```unison
@@ -1750,7 +1750,7 @@ project/topic> add
   
     lib.foo : Nat
 
-project/main> merge2 /topic
+project/main> merge /topic
 
   Defns in lib
 

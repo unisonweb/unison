@@ -34,7 +34,7 @@ bar = "bobs bar"
 
 ```ucm
 project/bob> add
-project/alice> merge2 /bob
+project/alice> merge /bob
 project/alice> view foo bar
 ```
 
@@ -75,7 +75,7 @@ bar = "bobs bar"
 
 ```ucm
 project/bob> add
-project/alice> merge2 /bob
+project/alice> merge /bob
 project/alice> view foo bar
 ```
 
@@ -121,7 +121,7 @@ bar = foo ++ foo
 
 ```ucm
 project/bob> add
-project/alice> merge2 /bob
+project/alice> merge /bob
 project/alice> view foo bar
 ```
 
@@ -176,7 +176,7 @@ baz = "bobs baz"
 
 ```ucm
 project/bob> update
-project/alice> merge2 /bob
+project/alice> merge /bob
 project/alice> view foo bar baz
 ```
 
@@ -229,7 +229,7 @@ bar = "bobs bar" ++ baz
 
 ```ucm
 project/bob> update
-project/alice> merge2 /bob
+project/alice> merge /bob
 project/alice> view foo bar baz
 ```
 
@@ -265,7 +265,7 @@ foo = "alices foo"
 project/alice> update
 project/main> branch bob
 project/bob> delete.term foo
-project/alice> merge2 /bob
+project/alice> merge /bob
 project/alice> view foo
 ```
 
@@ -285,7 +285,7 @@ project/main> builtins.mergeio
 ```ucm
 project/main> branch alice
 project/main> branch bob
-project/alice> merge2 /bob
+project/alice> merge /bob
 ```
 
 ```ucm:hide
@@ -313,7 +313,7 @@ foo = "foo"
 
 ```ucm
 project/alice> add
-project/alice> merge2 /bob
+project/alice> merge /bob
 ```
 
 ```ucm:hide
@@ -341,7 +341,7 @@ foo = "foo"
 
 ```ucm
 project/bob> add
-project/alice> merge2 /bob
+project/alice> merge /bob
 ```
 
 ```ucm:hide
@@ -380,7 +380,7 @@ bar = foo ++ foo
 
 ```ucm:error
 project/bob> add
-project/alice> merge2 /bob
+project/alice> merge /bob
 ```
 
 ```ucm:hide
@@ -426,7 +426,7 @@ bar = foo ++ foo
 
 ```ucm:error
 project/bob> update
-project/alice> merge2 /bob
+project/alice> merge /bob
 ```
 
 ```ucm:hide
@@ -482,7 +482,7 @@ baz = "bobs baz"
 
 ```ucm:error
 project/bob> update
-project/alice> merge2 /bob
+project/alice> merge /bob
 ```
 
 ```ucm
@@ -528,7 +528,7 @@ unique type Foo = MkFoo Nat Text
 
 ```ucm:error
 project/bob> update
-project/alice> merge2 /bob
+project/alice> merge /bob
 ```
 
 ```ucm:hide
@@ -569,7 +569,7 @@ unique type Foo = Baz Nat | BobQux Text
 
 ```ucm:error
 project/bob> update
-project/alice> merge2 /bob
+project/alice> merge /bob
 ```
 
 ```ucm:hide
@@ -624,7 +624,7 @@ baz = "baz"
 
 ```ucm:error
 project/bob> add
-project/alice> merge2 /bob
+project/alice> merge /bob
 ```
 
 ```ucm:hide
@@ -653,7 +653,7 @@ unique type MyNat = MyNat Nat
 
 ```ucm:error
 project/topic> add
-project/main> merge2 /topic
+project/main> merge /topic
 ```
 
 ```ucm:hide
@@ -680,7 +680,7 @@ unique type Foo = Bar
 ```ucm:error
 project/topic> add
 project/topic> alias.term Foo.Bar Foo.some.other.Alias
-project/main> merge2 /topic
+project/main> merge /topic
 ```
 
 ```ucm:hide
@@ -707,7 +707,7 @@ unique type Foo = Bar
 ```ucm:error
 project/topic> add
 project/topic> delete.term Foo.Bar
-project/main> merge2 /topic
+project/main> merge /topic
 ```
 
 ```ucm:hide
@@ -734,7 +734,7 @@ structural type A.inner.X = Y Nat | Z Nat Nat
 
 ```ucm:error
 project/topic> add
-project/main> merge2 /topic
+project/main> merge /topic
 ```
 
 ```ucm:hide
@@ -761,7 +761,7 @@ unique type Foo = Bar
 ```ucm:error
 project/topic> add
 project/topic> alias.term Foo.Bar AliasOutsideFooNamespace
-project/main> merge2 /topic
+project/main> merge /topic
 ```
 
 ```ucm:hide
@@ -789,7 +789,7 @@ lib.foo = 1
 
 ```ucm:error
 project/topic> add
-project/main> merge2 /topic
+project/main> merge /topic
 ```
 
 ```ucm:hide

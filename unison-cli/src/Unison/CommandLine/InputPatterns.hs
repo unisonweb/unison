@@ -1706,7 +1706,7 @@ mergeOldInputPattern =
 mergeInputPattern :: InputPattern
 mergeInputPattern =
   InputPattern
-    { patternName = "merge2",
+    { patternName = "merge",
       aliases = [],
       visibility = I.Visible,
       args = [],
