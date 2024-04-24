@@ -85,7 +85,6 @@ identifyConflicts declNameLookups defns =
           case BiMultimap.lookupRan name (view myTerms_ defns) of
             Nothing -> id
             Just (Referent.Ref ref) -> over myTermConflicts_ (Map.insert name ref)
-            -- FIXME is this ok or should we check my conflicted term names before bothering to enqueue
             Just (Referent.Con _ _) -> over myTypeStack_ (expectDeclName myDeclNameLookup name :)
 
         poppedType :: Name -> S -> S
