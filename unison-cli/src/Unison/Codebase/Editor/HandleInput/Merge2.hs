@@ -164,16 +164,16 @@ handleMerge bobBranchName = do
 
   liftIO (debugFunctions.debugDependents dependents)
 
-  let stage1 :: DefnsF (Map Name) Referent TypeReference
-      stage1 =
-        makeStage1
+  let stageOne :: DefnsF (Map Name) Referent TypeReference
+      stageOne =
+        makeStageOne
           (ThreeWay.forgetLca declNameLookups)
           conflicts
           unconflicts
           dependents
           (bimap BiMultimap.range BiMultimap.range defns.lca)
 
-  liftIO (debugFunctions.debugBumpedDefns stage1)
+  liftIO (debugFunctions.debugBumpedDefns stageOne)
 
   -- Create the Unison file, which may have conflicts, in which case we don't bother trying to parse and typecheck it.
   unisonFile <-
@@ -187,10 +187,7 @@ handleMerge bobBranchName = do
       libdeps <- loadLibdeps branches
       libdepsToBranch0 db (Merge.mergeLibdeps getTwoFreshNames libdeps)
 
-  -- Put together a branch with the bump definitions and merged libdeps; this will be used to typecheck the merged
-  -- updates 'n' stuff against, and if that succeeds, we'll apply updates from the typechecked Unison file to it.
-  let bumpedBranch0 = defnsAndLibdepsToBranch0 codebase stage1 mergedLibdeps
-  let bumpedNames = Branch.toNames bumpedBranch0
+  let stageOneBranch = defnsAndLibdepsToBranch0 codebase stageOne mergedLibdeps
 
   let prettyUnisonFile =
         let names = defnsToNames defns.alice <> defnsToNames defns.bob <> Branch.toNames mergedLibdeps
@@ -205,7 +202,7 @@ handleMerge bobBranchName = do
           then pure Nothing
           else do
             currentPath <- Cli.getCurrentPath
-            parsingEnv <- makeParsingEnv currentPath bumpedNames
+            parsingEnv <- makeParsingEnv currentPath (Branch.toNames stageOneBranch)
             prettyParseTypecheck2 prettyUnisonFile parsingEnv <&> eitherToMaybe
 
   case maybeTypecheckedUnisonFile of
@@ -214,7 +211,7 @@ handleMerge bobBranchName = do
       branch <- Cli.getBranchAt info.paths.alice
       _temporaryBranchId <-
         HandleInput.Branch.doCreateBranch'
-          (Branch.cons bumpedBranch0 branch)
+          (Branch.cons stageOneBranch branch)
           Nothing
           info.project
           (findTemporaryBranchName info)
@@ -231,11 +228,8 @@ handleMerge bobBranchName = do
           (bobProjectAndBranchName info)
     Just tuf -> do
       Cli.runTransaction (Codebase.addDefsToCodebase codebase tuf)
-      Cli.stepAt
-        (textualDescriptionOfMerge info)
-        ( Path.unabsolute info.paths.alice,
-          const (Branch.batchUpdates (typecheckedUnisonFileToBranchAdds tuf) bumpedBranch0)
-        )
+      let stageTwoBranch = Branch.batchUpdates (typecheckedUnisonFileToBranchAdds tuf) stageOneBranch
+      Cli.stepAt (textualDescriptionOfMerge info) (Path.unabsolute info.paths.alice, const stageTwoBranch)
       Cli.respond (Output.MergeSuccess (aliceProjectAndBranchName info) (bobProjectAndBranchName info))
 
 aliceProjectAndBranchName :: MergeInfo -> ProjectAndBranch ProjectName ProjectBranchName
@@ -398,18 +392,6 @@ refIdsToNames declNameLookup =
       where
         names = Map.keysSet types
 
-type Dropped a = a
-
-newtype NamespaceUpdate a
-  = NamespaceUpdate (a -> (a, Dropped a))
-
-instance Semigroup a => Semigroup (NamespaceUpdate a) where
-  NamespaceUpdate update1 <> NamespaceUpdate update2 =
-    NamespaceUpdate \refs0 ->
-      let (refs1, dropped1) = update1 refs0
-          (refs2, dropped2) = update2 refs1
-       in (refs2, dropped1 <> dropped2)
-
 defnsAndLibdepsToBranch0 ::
   Codebase IO v a ->
   DefnsF (Map Name) Referent TypeReference ->
@@ -425,9 +407,9 @@ defnsAndLibdepsToBranch0 codebase defns libdeps =
       nametree :: Nametree (DefnsF (Map NameSegment) Referent TypeReference)
       nametree =
         nametrees & alignDefnsWith \case
-          This x -> Defns x Map.empty
-          That y -> Defns Map.empty y
-          These x y -> Defns x y
+          This terms -> Defns {terms, types = Map.empty}
+          That types -> Defns {terms = Map.empty, types}
+          These terms types -> Defns terms types
 
       -- Convert the tree to a branch0
       branch0 = nametreeToBranch0 nametree
@@ -478,13 +460,18 @@ identifyDependents ::
   DefnsF Unconflicts Referent TypeReference ->
   Transaction (TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId))
 identifyDependents defns conflicts unconflicts = do
-  let unconflictedSoloDeletedNames :: TwoWay (DefnsF Set Name Name)
-      unconflictedSoloDeletedNames =
-        bitraverse Unconflicts.soloDeletedNames Unconflicts.soloDeletedNames unconflicts
+  let -- The other person's (i.e. with "Alice" and "Bob" swapped) solo-deleted and solo-updated names
+      theirSoloUpdatesAndDeletes :: TwoWay (DefnsF Set Name Name)
+      theirSoloUpdatesAndDeletes =
+        TwoWay.swap (unconflictedSoloDeletedNames <> unconflictedSoloUpdatedNames)
+        where
+          unconflictedSoloDeletedNames :: TwoWay (DefnsF Set Name Name)
+          unconflictedSoloDeletedNames =
+            bitraverse Unconflicts.soloDeletedNames Unconflicts.soloDeletedNames unconflicts
 
-  let unconflictedSoloUpdatedNames :: TwoWay (DefnsF Set Name Name)
-      unconflictedSoloUpdatedNames =
-        bitraverse Unconflicts.soloUpdatedNames Unconflicts.soloUpdatedNames unconflicts
+          unconflictedSoloUpdatedNames :: TwoWay (DefnsF Set Name Name)
+          unconflictedSoloUpdatedNames =
+            bitraverse Unconflicts.soloUpdatedNames Unconflicts.soloUpdatedNames unconflicts
 
   let dependencies :: TwoWay (Set Reference)
       dependencies =
@@ -494,8 +481,8 @@ identifyDependents defns conflicts unconflicts = do
             -- This is name-based: if Bob updates the *name* "foo", then we go find the thing that Alice calls "foo" (if
             -- anything), no matter what its hash is.
             defnsReferences
-              <$> ( restrictDefnsToNames
-                      <$> TwoWay.swap (unconflictedSoloDeletedNames <> unconflictedSoloUpdatedNames)
+              <$> ( zipDefnsWith BiMultimap.restrictRan BiMultimap.restrictRan
+                      <$> theirSoloUpdatesAndDeletes
                       <*> defns
                   ),
             -- The other source of dependencies: Alice's own conflicted things, and ditto for Bob.
@@ -516,7 +503,7 @@ identifyDependents defns conflicts unconflicts = do
              in bifoldMap f f <$> conflicts
           ]
 
-  dependents <-
+  dependents0 <-
     for ((,) <$> defns <*> dependencies) \(defns1, dependencies1) ->
       getNamespaceDependentsOf2 defns1 dependencies1
 
@@ -529,10 +516,8 @@ identifyDependents defns conflicts unconflicts = do
   let dependents1 :: TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId)
       dependents1 =
         zipDefnsWith Map.withoutKeys Map.withoutKeys
-          <$> dependents
-          <*> ( (bimap Map.keysSet Map.keysSet <$> conflicts)
-                  <> TwoWay.swap (unconflictedSoloDeletedNames <> unconflictedSoloUpdatedNames)
-              )
+          <$> dependents0
+          <*> ((bimap Map.keysSet Map.keysSet <$> conflicts) <> theirSoloUpdatesAndDeletes)
 
   -- Of the remaining dependents, it's still possible that the maps are not disjoint. But whenever the same name key
   -- exists in Alice's and Bob's dependents, the value will either be equal (by Unison hash), or synhash-equal (i.e.
@@ -544,32 +529,25 @@ identifyDependents defns conflicts unconflicts = do
 
   pure dependents2
 
-makeStage1 ::
+makeStageOne ::
   TwoWay DeclNameLookup ->
   TwoWay (DefnsF (Map Name) termid typeid) ->
   DefnsF Unconflicts term typ ->
   TwoWay (DefnsF (Map Name) termid typeid) ->
   DefnsF (Map Name) term typ ->
   DefnsF (Map Name) term typ
-makeStage1 declNameLookups conflicts unconflicts dependents =
-  zipDefnsWith3 makeStage1V makeStage1V unconflicts (f conflicts <> f dependents)
+makeStageOne declNameLookups conflicts unconflicts dependents =
+  zipDefnsWith3 makeStageOneV makeStageOneV unconflicts (f conflicts <> f dependents)
   where
     f :: TwoWay (DefnsF (Map Name) term typ) -> DefnsF Set Name Name
     f defns =
       fold (refIdsToNames <$> declNameLookups <*> defns)
 
-makeStage1V :: Unconflicts v -> Set Name -> Map Name v -> Map Name v
-makeStage1V unconflicts namesToDelete =
+makeStageOneV :: Unconflicts v -> Set Name -> Map Name v -> Map Name v
+makeStageOneV unconflicts namesToDelete =
   (`Map.withoutKeys` namesToDelete) . Unconflicts.apply unconflicts
 
-restrictDefnsToNames ::
-  DefnsF Set Name Name ->
-  Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
-  Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)
-restrictDefnsToNames =
-  zipDefnsWith BiMultimap.restrictRan BiMultimap.restrictRan
-
-defnsReferences :: Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) -> Set Reference
+defnsReferences :: Defns (BiMultimap Referent name) (BiMultimap TypeReference name) -> Set Reference
 defnsReferences =
   bifoldMap (Set.map Referent.toReference . BiMultimap.dom) BiMultimap.dom
 
