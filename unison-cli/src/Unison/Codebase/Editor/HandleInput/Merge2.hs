@@ -178,7 +178,11 @@ handleMerge bobBranchName = do
   -- Create the Unison file, which may have conflicts, in which case we don't bother trying to parse and typecheck it.
   unisonFile <-
     Cli.runTransactionWithRollback \abort ->
-      let toFile defns = fold (defnsToUnisonFile abort codebase <$> ThreeWay.forgetLca declNameLookups <*> defns)
+      let toFile ::
+            TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId) ->
+            Transaction (UnisonFile' [] Symbol Ann)
+          toFile defns =
+            fold (defnsToUnisonFile abort codebase <$> ThreeWay.forgetLca declNameLookups <*> defns)
        in toFile conflicts <> toFile dependents
 
   -- Load and merge Alice's and Bob's libdeps
@@ -507,12 +511,12 @@ identifyDependents defns conflicts unconflicts = do
     for ((,) <$> defns <*> dependencies) \(defns1, dependencies1) ->
       getNamespaceDependentsOf2 defns1 dependencies1
 
-  -- For each of Alice's dependents "foo" (and ditto for Bob, of course), throw the dependent away if any of the
-  -- following are true:
+  -- There is some subset of Alice's dependents (and ditto for Bob of course) that we don't ultimately want/need to put
+  -- into the scratch file: those for which any of the following are true:
   --
-  --   1. "foo" is Alice-conflicted (since we only want to return *unconflicted* things.
-  --   2. "foo" was deleted by Bob.
-  --   3. "foo" was updated by Bob and not updated by Alice.
+  --   1. It is Alice-conflicted (since we only want to return *unconflicted* things).
+  --   2. It was deleted by Bob.
+  --   3. It was updated by Bob and not updated by Alice.
   let dependents1 :: TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId)
       dependents1 =
         zipDefnsWith Map.withoutKeys Map.withoutKeys
@@ -520,8 +524,20 @@ identifyDependents defns conflicts unconflicts = do
           <*> ((bimap Map.keysSet Map.keysSet <$> conflicts) <> theirSoloUpdatesAndDeletes)
 
   -- Of the remaining dependents, it's still possible that the maps are not disjoint. But whenever the same name key
-  -- exists in Alice's and Bob's dependents, the value will either be equal (by Unison hash), or synhash-equal (i.e.
-  -- the term or type received different auto-propagated updates). So, we can just arbitrarily keep Alice's.
+  -- exists in Alice's and Bob's dependents, the value will either be equal (by Unison hash)...
+  --
+  --   { alice = { terms = {"foo" => #alice} } }
+  --   { bob   = { terms = {"foo" => #alice} } }
+  --
+  -- ...or synhash-equal (i.e. the term or type received different auto-propagated updates)...
+  --
+  --   { alice = { terms = {"foo" => #alice} } }
+  --   { bob   = { terms = {"foo" => #bob}   } }
+  --
+  -- So, we can arbitrarily keep Alice's, because they will render the same.
+  --
+  --   { alice = { terms = {"foo" => #alice} } }
+  --   { bob   = { terms = {}                } }
   let dependents2 :: TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId)
       dependents2 =
         dependents1 & over #bob \bob ->
