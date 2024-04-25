@@ -21,7 +21,7 @@
         hashBytes
         hmacBytes)))
 
-(define-runtime-path libb2-so '(so "libb2"))
+(define-runtime-path libb2-so '(so "libb2" ("1" #f)))
 
 (define libb2
   (with-handlers [[exn:fail? exn->string]]
