@@ -114,10 +114,6 @@ jobs:
           name: jit-binary-${{ matrix.os }}
           path: ${{ env.jit_dist }}/**
 
-      - name: setup tmate session
-        uses: mxschmitt/action-tmate@v3
-        timeout-minutes: 15
-
       # - name: setup tmate session
       #   uses: mxschmitt/action-tmate@v3
       #   if: ${{ failure() }}
