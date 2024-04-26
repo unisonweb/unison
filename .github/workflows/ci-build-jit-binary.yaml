@@ -45,7 +45,8 @@ jobs:
           echo "jit_dist_exe=$jit_dist_exe" >> $GITHUB_ENV
           echo "ucm=$ucm" >> $GITHUB_ENV
 
-      - uses: actions/checkout@v4
+      - name: get workflow files, for checking hashes
+        uses: actions/checkout@v4
         with:
           sparse-checkout: .github
 
@@ -62,7 +63,7 @@ jobs:
           path: ${{ env.jit_dist }}
           key: jit-dist_${{matrix.os}}.racket_${{env.racket_version}}.jit-src_${{hashFiles(format('{0}/**',env.jit_src))}}.yaml_${{hashFiles('**/ci-build-jit-binary.yaml')}}
 
-      - name: Cache Racket dependencies
+      - name: cache racket dependencies
         if: steps.cache-jit-binaries.outputs.cache-hit != 'true'
         uses: actions/cache@v4
         with:
@@ -71,7 +72,8 @@ jobs:
             ~/.local/share/racket
           key: ${{ matrix.os }}.racket_${{env.racket_version}}.yaml_${{hashFiles('**/ci-build-jit-binary.yaml')}}
 
-      - uses: Bogdanp/setup-racket@v1.11
+      - name: install racket
+        uses: Bogdanp/setup-racket@v1.11
         if: steps.cache-jit-binaries.outputs.cache-hit != 'true'
         with:
           architecture: x64
@@ -85,11 +87,6 @@ jobs:
         run: |
           raco pkg install --auto --skip-installed "$jit_src"/unison
           raco exe --embed-dlls "$jit_src"/unison-runtime.rkt
-
-      - name: Setup tmate session
-        uses: mxschmitt/action-tmate@v3
-        if: ${{ failure() }}
-        timeout-minutes: 15
 
       - name: install libb2 (macos)
         if: runner.os == 'macOS' && steps.cache-jit-binaries.outputs.cache-hit != 'true'   
@@ -116,3 +113,8 @@ jobs:
         with:
           name: jit-binary-${{ matrix.os }}
           path: ${{ env.jit_dist }}/**
+
+      # - name: setup tmate session
+      #   uses: mxschmitt/action-tmate@v3
+      #   if: ${{ failure() }}
+      #   timeout-minutes: 15
