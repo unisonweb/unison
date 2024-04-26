@@ -24,7 +24,7 @@ jobs:
       - name: set up environment
         id: checks
         run: |
-          jit_src_scheme="${{ runner.temp }}/${{ env.jit_src }}" # scheme source
+          jit_src="${{ runner.temp }}/${{ env.jit_src }}" # scheme source
           jit_exe="${jit_src}/unison-runtime" # initially built jit
           jit_dist="${{ runner.temp }}/${{ env.jit_dist }}" # jit binary with libraries destination
           jit_dist_exe="${jit_dist}/bin/unison-runtime" # jit binary itself
