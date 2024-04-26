@@ -18,6 +18,7 @@ jobs:
       fail-fast: false
       matrix: 
         os: [ubuntu-20.04, macOS-12, windows-2019]
+    runs-on: ${{matrix.os}}
     steps:
       - name: set up environment
         id: checks
