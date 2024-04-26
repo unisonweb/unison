@@ -92,7 +92,6 @@ jobs:
         if: steps.cache-jit-binaries.outputs.cache-hit != 'true'
         shell: bash
         run: |
-          cp -R scheme-libs/racket/* "$jit_src"
           raco pkg install --auto --skip-installed "$jit_src"/unison
           raco exe --embed-dlls "$jit_src"/unison-runtime.rkt
 
