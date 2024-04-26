@@ -19,7 +19,6 @@ on:
 
 env:
   ormolu_version: "0.5.2.0"
-  racket_version: "8.7"
   ucm_local_bin: "ucm-local-bin"
   jit_version: "@unison/internal/releases/0.0.15"
   jit_src_scheme: "unison-jit-src/scheme-libs/racket"

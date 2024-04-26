@@ -10,6 +10,7 @@ defaults:
 env:
   jit_src: unison-jit-src/
   jit_dist: unison-jit-test/
+  racket_version: "8.7"
 
 jobs:
   build-jit-binary:
@@ -52,6 +53,12 @@ jobs:
             # unison-src/builtin-tests/jit-tests.tpl.md
             # unison-src/transcripts-using-base/serialized-cases/case-00.v4.ser
 
+      - name: download jit source
+        uses: actions/download-artifact@v4
+        with:
+          name: jit-source
+          path: ${{ env.jit_src }}
+
       - name: cache/restore jit binaries
         id: cache-jit-binaries
         uses: actions/cache/restore@v4
@@ -61,7 +68,7 @@ jobs:
             jit_dist-\
             ${{ matrix.os }}.\
             racket_${{ env.racket_version }}.\
-            jit_${{ env.jit_version }}-${{hashFiles('**/scheme-libs/**')}}.\
+            jit-src_${{ hashFiles('${{ env.jit_src }}/**')}}.\
             yaml_${{hashFiles('**/ci-build-jit-binary.yaml')}}
 
       - name: Cache Racket dependencies
@@ -80,13 +87,6 @@ jobs:
           distribution: full
           variant: CS
           version: ${{env.racket_version}}
-
-      - name: download jit source
-        if: steps.cache-jit-binaries.outputs.cache-hit != 'true'
-        uses: actions/download-artifact@v4
-        with:
-          name: jit-source
-          path: ${{ env.jit_src }}
 
       - name: build jit binary
         if: steps.cache-jit-binaries.outputs.cache-hit != 'true'
@@ -118,7 +118,7 @@ jobs:
             jit_dist-\
             ${{ matrix.os }}.\
             racket_${{ env.racket_version }}.\
-            jit_${{ env.jit_version }}-${{hashFiles('**/scheme-libs/**')}}.\
+            jit-src_${{ hashFiles('${{ env.jit_src }}/**')}}.\
             yaml_${{hashFiles('**/ci-build-jit-binary.yaml')}}
 
       - name: save jit binary
