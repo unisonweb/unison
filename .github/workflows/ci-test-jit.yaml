@@ -1,0 +1,9 @@
+name: ci: test jit
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: Git ref to check out for this build, e.g. `trunk` or `release/0.5.19`
+        type: string
+        required: true

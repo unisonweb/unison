@@ -417,19 +417,18 @@ jobs:
           if-no-files-found: error
 
   build-jit-binary:
-    if: always() && needs.generate-jit-source.result == 'success'
+    name: build jit binary
+    uses: ./.github/workflows/ci-build-jit-binary.yaml    
+
+  build-jit-binary-old:
+    if: false && always() && needs.generate-jit-source.result == 'success'
     name: build jit binary
     needs: generate-jit-source
     runs-on: ${{ matrix.os }}
     strategy:
       # Run each build to completion, regardless of if any have failed
       fail-fast: false
-      matrix:
-        os:
-          # While iterating on this file, you can disable one or more of these to speed things up
-          - ubuntu-20.04
-          - macOS-12
-          - windows-2019
+      matrix: os: [ubuntu-20.04, macOS-12, windows-2019]
     steps:
       - name: set up environment
         id: checks
@@ -468,8 +467,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ${{ env.jit_dist }}
-          # don't keep this change
-          key: jit_dist2-${{ matrix.os }}.racket_${{ env.racket_version }}.jit_${{ env.jit_version }}-${{hashFiles('**/scheme-libs/**')}}
+          key: jit_dist-${{ matrix.os }}.racket_${{ env.racket_version }}.jit_${{ env.jit_version }}-${{hashFiles('**/scheme-libs/**')}}
 
       - name: Cache Racket dependencies
         if: steps.cache-jit-binaries.outputs.cache-hit != 'true'
@@ -497,8 +495,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{env.jit_test_results}}
-          # don't keep this change
-          key: jit-test-results2.${{ matrix.os }}.racket_${{ env.racket_version }}.jit_${{ env.jit_version }}-${{hashFiles('**/scheme-libs/**')}}.tests_${{env.runtime_tests_causalhash}}
+          key: jit-test-results.${{ matrix.os }}.racket_${{ env.racket_version }}.jit_${{ env.jit_version }}-${{hashFiles('**/scheme-libs/**')}}.tests_${{env.runtime_tests_causalhash}}
 
       - name: download jit source
         if: steps.cache-jit-binaries.outputs.cache-hit != 'true'

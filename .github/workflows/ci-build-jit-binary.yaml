@@ -1,0 +1,127 @@
+name: build jit binary
+
+on:
+  workflow_call:
+    inputs:
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  jit_src: unison-jit-src/
+  jit_dist: unison-jit-test/
+
+jobs:
+  build-jit-binary:
+    name: build jit binary
+    strategy:
+      fail-fast: false
+      matrix: os: [ubuntu-20.04, macOS-12, windows-2019]
+    steps:
+      - name: set up environment
+        id: checks
+        run: |
+          jit_src_scheme="${{ runner.temp }}/${{ env.jit_src }}" # scheme source
+          jit_exe="${jit_src}/unison-runtime" # initially built jit
+          jit_dist="${{ runner.temp }}/${{ env.jit_dist }}" # jit binary with libraries destination
+          jit_dist_exe="${jit_dist}/bin/unison-runtime" # jit binary itself
+          ucm="${{ runner.temp }}/unison"
+
+          if [[ ${{runner.os}} = "Windows" ]]; then
+            jit_src="${jit_src//\\//}"
+            jit_dist="${jit_dist//\\//}"
+
+            jit_exe="${jit_exe//\\//}.exe"
+            jit_dist_exe="${jit_dist//\\//}/unison-runtime.exe"
+            ucm="${ucm//\\//}.exe"
+          fi
+
+          echo "jit_src=$jit_src" >> $GITHUB_ENV
+          echo "jit_exe=$jit_exe" >> $GITHUB_ENV
+          echo "jit_dist=$jit_dist" >> $GITHUB_ENV
+          echo "jit_dist_exe=$jit_dist_exe" >> $GITHUB_ENV
+          echo "ucm=$ucm" >> $GITHUB_ENV
+
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            # scripts/get-share-hash.sh
+            scheme-libs
+            # unison-src/builtin-tests/jit-tests.tpl.md
+            # unison-src/transcripts-using-base/serialized-cases/case-00.v4.ser
+
+      - name: cache/restore jit binaries
+        id: cache-jit-binaries
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.jit_dist }}
+          key: |
+            jit_dist-\
+            ${{ matrix.os }}.\
+            racket_${{ env.racket_version }}.\
+            jit_${{ env.jit_version }}-${{hashFiles('**/scheme-libs/**')}}.\
+            yaml_${{hashFiles('**/ci-build-jit-binary.yaml')}}
+
+      - name: Cache Racket dependencies
+        if: steps.cache-jit-binaries.outputs.cache-hit != 'true'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/racket
+            ~/.local/share/racket
+          key: ${{ matrix.os }}-racket-${{env.racket_version}}
+
+      - uses: Bogdanp/setup-racket@v1.11
+        if: steps.cache-jit-binaries.outputs.cache-hit != 'true'
+        with:
+          architecture: x64
+          distribution: full
+          variant: CS
+          version: ${{env.racket_version}}
+
+      - name: download jit source
+        if: steps.cache-jit-binaries.outputs.cache-hit != 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: jit-source
+          path: ${{ env.jit_src }}
+
+      - name: build jit binary
+        if: steps.cache-jit-binaries.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          cp -R scheme-libs/racket/* "$jit_src"
+          raco pkg install --auto --skip-installed "$jit_src"/unison
+          raco exe --embed-dlls "$jit_src"/unison-runtime.rkt
+
+      - name: install libb2 (macos)
+        if: runner.os == 'macOS' && steps.cache-jit-binaries.outputs.cache-hit != 'true'   
+        run: |
+          brew install libb2
+          ln -s "$(brew --prefix)"/lib/libb2.*.dylib \
+                "$(dirname "$(readlink -f "$(which raco)")")"/../lib/
+
+      - name: bundle redistributables
+        if: steps.cache-jit-binaries.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          raco distribute "$jit_dist" "$jit_exe"
+
+      - name: cache/save jit binaries
+        if: steps.cache-jit-binaries.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.jit_dist }}
+          key: |
+            jit_dist-\
+            ${{ matrix.os }}.\
+            racket_${{ env.racket_version }}.\
+            jit_${{ env.jit_version }}-${{hashFiles('**/scheme-libs/**')}}.\
+            yaml_${{hashFiles('**/ci-build-jit-binary.yaml')}}
+
+      - name: save jit binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: jit-binary-${{ matrix.os }}
+          path: ${{ env.jit_dist }}/**
