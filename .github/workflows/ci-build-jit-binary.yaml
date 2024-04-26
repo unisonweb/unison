@@ -64,12 +64,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ${{ env.jit_dist }}
-          key: |
-            jit_dist-\
-            ${{ matrix.os }}.\
-            racket_${{ env.racket_version }}.\
-            jit-src_${{ hashFiles('${{ env.jit_src }}/**')}}.\
-            yaml_${{hashFiles('**/ci-build-jit-binary.yaml')}}
+          key: jit_dist-${{ matrix.os }}.racket_${{ env.racket_version }}.jit-src_${{ hashFiles('${{ env.jit_src }}/**')}}.yaml_${{hashFiles('**/ci-build-jit-binary.yaml')}}
 
       - name: Cache Racket dependencies
         if: steps.cache-jit-binaries.outputs.cache-hit != 'true'
@@ -95,6 +90,11 @@ jobs:
           raco pkg install --auto --skip-installed "$jit_src"/unison
           raco exe --embed-dlls "$jit_src"/unison-runtime.rkt
 
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
+        if: ${{ failure() }}
+        timeout-minutes: 15
+
       - name: install libb2 (macos)
         if: runner.os == 'macOS' && steps.cache-jit-binaries.outputs.cache-hit != 'true'   
         run: |
@@ -113,13 +113,8 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: ${{ env.jit_dist }}
-          key: |
-            jit_dist-\
-            ${{ matrix.os }}.\
-            racket_${{ env.racket_version }}.\
-            jit-src_${{ hashFiles('${{ env.jit_src }}/**')}}.\
-            yaml_${{hashFiles('**/ci-build-jit-binary.yaml')}}
-
+          key: jit_dist-${{ matrix.os }}.racket_${{ env.racket_version }}.jit-src_${{ hashFiles('${{ env.jit_src }}/**')}}.yaml_${{hashFiles('**/ci-build-jit-binary.yaml')}}
+          
       - name: save jit binary
         uses: actions/upload-artifact@v4
         with:
