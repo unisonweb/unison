@@ -24,7 +24,7 @@ jobs:
       - name: set up environment
         id: checks
         run: |
-          jit_src="${{ runner.temp }}/${{ env.jit_src }}" # scheme source
+          jit_src="$GITHUB_WORKSPACE/${{ env.jit_src }}" # scheme source
           jit_exe="${jit_src}/unison-runtime" # initially built jit
           jit_dist="${{ runner.temp }}/${{ env.jit_dist }}" # jit binary with libraries destination
           jit_dist_exe="${jit_dist}/bin/unison-runtime" # jit binary itself
@@ -60,7 +60,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ${{ env.jit_dist }}
-          key: jit-dist_${{matrix.os}}.racket_${{env.racket_version}}.jit-src_${{hashFiles(format('{0}/**', env.jit_src))}}.yaml_${{hashFiles('**/ci-build-jit-binary.yaml')}}
+          key: jit-dist_${{matrix.os}}.racket_${{env.racket_version}}.jit-src_${{hashFiles(format('{0}/**',env.jit_src))}}.yaml_${{hashFiles('**/ci-build-jit-binary.yaml')}}
 
       - name: Cache Racket dependencies
         if: steps.cache-jit-binaries.outputs.cache-hit != 'true'
@@ -109,7 +109,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: ${{ env.jit_dist }}
-          key: jit-dist_${{matrix.os}}.racket_${{env.racket_version}}.jit-src_${{hashFiles(format('{0}/**', env.jit_src))}}.yaml_${{hashFiles('**/ci-build-jit-binary.yaml')}}
+          key: jit-dist_${{matrix.os}}.racket_${{env.racket_version}}.jit-src_${{hashFiles(format('{0}/**',env.jit_src))}}.yaml_${{hashFiles('**/ci-build-jit-binary.yaml')}}
           
       - name: save jit binary
         uses: actions/upload-artifact@v4
