@@ -513,7 +513,7 @@ jobs:
         # read this if a package isn't installing correctly
         # https://github.com/awalsh128/cache-apt-pkgs-action#caveats
         with:
-          packages: libb2-dev
+          packages: libb2-1
           version: 1.0 # cache key version afaik
 
       - name: install libb2 (macos)
