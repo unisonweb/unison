@@ -5,6 +5,7 @@ on:
 
 env:
   runtime_tests_version: "@unison/runtime-tests/main"
+  # for best results, this should match the path in ci.yaml too; but GH doesn't make it easy to share them.
   runtime_tests_codebase: "~/.cache/unisonlanguage/runtime-tests.unison"
   jit_src: unison-jit-src/
   jit_dist: unison-jit-test/
