@@ -22,7 +22,6 @@ jobs:
     runs-on: ${{matrix.os}}
     steps:
       - name: set up environment
-        id: checks
         run: |
           jit_src="$GITHUB_WORKSPACE/${{ env.jit_src }}" # scheme source
           jit_exe="${jit_src}/unison-runtime" # initially built jit

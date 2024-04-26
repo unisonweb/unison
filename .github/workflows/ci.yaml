@@ -18,19 +18,16 @@ on:
   workflow_dispatch:
 
 env:
-  ormolu_version: "0.5.2.0"
-  ucm_local_bin: "ucm-local-bin"
+  ormolu_version: 0.5.2.0
+  ucm_local_bin: ucm-local-bin
   jit_version: "@unison/internal/releases/0.0.15"
-  jit_src_scheme: "unison-jit-src/scheme-libs/racket"
-  jit_dist: "unison-jit-dist"
+  jit_src_scheme: unison-jit-src/scheme-libs/racket
+  jit_dist: unison-jit-dist
   jit_generator_os: ubuntu-20.04
-  runtime_tests_version: "@unison/runtime-tests/main"
-  runtime_tests_codebase: "~/.cache/unisonlanguage/runtime-tests.unison"
 
   # locations of some files that will indicate whether we need to re-run certain steps
-  transcript_test_results: "transcript-test-results"
-  interpreter_test_results: "interpreter-test-results"
-  jit_test_results: "jit-test-results"
+  transcript_test_results: transcript-test-results
+  interpreter_test_results: interpreter-test-results
 
 jobs:
   ormolu:
@@ -420,174 +417,7 @@ jobs:
     needs: generate-jit-source
     uses: ./.github/workflows/ci-build-jit-binary.yaml    
 
-  build-jit-binary-old:
-    if: false && always() && needs.generate-jit-source.result == 'success'
-    name: build jit binary
-    needs: generate-jit-source
-    runs-on: ${{ matrix.os }}
-    strategy:
-      # Run each build to completion, regardless of if any have failed
-      fail-fast: false
-      matrix:
-        os:
-          # While iterating on this file, you can disable one or more of these to speed things up
-          - ubuntu-20.04
-          - macOS-12
-          - windows-2019
-    steps:
-      - name: set up environment
-        id: checks
-        run: |
-          jit_src_scheme="${{ runner.temp }}/${{ env.jit_src_scheme }}" # scheme source
-          jit_exe="${jit_src_scheme}/unison-runtime" # initially built jit
-          jit_dist="${{ runner.temp }}/${{ env.jit_dist }}" # jit binary with libraries destination
-          jit_dist_exe="${jit_dist}/bin/unison-runtime" # jit binary itself
-          ucm="${{ runner.temp }}/unison"
-
-          if [[ ${{runner.os}} = "Windows" ]]; then
-            jit_src_scheme="${jit_src_scheme//\\//}"
-            jit_dist="${jit_dist//\\//}"
-
-            jit_exe="${jit_exe//\\//}.exe"
-            jit_dist_exe="${jit_dist//\\//}/unison-runtime.exe"
-            ucm="${ucm//\\//}.exe"
-          fi
-
-          echo "jit_src_scheme=$jit_src_scheme" >> $GITHUB_ENV
-          echo "jit_exe=$jit_exe" >> $GITHUB_ENV
-          echo "jit_dist=$jit_dist" >> $GITHUB_ENV
-          echo "jit_dist_exe=$jit_dist_exe" >> $GITHUB_ENV
-          echo "ucm=$ucm" >> $GITHUB_ENV
-
-      - uses: actions/checkout@v4
-        with:
-          sparse-checkout: |
-            scripts/get-share-hash.sh
-            scheme-libs
-            unison-src/builtin-tests/jit-tests.tpl.md
-            unison-src/transcripts-using-base/serialized-cases/case-00.v4.ser
-
-      - name: cache/restore jit binaries
-        id: cache-jit-binaries
-        uses: actions/cache/restore@v4
-        with:
-          path: ${{ env.jit_dist }}
-          key: jit_dist-${{ matrix.os }}.racket_${{ env.racket_version }}.jit_${{ env.jit_version }}-${{hashFiles('**/scheme-libs/**')}}
-
-      - name: Cache Racket dependencies
-        if: steps.cache-jit-binaries.outputs.cache-hit != 'true'
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cache/racket
-            ~/.local/share/racket
-          key: ${{ matrix.os }}-racket-${{env.racket_version}}
-
-      - uses: Bogdanp/setup-racket@v1.11
-        if: steps.cache-jit-binaries.outputs.cache-hit != 'true'
-        with:
-          architecture: x64
-          distribution: full
-          variant: CS
-          version: ${{env.racket_version}}
-
-      - name: look up hash for runtime tests
-        run: |
-          echo "runtime_tests_causalhash=$(scripts/get-share-hash.sh ${{env.runtime_tests_version}})" >> $GITHUB_ENV
-
-      - name: cache jit test results
-        id: cache-jit-test-results
-        uses: actions/cache@v4
-        with:
-          path: ${{env.jit_test_results}}
-          key: jit-test-results.${{ matrix.os }}.racket_${{ env.racket_version }}.jit_${{ env.jit_version }}-${{hashFiles('**/scheme-libs/**')}}.tests_${{env.runtime_tests_causalhash}}
-
-      - name: download jit source
-        if: steps.cache-jit-binaries.outputs.cache-hit != 'true'
-        uses: actions/download-artifact@v4
-        with:
-          name: jit-source
-          path: ${{ env.jit_src_scheme }}
-
-      - name: install libb2 (linux)
-        uses: awalsh128/cache-apt-pkgs-action@latest
-        if: |
-          runner.os == 'Linux'
-            && steps.cache-jit-test-results.outputs.cache-hit != 'true'
-        # read this if a package isn't installing correctly
-        # https://github.com/awalsh128/cache-apt-pkgs-action#caveats
-        with:
-          packages: libb2-1
-          version: 1.0 # cache key version afaik
-
-      - name: install libb2 (macos)
-        if: |
-          runner.os == 'macOS'
-            && (steps.cache-jit-binaries.outputs.cache-hit != 'true'
-                || steps.cache-jit-test-results.outputs.cache-hit != 'true')
-        run: |
-          brew install libb2
-          ln -s "$(brew --prefix)"/lib/libb2.*.dylib \
-                "$(dirname "$(readlink -f "$(which raco)")")"/../lib/
-
-      - name: build jit binary
-        if: steps.cache-jit-binaries.outputs.cache-hit != 'true'
-        shell: bash
-        run: |
-          cp -R scheme-libs/racket/* "$jit_src_scheme"
-          raco pkg install --auto --skip-installed "$jit_src_scheme"/unison
-          raco exe --embed-dlls "$jit_src_scheme"/unison-runtime.rkt
-          raco distribute "$jit_dist" "$jit_exe"
-
-      - name: cache/save jit binaries
-        if: steps.cache-jit-binaries.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: ${{ env.jit_dist }}
-          key: jit_dist-${{ matrix.os }}.racket_${{ env.racket_version }}.jit_${{ env.jit_version }}-${{hashFiles('**/scheme-libs/**')}}
-
-      - name: save jit binary
-        uses: actions/upload-artifact@v4
-        with:
-          name: jit-binary-${{ matrix.os }}
-          path: ${{ env.jit_dist }}/**
-
-      - name: cache testing codebase
-        id: cache-testing-codebase
-        if: steps.cache-jit-test-results.outputs.cache-hit != 'true'
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.runtime_tests_codebase }}
-          key: runtime-tests-codebase-${{ matrix.os }}-${{env.runtime_tests_causalhash}}
-          restore-keys: runtime-tests-codebase-${{ matrix.os }}-
-
-      - name: download ucm
-        if: steps.cache-jit-test-results.outputs.cache-hit != 'true'
-        uses: actions/download-artifact@v4
-        with:
-          name: unison-${{ matrix.os }}
-          path: ${{ runner.temp }}
-
-      - name: set ucm permissions
-        if: steps.cache-jit-test-results.outputs.cache-hit != 'true'
-        run: chmod +x ${{ env.ucm }}
-
-      - name: jit integration test ${{ matrix.os }}
-        if: runner.os != 'Windows' && steps.cache-jit-test-results.outputs.cache-hit != 'true'
-        run: |
-          envsubst '${runtime_tests_version}' \
-            < unison-src/builtin-tests/jit-tests.tpl.md \
-            > unison-src/builtin-tests/jit-tests.md
-          ${{ env.ucm }} transcript.fork --runtime-path ${{ env.jit_dist_exe }} -C ${{env.runtime_tests_codebase}} unison-src/builtin-tests/jit-tests.md
-          cat unison-src/builtin-tests/jit-tests.output.md
-          git diff --exit-code unison-src/builtin-tests/jit-tests.output.md
-
-      - name: mark jit tests as passing
-        if: runner.os != 'Windows' && steps.cache-jit-test-results.outputs.cache-hit != 'true'
-        run: |
-          echo "passing=true" >> "${{env.jit_test_results}}"
-
-      # - name: Setup tmate session
-      #   uses: mxschmitt/action-tmate@v3
-      #   if: ${{ failure() }}
-      #   timeout-minutes: 15
+  test-jit:
+    name: test jit
+    needs: build-jit-binary
+    uses: ./.github/workflows/ci-test-jit.yaml
