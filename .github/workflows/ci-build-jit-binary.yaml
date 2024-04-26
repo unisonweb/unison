@@ -64,7 +64,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ${{ env.jit_dist }}
-          key: jit-dist_${{matrix.os}}.racket_${{env.racket_version}}.jit-src_${{format('{0}/**', env.jit_src)}}.yaml_${{hashFiles('**/ci-build-jit-binary.yaml')}}
+          key: jit-dist_${{matrix.os}}.racket_${{env.racket_version}}.jit-src_${{hashFiles(format('{0}/**', env.jit_src))}}.yaml_${{hashFiles('**/ci-build-jit-binary.yaml')}}
 
       - name: Cache Racket cache
         if: steps.cache-jit-binaries.outputs.cache-hit != 'true'
@@ -121,7 +121,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: ${{ env.jit_dist }}
-          key: jit-dist_${{matrix.os}}.racket_${{env.racket_version}}.jit-src_${{format('{0}/**', env.jit_src)}}.yaml_${{hashFiles('**/ci-build-jit-binary.yaml')}}
+          key: jit-dist_${{matrix.os}}.racket_${{env.racket_version}}.jit-src_${{hashFiles(format('{0}/**', env.jit_src))}}.yaml_${{hashFiles('**/ci-build-jit-binary.yaml')}}
           
       - name: save jit binary
         uses: actions/upload-artifact@v4
