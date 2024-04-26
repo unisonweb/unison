@@ -35,7 +35,7 @@ And for a limited time, you can get even more builtin goodies:
 
 .foo> ls
 
-  1. builtin/ (628 terms, 89 types)
+  1. builtin/ (630 terms, 89 types)
 
 ```
 More typically, you'd start out by pulling `base.

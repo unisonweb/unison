@@ -486,6 +486,12 @@ pattern ConsoleTextUnderline ct <- Term.App' (Term.Constructor' (ConstructorRefe
 
 pattern ConsoleTextInvert ct <- Term.App' (Term.Constructor' (ConstructorReference ConsoleTextRef ((==) consoleTextInvertId -> True))) ct
 
+iarrayFromListRef :: R.Reference
+iarrayFromListRef = termNamed "ImmutableArray.fromList"
+
+ibarrayFromBytesRef :: R.Reference
+ibarrayFromBytesRef = termNamed "ImmutableByteArray.fromBytes"
+
 constructorNamed :: R.Reference -> Text -> DD.ConstructorId
 constructorNamed ref name =
   case runIdentity . getTypeDeclaration codeLookup $ R.unsafeId ref of
@@ -986,6 +992,35 @@ syntax.docFormatConsole d =
     Image alt _link None -> go alt
     Special sf -> Pretty.lit (Left sf)
   go d
+
+ImmutableArray.fromList l = Scope.run do
+  sz = List.size l
+  dst = Scope.array sz
+  go i = cases
+    [] -> ()
+    x +: xs ->
+      MutableArray.write dst i x
+      go (i+1) xs
+  handle go 0 l with cases
+    { r } -> ()
+    { raise _ -> _ } -> ()
+  MutableArray.freeze! dst
+
+ImmutableByteArray.fromBytes : Bytes -> ImmutableByteArray
+ImmutableByteArray.fromBytes bs = Scope.run do
+  sz = Bytes.size bs
+  arr = Scope.bytearray sz
+  fill i =
+    match Bytes.at i bs with
+      Some b ->
+        MutableByteArray.write8 arr i b
+        fill (i + 1)
+      None -> ()
+  handle fill 0
+  with cases
+    { _ }                      -> ()
+    { raise _ -> _ } -> ()
+  MutableByteArray.freeze! arr
 |]
 
 type Note = Result.Note Symbol Ann

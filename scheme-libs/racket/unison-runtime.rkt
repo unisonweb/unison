@@ -37,10 +37,10 @@
 ;
 ;  - 4 bytes indicating how many bytes follow
 ;  - the actual payload, with size matching the above
-(define (grab-bytes)
-  (let* ([size-bytes (read-bytes 4)]
+(define (grab-bytes port)
+  (let* ([size-bytes (read-bytes 4 port)]
          [size (integer-bytes->integer size-bytes #f #t 0 4)])
-    (read-bytes size)))
+    (read-bytes size port)))
 
 ; Reads and decodes the input. First uses `grab-bytes` to read the
 ; payload, then uses unison functions to deserialize the `Value` that
@@ -50,8 +50,8 @@
 ; definition should be executed. In unison types, it is:
 ;
 ;   ([(Link.Term, Code)], Link.Term)
-(define (decode-input)
-  (let ([bs (grab-bytes)])
+(define (decode-input port)
+  (let ([bs (grab-bytes port)])
     (match (builtin-Value.deserialize (bytes->chunked-bytes bs))
       [(unison-data _ t (list q))
        (= t ref-either-right:tag)
@@ -61,15 +61,65 @@
       [else
         (raise "unexpected input")])))
 
+(define (natural->bytes/variable n)
+  (let rec ([i n] [acc '()])
+    (cond
+      [(< i #x80) (list->bytes (reverse (cons i acc)))]
+      [else
+        (rec (arithmetic-shift i -7)
+             (cons (bitwise-and i #x7f) acc))])))
+
+(define (write-string-bytes str port)
+  (define bs (string->bytes/utf-8 str))
+  (write-bytes (natural->bytes/variable (bytes-length bs)) port)
+  (write-bytes bs port))
+
+(define (write-value-bytes val port)
+  (define qval (unison-quote (reflect-value val)))
+  (define bs (chunked-bytes->bytes (builtin-Value.serialize qval)))
+  (write-bytes bs port))
+
+(define (encode-success result port)
+  (write-bytes #"\0" port)
+  (write-value-bytes result port)
+  (void))
+
+(define (encode-error ex port)
+  (match ex
+    [(exn:bug msg val)
+     (write-bytes #"\1" port)
+     (write-string-bytes msg port)
+     (write-value-bytes val port)]
+    [else
+     (write-bytes #"\2" port)
+     (write-string-bytes (exception->string ex) port)])
+  (void))
+
+(define (encode-exception fail port)
+  (write-bytes #"\1" port)
+  (write-string-bytes "builtin.raise" port)
+  (write-value-bytes fail port)
+  (void))
+
+(define ((eval-exn-handler port) rq)
+  (request-case rq
+    [pure (result) (encode-success result port)]
+    [ref-exception:typelink
+      [0 (fail)
+        (control ref-exception:typelink k
+          (encode-exception fail port))]]))
+
 ; Implements the evaluation mode of operation. First decodes the
 ; input. Then uses the dynamic loading machinery to add the code to
 ; the runtime. Finally executes a specified main reference.
-(define (do-evaluate)
-  (let-values ([(code main-ref) (decode-input)])
+(define (do-evaluate in out)
+  (let-values ([(code main-ref) (decode-input in)])
     (add-runtime-code 'unison-main code)
-    (handle [ref-exception:typelink] top-exn-handler
-            ((termlink->proc main-ref))
-            (data 'unit 0))))
+    (with-handlers
+      ([exn:bug? (lambda (e) (encode-error e out))])
+
+      (handle [ref-exception:typelink] (eval-exn-handler out)
+              ((termlink->proc main-ref))))))
 
 ; Uses racket pretty printing machinery to instead generate a file
 ; containing the given code, and which executes the main definition on
@@ -89,11 +139,12 @@
 
 ; Decodes input and writes a module to the specified file.
 (define (do-generate srcf)
-  (define-values (icode main-ref) (decode-input))
+  (define-values (icode main-ref) (decode-input (current-input-port)))
   (write-module srcf main-ref icode))
 
 (define generate-to (make-parameter #f))
 (define show-version (make-parameter #f))
+(define use-port-num (make-parameter #f))
 
 (define (handle-command-line)
   (command-line
@@ -102,14 +153,36 @@
     ["--version"
      "display version"
      (show-version #t)]
+    [("-p" "--port")
+     port-num
+     "runtime communication port"
+     (use-port-num port-num)]
     [("-G" "--generate-file")
        file
        "generate code to <file>"
-       (generate-to file)]))
+       (generate-to file)]
+    #:args remaining
+    (list->vector remaining)))
 
 (begin
-  (handle-command-line)
+  (let ([sub-args (handle-command-line)])
+    (current-command-line-arguments sub-args))
   (cond
     [(show-version) (displayln "unison-runtime version 0.0.11")]
     [(generate-to) (do-generate (generate-to))]
-    [else (do-evaluate)]))
+    [(use-port-num)
+     (match (string->number (use-port-num))
+       [port
+        #:when (port-number? port)
+        (let-values ([(in out) (tcp-connect "localhost" port)])
+          (do-evaluate in out)
+          (close-output-port out)
+          (close-input-port in))]
+       [#f
+        (displayln "could not parse port number")
+        (exit 1)]
+       [port
+        (displayln "bad port number")
+        (exit 1)])]
+    [else
+      (do-evaluate (current-input-port) (open-output-bytes))]))
