@@ -66,14 +66,22 @@ jobs:
           path: ${{ env.jit_dist }}
           key: jit-dist_${{matrix.os}}.racket_${{env.racket_version}}.jit-src_${{format('{0}/**', env.jit_src)}}.yaml_${{hashFiles('**/ci-build-jit-binary.yaml')}}
 
-      - name: Cache Racket dependencies
+      - name: Cache Racket cache
         if: steps.cache-jit-binaries.outputs.cache-hit != 'true'
         uses: actions/cache@v4
         with:
           path: |
             ~/.cache/racket
-            ~/.local/share/racket
           key: ${{ matrix.os }}-racket-${{env.racket_version}}
+
+      # - name: Cache Racket dependencies
+      #   if: steps.cache-jit-binaries.outputs.cache-hit != 'true'
+      #   uses: actions/cache@v4
+      #   with:
+      #     path: |
+      #       ~/.cache/racket
+      #       ~/.local/share/racket
+      #     key: ${{ matrix.os }}-racket-${{env.racket_version}}
 
       - uses: Bogdanp/setup-racket@v1.11
         if: steps.cache-jit-binaries.outputs.cache-hit != 'true'
