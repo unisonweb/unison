@@ -417,6 +417,7 @@ jobs:
 
   build-jit-binary:
     name: build jit binary
+    needs: generate-jit-source
     uses: ./.github/workflows/ci-build-jit-binary.yaml    
 
   build-jit-binary-old:
