@@ -17,7 +17,8 @@ jobs:
     name: build jit binary
     strategy:
       fail-fast: false
-      matrix: os: [ubuntu-20.04, macOS-12, windows-2019]
+      matrix: 
+        os: [ubuntu-20.04, macOS-12, windows-2019]
     steps:
       - name: set up environment
         id: checks
