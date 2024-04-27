@@ -99,7 +99,7 @@ jobs:
         shell: bash
         run: |
           echo "before:"
-          find "jit_dist"
+          find "jit_dist" || true
           raco distribute -v "$jit_dist" "$jit_exe"
           echo "after:"
           find "$jit_dist"
