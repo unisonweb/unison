@@ -102,7 +102,7 @@ jobs:
           chmod +x ${{ env.ucm }}
           chmod +x ${{ env.jit_dist_exe }}
           if [[ ${{runner.os}} = "Linux" ]]; then
-            chmod +x ${{env.jist_dist}}/lib/plt/*
+            chmod +x ${{env.jit_dist}}/lib/plt/*
           fi
 
 
