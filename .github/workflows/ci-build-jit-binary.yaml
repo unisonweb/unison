@@ -91,8 +91,10 @@ jobs:
         if: runner.os == 'macOS' && steps.cache-jit-binaries.outputs.cache-hit != 'true'
         run: |
           brew install libb2
-          ln -s "$(brew --prefix)"/lib/libb2.*.dylib \
-                "$(dirname "$(readlink -f "$(which raco)")")"/../lib/
+          racket_lib_dir="$(dirname "$(readlink -f "$(which raco)")")/../lib"
+          ln -s "$(brew --prefix)"/lib/libb2.*.dylib "$racket_lib_dir/"
+          echo $racket_lib_dir
+          find "$racket_lib_dir" -name 'libb2.*'
 
       - name: bundle redistributables
         if: steps.cache-jit-binaries.outputs.cache-hit != 'true'
