@@ -9,7 +9,7 @@ defaults:
 
 env:
   jit_src: unison-jit-src/
-  jit_dist: unison-jit-test/
+  jit_dist: unison-jit-dist/
   racket_version: "8.7"
 
 jobs:
