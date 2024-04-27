@@ -72,12 +72,9 @@ jobs:
           key: ${{ matrix.os }}.racket_${{env.racket_version}}.yaml_${{hashFiles('**/ci-build-jit-binary.yaml')}}
 
       - name: install racket
-        uses: Bogdanp/setup-racket@v1.11
         if: steps.cache-jit-binaries.outputs.cache-hit != 'true'
+        uses: unisonweb/actions/racket/install@main
         with:
-          architecture: x64
-          distribution: full
-          variant: CS
           version: ${{env.racket_version}}
 
       - name: build jit binary
