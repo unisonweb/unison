@@ -9,7 +9,7 @@ env:
   runtime_tests_codebase: "~/.cache/unisonlanguage/runtime-tests.unison"
 
   jit_src_rel: unison-jit-src
-  jit_dist_rel: unison-jit-test
+  jit_dist_rel: unison-jit-dist
   jit_test_results: jit-test-results
 
 defaults:
@@ -18,7 +18,7 @@ defaults:
     
 jobs:
   build-jit-binary:
-    name: build jit binary
+    name: test jit
     strategy:
       fail-fast: false
       matrix: 
