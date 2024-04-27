@@ -105,7 +105,6 @@ jobs:
             chmod +x ${{env.jit_dist}}/lib/plt/*
           fi
 
-
       - name: jit integration test ${{ matrix.os }}
         if: runner.os != 'Windows' && steps.cache-jit-test-results.outputs.cache-hit != 'true'
         run: |
