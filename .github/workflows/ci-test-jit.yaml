@@ -101,6 +101,10 @@ jobs:
         run: |
           chmod +x ${{ env.ucm }}
           chmod +x ${{ env.jit_dist_exe }}
+          if [[ ${{runner.os}} = "Linux" ]]; then
+            chmod +x ${{env.jist_dist}}/lib/plt/*
+          fi
+
 
       - name: jit integration test ${{ matrix.os }}
         if: runner.os != 'Windows' && steps.cache-jit-test-results.outputs.cache-hit != 'true'
