@@ -106,6 +106,10 @@ jobs:
           echo "after:"
           find "$jit_dist"
 
+      - name: setup tmate session
+        uses: mxschmitt/action-tmate@v3
+        if: runner.os == 'macOS'
+
       - name: cache/save jit binaries
         if: steps.cache-jit-binaries.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
