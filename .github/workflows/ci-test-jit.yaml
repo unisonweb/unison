@@ -60,7 +60,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: jit-binary-${{ matrix.os }}
-          path: ${{ env.jit_dist }}/**
+          path: ${{ env.jit_dist }}
 
       - name: look up hash for runtime tests
         run: |
