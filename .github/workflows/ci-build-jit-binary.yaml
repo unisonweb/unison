@@ -98,7 +98,11 @@ jobs:
         if: steps.cache-jit-binaries.outputs.cache-hit != 'true'
         shell: bash
         run: |
-          raco distribute "$jit_dist" "$jit_exe"
+          echo "before:"
+          find "jit_dist"
+          raco distribute -v "$jit_dist" "$jit_exe"
+          echo "after:"
+          find "$jit_dist"
 
       - name: cache/save jit binaries
         if: steps.cache-jit-binaries.outputs.cache-hit != 'true'
@@ -113,6 +117,6 @@ jobs:
           name: jit-binary-${{ matrix.os }}
           path: ${{ env.jit_dist }}/**
 
-      - name: setup tmate session
-        uses: mxschmitt/action-tmate@v3
+      # - name: setup tmate session
+      #   uses: mxschmitt/action-tmate@v3
         # timeout-minutes: 15
