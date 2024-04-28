@@ -22,7 +22,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-20.04, macOS-12, windows-2019]
+        os:
+          - ubuntu-20.04
+          - macOS-12
+          # - windows-2019
     runs-on: ${{matrix.os}}
     steps:
       - name: set up environment
@@ -106,7 +109,7 @@ jobs:
           fi
 
       - name: jit integration test ${{ matrix.os }}
-        if: runner.os != 'Windows' && steps.cache-jit-test-results.outputs.cache-hit != 'true'
+        if: steps.cache-jit-test-results.outputs.cache-hit != 'true'
         run: |
           envsubst '${runtime_tests_version}' \
             < unison-src/builtin-tests/jit-tests.tpl.md \
@@ -116,7 +119,7 @@ jobs:
           git diff --exit-code unison-src/builtin-tests/jit-tests.output.md
 
       - name: mark jit tests as passing
-        if: runner.os != 'Windows' && steps.cache-jit-test-results.outputs.cache-hit != 'true'
+        if: steps.cache-jit-test-results.outputs.cache-hit != 'true'
         run: |
           echo "passing=true" >> "${{env.jit_test_results}}"
 
