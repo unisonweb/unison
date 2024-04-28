@@ -26,6 +26,9 @@ e.g.
 It's not clear to me when to use `$GITHUB_OUTPUT` vs `$GITHUB_ENV`, but I have been favoring `$GITHUB_ENV` because it requires fewer characters to access.
 However, it seems a little wrong.
 
+### `hashFiles()`
+`hashFiles()` can only access files inside of and relative to `$GITHUB_WORKSPACE`.
+
 ### `if:`
 
 Although the type rules don't totally make sense in Github Actions, `if:` takes a Boolean.
