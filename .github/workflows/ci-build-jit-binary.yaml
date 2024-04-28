@@ -89,7 +89,7 @@ jobs:
         shell: bash
         run: |
           if [[ ${{runner.os}} = "Windows" ]]; then
-            ;
+            raco pkg install --auto --skip-installed --scope installation x509-lib
           elif [[ ${{runner.os}} = "macOS" ]]; then
             raco pkg install --auto --skip-installed --scope installation x509-lib
           elif [[ ${{runner.os}} = "Linux" ]]; then
