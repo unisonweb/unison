@@ -77,35 +77,21 @@ jobs:
         with:
           version: ${{env.racket_version}}
 
-      - name: build jit binary
-        if: steps.cache-jit-binaries.outputs.cache-hit != 'true'
-        shell: bash
-        run: |
-          raco pkg install --auto --skip-installed "$jit_src"/unison
-          raco exe --embed-dlls "$jit_src"/unison-runtime.rkt
-
-      - name: install libb2 (macos)
+      - name: set up redistributables (macos)
         if: runner.os == 'macOS' && steps.cache-jit-binaries.outputs.cache-hit != 'true'
         run: |
           brew install libb2
           racket_lib_dir="$(dirname "$(readlink -f "$(which raco)")")/../lib"
           ln -s "$(brew --prefix)"/lib/libb2.*.dylib "$racket_lib_dir/"
-          echo $racket_lib_dir
-          find "$racket_lib_dir" -name 'libb2.*'
 
-      - name: bundle redistributables
+      - name: build jit binary
         if: steps.cache-jit-binaries.outputs.cache-hit != 'true'
         shell: bash
         run: |
-          echo "before:"
-          find "jit_dist" || true
+          raco pkg install --auto --skip-installed --scope installation x509-lib
+          raco pkg install --auto --skip-installed "$jit_src"/unison
+          raco exe --embed-dlls "$jit_src"/unison-runtime.rkt
           raco distribute -v "$jit_dist" "$jit_exe"
-          echo "after:"
-          find "$jit_dist"
-
-      - name: setup tmate session
-        uses: mxschmitt/action-tmate@v3
-        if: runner.os == 'macOS'
 
       - name: cache/save jit binaries
         if: steps.cache-jit-binaries.outputs.cache-hit != 'true'
@@ -122,4 +108,3 @@ jobs:
 
       # - name: setup tmate session
       #   uses: mxschmitt/action-tmate@v3
-        # timeout-minutes: 15
