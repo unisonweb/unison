@@ -88,7 +88,13 @@ jobs:
         if: steps.cache-jit-binaries.outputs.cache-hit != 'true'
         shell: bash
         run: |
-          sudo raco pkg install --auto --skip-installed --scope installation x509-lib
+          if [[ ${{runner.os}} = "Windows" ]]; then
+            ;
+          elif [[ ${{runner.os}} = "macOS" ]]; then
+            raco pkg install --auto --skip-installed --scope installation x509-lib
+          elif [[ ${{runner.os}} = "Linux" ]]; then
+            sudo raco pkg install --auto --skip-installed --scope installation x509-lib
+          fi
           raco pkg install --auto --skip-installed "$jit_src"/unison
           raco exe --embed-dlls "$jit_src"/unison-runtime.rkt
           raco distribute -v "$jit_dist" "$jit_exe"
