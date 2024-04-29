@@ -6,12 +6,6 @@ This transcript tests the errors printed to the user when a name cannot be resol
 
 First we define differing types with the same name in different namespaces:
 
-```ucm
-.> cd example.resolution_failures
-```
-
-Now let's add a term named `a.foo`:
-
 ```unison
 unique type one.AmbiguousType = one.AmbiguousType
 unique type two.AmbiguousType = two.AmbiguousType
@@ -26,7 +20,7 @@ two.ambiguousTerm = "term two"
 
 ## Tests
 
-Now we introduce code which isn't sufficiently qualified. 
+Now we introduce code which isn't sufficiently qualified.
 It is ambiguous which type from which namespace we mean.
 
 We expect the output to:

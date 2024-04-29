@@ -46,33 +46,23 @@ Let's try it!
   
   Tip: You can use `undo` or `reflog` to undo this change.
 
-.> cd .mylib
-
-.mylib> find
+.> find-in mylib
 
   1.  stuff.List.adjacentPairs : [a] -> [(a, a)]
-  2.  stuff.List.all : (a ->{g} ##Boolean)
-                       -> [a]
-                       ->{g} ##Boolean
-  3.  stuff.List.any : (a ->{g} ##Boolean)
-                       -> [a]
-                       ->{g} ##Boolean
-  4.  stuff.List.chunk : ##Nat -> [a] -> [[a]]
-  5.  stuff.List.chunksOf : ##Nat -> [a] -> [[a]]
-  6.  stuff.List.dropWhile : (a ->{g} ##Boolean)
-                             -> [a]
-                             ->{g} [a]
-  7.  stuff.List.first : [a] -> #nirp5os0q6 a
-  8.  stuff.List.init : [a] -> #nirp5os0q6 [a]
+  2.  stuff.List.all : (a ->{g} Boolean) -> [a] ->{g} Boolean
+  3.  stuff.List.any : (a ->{g} Boolean) -> [a] ->{g} Boolean
+  4.  stuff.List.chunk : Nat -> [a] -> [[a]]
+  5.  stuff.List.chunksOf : Nat -> [a] -> [[a]]
+  6.  stuff.List.dropWhile : (a ->{g} Boolean) -> [a] ->{g} [a]
+  7.  stuff.List.first : [a] -> Optional a
+  8.  stuff.List.init : [a] -> Optional [a]
   9.  stuff.List.intersperse : a -> [a] -> [a]
-  10. stuff.List.isEmpty : [a] -> ##Boolean
-  11. stuff.List.last : [a] -> #nirp5os0q6 a
-  12. stuff.List.replicate : ##Nat -> a -> [a]
-  13. stuff.List.splitAt : ##Nat -> [a] -> ([a], [a])
-  14. stuff.List.tail : [a] -> #nirp5os0q6 [a]
-  15. stuff.List.takeWhile : (a ->{𝕖} ##Boolean)
-                             -> [a]
-                             ->{𝕖} [a]
+  10. stuff.List.isEmpty : [a] -> Boolean
+  11. stuff.List.last : [a] -> Optional a
+  12. stuff.List.replicate : Nat -> a -> [a]
+  13. stuff.List.splitAt : Nat -> [a] -> ([a], [a])
+  14. stuff.List.tail : [a] -> Optional [a]
+  15. stuff.List.takeWhile : (a ->{𝕖} Boolean) -> [a] ->{𝕖} [a]
   
 
 ```

@@ -78,7 +78,7 @@ Deleting the root namespace should require confirmation if not forced.
   ⚠️
   
   Are you sure you want to clear away everything?
-  You could use `namespace` to switch to a new namespace instead.
+  You could use `project.create` to switch to a new project instead.
 
 .> delete.namespace .
 

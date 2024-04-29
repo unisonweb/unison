@@ -114,8 +114,7 @@ Let's try it!
 
 ```ucm
 .> alias.many stuff.List.adjacentPairs stuff.List.all stuff.List.any stuff.List.chunk stuff.List.chunksOf stuff.List.dropWhile stuff.List.first stuff.List.init stuff.List.intersperse stuff.List.isEmpty stuff.List.last stuff.List.replicate stuff.List.splitAt stuff.List.tail stuff.List.takeWhile .mylib
-.> cd .mylib
-.mylib> find
+.> find-in mylib
 ```
 
 Thanks, `alias.many`!

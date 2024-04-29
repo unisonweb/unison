@@ -30,8 +30,6 @@ structural type X = x
     structural type X
       (also named builtin.Unit)
 
-.> cd .
-
 ```
 Now we update the type, changing the name of the constructors, _but_, we simultaneously
 add a new top-level term with the same name as the old constructor.
@@ -55,9 +53,14 @@ dependsOnX = Text.size X.x
   
     ⍟ These new definitions are ok to `add`:
     
-      structural type X
       X.x        : Text
       dependsOnX : Nat
+    
+    ⍟ These names already exist. You can `update` them to your
+      new definition:
+    
+      structural type X
+        (The old definition is also named builtin.Unit.)
 
 ```
 This update should succeed since the conflicted constructor
