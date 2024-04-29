@@ -17,7 +17,7 @@ defaults:
     shell: bash
 
 jobs:
-  build-jit-binary:
+  run-jit-tests:
     name: test jit
     strategy:
       fail-fast: false
