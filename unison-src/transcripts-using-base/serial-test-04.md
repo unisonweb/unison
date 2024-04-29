@@ -1,7 +1,3 @@
-```ucm:hide
-.> builtins.mergeio
-```
-
 ```unison
 
 mutual0 = cases

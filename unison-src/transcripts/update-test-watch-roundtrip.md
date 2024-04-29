@@ -1,6 +1,6 @@
 
 ```ucm:hide
-.> builtins.mergeio
+.> builtins.merge
 ```
 
 Given a test that depends on another definition,

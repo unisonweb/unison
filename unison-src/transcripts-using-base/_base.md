@@ -10,7 +10,6 @@ transcripts which contain less boilerplate.
 ## Usage
 
 ```ucm:hide
-.> builtins.merge
 .> builtins.mergeio
 .> load unison-src/transcripts-using-base/base.u
 .> add

@@ -2,7 +2,7 @@
 A short script to test mutable references with local scope.
 
 ```ucm:hide
-.> builtins.mergeio
+.> builtins.merge
 ```
 
 ```unison
