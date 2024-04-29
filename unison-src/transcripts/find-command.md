@@ -1,23 +1,44 @@
-```unison
+```ucm:hide
+.> builtins.merge
+.> move builtin lib.builtin
+```
+
+```unison:hide
 foo = 1
 lib.foo = 2
 lib.bar = 3
+cat.foo = 4
+cat.lib.foo = 5
+cat.lib.bar = 6
+somewhere.bar = 7
 ```
 
-```ucm
+```ucm:hide
 .> add
 ```
 
 ```ucm
 .> find foo
+.> view 1
+.> find.all foo
+.> view 1
 ```
 
 ```ucm
-.somewhere> find.global foo
+.> find-in cat foo
+.> view 1
+.> find-in.all cat foo
+.> view 1
+```
+
+```ucm
+.somewhere> find bar
+.somewhere> find.global bar
 ```
 
 ```ucm
 .> find bar
+.> find-in somewhere bar
 ```
 
 ```ucm:error
@@ -25,5 +46,5 @@ lib.bar = 3
 ```
 
 ```ucm:error
-.> find.global nothere
+.> find.global notHere
 ```

@@ -30,7 +30,7 @@ import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch.Merge qualified as Branch
-import Unison.Codebase.Editor.Input (DeleteOutput (..), DeleteTarget (..), FindScope (FindLocalSubnamespace), Input)
+import Unison.Codebase.Editor.Input (DeleteOutput (..), DeleteTarget (..), Input)
 import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Editor.Output.PushPull (PushPull (Pull, Push))
 import Unison.Codebase.Editor.Output.PushPull qualified as PushPull
@@ -531,7 +531,7 @@ sfind :: InputPattern
 sfind =
   InputPattern "rewrite.find" ["sfind"] I.Visible [("rewrite-rule definition", Required, definitionQueryArg)] msg parse
   where
-    parse [q] = Input.StructuredFindI Input.FindLocal <$> parseHashQualifiedName q
+    parse [q] = Input.StructuredFindI (Input.FindLocal Path.empty) <$> parseHashQualifiedName q
     parse _ = Left "expected exactly one argument"
     msg =
       P.lines
@@ -589,27 +589,31 @@ sfindReplace =
         ]
 
 find :: InputPattern
-find = find' "find" Input.FindLocal
+find = find' "find" (Input.FindLocal Path.empty)
 
 findAll :: InputPattern
-findAll = find' "find.all" Input.FindLocalAndDeps
+findAll = find' "find.all" (Input.FindLocalAndDeps Path.empty)
 
 findGlobal :: InputPattern
 findGlobal = find' "find.global" Input.FindGlobal
 
-findIn :: InputPattern
-findIn =
+findIn, findInAll :: InputPattern
+findIn = findIn' "find-in" Input.FindLocal
+findInAll = findIn' "find-in.all" Input.FindLocalAndDeps
+
+findIn' :: String -> (Path.Path -> Input.FindScope) -> InputPattern
+findIn' cmd mkfscope =
   InputPattern
-    "find-in"
+    cmd
     []
     I.Visible
-    [("namespace", Required, namespaceArg)]
+    [("namespace", Required, namespaceArg), ("query", ZeroPlus, exactDefinitionArg)]
     findHelp
     \case
       p : args -> first P.text do
         p <- Path.parsePath p
-        pure (Input.FindI False (FindLocalSubnamespace p) args)
-      _ -> Left (I.help findIn)
+        pure (Input.FindI False (mkfscope p) args)
+      _ -> Left findHelp
 
 findHelp :: P.Pretty CT.ColorText
 findHelp =
@@ -623,7 +627,9 @@ findHelp =
           "lists all definitions with a name similar to 'foo' or 'bar' in the "
             <> "current namespace (excluding those under 'lib')."
         ),
-        ("`find-in namespace`", "lists all definitions in the specified subnamespace."),
+        ( "`find-in namespace`",
+          "lists all definitions in the specified subnamespace."
+        ),
         ( "`find-in namespace foo bar`",
           "lists all definitions with a name similar to 'foo' or 'bar' in the "
             <> "specified subnamespace."
@@ -631,6 +637,13 @@ findHelp =
         ( "find.all foo",
           "lists all definitions with a name similar to 'foo' in the current "
             <> "namespace (including one level of 'lib')."
+        ),
+        ( "`find-in.all namespace`",
+          "lists all definitions in the specified subnamespace (including one level of its 'lib')."
+        ),
+        ( "`find-in.all namespace foo bar`",
+          "lists all definitions with a name similar to 'foo' or 'bar' in the "
+            <> "specified subnamespace (including one level of its 'lib')."
         ),
         ( "find.global foo",
           "lists all definitions with a name similar to 'foo' in any namespace"
@@ -679,7 +692,7 @@ findVerbose =
     ( "`find.verbose` searches for definitions like `find`, but includes hashes "
         <> "and aliases in the results."
     )
-    (pure . Input.FindI True Input.FindLocal)
+    (pure . Input.FindI True (Input.FindLocal Path.empty))
 
 findVerboseAll :: InputPattern
 findVerboseAll =
@@ -691,7 +704,7 @@ findVerboseAll =
     ( "`find.all.verbose` searches for definitions like `find.all`, but includes hashes "
         <> "and aliases in the results."
     )
-    (pure . Input.FindI True Input.FindLocalAndDeps)
+    (pure . Input.FindI True (Input.FindLocalAndDeps Path.empty))
 
 findPatch :: InputPattern
 findPatch =
@@ -993,7 +1006,7 @@ up =
   InputPattern
     "deprecated.up"
     []
-    I.Visible
+    I.Hidden
     []
     (P.wrapColumn2 [(makeExample up [], "move current path up one level (deprecated)")])
     ( \case
@@ -1043,7 +1056,7 @@ back =
     []
     ( P.wrapColumn2
         [ ( makeExample back [],
-            "undoes the last" <> makeExample' projectSwitch <> "or" <> makeExample' cd <> "command."
+            "undoes the last" <> makeExample' projectSwitch <> "command."
           )
         ]
     )
@@ -1254,12 +1267,12 @@ reset =
 resetRoot :: InputPattern
 resetRoot =
   InputPattern
-    "deprecated.reset-root"
+    "reset-root"
     []
-    I.Visible
+    I.Hidden
     [("namespace or hash to reset to", Required, namespaceArg)]
     ( P.lines
-        [ "Deprecated because it's not compatible with the introduction of projects.",
+        [ "Deprecated because it's incompatible with projects. ⚠️ Warning, this command can cause codebase corruption.",
           P.wrapColumn2
             [ ( makeExample resetRoot [".foo"],
                 "Reset the root namespace (along with its history) to that of the `.foo` namespace. Deprecated"
@@ -3010,6 +3023,7 @@ validInputs =
       find,
       findIn,
       findAll,
+      findInAll,
       findGlobal,
       findPatch,
       findShallow,

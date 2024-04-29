@@ -962,8 +962,8 @@ serializeGroupForRehash fops (Derived h _) sg =
     f _ = Nothing
     refrep = Map.fromList . mapMaybe f $ groupTermLinks sg
 
-deserializeValue :: ByteString -> Either String Value
-deserializeValue bs = runGetS (getVersion >>= getValue) bs
+getVersionedValue :: MonadGet m => m Value
+getVersionedValue = getVersion >>= getValue
   where
     getVersion =
       getWord32be >>= \case
@@ -972,6 +972,9 @@ deserializeValue bs = runGetS (getVersion >>= getValue) bs
           | n < 3 -> fail $ "deserializeValue: unsupported version: " ++ show n
           | n <= 4 -> pure n
           | otherwise -> fail $ "deserializeValue: unknown version: " ++ show n
+
+deserializeValue :: ByteString -> Either String Value
+deserializeValue bs = runGetS getVersionedValue bs
 
 serializeValue :: Value -> ByteString
 serializeValue v = runPutS (putVersion *> putValue v)

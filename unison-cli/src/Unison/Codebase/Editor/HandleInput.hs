@@ -1429,30 +1429,28 @@ handleFindI ::
   Cli ()
 handleFindI isVerbose fscope ws input = do
   Cli.Env {codebase} <- ask
-  currentBranch0 <- Cli.getCurrentBranch0
-  (pped, names) <- case fscope of
-    FindLocal -> do
-      let names = Branch.toNames (Branch.withoutLib currentBranch0)
+  (pped, names, searchRoot, branch0) <- case fscope of
+    FindLocal p -> do
+      searchRoot <- Cli.resolvePath p
+      branch0 <- Cli.getBranch0At searchRoot
+      let names = Branch.toNames (Branch.withoutLib branch0)
       -- Don't exclude anything from the pretty printer, since the type signatures we print for
       -- results may contain things in lib.
       pped <- Cli.currentPrettyPrintEnvDecl
-      pure (pped, names)
-    FindLocalSubnamespace p -> do
-      path <- Cli.resolvePath p
-      branch0 <- Cli.getBranch0At path
-      let names = Branch.toNames branch0
-      pped <- Cli.currentPrettyPrintEnvDecl
-      pure (pped, names)
-    FindLocalAndDeps -> do
-      let names = Branch.toNames (Branch.withoutTransitiveLibs currentBranch0)
+      pure (pped, names, Just p, branch0)
+    FindLocalAndDeps p -> do
+      searchRoot <- Cli.resolvePath p
+      branch0 <- Cli.getBranch0At searchRoot
+      let names = Branch.toNames (Branch.withoutTransitiveLibs branch0)
       -- Don't exclude anything from the pretty printer, since the type signatures we print for
       -- results may contain things in lib.
       pped <- Cli.currentPrettyPrintEnvDecl
-      pure (pped, names)
+      pure (pped, names, Just p, branch0)
     FindGlobal -> do
       globalNames <- Names.makeAbsolute . Branch.toNames <$> Cli.getRootBranch0
       pped <- Cli.prettyPrintEnvDeclFromNames globalNames
-      pure (pped, globalNames)
+      currentBranch0 <- Cli.getCurrentBranch0
+      pure (pped, globalNames, Nothing, currentBranch0)
   let suffixifiedPPE = PPED.suffixifiedPPE pped
   let getResults :: Names -> Cli [SearchResult]
       getResults names =
@@ -1461,7 +1459,7 @@ handleFindI isVerbose fscope ws input = do
           -- type query
           ":" : ws -> do
             typ <- parseSearchType (show input) (unwords ws)
-            let keepNamed = Set.intersection (Branch.deepReferents currentBranch0)
+            let keepNamed = Set.intersection (Branch.deepReferents branch0)
             (noExactTypeMatches, matches) <- do
               Cli.runTransaction do
                 matches <- keepNamed <$> Codebase.termsOfType codebase typ
@@ -1487,16 +1485,16 @@ handleFindI isVerbose fscope ws input = do
                     (mapMaybe (HQ.parseTextWith anythingBeforeHash . Text.pack) qs)
             pure $ uniqueBy SR.toReferent srs
   let respondResults results = do
-        Cli.setNumberedArgs $ fmap searchResultToHQString results
+        Cli.setNumberedArgs $ fmap (searchResultToHQString searchRoot) results
         results' <- Cli.runTransaction (Backend.loadSearchResults codebase results)
         Cli.respond $ ListOfDefinitions fscope suffixifiedPPE isVerbose results'
   results <- getResults names
   case (results, fscope) of
-    ([], FindLocal) -> do
+    ([], FindLocal {}) -> do
       Cli.respond FindNoLocalMatches
       -- We've already searched everything else, so now we search JUST the
       -- names in lib.
-      let mayOnlyLibBranch = currentBranch0 & Branch.children %%~ \cs -> Map.singleton NameSegment.libSegment <$> Map.lookup NameSegment.libSegment cs
+      let mayOnlyLibBranch = branch0 & Branch.children %%~ \cs -> Map.singleton NameSegment.libSegment <$> Map.lookup NameSegment.libSegment cs
       case mayOnlyLibBranch of
         Nothing -> respondResults []
         Just onlyLibBranch -> do
@@ -1810,11 +1808,14 @@ confirmedCommand i = do
   pure $ Just i == (loopState ^. #lastInput)
 
 -- | restores the full hash to these search results, for _numberedArgs purposes
-searchResultToHQString :: SearchResult -> String
-searchResultToHQString = \case
-  SR.Tm' n r _ -> Text.unpack $ HQ.toText $ HQ.requalify n r
-  SR.Tp' n r _ -> Text.unpack $ HQ.toText $ HQ.requalify n (Referent.Ref r)
+searchResultToHQString :: Maybe Path -> SearchResult -> String
+searchResultToHQString oprefix = \case
+  SR.Tm' n r _ -> Text.unpack $ HQ.toText $ HQ.requalify (addPrefix <$> n) r
+  SR.Tp' n r _ -> Text.unpack $ HQ.toText $ HQ.requalify (addPrefix <$> n) (Referent.Ref r)
   _ -> error "impossible match failure"
+  where
+    addPrefix :: Name -> Name
+    addPrefix = maybe id Path.prefixName2 oprefix
 
 -- return `name` and `name.<everything>...`
 _searchBranchPrefix :: Branch m -> Name -> [SearchResult]

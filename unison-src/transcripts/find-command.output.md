@@ -2,59 +2,84 @@
 foo = 1
 lib.foo = 2
 lib.bar = 3
+cat.foo = 4
+cat.lib.foo = 5
+cat.lib.bar = 6
+somewhere.bar = 7
 ```
 
-```ucm
-
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      foo     : ##Nat
-      lib.bar : ##Nat
-      lib.foo : ##Nat
-
-```
-```ucm
-.> add
-
-  ⍟ I've added these definitions:
-  
-    foo     : ##Nat
-    lib.bar : ##Nat
-    lib.foo : ##Nat
-
-```
 ```ucm
 .> find foo
 
-  1. foo : ##Nat
+  1. cat.foo : Nat
+  2. foo : Nat
   
+
+.> view 1
+
+  cat.foo : Nat
+  cat.foo = 4
+
+.> find.all foo
+
+  1. cat.foo : Nat
+  2. cat.lib.foo : Nat
+  3. lib.foo : Nat
+  4. foo : Nat
+  
+
+.> view 1
+
+  cat.foo : Nat
+  cat.foo = 4
 
 ```
 ```ucm
-  ☝️  The namespace .somewhere is empty.
+.> find-in cat foo
 
-.somewhere> find.global foo
+  1. foo : Nat
+  
 
-  1. .foo : ##Nat
-  2. .lib.foo : ##Nat
+.> view 1
+
+  cat.foo : Nat
+  cat.foo = 4
+
+.> find-in.all cat foo
+
+  1. lib.foo : Nat
+  2. foo : Nat
+  
+
+.> view 1
+
+  cat.lib.foo : Nat
+  cat.lib.foo = 5
+
+```
+```ucm
+.somewhere> find bar
+
+  1. bar : ##Nat
+  
+
+.somewhere> find.global bar
+
+  1. .cat.lib.bar : Nat
+  2. .lib.bar : Nat
+  3. .somewhere.bar : Nat
   
 
 ```
 ```ucm
 .> find bar
 
-  ☝️
+  1. somewhere.bar : Nat
   
-  I couldn't find matches in this namespace, searching in
-  'lib'...
 
-  1. lib.bar : ##Nat
+.> find-in somewhere bar
+
+  1. bar : Nat
   
 
 ```
@@ -76,7 +101,7 @@ lib.bar = 3
 
 ```
 ```ucm
-.> find.global nothere
+.> find.global notHere
 
   😶
   

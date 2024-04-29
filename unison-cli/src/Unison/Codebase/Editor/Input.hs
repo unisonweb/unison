@@ -313,9 +313,8 @@ data OutputLocation
   deriving (Eq, Show)
 
 data FindScope
-  = FindLocal
-  | FindLocalAndDeps
-  | FindLocalSubnamespace Path
+  = FindLocal Path
+  | FindLocalAndDeps Path
   | FindGlobal
   deriving stock (Eq, Show)
 
