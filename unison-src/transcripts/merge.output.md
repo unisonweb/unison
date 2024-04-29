@@ -1358,6 +1358,71 @@ type Foo = Qux Text | Baz Nat Nat
 type Foo = Baz Nat | BobQux Text
 ```
 
+## Merge failure: constructor-rename conflict
+
+Another example demonstrating that constructor "renames" (add + delete) are modeled as updates.
+
+```unison
+unique type Foo = Baz Nat | Qux Text
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      type Foo
+
+```
+```ucm
+project/main> add
+
+  ⍟ I've added these definitions:
+  
+    type Foo
+
+project/main> branch alice
+
+  Done. I've created the alice branch based off of main.
+  
+  Tip: To merge your work back into the main branch, first
+       `switch /main` then `merge /alice`.
+
+project/alice> move.term Foo.Baz Foo.Alice
+
+  Done.
+
+project/main> branch bob
+
+  Done. I've created the bob branch based off of main.
+  
+  Tip: To merge your work back into the main branch, first
+       `switch /main` then `merge /bob`.
+
+project/bob> move.term Foo.Qux Foo.Bob
+
+  Done.
+
+```
+```ucm
+project/alice> merge bob
+
+  I couldn't automatically merge bob into alice. However, I've
+  added the definitions that need attention to the top of
+  scratch.u.
+
+```
+```unison:added-by-ucm scratch.u
+type Foo = Bob Text | Alice Nat
+
+type Foo = Bob Text | Alice Nat
+```
+
 ## Precondition violations
 
 Let's see a number of merge precondition violations. These are conditions under which we can't perform a merge, and the

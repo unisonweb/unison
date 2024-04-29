@@ -3,19 +3,17 @@ module Unison.Merge.Diff
   )
 where
 
-import Control.Lens (over)
 import Data.Bitraversable (bitraverse)
 import Data.Map.Strict qualified as Map
 import Data.Semialign (alignWith)
 import Data.Set qualified as Set
 import Data.These (These (..))
 import U.Codebase.Reference (TypeReference)
-import Unison.DataDeclaration (Decl)
-import Unison.DataDeclaration qualified as DD
 import Unison.Hash (Hash)
 import Unison.HashQualified' qualified as HQ'
 import Unison.Merge.Database (MergeDatabase (..))
-import Unison.Merge.DeclNameLookup (DeclNameLookup, expectConstructorNames)
+import Unison.Merge.DeclNameLookup (DeclNameLookup)
+import Unison.Merge.DeclNameLookup qualified as DeclNameLookup
 import Unison.Merge.DiffOp (DiffOp (..))
 import Unison.Merge.Synhash qualified as Synhash
 import Unison.Merge.Synhashed (Synhashed (..))
@@ -26,15 +24,11 @@ import Unison.Name (Name)
 import Unison.Prelude hiding (catMaybes)
 import Unison.PrettyPrintEnv (PrettyPrintEnv (..))
 import Unison.PrettyPrintEnv qualified as Ppe
-import Unison.Reference (TypeReferenceId)
 import Unison.Referent (Referent)
 import Unison.Sqlite (Transaction)
-import Unison.Syntax.Name qualified as Name
-import Unison.Type (Type)
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Defns (Defns (..), DefnsF2, DefnsF3, zipDefnsWith)
-import Unison.Var (Var)
 
 -- | @nameBasedNamespaceDiff db declNameLookups defns@ returns Alice's and Bob's name-based namespace diffs, each in the
 -- form:
@@ -68,7 +62,7 @@ nameBasedNamespaceDiff db declNameLookups defns = do
         hashType :: Name -> TypeReference -> Transaction Hash
         hashType name =
           Synhash.hashDecl
-            (withAccurateConstructorNames db.loadV1Decl declNameLookup name)
+            (fmap (DeclNameLookup.setConstructorNames declNameLookup name) . db.loadV1Decl)
             ppe
             name
 
@@ -79,23 +73,6 @@ nameBasedNamespaceDiff db declNameLookups defns = do
       deepNamespaceDefinitionsToPpe defns.alice
         `Ppe.addFallback` deepNamespaceDefinitionsToPpe defns.bob
         `Ppe.addFallback` deepNamespaceDefinitionsToPpe defns.lca
-
-withAccurateConstructorNames ::
-  forall a v.
-  Var v =>
-  (TypeReferenceId -> Transaction (Decl v a)) ->
-  DeclNameLookup ->
-  Name ->
-  TypeReferenceId ->
-  Transaction (Decl v a)
-withAccurateConstructorNames load declNameLookup name ref = do
-  load ref <&> over (DD.declAsDataDecl_ . DD.constructors_) setConstructorNames
-  where
-    setConstructorNames :: [(a, v, Type v a)] -> [(a, v, Type v a)]
-    setConstructorNames =
-      zipWith
-        (\realConName (ann, _junkConName, typ) -> (ann, Name.toVar realConName, typ))
-        (expectConstructorNames declNameLookup name)
 
 diffNamespaceDefns ::
   DefnsF2 (Map Name) Synhashed term typ ->

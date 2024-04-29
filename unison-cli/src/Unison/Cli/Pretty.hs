@@ -420,7 +420,7 @@ prettyUnisonFile ppe uf@(UF.UnisonFileId datas effects terms watches) =
     prettyDataDecl :: (v, (Reference.Id, DD.DataDeclaration v a)) -> Writer (Set AccessorName) (a, P.Pretty P.ColorText)
     prettyDataDecl (n, (r, dt)) =
       (DD.annotation dt,) . st <$> (mapWriter (second Set.fromList) $ DeclPrinter.prettyDeclW ppe' (rd r) (hqv n) (Right dt))
-    prettyTerm :: Set (AccessorName) -> (v, (a, Term v a)) -> Maybe (a, P.Pretty P.ColorText)
+    prettyTerm :: Set AccessorName -> (v, (a, Term v a)) -> Maybe (a, P.Pretty P.ColorText)
     prettyTerm skip (n, (a, tm)) =
       if traceMember isMember then Nothing else Just (a, pb hq tm)
       where

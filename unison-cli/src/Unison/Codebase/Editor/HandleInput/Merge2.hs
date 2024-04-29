@@ -5,6 +5,7 @@ where
 
 import Control.Lens (over, view)
 import Control.Monad.Reader (ask)
+import Control.Monad.Writer (Writer)
 import Data.Bifoldable (bifoldMap)
 import Data.Bitraversable (bitraverse)
 import Data.Foldable qualified as Foldable
@@ -25,6 +26,7 @@ import U.Codebase.Referent qualified as V2 (Referent)
 import U.Codebase.Sqlite.Operations qualified as Operations
 import U.Codebase.Sqlite.Project (Project (..))
 import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
+import Unison.Builtin.Decls qualified as Builtin.Decls
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
@@ -48,12 +50,16 @@ import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.SqliteCodebase.Branch.Cache (newBranchCache)
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Conversions
+import Unison.DataDeclaration (Decl)
 import Unison.Debug qualified as Debug
+import Unison.Hash (Hash)
 import Unison.Hash qualified as Hash
+import Unison.HashQualified qualified as HQ
 import Unison.Merge.CombineDiffs (CombinedDiffOp (..), combineDiffs)
 import Unison.Merge.Database (MergeDatabase (..), makeMergeDatabase, referent2to1)
 import Unison.Merge.DeclCoherencyCheck (IncoherentDeclReason (..), checkDeclCoherency)
 import Unison.Merge.DeclNameLookup (DeclNameLookup (..), expectConstructorNames)
+import Unison.Merge.DeclNameLookup qualified as DeclNameLookup
 import Unison.Merge.Diff qualified as Merge
 import Unison.Merge.DiffOp (DiffOp (..))
 import Unison.Merge.EitherWay (EitherWay (..))
@@ -81,6 +87,7 @@ import Unison.Names (Names)
 import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
+import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
@@ -91,18 +98,26 @@ import Unison.Referent' qualified as Referent'
 import Unison.Sqlite (Transaction)
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
+import Unison.Syntax.DeclPrinter (AccessorName)
 import Unison.Syntax.Name qualified as Name
+import Unison.Syntax.TermPrinter qualified as TermPrinter
+import Unison.Term (Term)
+import Unison.Type (Type)
+import Unison.Typechecker qualified as Typechecker
 import Unison.UnisonFile (UnisonFile')
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Defns (Defns (..), DefnsF, DefnsF2, DefnsF3, alignDefnsWith, defnsAreEmpty, zipDefnsWith, zipDefnsWith3)
 import Unison.Util.Nametree (Nametree (..), flattenNametree, traverseNametreeWithName, unflattenNametree)
+import Unison.Util.Pretty (ColorText, Pretty)
 import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as Relation
 import Unison.Util.Set qualified as Set
 import Unison.Util.Star2 (Star2)
 import Unison.Util.Star2 qualified as Star2
+import Unison.Util.SyntaxText (SyntaxText')
+import Unison.Var (Var)
 import Witch (unsafeFrom)
 import Prelude hiding (unzip, zip, zipWith)
 
@@ -173,7 +188,7 @@ handleMerge bobBranchName = do
           dependents
           (bimap BiMultimap.range BiMultimap.range defns.lca)
 
-  liftIO (debugFunctions.debugBumpedDefns stageOne)
+  liftIO (debugFunctions.debugStageOne stageOne)
 
   -- Create the Unison file, which may have conflicts, in which case we don't bother trying to parse and typecheck it.
   unisonFile <-
@@ -356,6 +371,65 @@ defnsToUnisonFile abort codebase declNameLookup defns =
     codebase
     (\_ name -> Right (expectConstructorNames declNameLookup name))
     (bimap Relation.fromMap Relation.fromMap defns)
+
+hydrateTerms ::
+  forall name term.
+  Ord name =>
+  (Hash -> Transaction [term]) ->
+  Map name TermReferenceId ->
+  Transaction (Map name term)
+hydrateTerms getTermComponent terms =
+  componenty getTermComponent terms \_ -> id
+
+hydrateTypes ::
+  forall a v.
+  Var v =>
+  (Hash -> Transaction [Decl v a]) ->
+  DeclNameLookup ->
+  Map Name TypeReferenceId ->
+  Transaction (Map Name (Decl v a))
+hydrateTypes getTypeComponent declNameLookup types =
+  componenty getTypeComponent types (DeclNameLookup.setConstructorNames declNameLookup)
+
+componenty ::
+  forall a name m.
+  (Ord name, Monad m) =>
+  (Hash -> m [a]) ->
+  Map name Reference.Id ->
+  (name -> a -> a) ->
+  m (Map name a)
+componenty getComponent things modify =
+  Foldable.foldlM f Map.empty (foldMap (Set.singleton . Reference.idToHash) things)
+  where
+    f :: Map name a -> Hash -> m (Map name a)
+    f acc hash =
+      List.foldl' g acc . Reference.componentFor hash <$> getComponent hash
+
+    g :: Map name a -> (Reference.Id, a) -> Map name a
+    g acc (ref, thing) =
+      Set.foldl' (h thing) acc (BiMultimap.lookupDom ref things2)
+
+    h :: a -> Map name a -> name -> Map name a
+    h thing acc name =
+      Map.insert name (modify name thing) acc
+
+    things2 :: BiMultimap Reference.Id name
+    things2 =
+      BiMultimap.fromRange things
+
+-- remember not to call this is name is in Set AccessorName
+renderTermBinding :: (Monoid a, Var v) => PrettyPrintEnv -> Name -> Term v a -> Type v a -> Pretty ColorText
+renderTermBinding ppe (HQ.NameOnly -> name) term typ =
+  Pretty.syntaxToColor rendered
+  where
+    rendered :: Pretty (SyntaxText' Reference)
+    rendered =
+      if Typechecker.isEqual (Builtin.Decls.testResultListType mempty) typ
+        then "test> " <> TermPrinter.prettyBindingWithoutTypeSignature ppe name term
+        else TermPrinter.prettyBinding ppe name term
+
+renderTypeBinding :: Name -> Decl v a -> Writer [AccessorName] (Pretty ColorText)
+renderTypeBinding = undefined
 
 ------------------------------------------------------------------------------------------------------------------------
 --
@@ -835,7 +909,7 @@ data DebugFunctions = DebugFunctions
       DefnsF Unconflicts Referent TypeReference ->
       IO (),
     debugDependents :: TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId) -> IO (),
-    debugBumpedDefns :: DefnsF (Map Name) Referent TypeReference -> IO ()
+    debugStageOne :: DefnsF (Map Name) Referent TypeReference -> IO ()
   }
 
 realDebugFunctions :: DebugFunctions
@@ -846,7 +920,7 @@ realDebugFunctions =
       debugCombinedDiff = realDebugCombinedDiff,
       debugPartitionedDiff = realDebugPartitionedDiff,
       debugDependents = realDebugDependents,
-      debugBumpedDefns = realDebugBumpedDefns
+      debugStageOne = realDebugStageOne
     }
 
 fakeDebugFunctions :: DebugFunctions
@@ -858,23 +932,23 @@ realDebugDefns ::
   ThreeWay DeclNameLookup ->
   IO ()
 realDebugDefns defns declNameLookups = do
-  Text.putStrLn (Text.bold "\n=== Alice's definitions ===")
+  Text.putStrLn (Text.bold "\n=== Alice definitions ===")
   debugDefns1 (bimap BiMultimap.range BiMultimap.range defns.alice)
 
-  Text.putStrLn (Text.bold "\n=== Bob's definitions ===")
+  Text.putStrLn (Text.bold "\n=== Bob definitions ===")
   debugDefns1 (bimap BiMultimap.range BiMultimap.range defns.bob)
 
-  Text.putStrLn (Text.bold "\n=== Alice's constructor names ===")
+  Text.putStrLn (Text.bold "\n=== Alice constructor names ===")
   debugConstructorNames declNameLookups.alice.declToConstructors
 
-  Text.putStrLn (Text.bold "\n=== Bob's constructor names ===")
+  Text.putStrLn (Text.bold "\n=== Bob constructor names ===")
   debugConstructorNames declNameLookups.bob.declToConstructors
 
 realDebugDiffs :: TwoWay (DefnsF3 (Map Name) DiffOp Synhashed Referent TypeReference) -> IO ()
 realDebugDiffs diffs = do
-  Text.putStrLn (Text.bold "\n=== Alice's diff ===")
+  Text.putStrLn (Text.bold "\n=== LCA→Alice diff ===")
   renderDiff diffs.alice
-  Text.putStrLn (Text.bold "\n=== Bob's diff ===")
+  Text.putStrLn (Text.bold "\n=== LCA→Bob diff ===")
   renderDiff diffs.bob
   where
     renderDiff :: DefnsF3 (Map Name) DiffOp Synhashed Referent TypeReference -> IO ()
@@ -966,30 +1040,36 @@ realDebugPartitionedDiff ::
   DefnsF Unconflicts Referent TypeReference ->
   IO ()
 realDebugPartitionedDiff conflicts unconflicts = do
-  Text.putStrLn (Text.bold "\n=== Conflicts ===")
+  Text.putStrLn (Text.bold "\n=== Alice conflicts ===")
   renderConflicts "termid" conflicts.alice.terms (Alice ())
-  renderConflicts "termid" conflicts.bob.terms (Bob ())
   renderConflicts "typeid" conflicts.alice.types (Alice ())
+
+  Text.putStrLn (Text.bold "\n=== Bob conflicts ===")
+  renderConflicts "termid" conflicts.bob.terms (Bob ())
   renderConflicts "typeid" conflicts.bob.types (Bob ())
 
-  Text.putStrLn (Text.bold "\n=== Unconflicts ===")
+  Text.putStrLn (Text.bold "\n=== Alice unconflicts ===")
   renderUnconflicts Text.green "+" referentLabel Referent.toText unconflicts.terms.adds.alice (OnlyAlice ())
-  renderUnconflicts Text.green "+" referentLabel Referent.toText unconflicts.terms.adds.bob (OnlyBob ())
-  renderUnconflicts Text.green "+" referentLabel Referent.toText unconflicts.terms.adds.both (AliceAndBob ())
   renderUnconflicts Text.green "+" (const "type") Reference.toText unconflicts.types.adds.alice (OnlyAlice ())
-  renderUnconflicts Text.green "+" (const "type") Reference.toText unconflicts.types.adds.bob (OnlyBob ())
-  renderUnconflicts Text.green "+" (const "type") Reference.toText unconflicts.types.adds.both (AliceAndBob ())
   renderUnconflicts Text.red "-" referentLabel Referent.toText unconflicts.terms.deletes.alice (OnlyAlice ())
-  renderUnconflicts Text.red "-" referentLabel Referent.toText unconflicts.terms.deletes.bob (OnlyBob ())
-  renderUnconflicts Text.red "-" referentLabel Referent.toText unconflicts.terms.deletes.both (AliceAndBob ())
   renderUnconflicts Text.red "-" (const "type") Reference.toText unconflicts.types.deletes.alice (OnlyAlice ())
-  renderUnconflicts Text.red "-" (const "type") Reference.toText unconflicts.types.deletes.bob (OnlyBob ())
-  renderUnconflicts Text.red "-" (const "type") Reference.toText unconflicts.types.deletes.both (AliceAndBob ())
   renderUnconflicts Text.yellow "%" referentLabel Referent.toText unconflicts.terms.updates.alice (OnlyAlice ())
-  renderUnconflicts Text.yellow "%" referentLabel Referent.toText unconflicts.terms.updates.bob (OnlyBob ())
-  renderUnconflicts Text.yellow "%" referentLabel Referent.toText unconflicts.terms.updates.both (AliceAndBob ())
   renderUnconflicts Text.yellow "%" (const "type") Reference.toText unconflicts.types.updates.alice (OnlyAlice ())
+
+  Text.putStrLn (Text.bold "\n=== Bob unconflicts ===")
+  renderUnconflicts Text.green "+" referentLabel Referent.toText unconflicts.terms.adds.bob (OnlyBob ())
+  renderUnconflicts Text.green "+" (const "type") Reference.toText unconflicts.types.adds.bob (OnlyBob ())
+  renderUnconflicts Text.red "-" referentLabel Referent.toText unconflicts.terms.deletes.bob (OnlyBob ())
+  renderUnconflicts Text.red "-" (const "type") Reference.toText unconflicts.types.deletes.bob (OnlyBob ())
+  renderUnconflicts Text.yellow "%" referentLabel Referent.toText unconflicts.terms.updates.bob (OnlyBob ())
   renderUnconflicts Text.yellow "%" (const "type") Reference.toText unconflicts.types.updates.bob (OnlyBob ())
+
+  Text.putStrLn (Text.bold "\n=== Alice-and-Bob unconflicts ===")
+  renderUnconflicts Text.green "+" referentLabel Referent.toText unconflicts.terms.adds.both (AliceAndBob ())
+  renderUnconflicts Text.green "+" (const "type") Reference.toText unconflicts.types.adds.both (AliceAndBob ())
+  renderUnconflicts Text.red "-" referentLabel Referent.toText unconflicts.terms.deletes.both (AliceAndBob ())
+  renderUnconflicts Text.red "-" (const "type") Reference.toText unconflicts.types.deletes.both (AliceAndBob ())
+  renderUnconflicts Text.yellow "%" referentLabel Referent.toText unconflicts.terms.updates.both (AliceAndBob ())
   renderUnconflicts Text.yellow "%" (const "type") Reference.toText unconflicts.types.updates.both (AliceAndBob ())
   where
     renderConflicts :: Text -> Map Name Reference.Id -> EitherWay () -> IO ()
@@ -1032,10 +1112,10 @@ realDebugPartitionedDiff conflicts unconflicts = do
 
 realDebugDependents :: TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId) -> IO ()
 realDebugDependents dependents = do
-  Text.putStrLn (Text.bold "\n=== Alice's dependents of deletes, updates, and conflicts ===")
+  Text.putStrLn (Text.bold "\n=== Alice dependents of Bob deletes, Bob updates, and Alice conflicts ===")
   renderThings "termid" dependents.alice.terms
   renderThings "typeid" dependents.alice.types
-  Text.putStrLn (Text.bold "\n=== Bob's dependents of deletes, updates, and conflicts ===")
+  Text.putStrLn (Text.bold "\n=== Bob dependents of Alice deletes, Alice updates, and Bob conflicts ===")
   renderThings "termid" dependents.bob.terms
   renderThings "typeid" dependents.bob.types
   where
@@ -1049,9 +1129,9 @@ realDebugDependents dependents = do
             <> " "
             <> Reference.idToText ref
 
-realDebugBumpedDefns :: DefnsF (Map Name) Referent TypeReference -> IO ()
-realDebugBumpedDefns defns = do
-  Text.putStrLn (Text.bold "\n=== Bumped definitions ===")
+realDebugStageOne :: DefnsF (Map Name) Referent TypeReference -> IO ()
+realDebugStageOne defns = do
+  Text.putStrLn (Text.bold "\n=== Stage 1 ===")
   debugDefns1 defns
 
 debugConstructorNames :: Map Name [Name] -> IO ()

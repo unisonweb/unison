@@ -81,10 +81,7 @@ prettyGADT ::
   Pretty SyntaxText
 prettyGADT env ctorType r name dd =
   P.hang header . P.lines $
-    constructor
-      <$> zip
-        [0 ..]
-        (DD.constructors' dd)
+    constructor <$> zip [0 ..] (DD.constructors' dd)
   where
     constructor (n, (_, _, t)) =
       prettyPattern (PPED.unsuffixifiedPPE env) ctorType name (ConstructorReference r n)
@@ -118,12 +115,8 @@ prettyDataDecl ::
   DataDeclaration v a ->
   Writer [AccessorName] (Pretty SyntaxText)
 prettyDataDecl (PrettyPrintEnvDecl unsuffixifiedPPE suffixifiedPPE) r name dd =
-  (header <>)
-    . P.sep (fmt S.DelimiterChar (" | " `P.orElse` "\n  | "))
-    <$> constructor
-      `traverse` zip
-        [0 ..]
-        (DD.constructors' dd)
+  (header <>) . P.sep (fmt S.DelimiterChar (" | " `P.orElse` "\n  | "))
+    <$> constructor `traverse` zip [0 ..] (DD.constructors' dd)
   where
     constructor (n, (_, _, Type.ForallsNamed' _ t)) = constructor' n t
     constructor (n, (_, _, t)) = constructor' n t

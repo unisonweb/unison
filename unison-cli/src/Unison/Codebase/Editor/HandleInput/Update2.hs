@@ -375,27 +375,25 @@ makeUnisonFile abort codebase doFindCtorNames defns = do
             addRebuiltDefinition :: (Decl Symbol Ann) -> UF.UnisonFile' [] Symbol Ann -> Name -> Transaction (UF.UnisonFile' [] Symbol Ann)
             addRebuiltDefinition decl uf name = case decl of
               Left ed ->
-                overwriteConstructorNames name ed.toDataDecl >>= \ed' ->
-                  pure
-                    uf
-                      { UF.effectDeclarationsId =
-                          Map.insertWith
-                            (++)
-                            (Name.toVar name)
-                            [(Reference.Id h i, Decl.EffectDeclaration ed')]
-                            uf.effectDeclarationsId
-                      }
+                overwriteConstructorNames name ed.toDataDecl <&> \ed' ->
+                  uf
+                    { UF.effectDeclarationsId =
+                        Map.insertWith
+                          (++)
+                          (Name.toVar name)
+                          [(Reference.Id h i, Decl.EffectDeclaration ed')]
+                          uf.effectDeclarationsId
+                    }
               Right dd ->
-                overwriteConstructorNames name dd >>= \dd' ->
-                  pure
-                    uf
-                      { UF.dataDeclarationsId =
-                          Map.insertWith
-                            (++)
-                            (Name.toVar name)
-                            [(Reference.Id h i, dd')]
-                            uf.dataDeclarationsId
-                      }
+                overwriteConstructorNames name dd <&> \dd' ->
+                  uf
+                    { UF.dataDeclarationsId =
+                        Map.insertWith
+                          (++)
+                          (Name.toVar name)
+                          [(Reference.Id h i, dd')]
+                          uf.dataDeclarationsId
+                    }
 
         -- Constructor names are bogus when pulled from the database, so we set them to what they should be here
         overwriteConstructorNames :: Name -> DataDeclaration Symbol Ann -> Transaction (DataDeclaration Symbol Ann)

@@ -576,6 +576,35 @@ project/alice> merge /bob
 .> project.delete project
 ```
 
+## Merge failure: constructor-rename conflict
+
+Another example demonstrating that constructor "renames" (add + delete) are modeled as updates.
+
+```ucm:hide
+.> project.create-empty project
+project/main> builtins.mergeio
+```
+
+```unison
+unique type Foo = Baz Nat | Qux Text
+```
+
+```ucm
+project/main> add
+project/main> branch alice
+project/alice> move.term Foo.Baz Foo.Alice
+project/main> branch bob
+project/bob> move.term Foo.Qux Foo.Bob
+```
+
+```ucm:error
+project/alice> merge bob
+```
+
+```ucm:hide
+.> project.delete project
+```
+
 ## Precondition violations
 
 Let's see a number of merge precondition violations. These are conditions under which we can't perform a merge, and the
