@@ -62,15 +62,13 @@ y = 2
   Here is a log of the root namespace hashes, starting with the
   most recent, along with the command that got us there. Try:
   
-    `fork 2 .old`                        
-    `fork #mq4oqhiuuq .old`              to make an old
-                                         namespace accessible
-                                         again,
-                                         
-    `deprecated.reset-root #mq4oqhiuuq`  to reset the root
-                                         namespace and its
-                                         history to that of the
-                                         specified namespace.
+    `fork 2 .old`             
+    `fork #mq4oqhiuuq .old`   to make an old namespace
+                              accessible again,
+                              
+    `reset-root #mq4oqhiuuq`  to reset the root namespace and
+                              its history to that of the
+                              specified namespace.
   
        When   Root Hash     Action
   1.   now    #1n5tjujeu7   add
@@ -84,7 +82,7 @@ y = 2
 ```
 If we `reset-root` to its previous value, `y` disappears.
 ```ucm
-.> deprecated.reset-root 2
+.> reset-root 2
 
   Done.
 

@@ -1267,7 +1267,7 @@ reset =
 resetRoot :: InputPattern
 resetRoot =
   InputPattern
-    "deprecated.reset-root"
+    "reset-root"
     []
     I.Hidden
     [("namespace or hash to reset to", Required, namespaceArg)]
