@@ -1,5 +1,5 @@
 ```ucm:hide
-.lib> builtins.mergeio
+.> builtins.mergeio lib.builtin
 ```
 
 ```unison:hide
