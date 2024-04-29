@@ -15,11 +15,7 @@
   
   🎉 🥳 Happy coding!
 
-update-in/main> builtins.merge
-
-  Done.
-
-update-in/main> move.namespace builtin lib.builtin
+update-in/main> builtins.merge lib.builtin
 
   Done.
 

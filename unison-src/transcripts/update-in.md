@@ -1,7 +1,6 @@
 ```ucm
 .> project.create-empty update-in
-update-in/main> builtins.merge
-update-in/main> move.namespace builtin lib.builtin
+update-in/main> builtins.merge lib.builtin
 ```
 
 ```unison
