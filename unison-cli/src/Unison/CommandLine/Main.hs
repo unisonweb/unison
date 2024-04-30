@@ -104,6 +104,7 @@ getUserInput codebase authHTTPClient currentPath numberedArgs =
           ws -> do
             liftIO (parseInput codebase currentPath numberedArgs IP.patternMap ws) >>= \case
               Left msg -> do
+                liftIO . putStrLn $ "Adding to history: " <> l
                 -- We still add history that failed to parse so the user can easily reload
                 -- the input and fix it.
                 Line.modifyHistory $ Line.addHistoryUnlessConsecutiveDupe $ l
@@ -113,10 +114,10 @@ getUserInput codebase authHTTPClient currentPath numberedArgs =
                 -- Ctrl-c or some input cancel, re-run the prompt
                 go
               Right (Just (expandedArgs, i)) -> do
+                let expandedArgsStr = unwords expandedArgs
                 when (expandedArgs /= ws) $ do
-                  let expandedArgsStr = unwords expandedArgs
-                  Line.modifyHistory $ Line.addHistoryUnlessConsecutiveDupe $ unwords expandedArgs
                   liftIO . putStrLn $ fullPrompt <> expandedArgsStr
+                Line.modifyHistory $ Line.addHistoryUnlessConsecutiveDupe $ unwords expandedArgs
                 pure i
     settings :: Line.Settings IO
     settings =
