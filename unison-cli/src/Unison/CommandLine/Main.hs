@@ -104,7 +104,6 @@ getUserInput codebase authHTTPClient currentPath numberedArgs =
           ws -> do
             liftIO (parseInput codebase currentPath numberedArgs IP.patternMap ws) >>= \case
               Left msg -> do
-                liftIO . putStrLn $ "Adding to history: " <> l
                 -- We still add history that failed to parse so the user can easily reload
                 -- the input and fix it.
                 Line.modifyHistory $ Line.addHistoryUnlessConsecutiveDupe $ l
