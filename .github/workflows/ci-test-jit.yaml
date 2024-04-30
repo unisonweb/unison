@@ -1,0 +1,129 @@
+name: test jit
+
+on:
+  workflow_call:
+
+env:
+  runtime_tests_version: "@unison/runtime-tests/main"
+  # for best results, this should match the path in ci.yaml too; but GH doesn't make it easy to share them.
+  runtime_tests_codebase: "~/.cache/unisonlanguage/runtime-tests.unison"
+
+  jit_src_rel: unison-jit-src
+  jit_dist_rel: unison-jit-dist
+  jit_test_results: jit-test-results
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  run-jit-tests:
+    name: test jit
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-20.04
+          - macOS-12
+          # - windows-2019
+    runs-on: ${{matrix.os}}
+    steps:
+      - name: set up environment
+        run: |
+          jit_src="$GITHUB_WORKSPACE/${{ env.jit_src_rel }}" # scheme source, for hashing
+          jit_dist="$GITHUB_WORKSPACE/${{ env.jit_dist_rel }}" # jit binary with libraries destination
+          jit_dist_exe="${jit_dist}/bin/unison-runtime" # jit binary itself
+          jit_dist_rel_exe="${jit_dist_rel}/bin/unison-runtime" # jit binary itself
+          ucm="${{ runner.temp }}/unison"
+
+          if [[ ${{runner.os}} = "Windows" ]]; then
+            jit_src="${jit_src//\\//}"
+            jit_dist="${jit_dist//\\//}"
+
+            jit_dist_exe="${jit_dist//\\//}/unison-runtime.exe"
+            jit_dist_rel_exe="${jit_dist_rel//\\//}/unison-runtime.exe"
+            ucm="${ucm//\\//}.exe"
+          fi
+
+          echo "jit_src=$jit_src" >> $GITHUB_ENV
+          echo "jit_dist=$jit_dist" >> $GITHUB_ENV
+          echo "jit_dist_exe=$jit_dist_exe" >> $GITHUB_ENV
+          echo "jit_dist_rel_exe=$jit_dist_rel_exe" >> $GITHUB_ENV
+          echo "ucm=$ucm" >> $GITHUB_ENV
+
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            .github
+            scripts/get-share-hash.sh
+            unison-src/builtin-tests/jit-tests.tpl.md
+            unison-src/transcripts-using-base/serialized-cases/case-00.v4.ser
+
+      - name: download jit binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: jit-binary-${{ matrix.os }}
+          path: ${{ env.jit_dist }}
+
+      - name: look up hash for runtime tests
+        run: |
+          echo "runtime_tests_causalhash=$(scripts/get-share-hash.sh ${{ env.runtime_tests_version }})" >> $GITHUB_ENV
+
+      - name: cache jit test results
+        id: cache-jit-test-results
+        uses: actions/cache@v4
+        with:
+          path: ${{env.jit_test_results}}
+          key: jit-test-results.dist-exe_${{ hashFiles(env.jit_dist_rel_exe) }}.tests_${{ env.runtime_tests_causalhash }}.yaml_${{ hashFiles('**/ci-test-jit.yaml') }}
+
+      - name: install libb2 (linux)
+        uses: awalsh128/cache-apt-pkgs-action@latest
+        if: runner.os == 'Linux' && steps.cache-jit-test-results.outputs.cache-hit != 'true'
+        with:
+          packages: libb2-1
+          version: 1.0 # cache key version afaik
+
+      - name: cache testing codebase
+        id: cache-testing-codebase
+        if: steps.cache-jit-test-results.outputs.cache-hit != 'true'
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.runtime_tests_codebase }}
+          key: runtime-tests-codebase-${{ matrix.os }}-${{env.runtime_tests_causalhash}}
+          restore-keys: runtime-tests-codebase-${{ matrix.os }}-
+
+      - name: download ucm
+        if: steps.cache-jit-test-results.outputs.cache-hit != 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: unison-${{ matrix.os }}
+          path: ${{ runner.temp }}
+
+      - name: set ucm & runtime permissions
+        if: steps.cache-jit-test-results.outputs.cache-hit != 'true'
+        run: |
+          chmod +x ${{ env.ucm }}
+          chmod +x ${{ env.jit_dist_exe }}
+          if [[ ${{runner.os}} = "Linux" ]]; then
+            chmod +x ${{env.jit_dist}}/lib/plt/*
+          fi
+
+      - name: jit integration test ${{ matrix.os }}
+        if: steps.cache-jit-test-results.outputs.cache-hit != 'true'
+        run: |
+          envsubst '${runtime_tests_version}' \
+            < unison-src/builtin-tests/jit-tests.tpl.md \
+            > unison-src/builtin-tests/jit-tests.md
+          ${{ env.ucm }} transcript.fork --runtime-path ${{ env.jit_dist_exe }} -C ${{env.runtime_tests_codebase}} unison-src/builtin-tests/jit-tests.md
+          cat unison-src/builtin-tests/jit-tests.output.md
+          git diff --exit-code unison-src/builtin-tests/jit-tests.output.md
+
+      - name: mark jit tests as passing
+        if: steps.cache-jit-test-results.outputs.cache-hit != 'true'
+        run: |
+          echo "passing=true" >> "${{env.jit_test_results}}"
+
+      # - name: Setup tmate session
+      #   uses: mxschmitt/action-tmate@v3
+      #   if: ${{ failure() }}
+      #   timeout-minutes: 15

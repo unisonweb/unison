@@ -1,11 +1,3 @@
->
-```ucm:hide
-.> builtins.merge
-.> cd builtin
-.> load unison-src/transcripts-using-base/base.u
-.> add
-```
-
 ```unison
 
 testNat: Nat -> Optional Int -> Optional Float -> {Stream Result}()

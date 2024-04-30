@@ -520,7 +520,7 @@ testGetEnv _ =
   test = 'let
     path = reraise (getEnv.impl "PATH") -- PATH exists on windows, mac and linux.
     check "PATH environent variable should be set"  (size path > 0)
-    match getEnv.impl "DOESNTEXIST" with 
+    match getEnv.impl "DOESNTEXIST" with
       Right _ -> emit (Fail "env var shouldn't exist")
       Left _ -> emit (Ok "DOESNTEXIST didn't exist")
   runTest test
@@ -547,7 +547,7 @@ testGetEnv _ =
 ```
 ### Read command line args
 
-`runMeWithNoArgs`, `runMeWithOneArg`, and `runMeWithTwoArgs` raise exceptions 
+`runMeWithNoArgs`, `runMeWithOneArg`, and `runMeWithTwoArgs` raise exceptions
 unless they called with the right number of arguments.
 
 ```unison
@@ -590,8 +590,6 @@ Test that they can be run with the right number of args.
     testGetArgs.runMeWithOneArg  : '{IO, Exception} ()
     testGetArgs.runMeWithTwoArgs : '{IO, Exception} ()
 
-.> cd testGetArgs
-
 .> run runMeWithNoArgs
 
   ()
@@ -616,7 +614,6 @@ Calling our examples with the wrong number of args will error.
   
     Failure (typeLink IOFailure) "called with args" (Any ())
   
-  
   Stack trace:
     ##raise
 
@@ -629,7 +626,6 @@ Calling our examples with the wrong number of args will error.
   The program halted with an unhandled exception:
   
     Failure (typeLink IOFailure) "called with no args" (Any ())
-  
   
   Stack trace:
     ##raise
@@ -645,7 +641,6 @@ Calling our examples with the wrong number of args will error.
     Failure
       (typeLink IOFailure) "called with too many args" (Any ())
   
-  
   Stack trace:
     ##raise
 
@@ -658,7 +653,6 @@ Calling our examples with the wrong number of args will error.
   The program halted with an unhandled exception:
   
     Failure (typeLink IOFailure) "called with no args" (Any ())
-  
   
   Stack trace:
     ##raise

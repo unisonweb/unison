@@ -56,7 +56,7 @@ Namespace args
   ⊡ Ignored previously added definitions: nested.optionTwo
     optionOne
 
-.> debug.fuzzy-options cd _
+.> debug.fuzzy-options find-in _
 
   Select a namespace:
     * nested

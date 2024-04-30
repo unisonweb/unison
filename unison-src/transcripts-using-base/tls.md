@@ -1,13 +1,5 @@
 # Tests for TLS builtins
 
-```ucm:hide
-.> builtins.merge
-.> builtins.mergeio
-.> cd builtin
-.> load unison-src/transcripts-using-base/base.u
-.> add
-```
-
 ```unison:hide
 -- generated with:
 -- openssl req -newkey rsa:2048 -subj '/CN=test.unison.cloud/O=Unison/C=US' -nodes -keyout key.pem -x509 -days 3650 -out cert.pem
@@ -61,7 +53,7 @@ serverThread portVar toSend = 'let
     cert = decodeCert (toUtf8 self_signed_cert_pem2)
 
        -- assume there is exactly one key decoded from our Bytes
-    key = match (decodePrivateKey (toUtf8 self_signed_key_pem)) with 
+    key = match (decodePrivateKey (toUtf8 self_signed_key_pem)) with
       k +: _ -> k
       [] -> bug "oh no"
 

@@ -1,7 +1,3 @@
-```ucm:hide
-.> builtins.mergeio
-```
-
 ```unison
 structural ability DC r where
   shift : ((a -> r) -> r) -> a

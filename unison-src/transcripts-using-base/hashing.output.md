@@ -120,18 +120,18 @@ ex5 = crypto.hmac Sha2_256 mysecret f |> hex
 And here's the full API:
 
 ```ucm
-.builtin.crypto> find
+.> find-in builtin.crypto
 
   1.  type CryptoFailure
-  2.  Ed25519.sign.impl : ##Bytes
-                          -> ##Bytes
-                          -> ##Bytes
-                          -> #0o7mf021fo #r29dja8j9d ##Bytes
-  3.  Ed25519.verify.impl : ##Bytes
-                            -> ##Bytes
-                            -> ##Bytes
-                            -> #0o7mf021fo #r29dja8j9d ##Boolean
-  4.  hash : HashAlgorithm -> a -> ##Bytes
+  2.  Ed25519.sign.impl : Bytes
+                          -> Bytes
+                          -> Bytes
+                          -> Either Failure Bytes
+  3.  Ed25519.verify.impl : Bytes
+                            -> Bytes
+                            -> Bytes
+                            -> Either Failure Boolean
+  4.  hash : HashAlgorithm -> a -> Bytes
   5.  builtin type HashAlgorithm
   6.  HashAlgorithm.Blake2b_256 : HashAlgorithm
   7.  HashAlgorithm.Blake2b_512 : HashAlgorithm
@@ -142,12 +142,10 @@ And here's the full API:
   12. HashAlgorithm.Sha2_512 : HashAlgorithm
   13. HashAlgorithm.Sha3_256 : HashAlgorithm
   14. HashAlgorithm.Sha3_512 : HashAlgorithm
-  15. hashBytes : HashAlgorithm -> ##Bytes -> ##Bytes
-  16. hmac : HashAlgorithm -> ##Bytes -> a -> ##Bytes
-  17. hmacBytes : HashAlgorithm -> ##Bytes -> ##Bytes -> ##Bytes
+  15. hashBytes : HashAlgorithm -> Bytes -> Bytes
+  16. hmac : HashAlgorithm -> Bytes -> a -> Bytes
+  17. hmacBytes : HashAlgorithm -> Bytes -> Bytes -> Bytes
   
-
-.> cd .
 
 ```
 Note that the universal versions of `hash` and `hmac` are currently unimplemented and will bomb at runtime:

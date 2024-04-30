@@ -46,6 +46,7 @@
   ; some exports of internal machinery for use elsewhere
   gen-code
   reify-value
+  reflect-value
   termlink->name
 
   add-runtime-code

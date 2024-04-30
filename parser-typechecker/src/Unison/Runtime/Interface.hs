@@ -27,10 +27,11 @@ import Data.Binary.Get (runGetOrFail)
 -- import Data.Bits (shiftL)
 import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as BL
-import Data.Bytes.Get (MonadGet)
+import Data.Bytes.Get (MonadGet, getWord8, runGetS)
 import Data.Bytes.Put (MonadPut, putWord32be, runPutL, runPutS)
 import Data.Bytes.Serial
 import Data.Foldable
+import Data.Function (on)
 import Data.IORef
 import Data.List qualified as L
 import Data.Map.Strict qualified as Map
@@ -44,9 +45,11 @@ import Data.Set as Set
     (\\),
   )
 import Data.Set qualified as Set
-import Data.Text (isPrefixOf, unpack)
+import Data.Text as Text (isPrefixOf, pack, unpack)
 import GHC.IO.Exception (IOErrorType (NoSuchThing, OtherError, PermissionDenied), IOException (ioe_description, ioe_type))
 import GHC.Stack (callStack)
+import Network.Simple.TCP (Socket, acceptFork, listen, recv, send)
+import Network.Socket (PortNumber, socketPort)
 import System.Directory
   ( XdgDirectory (XdgCache),
     createDirectoryIfMissing,
@@ -85,6 +88,7 @@ import Unison.Runtime.ANF as ANF
 import Unison.Runtime.ANF.Rehash as ANF (rehashGroups)
 import Unison.Runtime.ANF.Serialize as ANF
   ( getGroup,
+    getVersionedValue,
     putGroup,
     serializeValue,
   )
@@ -460,7 +464,18 @@ nativeEval executable ctxVar cl ppe tm = catchInternalErrors $ do
   (ctx, codes) <- loadDeps cl ppe ctx tyrs tmrs
   (ctx, tcodes, base) <- prepareEvaluation ppe tm ctx
   writeIORef ctxVar ctx
-  nativeEvalInContext executable ppe ctx (codes ++ tcodes) base
+  -- Note: port 0 mean choosing an arbitrary available port.
+  -- We then ask what port was actually chosen.
+  listen "127.0.0.1" "0" $ \(serv, _) ->
+    socketPort serv >>= \port ->
+      nativeEvalInContext
+        executable
+        ppe
+        ctx
+        serv
+        port
+        (L.nubBy ((==) `on` fst) $ tcodes ++ codes)
+        base
 
 interpEval ::
   ActiveThreads ->
@@ -790,13 +805,45 @@ backReferenceTm ws frs irs dcm c i = do
   bs <- Map.lookup r dcm
   Map.lookup i bs
 
-ucrProc :: FilePath -> [String] -> CreateProcess
-ucrProc executable args =
+ucrEvalProc :: FilePath -> [String] -> CreateProcess
+ucrEvalProc executable args =
+  (proc executable args)
+    { std_in = Inherit,
+      std_out = Inherit,
+      std_err = Inherit
+    }
+
+ucrCompileProc :: FilePath -> [String] -> CreateProcess
+ucrCompileProc executable args =
   (proc executable args)
     { std_in = CreatePipe,
       std_out = Inherit,
       std_err = Inherit
     }
+
+receiveAll :: Socket -> IO ByteString
+receiveAll sock = read []
+  where
+    read acc =
+      recv sock 4096 >>= \case
+        Just chunk -> read (chunk : acc)
+        Nothing -> pure . BS.concat $ reverse acc
+
+data NativeResult
+  = Success Value
+  | Bug Text Value
+  | Error Text
+
+deserializeNativeResponse :: ByteString -> NativeResult
+deserializeNativeResponse =
+  run $
+    getWord8 >>= \case
+      0 -> Success <$> getVersionedValue
+      1 -> Bug <$> getText <*> getVersionedValue
+      2 -> Error <$> getText
+      _ -> pure $ Error "Unexpected result bytes tag"
+  where
+    run e bs = either (Error . pack) id (runGetS e bs)
 
 -- Note: this currently does not support yielding values; instead it
 -- just produces a result appropriate for unitary `run` commands. The
@@ -813,37 +860,45 @@ nativeEvalInContext ::
   FilePath ->
   PrettyPrintEnv ->
   EvalCtx ->
+  Socket ->
+  PortNumber ->
   [(Reference, SuperGroup Symbol)] ->
   Reference ->
   IO (Either Error ([Error], Term Symbol))
-nativeEvalInContext executable _ ctx codes base = do
+nativeEvalInContext executable ppe ctx serv port codes base = do
   ensureRuntimeExists executable
   let cc = ccache ctx
   crs <- readTVarIO $ combRefs cc
   let bytes = serializeValue . compileValue base $ codes
 
-      decodeResult (Left msg) = pure . Left $ fromString msg
-      decodeResult (Right val) =
+      decodeResult (Error msg) = pure . Left $ text msg
+      decodeResult (Bug msg val) =
+        reifyValue cc val >>= \case
+          Left _ -> pure . Left $ "missing references from bug result"
+          Right cl ->
+            pure . Left . bugMsg ppe [] msg $ decompileCtx crs ctx cl
+      decodeResult (Success val) =
         reifyValue cc val >>= \case
           Left _ -> pure . Left $ "missing references from result"
           Right cl -> case decompileCtx crs ctx cl of
             (errs, dv) -> pure $ Right (listErrors errs, dv)
 
-      callout (Just pin) _ _ ph = do
-        BS.hPut pin . runPutS . putWord32be . fromIntegral $ BS.length bytes
-        BS.hPut pin bytes
-        UnliftIO.hClose pin
-        let unit = Data RF.unitRef 0 [] []
-            sunit = Data RF.pairRef 0 [] [unit, unit]
+      comm mv (sock, _) = do
+        send sock . runPutS . putWord32be . fromIntegral $ BS.length bytes
+        send sock bytes
+        UnliftIO.putMVar mv =<< receiveAll sock
+
+      callout _ _ _ ph = do
+        mv <- UnliftIO.newEmptyMVar
+        tid <- acceptFork serv $ comm mv
         waitForProcess ph >>= \case
-          ExitSuccess -> decodeResult $ Right sunit
-          ExitFailure _ ->
+          ExitSuccess ->
+            decodeResult . deserializeNativeResponse
+              =<< UnliftIO.takeMVar mv
+          ExitFailure _ -> do
+            UnliftIO.killThread tid
             pure . Left $ "native evaluation failed"
-      -- TODO: actualy receive output from subprocess
-      -- decodeResult . deserializeValue =<< BS.hGetContents pout
-      callout _ _ _ _ =
-        pure . Left $ "withCreateProcess didn't provide handles"
-      p = ucrProc executable []
+      p = ucrEvalProc executable ["-p", show port]
       ucrError (e :: IOException) = pure $ Left (runtimeErrMsg (cmdspec p) (Right e))
   withCreateProcess p callout
     `UnliftIO.catch` ucrError
@@ -872,7 +927,7 @@ nativeCompileCodes executable codes base path = do
         throwIO $ PE callStack (runtimeErrMsg (cmdspec p) (Right e))
       racoError (e :: IOException) =
         throwIO $ PE callStack (racoErrMsg (makeRacoCmd RawCommand) (Right e))
-      p = ucrProc executable ["-G", srcPath]
+      p = ucrCompileProc executable ["-G", srcPath]
       makeRacoCmd :: (FilePath -> [String] -> a) -> a
       makeRacoCmd f = f "raco" ["exe", "-o", path, srcPath]
   withCreateProcess p callout
@@ -953,7 +1008,7 @@ bugMsg ::
   Pretty ColorText
 bugMsg ppe tr name (errs, tm)
   | name == "blank expression" =
-      P.callout icon . P.lines $
+      P.callout icon . P.linesNonEmpty $
         [ P.wrap
             ( "I encountered a"
                 <> P.red (P.text name)
@@ -965,7 +1020,7 @@ bugMsg ppe tr name (errs, tm)
           stackTrace ppe tr
         ]
   | "pattern match failure" `isPrefixOf` name =
-      P.callout icon . P.lines $
+      P.callout icon . P.linesNonEmpty $
         [ P.wrap
             ( "I've encountered a"
                 <> P.red (P.text name)
@@ -980,7 +1035,7 @@ bugMsg ppe tr name (errs, tm)
           stackTrace ppe tr
         ]
   | name == "builtin.raise" =
-      P.callout icon . P.lines $
+      P.callout icon . P.linesNonEmpty $
         [ P.wrap ("The program halted with an unhandled exception:"),
           "",
           P.indentN 2 $ pretty ppe tm,
@@ -990,7 +1045,7 @@ bugMsg ppe tr name (errs, tm)
   | name == "builtin.bug",
     RF.TupleTerm' [Tm.Text' msg, x] <- tm,
     "pattern match failure" `isPrefixOf` msg =
-      P.callout icon . P.lines $
+      P.callout icon . P.linesNonEmpty $
         [ P.wrap
             ( "I've encountered a"
                 <> P.red (P.text msg)
@@ -1005,7 +1060,7 @@ bugMsg ppe tr name (errs, tm)
           stackTrace ppe tr
         ]
 bugMsg ppe tr name (errs, tm) =
-  P.callout icon . P.lines $
+  P.callout icon . P.linesNonEmpty $
     [ P.wrap
         ( "I've encountered a call to"
             <> P.red (P.text name)
@@ -1018,7 +1073,8 @@ bugMsg ppe tr name (errs, tm) =
     ]
 
 stackTrace :: PrettyPrintEnv -> [(Reference, Int)] -> Pretty ColorText
-stackTrace ppe tr = "Stack trace:\n" <> P.indentN 2 (P.lines $ f <$> tr)
+stackTrace _ [] = mempty
+stackTrace ppe tr = "\nStack trace:\n" <> P.indentN 2 (P.lines $ f <$> tr)
   where
     f (rf, n) = name <> count
       where
@@ -1165,10 +1221,11 @@ listErrors :: Set DecompError -> [Error]
 listErrors = fmap (P.indentN 2 . renderDecompError) . toList
 
 tabulateErrors :: Set DecompError -> Error
-tabulateErrors errs | null errs = "\n"
+tabulateErrors errs | null errs = mempty
 tabulateErrors errs =
   P.indentN 2 . P.lines $
-    P.wrap "The following errors occured while decompiling:"
+    ""
+      : P.wrap "The following errors occured while decompiling:"
       : (listErrors errs)
 
 restoreCache :: StoredCache -> IO CCache

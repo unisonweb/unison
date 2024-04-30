@@ -53,7 +53,6 @@ test2 = do
       "Cannot decode byte '\\xee': Data.Text.Internal.Encoding.decodeUtf8: Invalid UTF-8 stream"
       (Any ())
   
-  
   Stack trace:
     ##raise
 
@@ -66,7 +65,6 @@ test2 = do
   The program halted with an unhandled exception:
   
     Failure (typeLink RuntimeFailure) "builtin.bug" (Any "whoa")
-  
   
   Stack trace:
     ##raise

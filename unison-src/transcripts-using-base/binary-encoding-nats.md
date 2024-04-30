@@ -1,13 +1,3 @@
-
-```ucm:hide
-.> builtins.merge
-.> builtins.mergeio
-.> cd builtin
-.> load unison-src/transcripts-using-base/base.u
-.> add
-.> find
-```
-
 ```unison
 unique type EncDec = EncDec Text (Nat -> Bytes) (Bytes -> Optional (Nat, Bytes))
 

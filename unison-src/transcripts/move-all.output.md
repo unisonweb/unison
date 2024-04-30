@@ -80,7 +80,7 @@ Should be able to move the term, type, and namespace, including its types, terms
   1. Bar      (Nat)
   2. Bar      (type)
   3. Bar/     (4 terms, 1 type)
-  4. builtin/ (641 terms, 92 types)
+  4. builtin/ (469 terms, 74 types)
 
 .> ls Bar
 

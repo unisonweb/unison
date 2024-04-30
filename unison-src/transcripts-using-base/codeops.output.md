@@ -134,8 +134,8 @@ verified name link =
   with handleTest ("verified " ++ name)
 
 rejected : Text -> [(Link.Term,Code)] ->{io2.IO} Result
-rejected name rco = 
-  handle verify name rco 
+rejected name rco =
+  handle verify name rco
   with expectFailure ("rejected " ++ name)
 
 missed : Text -> Link.Term -> Result

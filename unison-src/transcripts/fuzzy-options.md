@@ -34,7 +34,7 @@ Namespace args
 
 ```ucm
 .> add
-.> debug.fuzzy-options cd _
+.> debug.fuzzy-options find-in _
 ```
 
 Project Branch args
@@ -44,4 +44,3 @@ Project Branch args
 myproject/main> branch mybranch
 .> debug.fuzzy-options switch _
 ```
-
