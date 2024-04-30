@@ -16,7 +16,7 @@ import Control.Lens (Lens', view)
 import Data.Semialign (Semialign, alignWith)
 import Data.Semigroup.Generic (GenericSemigroupMonoid (..))
 import Data.These (These (These))
-import Data.Zip (Zip, unzipWith, zipWith)
+import Data.Zip (Unzip, Zip, unzipWith, zipWith)
 import Unison.Merge.EitherWay (EitherWay (..))
 import Unison.Prelude
 import Unison.Util.Defns (Defns (..), DefnsF)
@@ -37,6 +37,13 @@ instance Semialign TwoWay where
   alignWith :: (These a b -> c) -> TwoWay a -> TwoWay b -> TwoWay c
   alignWith f =
     zipWith \x y -> f (These x y)
+
+instance Unzip TwoWay where
+  unzipWith :: (c -> (a, b)) -> TwoWay c -> (TwoWay a, TwoWay b)
+  unzipWith f (TwoWay cx cy) =
+    let (ax, bx) = f cx
+        (ay, by) = f cy
+     in (TwoWay ax ay, TwoWay bx by)
 
 instance Zip TwoWay where
   zipWith :: (a -> b -> c) -> TwoWay a -> TwoWay b -> TwoWay c

@@ -44,6 +44,7 @@ data PrettyPrintEnv = PrettyPrintEnv
     -- names for types; e.g. [(original name, possibly suffixified name)]
     typeNames :: Reference -> [(HQ'.HashQualified Name, HQ'.HashQualified Name)]
   }
+  deriving stock (Generic)
 
 allTermNames :: PrettyPrintEnv -> Referent -> [HQ'.HashQualified Name]
 allTermNames ppe = fmap snd . termNames ppe

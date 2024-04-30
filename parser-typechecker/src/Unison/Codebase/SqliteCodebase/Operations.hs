@@ -228,6 +228,13 @@ getDeclComponent h =
     decl2 <- Ops.loadDeclComponent h
     pure (map (Cv.decl2to1 h) decl2)
 
+-- | Like 'getDeclComponent', for when the decl component is known to exist in the codebase.
+expectDeclComponent :: (HasCallStack) => Hash -> Transaction [Decl Symbol Ann]
+expectDeclComponent hash =
+  getDeclComponent hash <&> \case
+    Nothing -> error (reportBug "E101611" ("decl component " ++ show hash ++ " not found"))
+    Just decls -> decls
+
 putTermComponent ::
   TVar (Map Hash TermBufferEntry) ->
   TVar (Map Hash DeclBufferEntry) ->

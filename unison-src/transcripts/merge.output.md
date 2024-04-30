@@ -869,10 +869,15 @@ project/alice> merge /bob
 
 ```
 ```unison:added-by-ucm scratch.u
+-- The definitions below are not conflicted, but they each depend on one or more
+-- conflicted definitions above.
+
 bar : Text
 bar =
   use Text ++
   foo ++ foo
+
+
 ```
 
 ## Merge failure: type error
@@ -984,10 +989,15 @@ project/alice> merge /bob
 
 ```
 ```unison:added-by-ucm scratch.u
+-- The definitions below are not conflicted, but they each depend on one or more
+-- conflicted definitions above.
+
 bar : Text
 bar =
   use Text ++
   foo ++ foo
+
+
 ```
 
 ## Merge failure: simple term conflict
@@ -1121,16 +1131,23 @@ project/alice> merge /bob
 
 ```
 ```unison:added-by-ucm scratch.u
+-- project/alice
 foo : Text
 foo = "alices foo"
 
+-- project/bob
 foo : Text
 foo = "bobs foo"
+
+-- The definitions below are not conflicted, but they each depend on one or more
+-- conflicted definitions above.
 
 qux : Text
 qux =
   use Text ++
   "alices qux depends on alices foo" ++ foo
+
+
 ```
 
 ```ucm
@@ -1249,9 +1266,13 @@ project/alice> merge /bob
 
 ```
 ```unison:added-by-ucm scratch.u
+-- project/alice
 type Foo = MkFoo Nat Nat
 
+-- project/bob
 type Foo = MkFoo Nat Text
+
+
 ```
 
 ## Merge failure: type-update + constructor-rename conflict
@@ -1353,9 +1374,13 @@ project/alice> merge /bob
 
 ```
 ```unison:added-by-ucm scratch.u
+-- project/alice
 type Foo = Qux Text | Baz Nat Nat
 
+-- project/bob
 type Foo = Baz Nat | BobQux Text
+
+
 ```
 
 ## Merge failure: constructor-rename conflict
@@ -1418,9 +1443,13 @@ project/alice> merge bob
 
 ```
 ```unison:added-by-ucm scratch.u
-type Foo = Bob Text | Alice Nat
+-- project/alice
+type Foo = Qux Text | Alice Nat
 
-type Foo = Bob Text | Alice Nat
+-- project/bob
+type Foo = Bob Text | Baz Nat
+
+
 ```
 
 ## Precondition violations
