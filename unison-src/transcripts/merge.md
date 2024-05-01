@@ -273,6 +273,57 @@ project/alice> view foo
 .> project.delete project
 ```
 
+## Library dependencies always merge cleanly
+
+Library dependencies can't cause conflicts – they are just unioned together. If two library dependencies have the same
+name but different hashes, then the merge algorithm makes up two fresh names.
+
+```ucm:hide
+.> project.create-empty project
+project/main> builtins.mergeio
+```
+
+```ucm
+project/main> branch alice
+```
+
+```unison
+lib.alice.foo : Nat
+lib.alice.foo = 17
+
+lib.bothSame.bar : Nat
+lib.bothSame.bar = 18
+
+lib.bothDifferent.baz : Nat
+lib.bothDifferent.baz = 19
+```
+
+```ucm
+project/alice> add
+project/main> branch bob
+```
+
+```unison
+lib.bob.foo : Nat
+lib.bob.foo = 20
+
+lib.bothSame.bar : Nat
+lib.bothSame.bar = 18
+
+lib.bothDifferent.baz : Nat
+lib.bothDifferent.baz = 21
+```
+
+```ucm
+project/bob> add
+project/alice> merge bob
+project/alice> view foo bar baz
+```
+
+```ucm:hide
+.> project.delete project
+```
+
 ## No-op merge (Bob = Alice)
 
 If Bob is equals Alice, then merging Bob into Alice looks like this.
