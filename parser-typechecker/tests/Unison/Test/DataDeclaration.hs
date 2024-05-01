@@ -18,13 +18,13 @@ import Unison.Reference qualified as R
 import Unison.Symbol (Symbol)
 import Unison.Test.Common qualified as Common
 import Unison.Type qualified as Type
-import Unison.UnisonFile (UnisonFile, UnisonFile' (..))
+import Unison.UnisonFile (UnisonFile (..))
 import Unison.Var qualified as Var
 
 test :: Test ()
 test =
   scope "datadeclaration" $
-    let hashes = fromRight (error "Expected Right") $ Hashing.hashDataDecls . (snd . runIdentity <$>) . dataDeclarationsId $ file
+    let hashes = fromRight (error "Expected Right") $ Hashing.hashDataDecls . (snd <$>) . dataDeclarationsId $ file
         hashMap = Map.fromList $ fmap (\(a, b, _) -> (a, b)) hashes
         hashOf k = Map.lookup (Var.named k) hashMap
      in tests
