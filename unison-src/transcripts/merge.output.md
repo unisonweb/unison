@@ -1452,6 +1452,376 @@ type Foo = Bob Text | Baz Nat
 
 ```
 
+## Merge failure: non-constsructor/constructor conflict
+
+It's possible for a term conflict to involve a constructor on one side and a not-a-constructor on the other.
+
+```ucm
+project/main> branch alice
+
+  Done. I've created the alice branch based off of main.
+  
+  Tip: To merge your work back into the main branch, first
+       `switch /main` then `merge /alice`.
+
+```
+```unison
+my.cool.thing : Nat
+my.cool.thing = 17
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      my.cool.thing : Nat
+
+```
+```ucm
+project/alice> add
+
+  ⍟ I've added these definitions:
+  
+    my.cool.thing : Nat
+
+project/main> branch bob
+
+  Done. I've created the bob branch based off of main.
+  
+  Tip: To merge your work back into the main branch, first
+       `switch /main` then `merge /bob`.
+
+```
+```unison
+unique ability my.cool where
+  thing : Nat -> Nat
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      ability my.cool
+
+```
+```ucm
+project/bob> add
+
+  ⍟ I've added these definitions:
+  
+    ability my.cool
+
+```
+```ucm
+project/alice> merge bob
+
+  I couldn't automatically merge bob into alice. However, I've
+  added the definitions that need attention to the top of
+  scratch.u.
+
+```
+```unison:added-by-ucm scratch.u
+-- project/alice
+my.cool.thing : Nat
+my.cool.thing = 17
+
+-- project/bob
+ability my.cool where thing : Nat ->{cool} Nat
+
+
+```
+
+## Merge algorithm quirk: the "not-conflict conflict"
+
+Since a conflicted type declaration must bring into the scratch file (for conflict resolution) all of its constructors,
+it's possible that an unconflicted thing gets ultimately presented as a conflict.
+
+In this example, Alice and Bob have a disagreement about what the type "Foo" refers to, so their constructors
+("Foo.Alice" and "Foo.Bob") are brought into the scratch file.
+
+But Bob updated "Foo.Bob", and Alice didn't touch it! Nonetheless, her untouched "Foo.Bar" term is considered in
+conflict with Bob's.
+
+```unison
+Foo.Bar : Nat
+Foo.Bar = 17
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      Foo.Bar : Nat
+
+```
+```ucm
+project/main> add
+
+  ⍟ I've added these definitions:
+  
+    Foo.Bar : Nat
+
+project/main> branch alice
+
+  Done. I've created the alice branch based off of main.
+  
+  Tip: To merge your work back into the main branch, first
+       `switch /main` then `merge /alice`.
+
+```
+```unison
+unique type Foo = Alice Nat
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      type Foo
+
+```
+```ucm
+project/alice> add
+
+  ⍟ I've added these definitions:
+  
+    type Foo
+
+project/main> branch bob
+
+  Done. I've created the bob branch based off of main.
+  
+  Tip: To merge your work back into the main branch, first
+       `switch /main` then `merge /bob`.
+
+project/bob> delete.term Foo.Bar
+
+  Done.
+
+```
+```unison
+unique type Foo = Bar Nat Nat
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      type Foo
+
+```
+```ucm
+project/bob> add
+
+  ⍟ I've added these definitions:
+  
+    type Foo
+
+```
+```ucm
+project/alice> merge bob
+
+  I couldn't automatically merge bob into alice. However, I've
+  added the definitions that need attention to the top of
+  scratch.u.
+
+```
+```unison:added-by-ucm scratch.u
+-- project/alice
+Foo.Bar : Nat
+Foo.Bar = 17
+
+-- project/alice
+type Foo = Alice Nat
+
+-- project/bob
+type Foo = Bar Nat Nat
+
+
+```
+
+Here's a more complicated example that demonstrates the same idea.
+
+In the LCA, we have a type with two constructors, and some term.
+
+```unison
+unique type Foo
+  = Bar.Baz Nat
+  | Bar.Qux Nat Nat
+
+Foo.Bar.Hello : Nat
+Foo.Bar.Hello = 17
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      type Foo
+      Foo.Bar.Hello : Nat
+
+```
+```ucm
+project/main> add
+
+  ⍟ I've added these definitions:
+  
+    type Foo
+    Foo.Bar.Hello : Nat
+
+```
+Alice deletes this type entirely, and repurposes its constructor names for other terms. She also updates the term.
+
+```ucm
+project/main> branch alice
+
+  Done. I've created the alice branch based off of main.
+  
+  Tip: To merge your work back into the main branch, first
+       `switch /main` then `merge /alice`.
+
+project/alice> delete.type Foo
+
+  Done.
+
+project/alice> delete.term Foo.Bar.Baz
+
+  Done.
+
+project/alice> delete.term Foo.Bar.Qux
+
+  Done.
+
+```
+```unison
+Foo.Bar.Baz : Nat
+Foo.Bar.Baz = 100
+
+Foo.Bar.Qux : Nat
+Foo.Bar.Qux = 200
+
+Foo.Bar.Hello : Nat
+Foo.Bar.Hello = 18
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      Foo.Bar.Baz : Nat
+      Foo.Bar.Qux : Nat
+    
+    ⍟ These names already exist. You can `update` them to your
+      new definition:
+    
+      Foo.Bar.Hello : Nat
+
+```
+```ucm
+project/alice> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+```
+Bob, meanwhile, first deletes the term, then sort of deletes the type and re-adds it under another name, but one
+constructor's name doesn't actually change. The other constructor takes the name of the deleted term.
+
+```ucm
+project/main> branch bob
+
+  Done. I've created the bob branch based off of main.
+  
+  Tip: To merge your work back into the main branch, first
+       `switch /main` then `merge /bob`.
+
+project/bob> delete.term Foo.Bar.Hello
+
+  Done.
+
+project/bob> move.type Foo Foo.Bar
+
+  Done.
+
+project/bob> move.term Foo.Bar.Qux Foo.Bar.Hello
+
+  Done.
+
+```
+At this point, Bob and alice have both updated the name "Foo.Bar.Hello" in different ways, so that's a conflict.
+Therefore, Bob's entire type ("Foo.Bar" with constructors "Foo.Bar.Baz" and "Foo.Bar.Hello") gets rendered into the
+scratch file.
+
+Notably, Alice's "unconflicted" update on the name "Foo.Bar.Baz" (because she changed its hash and Bob didn't touch it)
+is nonetheless considered conflicted with Bob's "Foo.Bar.Baz".
+
+```ucm
+project/alice> merge bob
+
+  I couldn't automatically merge bob into alice. However, I've
+  added the definitions that need attention to the top of
+  scratch.u.
+
+```
+```unison:added-by-ucm scratch.u
+-- project/alice
+Foo.Bar.Baz : Nat
+Foo.Bar.Baz = 100
+
+-- project/alice
+Foo.Bar.Hello : Nat
+Foo.Bar.Hello = 18
+
+-- project/bob
+type Foo.Bar = Hello Nat Nat | Baz Nat
+
+
+```
+
 ## Precondition violations
 
 Let's see a number of merge precondition violations. These are conditions under which we can't perform a merge, and the

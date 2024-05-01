@@ -605,6 +605,169 @@ project/alice> merge bob
 .> project.delete project
 ```
 
+## Merge failure: non-constsructor/constructor conflict
+
+It's possible for a term conflict to involve a constructor on one side and a not-a-constructor on the other.
+
+```ucm:hide
+.> project.create-empty project
+project/main> builtins.mergeio
+```
+
+```ucm
+project/main> branch alice
+```
+
+```unison
+my.cool.thing : Nat
+my.cool.thing = 17
+```
+
+```ucm
+project/alice> add
+project/main> branch bob
+```
+
+```unison
+unique ability my.cool where
+  thing : Nat -> Nat
+```
+
+```ucm
+project/bob> add
+```
+
+```ucm:error
+project/alice> merge bob
+```
+
+```ucm:hide
+.> project.delete project
+```
+
+## Merge algorithm quirk: the "not-conflict conflict"
+
+Since a conflicted type declaration must bring into the scratch file (for conflict resolution) all of its constructors,
+it's possible that an unconflicted thing gets ultimately presented as a conflict.
+
+In this example, Alice and Bob have a disagreement about what the type "Foo" refers to, so their constructors
+("Foo.Alice" and "Foo.Bob") are brought into the scratch file.
+
+But Bob updated "Foo.Bob", and Alice didn't touch it! Nonetheless, her untouched "Foo.Bar" term is considered in
+conflict with Bob's.
+
+```ucm:hide
+.> project.create-empty project
+project/main> builtins.mergeio
+```
+
+```unison
+Foo.Bar : Nat
+Foo.Bar = 17
+```
+
+```ucm
+project/main> add
+project/main> branch alice
+```
+
+```unison
+unique type Foo = Alice Nat
+```
+
+```ucm
+project/alice> add
+project/main> branch bob
+project/bob> delete.term Foo.Bar
+```
+
+```unison
+unique type Foo = Bar Nat Nat
+```
+
+```ucm
+project/bob> add
+```
+
+```ucm:error
+project/alice> merge bob
+```
+
+```ucm:hide
+.> project.delete project
+```
+
+Here's a more complicated example that demonstrates the same idea.
+
+```ucm:hide
+.> project.create-empty project
+project/main> builtins.mergeio
+```
+
+In the LCA, we have a type with two constructors, and some term.
+
+```unison
+unique type Foo
+  = Bar.Baz Nat
+  | Bar.Qux Nat Nat
+
+Foo.Bar.Hello : Nat
+Foo.Bar.Hello = 17
+```
+
+```ucm
+project/main> add
+```
+
+Alice deletes this type entirely, and repurposes its constructor names for other terms. She also updates the term.
+
+```ucm
+project/main> branch alice
+project/alice> delete.type Foo
+project/alice> delete.term Foo.Bar.Baz
+project/alice> delete.term Foo.Bar.Qux
+```
+
+```unison
+Foo.Bar.Baz : Nat
+Foo.Bar.Baz = 100
+
+Foo.Bar.Qux : Nat
+Foo.Bar.Qux = 200
+
+Foo.Bar.Hello : Nat
+Foo.Bar.Hello = 18
+```
+
+```ucm
+project/alice> update
+```
+
+Bob, meanwhile, first deletes the term, then sort of deletes the type and re-adds it under another name, but one
+constructor's name doesn't actually change. The other constructor takes the name of the deleted term.
+
+```ucm
+project/main> branch bob
+project/bob> delete.term Foo.Bar.Hello
+project/bob> move.type Foo Foo.Bar
+project/bob> move.term Foo.Bar.Qux Foo.Bar.Hello
+```
+
+At this point, Bob and alice have both updated the name "Foo.Bar.Hello" in different ways, so that's a conflict.
+Therefore, Bob's entire type ("Foo.Bar" with constructors "Foo.Bar.Baz" and "Foo.Bar.Hello") gets rendered into the
+scratch file.
+
+Notably, Alice's "unconflicted" update on the name "Foo.Bar.Baz" (because she changed its hash and Bob didn't touch it)
+is nonetheless considered conflicted with Bob's "Foo.Bar.Baz".
+
+```ucm:error
+project/alice> merge bob
+```
+
+```ucm:hide
+.> project.delete project
+```
+
 ## Precondition violations
 
 Let's see a number of merge precondition violations. These are conditions under which we can't perform a merge, and the
