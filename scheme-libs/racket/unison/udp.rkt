@@ -62,9 +62,8 @@
      (let* ([pport (string->number (chunked-string->string port))]
             [hhost (chunked-string->string host)]
             [sock (udp-open-socket hhost pport)]
-            [bound-sock (udp-bind! sock hhost pport)]
-            [connected-sock (udp-connect! bound-sock hhost pport)])
-       (right connected-sock))))))
+            [res (udp-connect! sock hhost pport)])
+       (right sock))))))
 
 
 (define (UDP.UDPSocket.recv.impl.v1 socket) ; socket -> bytes
